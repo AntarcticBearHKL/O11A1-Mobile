@@ -32,8 +32,6 @@
   const moduleTitle = $('#moduleTitle');
   const moduleMenu = $('#moduleMenu');
   const homeNote = $('#homeNote');
-  const playlistList = $('#playlistList');
-  const playlistCount = $('#playlistCount');
   const myPlaylistCount = $('#myPlaylistCount');
   const tabbar = $('#tabbar');
   const tabbarTabs = $('#tabbarTabs');
@@ -103,12 +101,11 @@
     { id: 'messages', label: '消息', icon: '✉', type: 'page', target: 'messages', group: '桌面端' },
     { id: 'history', label: '历史', icon: '↺', type: 'module', target: '历史', group: '桌面端' },
     { id: 'refresh', label: '刷新', icon: '↻', type: 'refresh', group: '桌面端' },
-    { id: 'playlist', label: '播放列表', icon: '☰', type: 'page', target: 'playlist', group: '移动端' },
     { id: 'my', label: '我的', icon: '◌', type: 'page', target: 'my', group: '移动端' },
   ];
 
-  const DEFAULT_NAV_SELECTED = ['home', 'dynamic', 'playlist', 'messages', 'my'];
-  const PAGE_NAV = { home: 'home', dynamic: 'dynamic', playlist: 'playlist', messages: 'messages', my: 'my' };
+  const DEFAULT_NAV_SELECTED = ['home', 'favorite', 'dynamic', 'messages', 'my'];
+  const PAGE_NAV = { home: 'home', dynamic: 'dynamic', messages: 'messages', my: 'my' };
 
   const DEFAULT_SETTINGS = {
     defaultQuality: '最高',
@@ -213,6 +210,9 @@
       ? value.filter((id) => NAV_ITEMS.some((item) => item.id === id))
       : [];
     const unique = [...new Set(valid)].slice(0, 5);
+    DEFAULT_NAV_SELECTED.forEach((id) => {
+      if (unique.length < 5 && !unique.includes(id)) unique.push(id);
+    });
     return unique.length ? unique : DEFAULT_NAV_SELECTED.slice();
   }
 
@@ -382,7 +382,7 @@
       tab.dataset.nav = item.id;
       tab.setAttribute('aria-label', item.label);
       tab.innerHTML = `
-        <span class="tab-ico">${item.icon}${item.id === 'playlist' ? '<span class="tab-count" id="tabPlaylistCount" hidden>0</span>' : ''}</span>
+        <span class="tab-ico">${item.icon}</span>
         <span class="tab-label">${escapeHTML(item.label)}</span>
         <span class="tab-dot"></span>`;
       tab.addEventListener('click', () => handleNav(item, tab));
@@ -656,13 +656,13 @@
     if (!state.navAllVisible) renderNav();
   }
 
-  /* ---------- playlist ---------- */
+  /* ---------- queue / playlist (lives in the bottom bar) ---------- */
   function playlistItemMarkup(item, index, current, removable) {
     return `
       <span class="pl-index">${String(index + 1).padStart(2, '0')}</span>
       <span class="pl-thumb"><span class="ph-label">封面</span></span>
       <span class="pl-copy">
-        <span class="pl-title">${escapeHTML(item.title)}${current ? '<span class="pl-badge">播放中</span>' : ''}</span>
+        <span class="pl-title">${escapeHTML(item.title)}${current ? '<span class="pl-badge">当前</span>' : ''}</span>
         <span class="pl-meta">${escapeHTML(item.meta)}</span>
       </span>
       ${removable ? '<button class="pl-remove" type="button" title="移出播放列表">×</button>' : ''}`;
@@ -670,74 +670,16 @@
 
   function updatePlaylistCounts() {
     const count = state.playlist.length;
-    playlistCount.textContent = `${count} 项`;
     myPlaylistCount.textContent = `${count} 项`;
-    const badge = document.getElementById('tabPlaylistCount');
-    if (badge) {
-      badge.textContent = String(count);
-      badge.hidden = count === 0;
-    }
-
-    const clearButton = $('#clearPlaylist');
-    clearButton.hidden = count === 0;
-    if (count === 0) {
-      clearArmed = false;
-      clearTimeout(clearTimer);
-      clearButton.textContent = '清空';
-      clearButton.classList.remove('danger');
-    }
-  }
-
-  function renderPlaylist() {
-    playlistList.innerHTML = '';
-    if (!state.playlist.length) {
-      const empty = document.createElement('div');
-      empty.className = 'empty-state';
-      empty.innerHTML = `
-        <span class="empty-ico">☰</span>
-        <b>播放列表是空的</b>
-        <p>在视频详情或播放器里加入队列，随时接着看。</p>
-        <button class="pill-btn" type="button" data-goto="home">去首页看看</button>`;
-      playlistList.appendChild(empty);
-      updatePlaylistCounts();
-      return;
-    }
-
-    state.playlist.forEach((item, index) => {
-      const row = document.createElement('div');
-      row.className = `playlist-item${index === state.currentIndex ? ' current' : ''}`;
-      row.setAttribute('role', 'button');
-      row.tabIndex = 0;
-      row.innerHTML = playlistItemMarkup(item, index, index === state.currentIndex, true);
-
-      row.addEventListener('click', (event) => {
-        if (event.target.closest('.pl-remove')) return;
-        setCurrent(index, false);
-      });
-      row.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          setCurrent(index, false);
-        }
-      });
-
-      const remove = $('.pl-remove', row);
-      remove.addEventListener('click', (event) => {
-        event.stopPropagation();
-        removeFromPlaylist(index);
-      });
-
-      playlistList.appendChild(row);
-    });
-
-    updatePlaylistCounts();
+    const sheetCount = document.getElementById('queueCount');
+    if (sheetCount) sheetCount.textContent = `${count} 项`;
   }
 
   function setCurrent(index, closeSheetAfter) {
     if (index < 0 || index >= state.playlist.length) return;
     state.currentIndex = index;
-    renderPlaylist();
     updatePlayerLabels();
+    updatePlaylistCounts();
     save();
     if (closeSheetAfter) closeSheet();
   }
@@ -748,9 +690,10 @@
     else if (state.currentIndex > index) state.currentIndex -= 1;
     else if (state.currentIndex >= state.playlist.length) state.currentIndex = state.playlist.length - 1;
     if (!state.playlist.length && (state.playerOpen || state.miniVisible)) stopPlayback();
-    renderPlaylist();
     updatePlayerLabels();
+    updatePlaylistCounts();
     save();
+    refreshQueueSheet();
   }
 
   function addToPlaylist(title) {
@@ -760,18 +703,28 @@
       title: title || `视频占位 ${String(index).padStart(2, '0')}`,
       meta: `UP 占位 ${String(index).padStart(2, '0')} · 00:00`,
     });
-    renderPlaylist();
     updatePlayerLabels();
+    updatePlaylistCounts();
     save();
+    refreshQueueSheet();
   }
 
   function clearPlaylist() {
     state.playlist = [];
     state.currentIndex = 0;
+    clearArmed = false;
+    clearTimeout(clearTimer);
     if (state.playerOpen || state.miniVisible) stopPlayback();
-    renderPlaylist();
     updatePlayerLabels();
+    updatePlaylistCounts();
     save();
+    refreshQueueSheet();
+  }
+
+  function refreshQueueSheet() {
+    if (psheet.dataset.kind === 'queue' && psheet.classList.contains('open')) {
+      openQueueSheet();
+    }
   }
 
   /* ---------- player ---------- */
@@ -805,6 +758,7 @@
     miniPlayer.inert = false;
     miniPlayer.classList.add('show');
     miniPlayer.setAttribute('aria-hidden', 'false');
+    tabbar.classList.add('has-dock');
     app.classList.add('mini-open');
     document.body.classList.add('mini-open');
   }
@@ -815,6 +769,7 @@
     miniPlayer.classList.remove('show');
     miniPlayer.setAttribute('aria-hidden', 'true');
     miniPlayer.inert = true;
+    tabbar.classList.remove('has-dock');
     app.classList.remove('mini-open');
     document.body.classList.remove('mini-open');
   }
@@ -1054,6 +1009,7 @@
 
   /* ---------- sheets ---------- */
   function openSheet(title, sub, build) {
+    psheet.dataset.kind = '';
     psheetTitle.textContent = title;
     psheetSub.textContent = sub || '';
     psheetBody.innerHTML = '';
@@ -1096,35 +1052,72 @@
 
   function openQueueSheet() {
     const count = state.playlist.length;
-    openSheet('播放列表', `${count} 项 · 点击切换当前播放`, (body) => {
+    clearArmed = false;
+    clearTimeout(clearTimer);
+    openSheet('播放列表', `${count} 项 · 队列固定在底部播放行`, (body) => {
       if (!count) {
         const empty = document.createElement('div');
         empty.className = 'empty-state';
         empty.style.padding = '28px 12px';
-        empty.innerHTML = '<span class="empty-ico">☰</span><b>队列是空的</b><p>从视频详情加入后，这里就是播放队列。</p>';
+        empty.innerHTML = `
+          <span class="empty-ico">☰</span>
+          <b>播放列表是空的</b>
+          <p>在视频详情或播放器里加入队列，随时接着看。</p>
+          <button class="pill-btn" type="button" id="queueEmptyHome">去首页看看</button>`;
         body.appendChild(empty);
+        $('#queueEmptyHome', body).addEventListener('click', () => {
+          closeSheet();
+          showPage('home');
+        });
         return;
       }
+
       state.playlist.forEach((item, index) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = `queue-item${index === state.currentIndex ? ' on' : ''}`;
-        button.innerHTML = playlistItemMarkup(item, index, index === state.currentIndex, false);
-        button.addEventListener('click', () => {
+        const row = document.createElement('div');
+        row.className = `queue-item${index === state.currentIndex ? ' on' : ''}`;
+        row.setAttribute('role', 'button');
+        row.tabIndex = 0;
+        row.innerHTML = playlistItemMarkup(item, index, index === state.currentIndex, true);
+        row.addEventListener('click', (event) => {
+          if (event.target.closest('.pl-remove')) return;
           setCurrent(index, true);
         });
-        body.appendChild(button);
+        row.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setCurrent(index, true);
+          }
+        });
+        const remove = $('.pl-remove', row);
+        remove.addEventListener('click', (event) => {
+          event.stopPropagation();
+          removeFromPlaylist(index);
+        });
+        body.appendChild(row);
       });
-      const openPage = document.createElement('button');
-      openPage.type = 'button';
-      openPage.className = 'opt';
-      openPage.innerHTML = '<span>打开播放列表页</span><span class="meta">管理队列 ›</span>';
-      openPage.addEventListener('click', () => {
-        closeSheet();
-        showPage('playlist');
+
+      const clear = document.createElement('button');
+      clear.type = 'button';
+      clear.className = 'opt queue-clear';
+      clear.innerHTML = '<span>清空队列</span><span class="meta">停止播放</span>';
+      clear.addEventListener('click', () => {
+        if (!clearArmed) {
+          clearArmed = true;
+          clear.textContent = '确认清空';
+          clear.classList.add('on');
+          clearTimeout(clearTimer);
+          clearTimer = setTimeout(() => {
+            clearArmed = false;
+            clear.textContent = '清空队列';
+            clear.classList.remove('on');
+          }, 5000);
+          return;
+        }
+        clearPlaylist();
       });
-      body.appendChild(openPage);
+      body.appendChild(clear);
     });
+    psheet.dataset.kind = 'queue';
   }
 
   function actionRow(body, label, value, run) {
@@ -1471,7 +1464,7 @@
 
   /* ---------- search / commands ---------- */
   const COMMANDS = [
-    { icon: '☰', label: '播放列表', meta: '队列', run: () => showPage('playlist') },
+    { icon: '☰', label: '播放列表', meta: '队列', run: openQueueSheet },
     { icon: '◫', label: '主页模块', meta: '自定义', run: () => showPage('modules', 'my') },
     { icon: '⚙', label: '设置', meta: '全部', run: () => showPage('settings', 'my') },
     { icon: '▤', label: '底部导航', meta: '自选 5 个', run: () => showPage('nav', 'my') },
@@ -1580,6 +1573,13 @@
 
   /* ---------- event wiring ---------- */
   document.addEventListener('click', (event) => {
+    const queueTarget = event.target.closest('[data-queue]');
+    if (queueTarget) {
+      openQueueSheet();
+      closeDrawer();
+      return;
+    }
+
     const goto = event.target.closest('[data-goto]');
     if (goto) {
       const target = goto.dataset.goto;
@@ -1691,28 +1691,6 @@
     });
   });
 
-  const clearPlaylistBtn = $('#clearPlaylist');
-  clearPlaylistBtn.addEventListener('click', () => {
-    if (!state.playlist.length) return;
-    if (!clearArmed) {
-      clearArmed = true;
-      clearPlaylistBtn.textContent = '确认清空';
-      clearPlaylistBtn.classList.add('danger');
-      clearTimeout(clearTimer);
-      clearTimer = setTimeout(() => {
-        clearArmed = false;
-        clearPlaylistBtn.textContent = '清空';
-        clearPlaylistBtn.classList.remove('danger');
-      }, 5000);
-      return;
-    }
-    clearArmed = false;
-    clearTimeout(clearTimer);
-    clearPlaylistBtn.textContent = '清空';
-    clearPlaylistBtn.classList.remove('danger');
-    clearPlaylist();
-  });
-
   dynamicFilter.addEventListener('click', () => {
     state.dynamicFilterIndex = (state.dynamicFilterIndex + 1) % DYNAMIC_FILTERS.length;
     dynamicFilter.textContent = `${DYNAMIC_FILTERS[state.dynamicFilterIndex]} ⌄`;
@@ -1746,6 +1724,7 @@
 
   $('#miniOpen').addEventListener('click', () => openPlayer({ resume: true }));
   miniPlay.addEventListener('click', togglePlay);
+  $('#miniQueue').addEventListener('click', openQueueSheet);
   $('#miniClose').addEventListener('click', stopPlayback);
 
   playerStage.addEventListener('pointerdown', startPlayerDrag);
@@ -1873,7 +1852,6 @@
   renderModuleSettings();
   renderNav();
   renderNavSettings();
-  renderPlaylist();
   renderCommands('');
   updatePlayerLabels();
   updateSearch();

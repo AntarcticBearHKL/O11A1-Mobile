@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=5">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -71,7 +71,7 @@
           </div>
           <div class="section-label" id="commandLabel">快速命令</div>
           <div class="command-list" id="commandList">
-            <button class="command-row" data-goto="playlist"><span class="cmd-ico">☰</span><span>播放列表</span><span class="cmd-meta">队列</span></button>
+            <button class="command-row" data-queue><span class="cmd-ico">☰</span><span>播放列表</span><span class="cmd-meta">队列</span></button>
             <button class="command-row" data-goto="modules"><span class="cmd-ico">◫</span><span>主页模块</span><span class="cmd-meta">设置</span></button>
             <button class="command-row" data-goto="settings"><span class="cmd-ico">⚙</span><span>设置</span><span class="cmd-meta">全部</span></button>
             <button class="command-row" data-command="switch-module"><span class="cmd-ico">⌄</span><span>切换模块</span><span class="cmd-meta">首页</span></button>
@@ -126,16 +126,6 @@
           </div>
         </section>
 
-        <!-- 播放列表 -->
-        <section class="page" data-page="playlist">
-          <div class="page-top">
-            <b>播放列表</b>
-            <span class="my-meta" id="playlistCount">0 项</span>
-            <button class="text-btn" id="clearPlaylist">清空</button>
-          </div>
-          <div class="playlist" id="playlistList"></div>
-        </section>
-
         <!-- 动态 -->
         <section class="page" data-page="dynamic">
           <div class="page-top">
@@ -176,7 +166,7 @@
             <span class="vip-ph">VIP 占位</span>
           </button>
           <div class="my-list">
-            <button class="my-row" data-goto="playlist"><span>播放列表</span><span class="my-meta" id="myPlaylistCount">0 项</span></button>
+            <button class="my-row" data-queue><span>播放列表</span><span class="my-meta" id="myPlaylistCount">0 项</span></button>
             <button class="my-row" data-module="收藏"><span>收藏</span><span class="my-meta">收藏夹 / 推荐</span></button>
             <button class="my-row" data-module="历史"><span>历史</span><span class="my-meta">继续观看</span></button>
             <button class="my-row" data-module="关注"><span>关注</span><span class="my-meta">UP 动态</span></button>
@@ -281,7 +271,7 @@
             <b>底部导航</b>
             <span class="my-meta" id="navCount">5 / 5</span>
           </div>
-          <p class="page-desc">全量预览显示桌面端全部按钮；关掉后只显示下面勾选的 5 个。选择顺序就是底部顺序。</p>
+          <p class="page-desc">只选 5 个页面按钮；播放列表 / 队列固定在底栏播放行，不占名额。全量预览显示桌面端全部按钮；关掉后只显示下面勾选的 5 个。选择顺序就是底部顺序。</p>
           <div class="nav-mode-row">
             <span>全量预览</span>
             <button class="sheet-switch" id="navAllToggle" type="button" aria-label="全量预览"></button>
@@ -293,20 +283,20 @@
         </section>
       </div>
 
-      <div class="mini-player" id="miniPlayer" aria-hidden="true" inert>
-        <button class="mini-main" id="miniOpen" type="button" aria-label="展开播放器">
-          <span class="mini-cover"><span class="ph-label">封面</span></span>
-          <span class="mini-copy">
-            <b id="miniTitle">队列视频占位 01</b>
-            <small id="miniMeta">UP 占位 · 正在播放</small>
-          </span>
-        </button>
-        <button class="mini-play" id="miniPlay" type="button" aria-label="播放 / 暂停">Ⅱ</button>
-        <button class="mini-close" id="miniClose" type="button" aria-label="关闭播放">×</button>
-        <span class="mini-progress" aria-hidden="true"><i id="miniProgress"></i></span>
-      </div>
-
       <nav class="tabbar" id="tabbar" aria-label="主导航">
+        <div class="mini-player" id="miniPlayer" aria-hidden="true" inert>
+          <button class="mini-main" id="miniOpen" type="button" aria-label="展开播放器">
+            <span class="mini-cover"><span class="ph-label">封面</span></span>
+            <span class="mini-copy">
+              <b id="miniTitle">队列视频占位 01</b>
+              <small id="miniMeta">UP 占位 · 正在播放</small>
+            </span>
+          </button>
+          <button class="mini-play" id="miniPlay" type="button" aria-label="播放 / 暂停">Ⅱ</button>
+          <button class="mini-queue" id="miniQueue" type="button" aria-label="播放列表">☰</button>
+          <button class="mini-close" id="miniClose" type="button" aria-label="关闭播放">×</button>
+          <span class="mini-progress" aria-hidden="true"><i id="miniProgress"></i></span>
+        </div>
         <span class="tab-pill"></span>
         <div class="tabbar-track" id="tabbarTabs"></div>
         <div class="search-dock" id="searchDock">
@@ -346,7 +336,7 @@
       <button data-goto="home">首页</button>
       <button data-goto="search">搜索</button>
       <button data-goto="detail">详情</button>
-      <button data-goto="playlist">播放列表</button>
+      <button data-queue>队列</button>
       <button data-goto="dynamic">动态</button>
       <button data-goto="messages">消息</button>
       <button data-goto="my">我的</button>
@@ -358,11 +348,11 @@
     <div class="drawer-label">TOKENS</div>
     <div class="drawer-tokens">
       <div><span>App</span><b>430 × 100dvh</b></div>
-      <div><span>内容边距</span><b>16</b></div>
-      <div><span>行间</span><b>10</b></div>
-      <div><span>封面</span><b>142 × 80</b></div>
-      <div><span>Tab bar</span><b>54 / 27</b></div>
-      <div><span>Session</span><b>5 tabs</b></div>
+      <div><span>内容边距</span><b>18</b></div>
+      <div><span>行高</span><b>56 / 108</b></div>
+      <div><span>封面</span><b>150 × 84</b></div>
+      <div><span>Tab bar</span><b>58 / 29</b></div>
+      <div><span>Session</span><b>5 槽 / 11 全量</b></div>
       <div><span>Sheet</span><b>24 顶部圆角</b></div>
       <div><span>播放器</span><b>全屏横屏</b></div>
     </div>
@@ -414,6 +404,6 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./app.js"></script>
+  <script src="./app.js?v=5"></script>
 </body>
 </html>
