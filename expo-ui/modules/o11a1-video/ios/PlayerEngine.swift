@@ -251,10 +251,17 @@ final class PlayerEngine {
       kCVPixelBufferIOSurfacePropertiesKey as String: [String: Any]()
     ]
 
-    var specification: [String: Any] = [
-      kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder as String: true,
-      kVTVideoDecoderSpecification_RequireHardwareAcceleratedVideoDecoder as String: true
-    ]
+    var specification: [String: Any] = [:]
+    var canRequireHardware = false
+    if #available(iOS 17.0, *) {
+      specification[kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder as String] = true
+      specification[kVTVideoDecoderSpecification_RequireHardwareAcceleratedVideoDecoder as String] = true
+      canRequireHardware = true
+    }
+
+    var callbackRecord = VTDecompressionOutputCallbackRecord()
+    callbackRecord.decompressionOutputRefCon = contextPointer
+    callbackRecord.decompressionOutputCallback = callback
 
     var createdSession: VTDecompressionSession?
     var status = VTDecompressionSessionCreate(
@@ -262,33 +269,33 @@ final class PlayerEngine {
       formatDescription: format,
       decoderSpecification: specification as CFDictionary,
       imageBufferAttributes: attributes as CFDictionary,
-      outputCallback: callback,
-      decompressionOutputRefCon: contextPointer,
-      sessionOut: &createdSession
+      outputCallback: &callbackRecord,
+      decompressionSessionOut: &createdSession
     )
 
-    var usingHardware = status == noErr
-    if status != noErr {
-      specification.removeValue(
-        forKey: kVTVideoDecoderSpecification_RequireHardwareAcceleratedVideoDecoder as String
-      )
+    var didFallBack = false
+    if status != noErr && canRequireHardware {
+      didFallBack = true
+      if #available(iOS 17.0, *) {
+        specification.removeValue(
+          forKey: kVTVideoDecoderSpecification_RequireHardwareAcceleratedVideoDecoder as String
+        )
+      }
       status = VTDecompressionSessionCreate(
         allocator: kCFAllocatorDefault,
         formatDescription: format,
         decoderSpecification: specification as CFDictionary,
         imageBufferAttributes: attributes as CFDictionary,
-        outputCallback: callback,
-        decompressionOutputRefCon: contextPointer,
-        sessionOut: &createdSession
+        outputCallback: &callbackRecord,
+        decompressionSessionOut: &createdSession
       )
-      usingHardware = false
     }
 
     guard status == noErr, let session = createdSession else {
       Unmanaged<SessionContext>.fromOpaque(contextPointer).release()
       throw makeError("VTDecompressionSessionCreate failed (\(status))")
     }
-    setHardware(usingHardware)
+    setHardware(!didFallBack && (canRequireHardware || VTIsHardwareDecodeSupported(subtype)))
 
     defer {
       VTDecompressionSessionWaitForAsynchronousFrames(session)
