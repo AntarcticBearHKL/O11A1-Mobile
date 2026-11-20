@@ -1,5 +1,7 @@
 # O11A1 移动端视频测试
 
+![android-debug](https://github.com/AntarcticBearHKL/O11A1-Mobile/actions/workflows/android-debug.yml/badge.svg)
+
 两件事放在一起：
 
 - `expo-ui/`：Expo Go 里能直接看的测试页 UI（纯 JS，不含原生播放器）。
@@ -7,7 +9,7 @@
 
 > Expo Go 不能加载自定义原生模块。真正的硬解、插帧、CAS 必须用 Android Studio 构建这个原生工程，后面再接 Expo Development Build。
 >
-> 说明：当前机器没有安装 Android SDK，原生 APK 还没有在本机编译验证；Expo UI 已通过 TypeScript 和 Metro 导出。原生工程请用 Android Studio 或 `.github/workflows/android-debug.yml` 构建。
+> 说明：本机没有安装 Android SDK，原生 APK 已由 GitHub Actions 构建成功（`android-debug` workflow，artifact 约 7.9 MB）；本地真机运行还需要你安装到手机上验证。Expo UI 已通过 TypeScript、Metro 导出和 Web 预览。
 
 ## 1. Expo UI 预览
 
