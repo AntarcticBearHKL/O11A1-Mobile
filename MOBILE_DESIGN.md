@@ -369,21 +369,69 @@
 
 播放器始终深色；弹幕白字 + 细黑描边。
 
-### 6.2 字体
+### 6.2 背景与顶栏玻璃
+
+#### 桌面背景继承
+
+桌面端的「暖纸背景」不是一张纯色纸，而是三层叠加：
+
+1. 暖纸底色：`#F3EFE7`。
+2. 三组大范围径向光晕：
+   - 左上：暖桃色 `rgba(255,196,150,.30)`；
+   - 右上：冷蓝色 `rgba(149,177,255,.24)`；
+   - 下方中间：薄荷绿 `rgba(178,228,206,.20)`。
+3. 3px 点阵：`radial-gradient(rgba(30,26,20,.30) .45px, transparent .45px)`，`background-size:3px 3px`，整体透明度 `0.12`。
+
+移动端完整继承，不按页面换色：
+
+- 壁纸固定在 App 壳上，不随页面滚动；所有页面、登录、模块页共用。
+- 内容列表、卡片、设置行保持透明/暖纸 surface，不额外铺渐变。
+- 深色主题对应改为深暖棕 / 深蓝 / 深绿光晕，点阵透明度 `0.04`。
+- 壁纸只做静态渲染；不实时动画、不每帧重算 blur。
+- 实现建议：把三层光晕 + 点阵预渲染成一张 3x WebP/PNG，或 `react-native-svg` 的 3 个径向渐变 + `Pattern`；整张图固定，最省电，也保证 iOS/Android 完全一致。
+
+移动端尺寸按屏幕比例重算，不直接搬桌面的 1100×760 px：
+
+```css
+--wallpaper:
+  radial-gradient(120% 78% at 4% -12%, rgba(255,196,150,.30), transparent 62%),
+  radial-gradient(108% 72% at 104% 2%, rgba(149,177,255,.24), transparent 62%),
+  radial-gradient(96% 68% at 62% 110%, rgba(178,228,206,.20), transparent 64%);
+```
+
+#### 顶栏玻璃
+
+- 所有顶部栏：首页（52px）、页面头（52px）、搜索/命令面板（52px）统一使用玻璃。
+- 不是纯白实色条：半透明暖纸 + 背景模糊 + 1px 发丝线 + 内侧 1px 高光。
+- 内容从下方滚过时被玻璃模糊；滚动时玻璃自身不移动、不改变 blur 半径。
+- 顶部栏延伸到状态栏/刘海下面；标题和按钮在 safe-area 内；高度 = 安全区 + 52。
+- iOS 26+：`GlassView` / `GlassContainer`；旧 iOS：`BlurView` 或暖纸实色；Android 12+：`FrostedSurface`；旧 Android：半透明暖纸 + 发丝线。
+- iOS 落地注意：
+  - `expo-glass-effect` 是原生模块，需要 prebuild / dev build，Expo Go 里不生效。
+  - `GlassView` 不能放在 `opacity < 1` 的父视图里；父视图保持不透明。
+  - 顶栏用固定 52px 的 glass view + safe-area padding；不要直接用系统 `UINavigationBar`，否则会带入 Apple 的高度/insets/动效。
+  - 状态栏透明，玻璃延伸到刘海下面；标题和按钮放在 safe-area 内。
+  - 列表 `ScrollView` 全屏铺在玻璃下面，顶栏作为同级 overlay；不要只给 ScrollView 加背景，否则玻璃采样不到内容。
+  - 3px 点阵用 3x 平铺 PNG（例如 9×9）或 `UIColor(patternImage:)`，不要用几千个 CALayer。
+  - 120Hz 下玻璃是静态的；滚动时只让内容在玻璃下面移动，不每帧重算 blur。
+- 不建议直接用系统 `UINavigationBar`：它会带入 Apple 自己的高度、insets 和动效，Android 很难做到同一套 52px 布局。用固定 frame 的自定义玻璃条 + 共享 RN 内容，才能两端像素级一致。
+- 降低透明度开启时，顶部栏回退为暖纸实色，不显示玻璃。
+
+### 6.3 字体
 
 - 标题 / 按钮 / 数字：Chill Round Gothic 500/700（与桌面一致）。
 - 正文 / 评论：系统字体（SF / Roboto / 思源黑体）。
 - 数字：等宽数字（时间、帧率、码率）。
 - 正文 15–16pt；辅助 12–13pt；最小 11pt；支持动态字体。
 
-### 6.3 形状与间距
+### 6.4 形状与间距
 
 - 8pt 网格；卡片 18；sheet 24 顶部；tab bar 27；播放器控制 20；封面 12。
 - 页面左右 16；行间 9–10；底部安全区 + tab 高度。
 - 触控目标 ≥44×44；播放器控件 ≥44。
 - 内容卡片不铺玻璃；只有 tab / sheet / 播放器控制 / 模块菜单使用玻璃。
 
-### 6.4 动效
+### 6.5 动效
 
 - 页面 260ms `cubic-bezier(.16,1,.3,1)`；sheet 320ms；tab 药丸 300ms；按压 120ms。
 - 播放器控件 200ms 淡入/淡出；锁定 200ms。
@@ -391,7 +439,7 @@
 - 120Hz 下动画在原生/UI 线程；玻璃静态，不实时改 blur。
 - `prefers-reduced-motion` / 系统减少动态：动画 120ms 或关闭；保留功能反馈。
 
-### 6.5 组件
+### 6.6 组件
 
 - `VideoRow`（普通 / 直播 / 番剧 / 历史进度）
 - `ModuleSwitcher`、`ModuleMenu`、`ModuleToggle`

@@ -1419,6 +1419,10 @@
     document.body.classList.toggle('grid');
     $('#gridBtn').classList.toggle('on');
   });
+  $('#bgBtn').addEventListener('click', () => {
+    document.body.classList.toggle('flat-bg');
+    $('#bgBtn').classList.toggle('on');
+  });
   $('#motionBtn').addEventListener('click', () => {
     document.body.classList.toggle('reduce-motion');
     $('#motionBtn').classList.toggle('on');

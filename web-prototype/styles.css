@@ -15,6 +15,13 @@
   --radius:18px;
   --font-sans:"Chill Round Gothic","PingFang SC","HarmonyOS Sans SC","MiSans","Microsoft YaHei UI","Noto Sans SC",sans-serif;
   --font-mono:"SFMono-Regular","JetBrains Mono",Consolas,monospace;
+  --wallpaper:
+    radial-gradient(120% 78% at 4% -12%, rgba(255,196,150,.30), transparent 62%),
+    radial-gradient(108% 72% at 104% 2%, rgba(149,177,255,.24), transparent 62%),
+    radial-gradient(96% 68% at 62% 110%, rgba(178,228,206,.20), transparent 64%);
+  --wallpaper-opacity:.9;
+  --dots-opacity:.12;
+  --wallpaper-blur:0px;
 }
 
 body[data-platform="ios"]{
@@ -26,6 +33,9 @@ body[data-platform="ios"]{
   --sheet-border:rgba(255,255,255,.7);
   --player-glass:rgba(16,19,26,.42);
   --player-border:rgba(255,255,255,.22);
+  --topbar-bg:linear-gradient(180deg,rgba(255,252,246,.62),rgba(255,252,246,.36));
+  --topbar-border:rgba(255,255,255,.58);
+  --topbar-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 1px 0 rgba(30,26,20,.035);
 }
 body[data-platform="android"]{
   --glass-bg:rgba(255,252,246,.9);
@@ -36,6 +46,9 @@ body[data-platform="android"]{
   --sheet-border:rgba(228,220,207,.95);
   --player-glass:rgba(12,14,19,.78);
   --player-border:rgba(255,255,255,.12);
+  --topbar-bg:rgba(255,252,246,.88);
+  --topbar-border:rgba(228,220,207,.9);
+  --topbar-shadow:inset 0 1px 0 rgba(255,255,255,.6);
 }
 
 *{box-sizing:border-box}
@@ -120,15 +133,29 @@ i{font-style:normal}
   background:var(--paper);
   border:1px solid var(--line-strong);border-radius:34px;
   box-shadow:0 24px 60px rgba(30,30,36,.16),inset 0 1px 0 rgba(255,255,255,.75);
-  overflow:hidden;
+  overflow:hidden;isolation:isolate;
 }
+.app::before{
+  content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:var(--wallpaper);filter:blur(var(--wallpaper-blur));opacity:var(--wallpaper-opacity);
+}
+.app::after{
+  content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  opacity:var(--dots-opacity);
+  background-image:radial-gradient(rgba(30,26,20,.30) .45px,transparent .45px);
+  background-size:3px 3px;
+}
+body.flat-bg .app::before,
+body.flat-bg .app::after{display:none}
+body.flat-bg .app{background:var(--paper)}
 .statusbar{
+  position:relative;z-index:2;
   height:28px;flex:none;display:flex;align-items:center;justify-content:space-between;
   padding:0 20px;font-size:10px;font-weight:700;letter-spacing:.02em;color:var(--ink);
 }
 .status-icons{color:var(--muted);font-size:9.5px;font-weight:600}
 .app-scroll{
-  position:absolute;top:28px;left:0;right:0;bottom:0;
+  position:absolute;top:28px;left:0;right:0;bottom:0;z-index:1;
   overflow-y:auto;overflow-x:hidden;scrollbar-width:none;overscroll-behavior:contain;
 }
 .app-scroll::-webkit-scrollbar{display:none}
@@ -171,8 +198,11 @@ i{font-style:normal}
   position:sticky;top:0;z-index:30;
   display:flex;align-items:center;justify-content:space-between;gap:8px;
   height:52px;margin:0 -16px;padding:0 12px 0 16px;
-  background:linear-gradient(rgba(244,239,230,.96),rgba(244,239,230,.86) 70%,rgba(244,239,230,0));
-  backdrop-filter:blur(14px);
+  background:var(--topbar-bg);
+  border-bottom:1px solid var(--topbar-border);
+  box-shadow:var(--topbar-shadow);
+  backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
 }
 .module-btn{
   display:flex;align-items:center;gap:5px;border:0;background:none;
@@ -192,7 +222,7 @@ i{font-style:normal}
 .icon-btn.light:hover{background:rgba(255,255,255,.16);color:#fff}
 
 .module-menu{
-  position:absolute;top:48px;left:12px;z-index:40;
+  position:absolute;top:52px;left:12px;z-index:40;
   min-width:212px;padding:6px;border-radius:16px;
   background:var(--glass-bg);border:1px solid var(--glass-border);
   box-shadow:var(--glass-shadow);backdrop-filter:var(--glass-blur);
@@ -242,8 +272,11 @@ i{font-style:normal}
 /* ---------- search / command palette ---------- */
 .search-head{
   position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:6px;
-  margin:0 -16px;padding:7px 12px 10px 8px;
-  background:rgba(244,239,230,.94);backdrop-filter:blur(14px);
+  min-height:52px;margin:0 -16px;padding:7px 12px 10px 8px;
+  background:var(--topbar-bg);border-bottom:1px solid var(--topbar-border);
+  box-shadow:var(--topbar-shadow);
+  backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
 }
 .back{
   width:34px;height:34px;border:0;border-radius:10px;background:transparent;
@@ -277,8 +310,11 @@ i{font-style:normal}
 /* ---------- page head ---------- */
 .page-top{
   position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:8px;
-  height:50px;margin:0 -16px 4px;padding:0 12px;
-  background:rgba(244,239,230,.95);backdrop-filter:blur(14px);
+  height:52px;margin:0 -16px 4px;padding:0 12px;
+  background:var(--topbar-bg);border-bottom:1px solid var(--topbar-border);
+  box-shadow:var(--topbar-shadow);
+  backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
 }
 .page-top b{font-size:16px;font-weight:800}
 .page-top .back{margin-left:-6px}
