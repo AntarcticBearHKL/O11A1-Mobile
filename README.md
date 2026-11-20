@@ -9,6 +9,7 @@
 - 根目录：Android Studio 原生测试工程（MediaCodec → SurfaceTexture → GLES3）。
 
 > 产品与播放器设计：[MOBILE_DESIGN.md](MOBILE_DESIGN.md)。
+> 功能与交互规范：[MOBILE_INTERACTION.md](MOBILE_INTERACTION.md)。
 
 ## 0. 测试视频
 
