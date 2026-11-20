@@ -1,0 +1,6 @@
+{
+  "name": "o11a1-video",
+  "version": "0.1.0",
+  "description": "O11A1 VideoToolbox + Metal test player",
+  "private": true
+}

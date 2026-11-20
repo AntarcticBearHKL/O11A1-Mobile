@@ -11,9 +11,22 @@ import {
   Text,
   View,
 } from 'react-native';
+import { requireNativeViewManager, requireOptionalNativeModule } from 'expo-modules-core';
 
 type Target = 'off' | '60' | '120';
-type Enhance = 'off' | 'cas' | 'anime';
+type Enhance = 'off' | 'cas';
+
+type PlayerStats = {
+  text?: string;
+  renderFps?: number;
+  decodeFps?: number;
+  decoder?: string;
+  hardware?: boolean;
+  width?: number;
+  height?: number;
+  queue?: number;
+  error?: string;
+};
 
 const PAPER = '#0b0d12';
 const PANEL = '#141820';
@@ -24,6 +37,15 @@ const MUTED = '#8d97a8';
 const FAINT = '#5d6676';
 const BLUE = '#54a7ff';
 const CORAL = '#ff7468';
+
+let NativePlayer: React.ComponentType<any> | null = null;
+if (Platform.OS === 'ios' && requireOptionalNativeModule('O11A1Video')) {
+  try {
+    NativePlayer = requireNativeViewManager('O11A1Video');
+  } catch {
+    NativePlayer = null;
+  }
+}
 
 function Chip({ text, tone = 'muted' }: { text: string; tone?: 'muted' | 'blue' | 'coral' }) {
   const color = tone === 'blue' ? BLUE : tone === 'coral' ? CORAL : MUTED;
@@ -65,16 +87,33 @@ export default function App() {
   const [interpolation, setInterpolation] = useState<Target>('120');
   const [enhance, setEnhance] = useState<Enhance>('cas');
   const [running, setRunning] = useState(false);
+  const [stats, setStats] = useState<PlayerStats | null>(null);
+  const [playerError, setPlayerError] = useState('');
 
   const start = () => {
-    setRunning((value) => !value);
-    if (!running) {
+    if (running) {
+      setRunning(false);
+      return;
+    }
+    if (!NativePlayer) {
       Alert.alert(
         'UI 预览',
-        'Expo Go 里只验证布局和交互。MediaCodec、SurfaceTexture、GLES 插帧与 CAS 需要 Development Build 或 Android Studio 原生测试包。',
+        'Expo Go 里只验证布局和交互。VideoToolbox 硬解、Metal blend 插帧和 CAS 需要 iOS 原生构建（CI 的 unsigned 包或本地 dev build）。',
       );
+      return;
     }
+    setStats(null);
+    setPlayerError('');
+    setRunning(true);
   };
+
+  const onPlayerStats = (event: { nativeEvent: PlayerStats }) => {
+    const next = event.nativeEvent;
+    setStats(next);
+    setPlayerError(next.error || '');
+  };
+
+  const nativeLabel = NativePlayer ? 'NATIVE' : 'UI PREVIEW';
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -93,28 +132,47 @@ export default function App() {
             </View>
             <Text style={styles.title}>移动端解码实验室</Text>
           </View>
-          <Text style={styles.platform}>{Platform.OS === 'ios' ? 'iOS' : 'Android'} · UI PREVIEW</Text>
+          <Text style={styles.platform}>
+            {Platform.OS === 'ios' ? 'iOS' : 'Android'} · {nativeLabel}
+          </Text>
         </View>
 
         <View style={styles.notice}>
           <View style={styles.noticeDot} />
           <Text style={styles.noticeText}>
-            Expo Go 只预览 UI。硬解 / 插帧 / 增强请用 dev build 或 Android Studio 测试包。
+            iOS 原生链路：VideoToolbox 硬解 → Metal blend 插帧 → CAS 锐化。Expo Go 仍只预览 UI。
           </Text>
         </View>
 
         <View style={styles.preview}>
           <View style={styles.previewTop}>
-            <Chip text="H.264 · 1080p60" />
+            <Chip text="BV1NS4t6oEXQ · 1080p30" />
             <Chip text={running ? 'RUNNING' : 'STANDBY'} tone={running ? 'coral' : 'muted'} />
           </View>
           <View style={styles.previewStage}>
-            <View style={styles.playButton}>
-              <Text style={styles.playGlyph}>{running ? 'Ⅱ' : '▶'}</Text>
-            </View>
-            <Text style={styles.previewTitle}>test_1080p60.mp4</Text>
-            <Text style={styles.previewHint}>原生画面在这里替换为 SurfaceView / GLES</Text>
+            {running && NativePlayer ? (
+              <NativePlayer
+                style={styles.player}
+                interpolation={interpolation !== 'off'}
+                targetFps={interpolation === '120' ? 120 : 60}
+                enhance={enhance !== 'off'}
+                onStats={onPlayerStats}
+              />
+            ) : (
+              <>
+                <View style={styles.playButton}>
+                  <Text style={styles.playGlyph}>{running ? 'Ⅱ' : '▶'}</Text>
+                </View>
+                <Text style={styles.previewTitle}>BV1NS4t6oEXQ</Text>
+                <Text style={styles.previewHint}>
+                  {Platform.OS === 'ios'
+                    ? 'VideoToolbox → Metal → blend / CAS'
+                    : 'iOS 原生测试视图'}
+                </Text>
+              </>
+            )}
           </View>
+          {playerError ? <Text style={styles.playerError}>{playerError}</Text> : null}
           <View style={styles.timeline}>
             <View style={[styles.timelineFill, { width: running ? '42%' : '0%' }]} />
           </View>
@@ -123,20 +181,26 @@ export default function App() {
         <View style={styles.statsRow}>
           <View style={styles.statCell}>
             <Text style={styles.statLabel}>DECODER</Text>
-            <Text style={styles.statValue}>—</Text>
-            <Text style={styles.statHint}>dev build 读取</Text>
+            <Text style={styles.statValue}>{stats?.decoder ?? '—'}</Text>
+            <Text style={styles.statHint}>
+              {stats ? (stats.hardware ? 'HARDWARE' : 'SOFTWARE') : '等待原生视图'}
+            </Text>
           </View>
           <View style={styles.statCell}>
             <Text style={styles.statLabel}>RENDER</Text>
-            <Text style={[styles.statValue, { color: running ? BLUE : INK }]}>{running ? '—' : 'idle'}</Text>
-            <Text style={styles.statHint}>目标 120 fps</Text>
+            <Text style={[styles.statValue, { color: running ? BLUE : INK }]}>
+              {stats ? `${(stats.renderFps ?? 0).toFixed(1)} fps` : running ? '—' : 'idle'}
+            </Text>
+            <Text style={styles.statHint}>
+              {stats ? `decode ${(stats.decodeFps ?? 0).toFixed(1)} fps` : '目标 120 fps'}
+            </Text>
           </View>
           <View style={styles.statCell}>
             <Text style={styles.statLabel}>ENHANCE</Text>
             <Text style={[styles.statValue, { color: enhance === 'off' ? FAINT : BLUE }]}>
-              {enhance === 'off' ? 'OFF' : enhance.toUpperCase()}
+              {enhance === 'off' ? 'OFF' : 'CAS'}
             </Text>
-            <Text style={styles.statHint}>单 pass 起步</Text>
+            <Text style={styles.statHint}>单 pass 锐化</Text>
           </View>
         </View>
 
@@ -145,7 +209,7 @@ export default function App() {
           <View style={styles.row}>
             <View style={styles.rowCopy}>
               <Text style={styles.rowTitle}>硬件解码</Text>
-              <Text style={styles.rowDesc}>MediaCodec · 不回落软解</Text>
+              <Text style={styles.rowDesc}>VideoToolbox 强制硬件优先，失败才回退软解</Text>
             </View>
             <Switch value disabled thumbColor={BLUE} trackColor={{ true: BLUE + '55', false: LINE }} />
           </View>
@@ -153,7 +217,7 @@ export default function App() {
           <View style={styles.block}>
             <View style={styles.rowCopy}>
               <Text style={styles.rowTitle}>插帧</Text>
-              <Text style={styles.rowDesc}>blend 过渡，参考桌面 blend_main</Text>
+              <Text style={styles.rowDesc}>blend 过渡 · 60 / 120 目标</Text>
             </View>
             <Segmented
               value={interpolation}
@@ -169,7 +233,7 @@ export default function App() {
           <View style={styles.block}>
             <View style={styles.rowCopy}>
               <Text style={styles.rowTitle}>画质增强</Text>
-              <Text style={styles.rowDesc}>CAS 先跑通；Anime4K 真机再压测</Text>
+              <Text style={styles.rowDesc}>CAS-like 自适应锐化，单 pass</Text>
             </View>
             <Segmented
               value={enhance}
@@ -177,7 +241,6 @@ export default function App() {
               options={[
                 { label: '关', value: 'off' },
                 { label: 'CAS', value: 'cas' },
-                { label: 'Anime4K', value: 'anime' },
               ]}
             />
           </View>
@@ -191,8 +254,10 @@ export default function App() {
           style={styles.secondary}
           onPress={() =>
             Alert.alert(
-              '解码器探测',
-              '在 Android 原生测试包中会列出 MediaCodecList 的 H.264 / HEVC / AV1 / VP9 编码器、HW/SW 标记、支持分辨率和帧率。',
+              '解码器能力',
+              Platform.OS === 'ios'
+                ? 'iOS 端通过 VTIsHardwareDecodeSupported 检查 H.264 / HEVC，运行时优先创建强制硬件加速的 VTDecompressionSession。'
+                : 'Android 端会列出 MediaCodecList 的 H.264 / HEVC / AV1 / VP9 编码器、HW/SW 标记、支持分辨率和帧率。',
             )
           }
         >
@@ -200,7 +265,7 @@ export default function App() {
         </Pressable>
 
         <Text style={styles.footer}>
-          next: MediaCodec → SurfaceTexture → GLES → blend / CAS → RN Fabric View
+          next: Bilibili DASH 播放 · 音频 · Anime4K 真机压测
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -241,7 +306,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   previewTop: { flexDirection: 'row', justifyContent: 'space-between', padding: 12 },
-  previewStage: { height: 188, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0e1117' },
+  previewStage: { height: 210, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0e1117' },
+  player: { flex: 1, alignSelf: 'stretch' },
   playButton: {
     width: 52,
     height: 52,
@@ -256,6 +322,7 @@ const styles = StyleSheet.create({
   playGlyph: { color: BLUE, fontSize: 19, marginLeft: 2 },
   previewTitle: { color: INK, fontSize: 13, fontWeight: '600' },
   previewHint: { color: FAINT, fontSize: 10.5, marginTop: 5 },
+  playerError: { color: CORAL, fontSize: 10.5, paddingHorizontal: 14, paddingBottom: 8 },
   timeline: { height: 3, backgroundColor: LINE, marginHorizontal: 14, marginBottom: 14, borderRadius: 2 },
   timelineFill: { height: 3, borderRadius: 2, backgroundColor: BLUE },
   statsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },

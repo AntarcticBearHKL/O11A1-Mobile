@@ -22,7 +22,7 @@ import android.widget.TextView;
 import java.util.Locale;
 
 public final class MainActivity extends Activity {
-    private static final String ASSET = "test_1080p60.mp4";
+    private static final String ASSET = "BV1NS4t6oEXQ.mp4";
 
     private GLSurfaceView glView;
     private VideoRenderer renderer;

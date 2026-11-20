@@ -9,7 +9,10 @@
     "backgroundColor": "#0b0d12",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.o11a1.videolab"
+      "bundleIdentifier": "com.o11a1.videolab",
+      "infoPlist": {
+        "CADisableMinimumFrameDurationOnPhone": true
+      }
     },
     "android": {
       "package": "com.o11a1.videolab",
