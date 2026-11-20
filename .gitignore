@@ -1,0 +1,8 @@
+.gradle/
+.idea/
+local.properties
+**/build/
+*.iml
+expo-ui/node_modules/
+expo-ui/.expo/
+expo-ui/web-build/
