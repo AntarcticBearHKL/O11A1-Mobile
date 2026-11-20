@@ -356,7 +356,7 @@
 
 | Token | 浅色（暖纸） | 深色（墨） |
 |---|---|---|
-| background | `#F4EFE6` | `#0B0D12` |
+| background | `#F3EFE7` | `#0B0D12` |
 | surface | `#FFFCF6` | `#141820` |
 | surface-2 | `#EDE7DB` | `#1A202A` |
 | text | `#1E1E22` | `#F2F5FA` |
