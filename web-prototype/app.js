@@ -35,9 +35,17 @@
   const playlistList = $('#playlistList');
   const playlistCount = $('#playlistCount');
   const myPlaylistCount = $('#myPlaylistCount');
-  const tabPlaylistCount = $('#tabPlaylistCount');
+  const tabbar = $('#tabbar');
+  const tabbarTabs = $('#tabbarTabs');
   const moduleSettings = $('#moduleSettings');
   const moduleCount = $('#moduleCount');
+  const navSettings = $('#navSettings');
+  const navCount = $('#navCount');
+  const navSelectedPreview = $('#navSelectedPreview');
+  const navModeNote = $('#navModeNote');
+  const navNote = $('#navNote');
+  const navAllToggle = $('#navAllToggle');
+  const navSettingsMeta = $('#navSettingsMeta');
   const searchInput = $('#searchInput');
   const searchResultsLabel = $('#searchResultsLabel');
   const searchResults = $('#searchResults');
@@ -77,6 +85,24 @@
     { id: 'q2', title: '队列视频占位 02', meta: 'UP 占位 02 · 00:00' },
     { id: 'q3', title: '队列视频占位 03', meta: 'UP 占位 03 · 00:00' },
   ];
+
+  const NAV_ITEMS = [
+    { id: 'home', label: '首页', icon: '⌂', type: 'page', target: 'home', group: '桌面端' },
+    { id: 'favorite', label: '收藏', icon: '◈', type: 'module', target: '收藏', group: '桌面端' },
+    { id: 'search', label: '搜索', icon: '⌕', type: 'search', group: '桌面端' },
+    { id: 'fish', label: '养鱼', icon: '◌', type: 'module', target: '养鱼', group: '桌面端' },
+    { id: 'live', label: '直播', icon: '▶', type: 'module', target: '直播', group: '桌面端' },
+    { id: 'follow', label: '关注', icon: '◍', type: 'module', target: '关注', group: '桌面端' },
+    { id: 'dynamic', label: '动态', icon: '◉', type: 'page', target: 'dynamic', group: '桌面端' },
+    { id: 'messages', label: '消息', icon: '✉', type: 'page', target: 'messages', group: '桌面端' },
+    { id: 'history', label: '历史', icon: '↺', type: 'module', target: '历史', group: '桌面端' },
+    { id: 'refresh', label: '刷新', icon: '↻', type: 'refresh', group: '桌面端' },
+    { id: 'playlist', label: '播放列表', icon: '☰', type: 'page', target: 'playlist', group: '移动端' },
+    { id: 'my', label: '我的', icon: '◌', type: 'page', target: 'my', group: '移动端' },
+  ];
+
+  const DEFAULT_NAV_SELECTED = ['home', 'dynamic', 'playlist', 'messages', 'my'];
+  const PAGE_NAV = { home: 'home', dynamic: 'dynamic', playlist: 'playlist', messages: 'messages', my: 'my' };
 
   const DEFAULT_SETTINGS = {
     defaultQuality: '最高',
@@ -159,6 +185,13 @@
     moduleFilterIndex: 0,
     dynamicFilterIndex: 0,
     messageFilterIndex: 0,
+    navAllVisible: loaded && typeof loaded.navAllVisible === 'boolean' ? loaded.navAllVisible : true,
+    navSelected: normalizeNavSelected(loaded?.navSelected),
+    navActive: 'home',
+    detailReturn: 'home',
+    detailReturnNav: null,
+    searchReturn: 'home',
+    searchReturnNav: null,
   };
 
   if (!state.modules.some((mod) => mod.id === state.moduleId && mod.on)) {
@@ -166,6 +199,14 @@
   }
   if (state.currentIndex >= state.playlist.length) {
     state.currentIndex = Math.max(0, state.playlist.length - 1);
+  }
+
+  function normalizeNavSelected(value) {
+    const valid = Array.isArray(value)
+      ? value.filter((id) => NAV_ITEMS.some((item) => item.id === id))
+      : [];
+    const unique = [...new Set(valid)].slice(0, 5);
+    return unique.length ? unique : DEFAULT_NAV_SELECTED.slice();
   }
 
   let hideTimer = null;
@@ -284,6 +325,8 @@
         playlist: state.playlist,
         currentIndex: state.currentIndex,
         settings: state.settings,
+        navAllVisible: state.navAllVisible,
+        navSelected: state.navSelected,
       }));
     } catch (_) {}
   }
@@ -304,20 +347,109 @@
   }
 
   /* ---------- navigation ---------- */
-  const TAB_INDEX = { home: 0, dynamic: 1, playlist: 2, messages: 3, my: 4 };
+  function visibleNavItems() {
+    if (state.navAllVisible) return NAV_ITEMS;
+    return state.navSelected
+      .map((id) => NAV_ITEMS.find((item) => item.id === id))
+      .filter(Boolean);
+  }
 
-  function showPage(page) {
+  function findNavItemByModule(name) {
+    return NAV_ITEMS.find((item) => item.type === 'module' && item.target === name) || null;
+  }
+
+  function renderNav() {
+    const items = visibleNavItems();
+    const many = items.length > 5;
+    tabbarTabs.innerHTML = '';
+    tabbar.classList.toggle('many', many);
+    app.classList.toggle('nav-many', many);
+    tabbar.style.setProperty('--nav-count', String(items.length));
+
+    items.forEach((item) => {
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'tab';
+      tab.dataset.nav = item.id;
+      tab.setAttribute('aria-label', item.label);
+      tab.innerHTML = `
+        <span class="tab-ico">${item.icon}${item.id === 'playlist' ? '<span class="tab-count" id="tabPlaylistCount" hidden>0</span>' : ''}</span>
+        <span class="tab-label">${escapeHTML(item.label)}</span>
+        <span class="tab-dot"></span>`;
+      tab.addEventListener('click', () => handleNav(item, tab));
+      tabbarTabs.appendChild(tab);
+    });
+
+    updateNavActive();
+    updatePlaylistCounts();
+  }
+
+  function updateNavActive() {
+    const tabs = $$('.tab', tabbarTabs);
+    let visibleIndex = -1;
+    tabs.forEach((tab, index) => {
+      const on = tab.dataset.nav === state.navActive;
+      tab.classList.toggle('on', on);
+      if (on) visibleIndex = index;
+    });
+    tabbar.classList.toggle('no-active', visibleIndex < 0);
+    if (visibleIndex >= 0) {
+      app.style.setProperty('--tab', String(visibleIndex));
+    }
+  }
+
+  function handleNav(item, button) {
+    if (item.type === 'refresh') {
+      refreshCurrent(button);
+      return;
+    }
+    if (item.type === 'search') {
+      openSearch();
+      return;
+    }
+    if (item.type === 'module') {
+      openModulePage(item.target, item.id);
+      return;
+    }
+    showPage(item.target, item.id);
+  }
+
+  function refreshCurrent(button) {
+    const icon = $('.tab-ico', button);
+    const pageEl = $(`.page[data-page="${state.page}"]`);
+    icon?.classList.add('spin');
+    pageEl?.classList.add('refreshing');
+    setTimeout(() => {
+      icon?.classList.remove('spin');
+      pageEl?.classList.remove('refreshing');
+    }, 650);
+  }
+
+  function openSearch() {
+    if (state.page !== 'search') {
+      state.searchReturn = state.page;
+      state.searchReturnNav = state.navActive;
+    }
+    showPage('search');
+  }
+
+  function closeSearch() {
+    const target = state.searchReturn && state.searchReturn !== 'search' ? state.searchReturn : 'home';
+    showPage(target, state.searchReturnNav || undefined);
+  }
+
+  function showPage(page, navId) {
     state.page = page;
     $$('.page').forEach((section) => {
       section.classList.toggle('active', section.dataset.page === page);
     });
     app.dataset.page = page;
-    if (TAB_INDEX[page] !== undefined) {
-      app.style.setProperty('--tab', String(TAB_INDEX[page]));
+    if (navId !== undefined && navId !== null) {
+      state.navActive = navId;
+    } else if (PAGE_NAV[page]) {
+      state.navActive = PAGE_NAV[page];
     }
-    $$('.tab').forEach((tab) => {
-      tab.classList.toggle('on', tab.dataset.page === page);
-    });
+    updateNavActive();
     appScroll.scrollTop = 0;
     closeModuleMenu();
     if (page === 'search') {
@@ -325,14 +457,21 @@
     }
   }
 
-  function openModulePage(name) {
-    state.moduleReturn = TAB_INDEX[state.page] !== undefined ? state.page : 'home';
+  function openModulePage(name, navId) {
+    if (PAGE_NAV[state.page]) {
+      state.moduleReturn = state.page;
+    } else if (['settings', 'modules', 'nav'].includes(state.page)) {
+      state.moduleReturn = 'my';
+    } else if (state.page !== 'module') {
+      state.moduleReturn = 'home';
+    }
     state.moduleName = name;
     state.moduleFilterIndex = 0;
     modulePageTitle.textContent = name;
     moduleFilter.textContent = MODULE_FILTERS[0];
     moduleNote.textContent = MODULE_NOTES[name] || '模块占位 · 内容由真实接口接入';
-    showPage('module');
+    const navItem = findNavItemByModule(name);
+    showPage('module', navId || navItem?.id || state.navActive);
   }
 
   /* ---------- home modules ---------- */
@@ -436,6 +575,72 @@
     moduleCount.textContent = `已启用 ${enabledCount} / ${state.modules.length} 个模块 · 首页标题下拉即可切换`;
   }
 
+  /* ---------- bottom navigation editor ---------- */
+  function renderNavSettings() {
+    const selectedCount = state.navSelected.length;
+    navCount.textContent = `${selectedCount} / 5`;
+    navSettingsMeta.textContent = state.navAllVisible ? '全量预览' : `自选 ${selectedCount} 个`;
+    navAllToggle.classList.toggle('on', state.navAllVisible);
+    navModeNote.textContent = state.navAllVisible
+      ? `全量预览中：底部显示全部 ${NAV_ITEMS.length} 个按钮；关掉后只显示下面勾选的 ${selectedCount} 个。`
+      : `自定义：底部只显示你勾选的 ${selectedCount} 个按钮。`;
+
+    navSelectedPreview.innerHTML = '';
+    state.navSelected.forEach((id) => {
+      const item = NAV_ITEMS.find((entry) => entry.id === id);
+      if (!item) return;
+      const chip = document.createElement('span');
+      chip.className = 'nav-chip on';
+      chip.innerHTML = `<span>${item.icon}</span><span>${escapeHTML(item.label)}</span>`;
+      navSelectedPreview.appendChild(chip);
+    });
+
+    navSettings.innerHTML = '';
+    ['桌面端', '移动端'].forEach((group) => {
+      const label = document.createElement('div');
+      label.className = 'module-group-label';
+      label.textContent = group === '桌面端' ? '桌面端底部按钮' : '移动端新增';
+      navSettings.appendChild(label);
+
+      NAV_ITEMS.filter((item) => item.group === group).forEach((item) => {
+        const on = state.navSelected.includes(item.id);
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = `nav-setting${on ? ' on' : ''}`;
+        row.innerHTML = `
+          <span class="nav-setting-ico">${item.icon}</span>
+          <span class="mt-copy">
+            <span class="mt-name">${escapeHTML(item.label)}</span>
+            <span class="mt-desc">${item.type === 'refresh' ? '动作 · 不占页面' : item.type === 'search' ? '动作 · 打开命令面板' : item.type === 'module' ? `页面 · ${escapeHTML(item.target)}` : '页面'}</span>
+          </span>
+          <span class="switch"></span>`;
+        row.addEventListener('click', () => toggleNavItem(item.id));
+        navSettings.appendChild(row);
+      });
+    });
+  }
+
+  function toggleNavItem(id) {
+    const selected = state.navSelected.includes(id);
+    if (selected) {
+      if (state.navSelected.length <= 1) {
+        navNote.textContent = '至少保留一个底部按钮。';
+        return;
+      }
+      state.navSelected = state.navSelected.filter((item) => item !== id);
+    } else {
+      if (state.navSelected.length >= 5) {
+        navNote.textContent = '最多保留 5 个，先关掉一个再选。';
+        return;
+      }
+      state.navSelected.push(id);
+    }
+    navNote.textContent = '';
+    save();
+    renderNavSettings();
+    if (!state.navAllVisible) renderNav();
+  }
+
   /* ---------- playlist ---------- */
   function playlistItemMarkup(item, index, current, removable) {
     return `
@@ -452,8 +657,11 @@
     const count = state.playlist.length;
     playlistCount.textContent = `${count} 项`;
     myPlaylistCount.textContent = `${count} 项`;
-    tabPlaylistCount.textContent = String(count);
-    tabPlaylistCount.hidden = count === 0;
+    const badge = document.getElementById('tabPlaylistCount');
+    if (badge) {
+      badge.textContent = String(count);
+      badge.hidden = count === 0;
+    }
 
     const clearButton = $('#clearPlaylist');
     clearButton.hidden = count === 0;
@@ -1096,12 +1304,13 @@
   /* ---------- search / commands ---------- */
   const COMMANDS = [
     { icon: '☰', label: '播放列表', meta: '队列', run: () => showPage('playlist') },
-    { icon: '◫', label: '主页模块', meta: '自定义', run: () => showPage('modules') },
-    { icon: '⚙', label: '设置', meta: '全部', run: () => showPage('settings') },
+    { icon: '◫', label: '主页模块', meta: '自定义', run: () => showPage('modules', 'my') },
+    { icon: '⚙', label: '设置', meta: '全部', run: () => showPage('settings', 'my') },
+    { icon: '▤', label: '底部导航', meta: '自选 5 个', run: () => showPage('nav', 'my') },
     { icon: '◉', label: '登录 / 账户', meta: '扫码', run: () => showPage('login') },
     { icon: '⌄', label: '切换首页模块', meta: '快速切换', run: () => { showPage('home'); openModuleMenu(); } },
     { icon: '◉', label: '打开播放器', meta: '横屏', run: openPlayer },
-    { icon: '⌕', label: '搜索占位', meta: '输入', run: () => searchInput.focus() },
+    { icon: '⌕', label: '搜索占位', meta: '输入', run: openSearch },
     { icon: '◈', label: '收藏', meta: '收藏夹', run: () => openModulePage('收藏') },
     { icon: '↺', label: '历史', meta: '继续观看', run: () => openModulePage('历史') },
     { icon: '▤', label: '番剧', meta: '每日放送', run: () => openModulePage('番剧') },
@@ -1188,7 +1397,9 @@
   document.addEventListener('click', (event) => {
     const goto = event.target.closest('[data-goto]');
     if (goto) {
-      showPage(goto.dataset.goto);
+      const target = goto.dataset.goto;
+      const navAlias = { settings: 'my', modules: 'my', nav: 'my' }[target];
+      showPage(target, navAlias);
       closeDrawer();
       return;
     }
@@ -1201,6 +1412,10 @@
 
     const detail = event.target.closest('[data-open-detail]');
     if (detail) {
+      if (state.page !== 'detail') {
+        state.detailReturn = state.page;
+        state.detailReturnNav = state.navActive;
+      }
       state.detailAdded = false;
       showPage('detail');
       return;
@@ -1231,10 +1446,6 @@
     }
   });
 
-  $$('.tab').forEach((tab) => {
-    tab.addEventListener('click', () => showPage(tab.dataset.page));
-  });
-
   moduleBtn.addEventListener('click', (event) => {
     event.stopPropagation();
     toggleModuleMenu();
@@ -1242,8 +1453,9 @@
 
   moduleMenu.addEventListener('click', (event) => event.stopPropagation());
 
-  $('#searchBtn').addEventListener('click', () => showPage('search'));
-  $('#searchCancel').addEventListener('click', () => showPage('home'));
+  $('#searchBtn').addEventListener('click', openSearch);
+  $('#searchBack').addEventListener('click', closeSearch);
+  $('#searchCancel').addEventListener('click', closeSearch);
   searchInput.addEventListener('input', updateSearch);
   searchInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
@@ -1253,6 +1465,17 @@
   });
 
   $('#detailMore').addEventListener('click', openDetailSheet);
+  $('#detailBack').addEventListener('click', () => {
+    showPage(state.detailReturn || 'home', state.detailReturnNav || undefined);
+  });
+
+  navAllToggle.addEventListener('click', () => {
+    state.navAllVisible = !state.navAllVisible;
+    navNote.textContent = '';
+    save();
+    renderNav();
+    renderNavSettings();
+  });
 
   $('#accountCard').addEventListener('click', () => showPage('login'));
   $('#loginRefresh').addEventListener('click', () => {
@@ -1377,14 +1600,15 @@
   document.addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
-      showPage('search');
+      openSearch();
       return;
     }
     if (event.key === 'Escape') {
       if (psheet.classList.contains('open')) { closeSheet(); return; }
       if (protoDrawer.classList.contains('open')) { closeDrawer(); return; }
       if (state.playerOpen) { closePlayer(); return; }
-      if (state.page === 'search' || state.page === 'detail') { showPage('home'); return; }
+      if (state.page === 'search') { closeSearch(); return; }
+      if (state.page === 'detail') { showPage(state.detailReturn || 'home', state.detailReturnNav || undefined); return; }
       if (!moduleMenu.hidden) { closeModuleMenu(); return; }
     }
     if (!state.playerOpen || state.locked) return;
@@ -1441,6 +1665,8 @@
   refreshHomeHeader();
   renderModuleMenu();
   renderModuleSettings();
+  renderNav();
+  renderNavSettings();
   renderPlaylist();
   renderCommands('');
   updatePlayerLabels();

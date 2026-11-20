@@ -66,7 +66,7 @@
         <!-- 搜索 / 快速命令 -->
         <section class="page" data-page="search">
           <div class="search-head">
-            <button class="back" data-back-home>‹</button>
+            <button class="back" id="searchBack" title="返回">‹</button>
             <label class="search-field"><span>⌕</span><input id="searchInput" placeholder="搜索视频 / UP / 命令"></label>
             <button class="text-btn" id="searchCancel">取消</button>
           </div>
@@ -89,7 +89,7 @@
         <!-- 详情 -->
         <section class="page" data-page="detail">
           <div class="page-top">
-            <button class="back" data-back-home>‹</button>
+            <button class="back" id="detailBack" title="返回">‹</button>
             <b>视频</b>
             <button class="icon-btn small" id="detailMore" title="更多操作">⋯</button>
           </div>
@@ -248,6 +248,7 @@
             <div class="my-list">
               <button class="my-row" data-sheet="settings-appearance"><span>外观</span><span class="my-meta">主题 / 透明度 / 模糊</span></button>
               <button class="my-row" data-sheet="settings-gesture"><span>手势</span><span class="my-meta">双击 / 长按 / 滑动</span></button>
+              <button class="my-row" data-goto="nav"><span>底部导航</span><span class="my-meta" id="navSettingsMeta">全量预览</span></button>
               <button class="my-row" data-sheet="settings-distraction"><span>防干扰</span><span class="my-meta">入口 / 热搜</span></button>
               <button class="my-row" data-goto="modules"><span>主页模块</span><span class="my-meta">首页快速切换</span></button>
             </div>
@@ -273,15 +274,29 @@
             </div>
           </div>
         </section>
+
+        <!-- 底部导航：全量预览 / 自选 5 个 -->
+        <section class="page" data-page="nav">
+          <div class="page-top">
+            <button class="back" data-goto="settings">‹</button>
+            <b>底部导航</b>
+            <span class="my-meta" id="navCount">5 / 5</span>
+          </div>
+          <p class="page-desc">全量预览显示桌面端全部按钮；关掉后只显示下面勾选的 5 个。选择顺序就是底部顺序。</p>
+          <div class="nav-mode-row">
+            <span>全量预览</span>
+            <button class="sheet-switch" id="navAllToggle" type="button" aria-label="全量预览"></button>
+          </div>
+          <div class="nav-preview" id="navSelectedPreview"></div>
+          <div class="nav-mode-note" id="navModeNote"></div>
+          <div class="nav-editor" id="navSettings"></div>
+          <div class="nav-note" id="navNote"></div>
+        </section>
       </div>
 
       <nav class="tabbar" id="tabbar" aria-label="主导航">
         <span class="tab-pill"></span>
-        <button class="tab on" data-page="home"><span class="tab-ico">⌂</span>首页<span class="tab-dot"></span></button>
-        <button class="tab" data-page="dynamic"><span class="tab-ico">◉</span>动态<span class="tab-dot"></span></button>
-        <button class="tab" data-page="playlist"><span class="tab-ico">☰<span class="tab-count" id="tabPlaylistCount" hidden>0</span></span>播放列表<span class="tab-dot"></span></button>
-        <button class="tab" data-page="messages"><span class="tab-ico">✉</span>消息<span class="tab-dot"></span></button>
-        <button class="tab" data-page="my"><span class="tab-ico">◌</span>我的<span class="tab-dot"></span></button>
+        <div class="tabbar-track" id="tabbarTabs"></div>
       </nav>
 
       <div class="grid-overlay" aria-hidden="true"></div>
@@ -317,6 +332,7 @@
       <button data-goto="my">我的</button>
       <button data-goto="login">登录</button>
       <button data-goto="modules">主页模块</button>
+      <button data-goto="nav">底部导航</button>
       <button data-goto="settings">设置</button>
     </div>
     <div class="drawer-label">TOKENS</div>
