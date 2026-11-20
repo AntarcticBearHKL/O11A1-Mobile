@@ -3,9 +3,6 @@ name: ios-unsigned
 on:
   workflow_dispatch:
   push:
-    paths:
-      - 'expo-ui/**'
-      - '.github/workflows/ios-unsigned.yml'
 
 jobs:
   build:
