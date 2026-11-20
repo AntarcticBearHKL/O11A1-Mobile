@@ -8,9 +8,23 @@
 - `expo-ui/`：Expo 应用。iOS 原生构建已包含 VideoToolbox + Metal 播放器（本地 Expo 模块 `modules/o11a1-video`）；Expo Go 里仍只能预览 UI。
 - 根目录：Android Studio 原生测试工程（MediaCodec → SurfaceTexture → GLES3）。
 
-> 产品与播放器设计：[MOBILE_DESIGN.md](MOBILE_DESIGN.md)。
-> 功能与交互规范：[MOBILE_INTERACTION.md](MOBILE_INTERACTION.md)。
-> Web 布局/手感原型：[web-prototype/](web-prototype/)（纯占位、空视频、横屏播放器）。
+## 移动端 V2 规划（当前）
+
+- 5 个根 tab：首页 / 动态 / 播放列表 / 消息 / 我的。
+- 首页顶部只留模块标题 + 搜索；一行一个视频；模块在设置里勾选，首页标题下拉切换。
+- 播放列表替代 mini-player；详情/播放器都能加入队列。
+- 播放器横屏：顶部返回/标题/队列/更多；底部播放/时间/画质/倍速/插帧/增强/弹幕/全屏；其余进 sheet。
+- 无 Toast、无提示条、无 mini-player；所有反馈内联。
+- 桌面端功能逐项保留；完整对照见 [MOBILE_FEATURES.md](MOBILE_FEATURES.md)。
+
+> 当前先做 Web 布局原型定手感：全占位、空视频、横屏播放器。真实接口和原生播放器随后接入。
+
+> 产品与播放器设计：[MOBILE_DESIGN.md](MOBILE_DESIGN.md)（V2）。
+> 功能与交互规范：[MOBILE_INTERACTION.md](MOBILE_INTERACTION.md)（V2）。
+> 桌面功能完整对照：[MOBILE_FEATURES.md](MOBILE_FEATURES.md)。
+> Web 布局/手感原型：[web-prototype/](web-prototype/)（V2：5 tab、单列、播放列表、命令面板、空视频、横屏播放器）。
+>
+> V2 网页原型直接打开 http://localhost:4173 ；重置状态用 http://localhost:4173/?reset=1 。
 
 ## 0. 测试视频
 
