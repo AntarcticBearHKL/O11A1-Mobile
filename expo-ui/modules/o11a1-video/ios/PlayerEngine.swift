@@ -216,7 +216,9 @@ final class PlayerEngine {
       throw reader.error ?? makeError("video track is empty")
     }
     let sampleFormat = CMSampleBufferGetFormatDescription(firstSample)
-    let trackFormat = track.formatDescriptions.first as? CMFormatDescription
+    let trackFormat: CMFormatDescription? = track.formatDescriptions.isEmpty
+      ? nil
+      : (track.formatDescriptions[0] as! CMFormatDescription)
     guard let format = sampleFormat ?? trackFormat else {
       throw makeError("missing format description (sample and track)")
     }
