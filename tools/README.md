@@ -6,12 +6,12 @@
 
 - 读取 `AntarcticBearHKL/O11A1-Mobile` 最近成功的 `ios-unsigned` 和 `android-debug` 运行
 - 显示运行号、提交、时间、artifact 大小
-- 点“下载双端”把两个 artifact 下载并解压到：
-  `%USERPROFILE%\Downloads\O11A1-Mobile`
-  - `o11a1-ios-unsigned.ipa`
-  - `app-debug.apk`
+- 点“下载双端”把两个 artifact 下载并解压到**桌面**：
+  - `C:\Users\antar\Desktop\o11a1-ios-unsigned.ipa`
+  - `C:\Users\antar\Desktop\app-debug.apk`
 - 两张卡片里也有单独的“下载 IPA / 下载 APK”按钮，只下载对应平台
-- 每次下载直接覆盖这两个文件；下载失败时保留旧文件
+- 每次下载直接覆盖桌面上的这两个文件；下载失败时保留旧文件
+- 底部“打开下载位置”会直接打开桌面
 - 60 秒自动刷新，也可以手动点“刷新”
 
 ## 运行

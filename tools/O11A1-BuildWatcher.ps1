@@ -3,7 +3,7 @@
   - Reads the latest successful android-debug / ios-unsigned runs.
   - Downloads both artifacts and extracts app-debug.apk / o11a1-ios-unsigned.ipa.
   - Token: %USERPROFILE%\.git-credentials
-  - Output: %USERPROFILE%\Downloads\O11A1-Mobile
+  - Output: Desktop
 #>
 param(
   [switch]$SelfTest,
@@ -21,7 +21,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $Repo = "AntarcticBearHKL/O11A1-Mobile"
 $ApiBase = "https://api.github.com"
-$DownloadDir = Join-Path $env:USERPROFILE "Downloads\O11A1-Mobile"
+$DownloadDir = [Environment]::GetFolderPath("Desktop")
 
 $script:Token = $null
 $script:Busy = $false
@@ -560,8 +560,8 @@ $script:IosCard.Download.Add_Click({ Start-Download -Kind "iOS" })
 $script:AndroidCard.Download.Add_Click({ Start-Download -Kind "Android" })
 
 $script:ToolTip = New-Object System.Windows.Forms.ToolTip
-$script:ToolTip.SetToolTip($script:IosCard.Download, "下载最新 iOS IPA，覆盖旧文件")
-$script:ToolTip.SetToolTip($script:AndroidCard.Download, "下载最新 Android APK，覆盖旧文件")
+$script:ToolTip.SetToolTip($script:IosCard.Download, "下载最新 iOS IPA，覆盖桌面旧文件")
+$script:ToolTip.SetToolTip($script:AndroidCard.Download, "下载最新 Android APK，覆盖桌面旧文件")
 
 $refreshButton = New-Object System.Windows.Forms.Button
 $refreshButton.Text = "刷新"
@@ -592,7 +592,7 @@ $downloadButton.Enabled = $false
 $form.Controls.Add($downloadButton)
 
 $folderButton = New-Object System.Windows.Forms.Button
-$folderButton.Text = "打开下载文件夹"
+$folderButton.Text = "打开下载位置"
 $folderButton.Font = $FontBold
 $folderButton.Size = [Drawing.Size]::new(160, 42)
 $folderButton.Location = [Drawing.Point]::new(378, 354)
@@ -845,7 +845,7 @@ function Start-Download {
 
 $refreshButton.Add_Click({ Refresh-Builds })
 $downloadButton.Add_Click({ Start-Download -Kind "Both" })
-$script:ToolTip.SetToolTip($downloadButton, "同时下载 iOS 和 Android，覆盖旧文件")
+$script:ToolTip.SetToolTip($downloadButton, "同时下载 iOS 和 Android，覆盖桌面旧文件")
 $folderButton.Add_Click({
     if (-not (Test-Path -LiteralPath $DownloadDir)) {
       New-Item -ItemType Directory -Path $DownloadDir -Force | Out-Null
