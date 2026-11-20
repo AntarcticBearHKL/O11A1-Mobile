@@ -10,6 +10,7 @@
 
 > 产品与播放器设计：[MOBILE_DESIGN.md](MOBILE_DESIGN.md)。
 > 功能与交互规范：[MOBILE_INTERACTION.md](MOBILE_INTERACTION.md)。
+> Web 布局/手感原型：[web-prototype/](web-prototype/)（纯占位、空视频、横屏播放器）。
 
 ## 0. 测试视频
 
