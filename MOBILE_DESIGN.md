@@ -312,6 +312,101 @@
 - `Skeleton`、`EmptyState`、`ErrorState`
 - `Toast`、`ActionSheet`、`ConfirmDialog`
 
+### 5.6 平台材质：iOS Liquid Glass / Android 磨砂玻璃
+
+结论：**可以做，而且建议这样做**。但不是做两套完全不同的 UI，而是：
+
+> **同一套布局、字体、颜色、间距、图标和交互；只把“玻璃材质”这一层换成平台原生实现。**
+
+这样 iOS 有 iOS 26 的原生 Liquid Glass，Android 有桌面端同款的暖纸磨砂玻璃，同时仍然是同一个 O11A1。
+
+#### 设计规则
+
+1. **玻璃只用在“框架层”**：底部 tab、顶部导航、mini-player、sheet 顶部、播放器控制条。内容卡片、列表、评论、设置行保持扁平暖纸/墨色，不铺玻璃。
+2. **一层玻璃**：同一区域不要玻璃叠玻璃；iOS 用 `GlassContainer` 把相邻玻璃合成一层。
+3. **不改变布局**：两端 tab 高度、图标、文字、间距一致；iOS 可以浮起成胶囊，Android 可以是通栏，但信息结构一致。
+4. **不遮视频**：播放器画面本身不盖玻璃；只有控制条/按钮可以半透明。
+5. **可读性优先**：浅色玻璃配深色字，深色玻璃配白字；对比度不足时自动回退到实色。
+6. **尊重辅助功能**：开启“降低透明度”时全部回退到实色/半透明纸面，不显示玻璃。
+
+#### 平台实现
+
+| 层级 | iOS 26+ | iOS 16.4–25 | Android 12+ | Android <12 |
+|---|---|---|---|---|
+| 材质 | `expo-glass-effect` 的 `GlassView` / `GlassContainer`（原生 `UIGlassEffect`） | `expo-blur` 的 `BlurView`（`systemMaterial`），或实色纸面 | `expo-blur` 的 `BlurView` + `BlurTargetView`，`blurMethod="dimezisBlurViewSdk31Plus"` | 半透明暖纸 + 1px 发丝线，无模糊 |
+| 底部 tab | 浮起胶囊，圆角 28，距边 10–12 | 同布局，毛玻璃/实色 | 通栏磨砂，顶部发丝线 | 通栏半透明暖纸 |
+| 顶部导航 | 滚动时玻璃化 | 毛玻璃/实色 | 滚动时磨砂 | 半透明暖纸 |
+| mini-player | 玻璃胶囊 | 毛玻璃胶囊 | 磨砂深色胶囊 | 深色半透明胶囊 |
+| sheet | 玻璃背景 + grabber | 毛玻璃 sheet | 磨砂暖纸 sheet | 暖纸实色 sheet |
+| 播放器控制 | 深色玻璃按钮/胶囊 | 深色毛玻璃 | 深色磨砂条 + 发丝线 | 深色半透明条 |
+| 内容卡片 | 扁平暖纸 | 扁平暖纸 | 扁平暖纸 | 扁平暖纸 |
+
+#### iOS 实现要点
+
+- 包：`expo-glass-effect`（SDK 58 对应 `~58.0.5`）。
+- 组件：`GlassView`、`GlassContainer`；`glassEffectStyle` 用 `regular`（bars/sheets）或 `clear`（小按钮）；`isInteractive` 给可点击控件；`tintColor` 用暖纸色，避免重色。
+- 守卫：
+  - `isLiquidGlassAvailable()`：系统/编译器/Info.plist 是否支持。
+  - `isGlassEffectAPIAvailable()`：部分 iOS 26 beta 没有 API，必须先检查。
+  - `AccessibilityInfo.isReduceTransparencyEnabled()`：开启时回退实色。
+- 回退：iOS <26 用 `BlurView` + `systemMaterial`，或直接暖纸实色；不要假装有 Liquid Glass。
+- 不要在 `GlassView` 或父视图上用低 opacity；Apple 明确不推荐，会不渲染玻璃。
+
+#### Android 实现要点
+
+- 包：`expo-blur`（SDK 58 对应 `~58.0.6`）。
+- 结构：把需要被模糊的内容包在 `BlurTargetView` 里，把 `BlurView` 作为同层 sibling 放上去，传 `blurTarget` ref。
+- 参数：`blurMethod="dimezisBlurViewSdk31Plus"`（Android 12+ 真模糊，旧版自动回退半透明）；`intensity` 70–85；`tint` 用暖纸色；`blurReductionFactor` 先保持默认 4，两端对比后再调。
+- **RN Modal 里不能用 Android blur**：Modal 是独立窗口，BlurTargetView 跨不过去。播放器 sheet、评论 sheet 要用同层 absolute overlay，不要用 RN `Modal`。
+- 性能：只在静态/低频变化的 bar 上用模糊；不要在滚动卡片、视频画面上实时模糊；120Hz 设备先测；低端机/省电模式关闭模糊。
+
+#### 共享组件：`GlassSurface`
+
+```tsx
+function GlassSurface({ children, style, dark = false }) {
+  const reduce = useReduceTransparency();
+
+  if (Platform.OS === 'ios') {
+    if (!reduce && isLiquidGlassAvailable() && isGlassEffectAPIAvailable()) {
+      return (
+        <GlassView
+          style={style}
+          glassEffectStyle="regular"
+          colorScheme={dark ? 'dark' : 'light'}
+          tintColor={dark ? 'rgba(20,24,32,0.55)' : 'rgba(255,253,248,0.45)'}
+        >
+          {children}
+        </GlassView>
+      );
+    }
+    return <BlurView intensity={70} tint={dark ? 'dark' : 'light'} style={style}>{children}</BlurView>;
+  }
+
+  if (Platform.OS === 'android' && blurTarget) {
+    return (
+      <BlurView
+        blurTarget={blurTarget}
+        blurMethod="dimezisBlurViewSdk31Plus"
+        intensity={78}
+        tint={dark ? 'dark' : 'light'}
+        style={style}
+      >
+        {children}
+      </BlurView>
+    );
+  }
+
+  return <View style={[style, dark ? styles.solidDark : styles.solidLight]}>{children}</View>;
+}
+```
+
+#### 验收
+
+- iOS 26：tab/导航/mini/sheet/播放器控制是原生 Liquid Glass；降低透明度后变实色；iOS <26 不崩、有毛玻璃/实色回退。
+- Android 12+：tab/导航/mini/sheet 有真实磨砂；滚动时不掉帧；Android <12 是半透明暖纸。
+- 两端：同一页面截图对比，布局、字号、图标、间距一致，只有材质/浮起方式不同；120Hz 下滚动和播放器不掉帧。
+- 真机：iPhone 13 Pro（iOS 26）和 Android 12+ 各一台；模拟器只做 UI 检查。
+
 ## 6. 技术架构
 
 ### 6.1 总览
