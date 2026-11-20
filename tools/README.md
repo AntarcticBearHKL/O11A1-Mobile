@@ -10,6 +10,7 @@
   `%USERPROFILE%\Downloads\O11A1-Mobile`
   - `o11a1-ios-unsigned.ipa`
   - `app-debug.apk`
+- 两张卡片里也有单独的“下载 IPA / 下载 APK”按钮，只下载对应平台
 - 每次下载直接覆盖这两个文件；下载失败时保留旧文件
 - 60 秒自动刷新，也可以手动点“刷新”
 

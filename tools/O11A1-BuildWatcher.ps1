@@ -497,9 +497,9 @@ function New-BuildCard {
   $noteLabel.Font = $FontTiny
   $noteLabel.ForeColor = $Amber
   $noteLabel.AutoSize = $false
-  $noteLabel.Size = [Drawing.Size]::new(356, 34)
+  $noteLabel.Size = [Drawing.Size]::new(356, 24)
   $noteLabel.BackColor = [Drawing.Color]::Transparent
-  $noteLabel.Location = [Drawing.Point]::new(16, 186)
+  $noteLabel.Location = [Drawing.Point]::new(16, 184)
   $card.Controls.Add($noteLabel)
 
   $linkLabel = New-Object System.Windows.Forms.LinkLabel
@@ -510,7 +510,7 @@ function New-BuildCard {
   $linkLabel.VisitedLinkColor = $Blue
   $linkLabel.AutoSize = $true
   $linkLabel.BackColor = [Drawing.Color]::Transparent
-  $linkLabel.Location = [Drawing.Point]::new(16, 222)
+  $linkLabel.Location = [Drawing.Point]::new(16, 218)
   $linkLabel.LinkArea = [Windows.Forms.LinkArea]::new(0, $linkLabel.Text.Length)
   $linkLabel.Add_LinkClicked({
       param($sender, $eventArgs)
@@ -520,6 +520,27 @@ function New-BuildCard {
     })
   $card.Controls.Add($linkLabel)
 
+  $hover = [Drawing.Color]::FromArgb(
+    [Math]::Min(255, [int]$Accent.R + 28),
+    [Math]::Min(255, [int]$Accent.G + 28),
+    [Math]::Min(255, [int]$Accent.B + 28)
+  )
+
+  $downloadLabel = if ($Platform -eq "iOS") { "下载 IPA" } else { "下载 APK" }
+  $downloadButton = New-Object System.Windows.Forms.Button
+  $downloadButton.Text = $downloadLabel
+  $downloadButton.Font = $FontBold
+  $downloadButton.Size = [Drawing.Size]::new(120, 30)
+  $downloadButton.Location = [Drawing.Point]::new(252, 210)
+  $downloadButton.FlatStyle = [Windows.Forms.FlatStyle]::Flat
+  $downloadButton.FlatAppearance.BorderSize = 0
+  $downloadButton.FlatAppearance.MouseOverBackColor = $hover
+  $downloadButton.BackColor = $Accent
+  $downloadButton.ForeColor = [Drawing.ColorTranslator]::FromHtml("#07101c")
+  $downloadButton.Cursor = [Windows.Forms.Cursors]::Hand
+  $downloadButton.Enabled = $false
+  $card.Controls.Add($downloadButton)
+
   return [pscustomobject]@{
     Panel    = $card
     Status   = $statusLabel
@@ -528,11 +549,19 @@ function New-BuildCard {
     Artifact = $artifactLabel
     Note     = $noteLabel
     Link     = $linkLabel
+    Download = $downloadButton
   }
 }
 
 $script:IosCard = New-BuildCard -Platform "iOS" -Subtitle "unsigned IPA · VideoToolbox + Metal" -Accent $Blue -X 24 -Y 88
 $script:AndroidCard = New-BuildCard -Platform "Android" -Subtitle "debug APK · MediaCodec + GLES3" -Accent $Coral -X 428 -Y 88
+
+$script:IosCard.Download.Add_Click({ Start-Download -Kind "iOS" })
+$script:AndroidCard.Download.Add_Click({ Start-Download -Kind "Android" })
+
+$script:ToolTip = New-Object System.Windows.Forms.ToolTip
+$script:ToolTip.SetToolTip($script:IosCard.Download, "下载最新 iOS IPA，覆盖旧文件")
+$script:ToolTip.SetToolTip($script:AndroidCard.Download, "下载最新 Android APK，覆盖旧文件")
 
 $refreshButton = New-Object System.Windows.Forms.Button
 $refreshButton.Text = "刷新"
@@ -670,6 +699,8 @@ function Refresh-Builds {
   $script:Busy = $true
   $refreshButton.Enabled = $false
   $downloadButton.Enabled = $false
+  $script:IosCard.Download.Enabled = $false
+  $script:AndroidCard.Download.Enabled = $false
   $statusLabel.ForeColor = $Muted
   $statusLabel.Text = "正在查询 GitHub Actions…"
   $form.Cursor = [Windows.Forms.Cursors]::WaitCursor
@@ -689,7 +720,6 @@ function Refresh-Builds {
     $statusLabel.Text = "刷新完成 · $($script:LastRefresh.ToString('HH:mm:ss'))"
 
     $canDownload = $script:Token -and $ios -and $ios.Artifact -and $android -and $android.Artifact
-    $downloadButton.Enabled = [bool]$canDownload
 
     if (-not $script:Token) {
       $statusLabel.ForeColor = $Amber
@@ -706,11 +736,16 @@ function Refresh-Builds {
   } finally {
     $form.Cursor = [Windows.Forms.Cursors]::Default
     $refreshButton.Enabled = $true
+    $script:IosCard.Download.Enabled = [bool]($script:Token -and $script:IosBuild -and $script:IosBuild.Artifact)
+    $script:AndroidCard.Download.Enabled = [bool]($script:Token -and $script:AndroidBuild -and $script:AndroidBuild.Artifact)
+    $downloadButton.Enabled = [bool]($script:Token -and $script:IosBuild -and $script:IosBuild.Artifact -and $script:AndroidBuild -and $script:AndroidBuild.Artifact)
     $script:Busy = $false
   }
 }
 
 function Start-Download {
+  param([string]$Kind = "Both")
+
   if ($script:Busy) {
     return
   }
@@ -719,9 +754,33 @@ function Start-Download {
     $statusLabel.Text = "没有 GitHub token，无法下载"
     return
   }
-  if (-not $script:IosBuild -or -not $script:IosBuild.Artifact -or -not $script:AndroidBuild -or -not $script:AndroidBuild.Artifact) {
-    $statusLabel.ForeColor = $Amber
-    $statusLabel.Text = "还没有可下载的双端构建"
+
+  $jobs = @()
+  if ($Kind -eq "iOS" -or $Kind -eq "Both") {
+    if (-not $script:IosBuild -or -not $script:IosBuild.Artifact) {
+      $statusLabel.ForeColor = $Amber
+      $statusLabel.Text = "iOS 还没有可下载的成功构建"
+      return
+    }
+    $jobs += [pscustomobject]@{
+      Kind      = "iOS"
+      Build     = $script:IosBuild
+      EntryName = "o11a1-ios-unsigned.ipa"
+    }
+  }
+  if ($Kind -eq "Android" -or $Kind -eq "Both") {
+    if (-not $script:AndroidBuild -or -not $script:AndroidBuild.Artifact) {
+      $statusLabel.ForeColor = $Amber
+      $statusLabel.Text = "Android 还没有可下载的成功构建"
+      return
+    }
+    $jobs += [pscustomobject]@{
+      Kind      = "Android"
+      Build     = $script:AndroidBuild
+      EntryName = "app-debug.apk"
+    }
+  }
+  if ($jobs.Count -eq 0) {
     return
   }
 
@@ -730,10 +789,12 @@ function Start-Download {
   $refreshButton.Enabled = $false
   $downloadButton.Enabled = $false
   $folderButton.Enabled = $false
+  $script:IosCard.Download.Enabled = $false
+  $script:AndroidCard.Download.Enabled = $false
   $progress.Value = 0
   $progress.Visible = $true
   $statusLabel.ForeColor = $Muted
-  $statusLabel.Text = "准备下载…"
+  $statusLabel.Text = if ($Kind -eq "Both") { "准备下载双端…" } else { "准备下载 $Kind…" }
   [Windows.Forms.Application]::DoEvents()
 
   $onProgress = {
@@ -748,17 +809,13 @@ function Start-Download {
 
   $errors = @()
   try {
-    try {
-      $iosPath = Download-BuildCore -Build $script:IosBuild -Kind "iOS" -EntryName "o11a1-ios-unsigned.ipa" -OutDir $DownloadDir -OnProgress $onProgress
-    } catch {
-      $errors += "iOS：$($_.Exception.Message)"
-    }
-
-    $progress.Value = 0
-    try {
-      $androidPath = Download-BuildCore -Build $script:AndroidBuild -Kind "Android" -EntryName "app-debug.apk" -OutDir $DownloadDir -OnProgress $onProgress
-    } catch {
-      $errors += "Android：$($_.Exception.Message)"
+    foreach ($job in $jobs) {
+      $progress.Value = 0
+      try {
+        Download-BuildCore -Build $job.Build -Kind $job.Kind -EntryName $job.EntryName -OutDir $DownloadDir -OnProgress $onProgress | Out-Null
+      } catch {
+        $errors += "$($job.Kind)：$($_.Exception.Message)"
+      }
     }
 
     if (-not $form.IsDisposed) {
@@ -767,7 +824,8 @@ function Start-Download {
         $statusLabel.Text = "下载失败：$($errors -join '；')"
       } else {
         $statusLabel.ForeColor = $Green
-        $statusLabel.Text = "下载完成 · $(Get-Date -Format 'HH:mm:ss')"
+        $doneLabel = if ($Kind -eq "Both") { "双端下载完成" } else { "$Kind 下载完成" }
+        $statusLabel.Text = "$doneLabel · $(Get-Date -Format 'HH:mm:ss')"
         Start-Process -FilePath explorer.exe -ArgumentList $DownloadDir
       }
     }
@@ -775,8 +833,10 @@ function Start-Download {
     if (-not $form.IsDisposed) {
       $progress.Visible = $false
       $refreshButton.Enabled = $true
-      $downloadButton.Enabled = $true
       $folderButton.Enabled = $true
+      $script:IosCard.Download.Enabled = [bool]($script:Token -and $script:IosBuild -and $script:IosBuild.Artifact)
+      $script:AndroidCard.Download.Enabled = [bool]($script:Token -and $script:AndroidBuild -and $script:AndroidBuild.Artifact)
+      $downloadButton.Enabled = [bool]($script:Token -and $script:IosBuild -and $script:IosBuild.Artifact -and $script:AndroidBuild -and $script:AndroidBuild.Artifact)
       $form.Cursor = [Windows.Forms.Cursors]::Default
     }
     $script:Busy = $false
@@ -784,7 +844,8 @@ function Start-Download {
 }
 
 $refreshButton.Add_Click({ Refresh-Builds })
-$downloadButton.Add_Click({ Start-Download })
+$downloadButton.Add_Click({ Start-Download -Kind "Both" })
+$script:ToolTip.SetToolTip($downloadButton, "同时下载 iOS 和 Android，覆盖旧文件")
 $folderButton.Add_Click({
     if (-not (Test-Path -LiteralPath $DownloadDir)) {
       New-Item -ItemType Directory -Path $DownloadDir -Force | Out-Null
@@ -802,6 +863,8 @@ $timer.Add_Tick({
 $timer.Start()
 
 $form.Add_Shown({
+    $form.Activate()
+    $form.BringToFront()
     Refresh-Builds
   })
 
@@ -811,6 +874,7 @@ $form.Add_FormClosing({
   })
 
 if ($Screenshot) {
+  $form.TopMost = $true
   $captureTimer = New-Object System.Windows.Forms.Timer
   $captureTimer.Interval = 5000
   $captureTimer.Add_Tick({
