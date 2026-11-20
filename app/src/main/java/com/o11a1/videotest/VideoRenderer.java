@@ -6,6 +6,8 @@ import android.hardware.display.DisplayManager;
 import android.opengl.GLES11Ext;
 import android.opengl.GLES30;
 import android.opengl.GLSurfaceView;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.Display;
 import android.view.Surface;
@@ -204,7 +206,7 @@ public final class VideoRenderer implements GLSurfaceView.Renderer,
 
         surfaceTexture = new SurfaceTexture(externalTexture);
         surfaceTexture.setDefaultBufferSize(videoW, videoH);
-        surfaceTexture.setOnFrameAvailableListener(this);
+        surfaceTexture.setOnFrameAvailableListener(this, new Handler(Looper.getMainLooper()));
         decodeSurface = new Surface(surfaceTexture);
     }
 

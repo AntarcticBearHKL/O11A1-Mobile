@@ -59,12 +59,14 @@ public final class CodecProbe {
         return out.toString();
     }
 
-    /// Prefer a vendor hardware decoder. Returning null lets MediaCodec pick
-    /// the platform default, which is useful on rare devices with no probe
-    /// match.
+    /// Prefer a vendor hardware decoder on real devices. On the emulator the
+    /// goldfish "hardware" decoder rejects many High-profile H.264 streams, so
+    /// prefer the platform software decoder there.
     public static String bestDecoder(String mime) {
         MediaCodecList list = new MediaCodecList(MediaCodecList.ALL_CODECS);
-        String fallback = null;
+        String hardwareName = null;
+        String softwareName = null;
+        boolean emulator = isEmulator();
         for (MediaCodecInfo info : list.getCodecInfos()) {
             if (info.isEncoder()) continue;
             boolean supports = false;
@@ -75,10 +77,24 @@ public final class CodecProbe {
                 }
             }
             if (!supports) continue;
-            if (hardware(info)) return info.getName();
-            if (fallback == null) fallback = info.getName();
+            if (hardware(info)) {
+                if (hardwareName == null) hardwareName = info.getName();
+            } else if (softwareName == null) {
+                softwareName = info.getName();
+            }
         }
-        return fallback;
+        if (emulator && softwareName != null) return softwareName;
+        if (hardwareName != null) return hardwareName;
+        return softwareName;
+    }
+
+    public static boolean isEmulator() {
+        return Build.FINGERPRINT.contains("generic")
+            || Build.FINGERPRINT.contains("emulator")
+            || Build.HARDWARE.contains("ranchu")
+            || Build.HARDWARE.contains("goldfish")
+            || Build.PRODUCT.contains("sdk")
+            || Build.MODEL.contains("sdk_gphone");
     }
 
     public static boolean hardware(MediaCodecInfo info) {
