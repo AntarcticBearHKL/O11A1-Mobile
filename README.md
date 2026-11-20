@@ -1,6 +1,7 @@
 # O11A1 移动端视频测试
 
 ![android-debug](https://github.com/AntarcticBearHKL/O11A1-Mobile/actions/workflows/android-debug.yml/badge.svg)
+![ios-unsigned](https://github.com/AntarcticBearHKL/O11A1-Mobile/actions/workflows/ios-unsigned.yml/badge.svg)
 
 两件事放在一起：
 
@@ -20,6 +21,21 @@ npx expo start
 ```
 
 用手机 Expo Go 扫码。页面里的开关、分段控件、统计卡片都可以点；视频区域是占位，点“开始测试”会提示原生能力需要 dev build。
+
+## 1.1 iOS 自动构建（unsigned）
+
+`.github/workflows/ios-unsigned.yml` 在 `expo-ui/**` 变更时自动跑：
+
+- `expo prebuild --platform ios`
+- `pod install`
+- 构建 **unsigned** `iphoneos` app，打成 `o11a1-ios-unsigned.ipa`
+- 同时构建 `iphonesimulator` app，打成 `o11a1-ios-simulator.zip`
+
+说明：
+
+- 当前 iOS 包只有 Expo UI，还没有 VideoToolbox + Metal 原生播放器。
+- unsigned IPA 不能安装到未越狱 iPhone；需要后续 Apple 签名 / TestFlight。
+- simulator zip 可在 Mac 的 Simulator 里解压安装；Windows 只能下载 artifact，不能跑 iOS Simulator。
 
 ## 2. Android 原生测试
 

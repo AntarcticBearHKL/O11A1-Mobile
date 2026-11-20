@@ -8,9 +8,11 @@
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0b0d12",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.o11a1.videolab"
     },
     "android": {
+      "package": "com.o11a1.videolab",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
