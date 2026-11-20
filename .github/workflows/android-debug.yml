@@ -3,13 +3,6 @@ name: android-debug
 on:
   workflow_dispatch:
   push:
-    paths:
-      - 'app/**'
-      - 'gradle/**'
-      - 'build.gradle'
-      - 'settings.gradle'
-      - 'gradle.properties'
-      - '.github/workflows/android-debug.yml'
 
 jobs:
   build:
