@@ -145,13 +145,15 @@ final class O11A1PlayerView: ExpoView {
     lastDecodeCount = stats.decodedFrames
 
     let screenHz = window?.screen.maximumFramesPerSecond ?? UIScreen.main.maximumFramesPerSecond
+    let lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled ? " · LPM" : ""
+    let errorLine = stats.error.isEmpty ? "" : "\n\(stats.error)"
     let renderText = String(format: "%.1f", renderFps)
     let decodeText = String(format: "%.1f", decodeFps)
     let text = """
     \(stats.codec) \(stats.hardware ? "HW" : "SW")
-    \(stats.width) x \(stats.height)  |  display \(screenHz) Hz
-    render \(renderText) fps  |  decode \(decodeText) fps
-    blend \(interpolationEnabled ? "on" : "off")  |  CAS \(enhanceEnabled ? "on" : "off")  |  queue \(stats.queueDepth)
+    \(stats.width) x \(stats.height)  |  display \(screenHz) Hz\(lowPower)
+    render \(renderText) fps  |  decode \(decodeText) fps  |  target \(metalView.preferredFramesPerSecond)
+    blend \(interpolationEnabled ? "on" : "off")  |  CAS \(enhanceEnabled ? "on" : "off")  |  queue \(stats.queueDepth)\(errorLine)
     """
 
     hud.text = text

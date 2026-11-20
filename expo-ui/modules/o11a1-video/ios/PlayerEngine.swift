@@ -215,8 +215,10 @@ final class PlayerEngine {
     guard let firstSample = output.copyNextSampleBuffer() else {
       throw reader.error ?? makeError("video track is empty")
     }
-    guard let format = CMSampleBufferGetFormatDescription(firstSample) else {
-      throw makeError("missing format description")
+    let sampleFormat = CMSampleBufferGetFormatDescription(firstSample)
+    let trackFormat = track.formatDescriptions.first as? CMFormatDescription
+    guard let format = sampleFormat ?? trackFormat else {
+      throw makeError("missing format description (sample and track)")
     }
 
     let dimensions = CMVideoFormatDescriptionGetDimensions(format)
