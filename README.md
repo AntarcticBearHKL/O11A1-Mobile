@@ -46,7 +46,7 @@ Expo Go 扫码只能看 UI。真正的播放器在 iOS 原生构建里：
 
 说明：
 
-- unsigned IPA 不能直接安装到未越狱 iPhone；下载后自己用证书 / Sideloadly / AltStore 等方式签名安装。
+- unsigned IPA 不能直接安装到未越狱 iPhone；下载后自己用证书 / Sideloadly / AltStore 等方式签名安装。签名方案和免费 Apple ID 限制见 [SIGNING.md](SIGNING.md)。
 - simulator zip 只能在 Mac 的 Simulator 里运行；Windows 不能跑 iOS Simulator。
 - 当前还没有音频、Anime4K 和 B 站 DASH 登录。
 
