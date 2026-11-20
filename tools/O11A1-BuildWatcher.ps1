@@ -825,8 +825,7 @@ function Start-Download {
       } else {
         $statusLabel.ForeColor = $Green
         $doneLabel = if ($Kind -eq "Both") { "双端下载完成" } else { "$Kind 下载完成" }
-        $statusLabel.Text = "$doneLabel · $(Get-Date -Format 'HH:mm:ss')"
-        Start-Process -FilePath explorer.exe -ArgumentList $DownloadDir
+        $statusLabel.Text = "$doneLabel · 已放到桌面 · $(Get-Date -Format 'HH:mm:ss')"
       }
     }
   } finally {
