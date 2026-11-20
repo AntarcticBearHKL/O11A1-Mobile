@@ -58,6 +58,12 @@
   const messageFilter = $('#messageFilter');
   const followBtn = $('#followBtn');
   const loginStatus = $('#loginStatus');
+  const miniPlayer = $('#miniPlayer');
+  const miniTitle = $('#miniTitle');
+  const miniMeta = $('#miniMeta');
+  const miniPlay = $('#miniPlay');
+  const miniProgress = $('#miniProgress');
+  const searchClear = $('#searchClear');
   const protoDrawer = $('#protoDrawer');
   const protoBackdrop = $('#protoBackdrop');
   const protoFab = $('#protoFab');
@@ -171,6 +177,7 @@
     currentIndex: Number.isInteger(loaded?.currentIndex) ? loaded.currentIndex : 0,
     settings: { ...DEFAULT_SETTINGS, ...(loaded?.settings || {}) },
     playerOpen: false,
+    miniVisible: false,
     playing: false,
     locked: false,
     progress: 0,
@@ -213,6 +220,8 @@
   let clickTimer = null;
   let clearArmed = false;
   let clearTimer = null;
+  let playerDrag = null;
+  let suppressPlayerClick = false;
 
   const MODULE_NOTES = {
     收藏: '收藏夹推荐 · 全部收藏夹 · 占位',
@@ -444,6 +453,12 @@
       section.classList.toggle('active', section.dataset.page === page);
     });
     app.dataset.page = page;
+    tabbar.classList.toggle('search-mode', page === 'search');
+    tabbar.setAttribute('aria-label', page === 'search' ? '搜索' : '主导航');
+    document.body.classList.toggle('search-mode', page === 'search');
+    if (page !== 'search' && document.activeElement === searchInput) {
+      searchInput.blur();
+    }
     if (navId !== undefined && navId !== null) {
       state.navActive = navId;
     } else if (PAGE_NAV[page]) {
@@ -732,6 +747,7 @@
     if (!state.playlist.length) state.currentIndex = 0;
     else if (state.currentIndex > index) state.currentIndex -= 1;
     else if (state.currentIndex >= state.playlist.length) state.currentIndex = state.playlist.length - 1;
+    if (!state.playlist.length && (state.playerOpen || state.miniVisible)) stopPlayback();
     renderPlaylist();
     updatePlayerLabels();
     save();
@@ -752,6 +768,7 @@
   function clearPlaylist() {
     state.playlist = [];
     state.currentIndex = 0;
+    if (state.playerOpen || state.miniVisible) stopPlayback();
     renderPlaylist();
     updatePlayerLabels();
     save();
@@ -768,12 +785,45 @@
     pcEnhance.textContent = state.settings.enhance;
     pcDanmaku.classList.toggle('on', state.settings.danmaku);
     setProgress(state.progress);
+    updateMiniPlayer();
+  }
+
+  function updateMiniPlayer() {
+    const item = state.playlist[state.currentIndex];
+    miniTitle.textContent = item ? item.title : '暂无播放项';
+    miniMeta.textContent = item
+      ? `${item.meta} · ${state.playing ? '正在播放' : '已暂停'}`
+      : '队列为空';
+    miniPlay.textContent = state.playing ? 'Ⅱ' : '▶';
+    miniProgress.style.width = `${state.progress}%`;
+  }
+
+  function showMiniPlayer() {
+    if (!state.playlist.length) return;
+    state.miniVisible = true;
+    updateMiniPlayer();
+    miniPlayer.inert = false;
+    miniPlayer.classList.add('show');
+    miniPlayer.setAttribute('aria-hidden', 'false');
+    app.classList.add('mini-open');
+    document.body.classList.add('mini-open');
+  }
+
+  function hideMiniPlayer() {
+    state.miniVisible = false;
+    if (miniPlayer.contains(document.activeElement)) document.activeElement.blur();
+    miniPlayer.classList.remove('show');
+    miniPlayer.setAttribute('aria-hidden', 'true');
+    miniPlayer.inert = true;
+    app.classList.remove('mini-open');
+    document.body.classList.remove('mini-open');
   }
 
   function setProgress(percent) {
     state.progress = Math.min(100, Math.max(0, percent));
     progressPlayed.style.width = `${state.progress}%`;
     progressThumb.style.left = `${state.progress}%`;
+    miniProgress.style.width = `${state.progress}%`;
     const current = TOTAL_SECONDS * state.progress / 100;
     pcTime.textContent = `${formatTime(current)} / ${formatTime(TOTAL_SECONDS)}`;
   }
@@ -796,14 +846,25 @@
     }, 3000);
   }
 
-  function openPlayer() {
+  function openPlayer(options = {}) {
+    const resume = options.resume === true;
     if (!state.playlist.length) addToPlaylist();
+    if (!resume) {
+      state.playing = false;
+      state.progress = 0;
+    }
     state.playerOpen = true;
-    state.playing = false;
     state.locked = false;
-    state.progress = 0;
-    pcPlay.textContent = '▶';
+    hideMiniPlayer();
+    clearTimeout(hideTimer);
+    pcPlay.textContent = state.playing ? 'Ⅱ' : '▶';
     updatePlayerLabels();
+    player.style.animation = '';
+    player.style.transition = '';
+    player.style.transform = '';
+    player.style.opacity = '';
+    player.style.pointerEvents = '';
+    player.classList.remove('dragging', 'collapsing');
     player.classList.add('open');
     player.setAttribute('aria-hidden', 'false');
     player.inert = false;
@@ -816,18 +877,66 @@
     }
   }
 
-  function closePlayer() {
+  function minimizePlayer() {
+    if (!state.playerOpen) return;
     state.playerOpen = false;
     state.locked = false;
     clearTimeout(hideTimer);
     clearTimeout(clickTimer);
     clickTimer = null;
+    player.classList.remove('dragging');
+    player.style.animation = 'none';
+    player.style.transition = 'transform .3s cubic-bezier(.4,0,.2,1), opacity .28s ease';
+    player.style.transform = 'translateY(105%) scale(.96)';
+    player.style.opacity = '0';
+    player.style.pointerEvents = 'none';
+    playerControls.classList.remove('hidden');
+    lockBadge.classList.remove('show');
+    closeSheet();
     if (player.contains(document.activeElement)) document.activeElement.blur();
-    player.classList.remove('open', 'ui-hidden');
+    showMiniPlayer();
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+    if (screen.orientation && screen.orientation.unlock) {
+      try { screen.orientation.unlock(); } catch (_) {}
+    }
+    pcFullscreen.textContent = '全屏';
+    setTimeout(() => {
+      if (state.playerOpen) return;
+      player.classList.remove('open', 'ui-hidden', 'collapsing');
+      player.setAttribute('aria-hidden', 'true');
+      player.inert = true;
+      player.style.animation = '';
+      player.style.transition = '';
+      player.style.transform = '';
+      player.style.opacity = '';
+      player.style.pointerEvents = '';
+    }, 300);
+  }
+
+  function stopPlayback() {
+    state.playerOpen = false;
+    state.miniVisible = false;
+    state.playing = false;
+    state.progress = 0;
+    state.locked = false;
+    clearTimeout(hideTimer);
+    clearTimeout(clickTimer);
+    clickTimer = null;
+    hideMiniPlayer();
+    if (player.contains(document.activeElement)) document.activeElement.blur();
+    player.classList.remove('open', 'dragging', 'collapsing', 'ui-hidden');
     player.setAttribute('aria-hidden', 'true');
     player.inert = true;
-    lockBadge.classList.remove('show');
+    player.style.animation = '';
+    player.style.transition = '';
+    player.style.transform = '';
+    player.style.opacity = '';
+    player.style.pointerEvents = '';
     playerControls.classList.remove('hidden');
+    lockBadge.classList.remove('show');
+    pcPlay.textContent = '▶';
     closeSheet();
     if (document.fullscreenElement && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
@@ -836,6 +945,7 @@
       try { screen.orientation.unlock(); } catch (_) {}
     }
     pcFullscreen.textContent = '全屏';
+    updatePlayerLabels();
   }
 
   function lockPlayer() {
@@ -856,7 +966,8 @@
   function togglePlay() {
     state.playing = !state.playing;
     pcPlay.textContent = state.playing ? 'Ⅱ' : '▶';
-    showControls();
+    updateMiniPlayer();
+    if (state.playerOpen) showControls();
   }
 
   function showRipple(text, leftPercent) {
@@ -885,6 +996,60 @@
         pcFullscreen.textContent = '退出全屏';
       }).catch(() => {});
     }
+  }
+
+  /* swipe down from the player -> in-app mini player, audio keeps playing */
+  function startPlayerDrag(event) {
+    if (!state.playerOpen || state.locked) return;
+    if (event.button !== undefined && event.button !== 0) return;
+    if (event.target.closest('.player-controls')) return;
+    playerDrag = {
+      startX: event.clientX,
+      startY: event.clientY,
+      dy: 0,
+      moved: false,
+    };
+    player.classList.add('dragging');
+    clearTimeout(hideTimer);
+  }
+
+  function movePlayerDrag(event) {
+    if (!playerDrag) return;
+    const dx = event.clientX - playerDrag.startX;
+    const dy = event.clientY - playerDrag.startY;
+    if (!playerDrag.moved && Math.abs(dy) < 8 && Math.abs(dx) < 8) return;
+    if (Math.abs(dx) > Math.abs(dy) && !playerDrag.moved) return;
+    playerDrag.moved = true;
+    const dragY = Math.max(0, dy);
+    playerDrag.dy = dragY;
+    const scale = 1 - Math.min(0.05, dragY / 3000);
+    player.style.transform = `translateY(${dragY}px) scale(${scale})`;
+    player.style.opacity = String(1 - Math.min(0.35, dragY / 800));
+  }
+
+  function endPlayerDrag() {
+    if (!playerDrag) return;
+    const { dy, moved } = playerDrag;
+    playerDrag = null;
+    player.classList.remove('dragging');
+    if (moved) {
+      suppressPlayerClick = true;
+      setTimeout(() => { suppressPlayerClick = false; }, 260);
+    }
+    if (dy > 110) {
+      minimizePlayer();
+      return;
+    }
+    player.style.transition = 'transform .24s cubic-bezier(.16,1,.3,1), opacity .2s ease';
+    player.style.transform = 'none';
+    player.style.opacity = '1';
+    setTimeout(() => {
+      if (state.playerOpen) {
+        player.style.transition = '';
+        player.style.transform = '';
+        player.style.opacity = '';
+      }
+    }, 260);
   }
 
   /* ---------- sheets ---------- */
@@ -1041,6 +1206,9 @@
         return '已复制';
       });
       actionRow(body, '举报', '', () => '已提交（占位）');
+      actionRow(body, '关闭播放', '停止并清空进度', () => {
+        stopPlayback();
+      });
     });
   }
 
@@ -1352,6 +1520,7 @@
     const query = searchInput.value.trim();
     renderCommands(query);
     const hasQuery = query.length > 0;
+    searchClear.hidden = !hasQuery;
     searchResultsLabel.hidden = !hasQuery;
     searchResults.hidden = !hasQuery;
     if (hasQuery) {
@@ -1392,6 +1561,22 @@
     url.searchParams.set('reset', '1');
     window.location.href = url.toString();
   }
+
+  function syncKeyboardOffset() {
+    const vv = window.visualViewport;
+    const focused = document.activeElement === searchInput;
+    const offset = focused && vv
+      ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+      : 0;
+    document.documentElement.style.setProperty('--kb', `${offset}px`);
+  }
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncKeyboardOffset);
+    window.visualViewport.addEventListener('scroll', syncKeyboardOffset);
+  }
+  window.addEventListener('resize', syncKeyboardOffset);
+  syncKeyboardOffset();
 
   /* ---------- event wiring ---------- */
   document.addEventListener('click', (event) => {
@@ -1454,9 +1639,15 @@
   moduleMenu.addEventListener('click', (event) => event.stopPropagation());
 
   $('#searchBtn').addEventListener('click', openSearch);
-  $('#searchBack').addEventListener('click', closeSearch);
   $('#searchCancel').addEventListener('click', closeSearch);
+  searchClear.addEventListener('click', () => {
+    searchInput.value = '';
+    updateSearch();
+    searchInput.focus();
+  });
   searchInput.addEventListener('input', updateSearch);
+  searchInput.addEventListener('focus', syncKeyboardOffset);
+  searchInput.addEventListener('blur', syncKeyboardOffset);
   searchInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -1541,7 +1732,7 @@
   $('#moduleBack').addEventListener('click', () => showPage(state.moduleReturn || 'home'));
 
   /* player */
-  $('#playerBack').addEventListener('click', closePlayer);
+  $('#playerBack').addEventListener('click', minimizePlayer);
   $('#playerQueue').addEventListener('click', openQueueSheet);
   $('#playerMore').addEventListener('click', openPlayerMoreSheet);
   pcPlay.addEventListener('click', togglePlay);
@@ -1553,11 +1744,25 @@
   pcFullscreen.addEventListener('click', toggleFullscreen);
   lockBadge.addEventListener('click', unlockPlayer);
 
+  $('#miniOpen').addEventListener('click', () => openPlayer({ resume: true }));
+  miniPlay.addEventListener('click', togglePlay);
+  $('#miniClose').addEventListener('click', stopPlayback);
+
+  playerStage.addEventListener('pointerdown', startPlayerDrag);
+  window.addEventListener('pointermove', movePlayerDrag);
+  window.addEventListener('pointerup', endPlayerDrag);
+  window.addEventListener('pointercancel', endPlayerDrag);
+
   playerStage.addEventListener('pointermove', () => {
+    if (playerDrag) return;
     if (state.playerOpen && !state.locked) showControls();
   });
 
   playerStage.addEventListener('click', (event) => {
+    if (suppressPlayerClick) {
+      suppressPlayerClick = false;
+      return;
+    }
     if (event.target.closest('.player-controls')) return;
     if (state.locked) return;
     if (clickTimer) return;
@@ -1573,6 +1778,7 @@
   });
 
   playerStage.addEventListener('dblclick', (event) => {
+    if (suppressPlayerClick) return;
     if (event.target.closest('.player-controls')) return;
     if (state.locked) return;
     clearTimeout(clickTimer);
@@ -1606,7 +1812,7 @@
     if (event.key === 'Escape') {
       if (psheet.classList.contains('open')) { closeSheet(); return; }
       if (protoDrawer.classList.contains('open')) { closeDrawer(); return; }
-      if (state.playerOpen) { closePlayer(); return; }
+      if (state.playerOpen) { minimizePlayer(); return; }
       if (state.page === 'search') { closeSearch(); return; }
       if (state.page === 'detail') { showPage(state.detailReturn || 'home', state.detailReturnNav || undefined); return; }
       if (!moduleMenu.hidden) { closeModuleMenu(); return; }

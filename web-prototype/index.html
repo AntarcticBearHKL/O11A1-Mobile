@@ -63,12 +63,11 @@
           <div class="list-note" id="homeNote">推荐模块占位 · 单列 · 下拉刷新 / 触底加载</div>
         </section>
 
-        <!-- 搜索 / 快速命令 -->
+        <!-- 搜索 / 快速命令：内容全屏；输入条在底部 dock -->
         <section class="page" data-page="search">
-          <div class="search-head">
-            <button class="back" id="searchBack" title="返回">‹</button>
-            <label class="search-field"><span>⌕</span><input id="searchInput" placeholder="搜索视频 / UP / 命令"></label>
-            <button class="text-btn" id="searchCancel">取消</button>
+          <div class="search-title">
+            <b>搜索</b>
+            <span>命令 / 视频 / UP</span>
           </div>
           <div class="section-label" id="commandLabel">快速命令</div>
           <div class="command-list" id="commandList">
@@ -294,9 +293,30 @@
         </section>
       </div>
 
+      <div class="mini-player" id="miniPlayer" aria-hidden="true" inert>
+        <button class="mini-main" id="miniOpen" type="button" aria-label="展开播放器">
+          <span class="mini-cover"><span class="ph-label">封面</span></span>
+          <span class="mini-copy">
+            <b id="miniTitle">队列视频占位 01</b>
+            <small id="miniMeta">UP 占位 · 正在播放</small>
+          </span>
+        </button>
+        <button class="mini-play" id="miniPlay" type="button" aria-label="播放 / 暂停">Ⅱ</button>
+        <button class="mini-close" id="miniClose" type="button" aria-label="关闭播放">×</button>
+        <span class="mini-progress" aria-hidden="true"><i id="miniProgress"></i></span>
+      </div>
+
       <nav class="tabbar" id="tabbar" aria-label="主导航">
         <span class="tab-pill"></span>
         <div class="tabbar-track" id="tabbarTabs"></div>
+        <div class="search-dock" id="searchDock">
+          <label class="search-field" id="searchField">
+            <span>⌕</span>
+            <input id="searchInput" placeholder="搜索视频 / UP / 命令" autocomplete="off">
+            <button class="search-clear" id="searchClear" type="button" aria-label="清空搜索" hidden>×</button>
+          </label>
+          <button class="text-btn search-cancel" id="searchCancel" type="button">取消</button>
+        </div>
       </nav>
 
       <div class="grid-overlay" aria-hidden="true"></div>
