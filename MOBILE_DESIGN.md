@@ -320,11 +320,13 @@
 
 这样 iOS 有 iOS 26 的原生 Liquid Glass，Android 有桌面端同款的暖纸磨砂玻璃，同时仍然是同一个 O11A1。
 
+**两端 frame 完全一致**：同一个组件尺寸、同一个 8pt 网格、同一个圆角/发丝线/图标/字号；iOS 只换原生玻璃材质，Android 只换自写磨砂材质。不做“iOS 浮起、Android 通栏”的布局差异；差异只在材质和原生渲染方式。
+
 #### 设计规则
 
 1. **玻璃只用在“框架层”**：底部 tab、顶部导航、mini-player、sheet 顶部、播放器控制条。内容卡片、列表、评论、设置行保持扁平暖纸/墨色，不铺玻璃。
 2. **一层玻璃**：同一区域不要玻璃叠玻璃；iOS 用 `GlassContainer` 把相邻玻璃合成一层。
-3. **不改变布局**：两端 tab 高度、图标、文字、间距一致；iOS 可以浮起成胶囊，Android 可以是通栏，但信息结构一致。
+3. **不改变布局**：两端 tab 高度、图标、文字、间距、圆角、位置完全一致；iOS 和 Android 都使用同一个浮起圆角 bar，只是材质不同。
 4. **不遮视频**：播放器画面本身不盖玻璃；只有控制条/按钮可以半透明。
 5. **可读性优先**：浅色玻璃配深色字，深色玻璃配白字；对比度不足时自动回退到实色。
 6. **尊重辅助功能**：开启“降低透明度”时全部回退到实色/半透明纸面，不显示玻璃。
@@ -334,17 +336,18 @@
 | 层级 | iOS 26+ | iOS 16.4–25 | Android 12+ | Android <12 |
 |---|---|---|---|---|
 | 材质 | `expo-glass-effect` 的 `GlassView` / `GlassContainer`（原生 `UIGlassEffect`） | `expo-blur` 的 `BlurView`（`systemMaterial`），或实色纸面 | `expo-blur` 的 `BlurView` + `BlurTargetView`，`blurMethod="dimezisBlurViewSdk31Plus"` | 半透明暖纸 + 1px 发丝线，无模糊 |
-| 底部 tab | 浮起胶囊，圆角 28，距边 10–12 | 同布局，毛玻璃/实色 | 通栏磨砂，顶部发丝线 | 通栏半透明暖纸 |
-| 顶部导航 | 滚动时玻璃化 | 毛玻璃/实色 | 滚动时磨砂 | 半透明暖纸 |
-| mini-player | 玻璃胶囊 | 毛玻璃胶囊 | 磨砂深色胶囊 | 深色半透明胶囊 |
-| sheet | 玻璃背景 + grabber | 毛玻璃 sheet | 磨砂暖纸 sheet | 暖纸实色 sheet |
-| 播放器控制 | 深色玻璃按钮/胶囊 | 深色毛玻璃 | 深色磨砂条 + 发丝线 | 深色半透明条 |
+| 底部 tab | 浮起圆角 bar，12 inset / 58 高 / 28 半径；原生玻璃 | 同 frame；毛玻璃/实色 | 同 frame；自写磨砂 | 同 frame；半透明暖纸 |
+| 顶部导航 | 同 frame；滚动时原生玻璃 | 毛玻璃/实色 | 同 frame；磨砂 | 半透明暖纸 |
+| mini-player | 同 frame；玻璃胶囊 | 毛玻璃胶囊 | 同 frame；深色磨砂 | 深色半透明 |
+| sheet | 同 frame；玻璃背景 + grabber | 毛玻璃 sheet | 同 frame；磨砂暖纸 | 暖纸实色 |
+| 播放器控制 | 同 frame；深色玻璃胶囊 | 深色毛玻璃 | 同 frame；深色磨砂条 | 深色半透明条 |
 | 内容卡片 | 扁平暖纸 | 扁平暖纸 | 扁平暖纸 | 扁平暖纸 |
 
 #### iOS 实现要点
 
 - 包：`expo-glass-effect`（SDK 58 对应 `~58.0.5`）。
 - 组件：`GlassView`、`GlassContainer`；`glassEffectStyle` 用 `regular`（bars/sheets）或 `clear`（小按钮）；`isInteractive` 给可点击控件；`tintColor` 用暖纸色，避免重色。
+- **原生控件的边界**：建议“原生控件”= 原生玻璃材质 + 我们用固定 frame 的原生视图/控件，而不是直接上 `UITabBarController` / `NavigationStack`。系统导航容器会带入 Apple 自己的高度、insets、动效，两端排版就做不到一模一样。要 100% 同排版，用 `GlassView` 做背景 + 共享 RN 内容，或写一个固定尺寸的 SwiftUI/UIKit glass control。如果必须用系统 `UITabBar`/`NavigationBar`，就接受 iOS 26 的系统 metrics，Android 也按同一套 metrics 模仿，但无法保证像素级一致。
 - 守卫：
   - `isLiquidGlassAvailable()`：系统/编译器/Info.plist 是否支持。
   - `isGlassEffectAPIAvailable()`：部分 iOS 26 beta 没有 API，必须先检查。
@@ -354,11 +357,10 @@
 
 #### Android 实现要点
 
-- 包：`expo-blur`（SDK 58 对应 `~58.0.6`）。
-- 结构：把需要被模糊的内容包在 `BlurTargetView` 里，把 `BlurView` 作为同层 sibling 放上去，传 `blurTarget` ref。
-- 参数：`blurMethod="dimezisBlurViewSdk31Plus"`（Android 12+ 真模糊，旧版自动回退半透明）；`intensity` 70–85；`tint` 用暖纸色；`blurReductionFactor` 先保持默认 4，两端对比后再调。
-- **RN Modal 里不能用 Android blur**：Modal 是独立窗口，BlurTargetView 跨不过去。播放器 sheet、评论 sheet 要用同层 absolute overlay，不要用 RN `Modal`。
-- 性能：只在静态/低频变化的 bar 上用模糊；不要在滚动卡片、视频画面上实时模糊；120Hz 设备先测；低端机/省电模式关闭模糊。
+- 目标：**自写 `FrostedSurface`**（Kotlin），而不是 Material 组件；用 `RenderEffect.createBlurEffect`（API 31+）对目标层做模糊，叠暖纸 tint、1px 发丝线、轻微 noise；圆角/尺寸/位置与 iOS 完全一致。
+- 原型可以先用 `expo-blur` + `BlurTargetView` + `blurMethod="dimezisBlurViewSdk31Plus"` 快速验证；稳定后再换成自写 `FrostedSurface`，参数保持不变。
+- API <31 回退半透明暖纸 + 发丝线；不在 RN `Modal` 里做 Android blur（独立窗口），用同层 overlay。
+- 120Hz 只模糊静态 bar；滚动卡片/视频画面不实时模糊；低端机/省电模式关闭。
 
 #### 共享组件：`GlassSurface`
 
@@ -382,17 +384,18 @@ function GlassSurface({ children, style, dark = false }) {
     return <BlurView intensity={70} tint={dark ? 'dark' : 'light'} style={style}>{children}</BlurView>;
   }
 
-  if (Platform.OS === 'android' && blurTarget) {
+  if (Platform.OS === 'android') {
+    // 原型可先用 expo-blur 的 BlurView + BlurTargetView；
+    // 稳定后替换为自写 FrostedSurface（RenderEffect，API 31+）。
     return (
-      <BlurView
+      <FrostedSurface
+        style={style}
         blurTarget={blurTarget}
-        blurMethod="dimezisBlurViewSdk31Plus"
         intensity={78}
         tint={dark ? 'dark' : 'light'}
-        style={style}
       >
         {children}
-      </BlurView>
+      </FrostedSurface>
     );
   }
 
@@ -404,7 +407,8 @@ function GlassSurface({ children, style, dark = false }) {
 
 - iOS 26：tab/导航/mini/sheet/播放器控制是原生 Liquid Glass；降低透明度后变实色；iOS <26 不崩、有毛玻璃/实色回退。
 - Android 12+：tab/导航/mini/sheet 有真实磨砂；滚动时不掉帧；Android <12 是半透明暖纸。
-- 两端：同一页面截图对比，布局、字号、图标、间距一致，只有材质/浮起方式不同；120Hz 下滚动和播放器不掉帧。
+- 两端：同一页面截图叠加，除材质外布局像素级一致（安全区除外）；同一个 12 inset / 58 高 / 28 半径；120Hz 下滚动和播放器不掉帧。
+- 如果 iOS 换成系统 `UITabBar`/`NavigationBar`，系统 metrics 会改变布局，需要单独确认，不能按“像素级同排版”验收。
 - 真机：iPhone 13 Pro（iOS 26）和 Android 12+ 各一台；模拟器只做 UI 检查。
 
 ## 6. 技术架构
@@ -532,4 +536,5 @@ type PlayerConfig = {
 3. 是否复用 Rust core（推荐是）？还是先用 TypeScript 快速做 MVP？
 4. Android 播放器：Media3 ExoPlayer + GL（推荐）还是自写 MediaCodec + HTTP？
 5. 离线缓存优先级：P1 还是 P2？
+6. “iOS 原生控件”是指允许固定 frame 的原生玻璃控件，还是必须系统 `UITabBar`/`NavigationBar`？前者才能保证两端像素级同排版。
 6. 分发方式：个人签名/TestFlight，还是尝试上架？
