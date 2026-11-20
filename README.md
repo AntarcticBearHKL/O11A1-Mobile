@@ -8,6 +8,8 @@
 - `expo-ui/`：Expo 应用。iOS 原生构建已包含 VideoToolbox + Metal 播放器（本地 Expo 模块 `modules/o11a1-video`）；Expo Go 里仍只能预览 UI。
 - 根目录：Android Studio 原生测试工程（MediaCodec → SurfaceTexture → GLES3）。
 
+> 产品与播放器设计：[MOBILE_DESIGN.md](MOBILE_DESIGN.md)。
+
 ## 0. 测试视频
 
 两个平台统一使用 B 站 **BV1NS4t6oEXQ**（影视飓风 MacBook Pro PROLED XDR）的 30 秒测试片段：
