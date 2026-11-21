@@ -477,8 +477,15 @@ final class WebAppBridge {
 
     @JavascriptInterface
     public void setOrientation(String mode) {
-        activity.runOnUiThread(() ->
-            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT));
+        activity.runOnUiThread(() -> {
+            if ("landscape-left".equals(mode)) {
+                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            } else if ("landscape-right".equals(mode)) {
+                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE);
+            } else {
+                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+            }
+        });
     }
 
     @JavascriptInterface

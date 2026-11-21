@@ -313,7 +313,10 @@ const MOCK_BRIDGE = `
       try { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'brightness-restore' })); } catch (_) {}
       return JSON.stringify({ ok: true });
     },
-    setOrientation: function () {},
+    setOrientation: function (mode) {
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'orientation', mode: mode })); } catch (_) {}
+      return JSON.stringify({ ok: true });
+    },
     liveDanmuInfo: function () { return JSON.stringify({ ok: false, error: 'UI 调试模式不加载直播弹幕' }); }
   };
 })();
@@ -361,6 +364,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (NativeBridge) return;
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
   }, []);
 
@@ -384,6 +388,14 @@ export default function App() {
         const saved = savedMockBrightness.current;
         savedMockBrightness.current = null;
         if (saved != null) await Brightness.setBrightnessAsync(saved);
+      } else if (message.type === 'orientation') {
+        const mode = String(message.mode || 'portrait');
+        const lock = mode === 'landscape-left'
+          ? ScreenOrientation.OrientationLock.LANDSCAPE_LEFT
+          : mode === 'landscape-right'
+            ? ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT
+            : ScreenOrientation.OrientationLock.PORTRAIT_UP;
+        await ScreenOrientation.lockAsync(lock);
       }
     } catch (_) {}
   };

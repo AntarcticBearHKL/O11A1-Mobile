@@ -175,13 +175,25 @@ enum O11A1Orientation {
       guard let scene = UIApplication.shared.connectedScenes
         .compactMap({ $0 as? UIWindowScene })
         .first else { return }
-      let preferences = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: .portrait)
+      let mask: UIInterfaceOrientationMask
+      switch mode {
+      case "landscape-left": mask = .landscapeLeft
+      case "landscape-right": mask = .landscapeRight
+      default: mask = .portrait
+      }
+      let preferences = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: mask)
       scene.requestGeometryUpdate(preferences) { _ in }
       if let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController {
         root.setNeedsUpdateOfSupportedInterfaceOrientations()
       }
     } else {
-      UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
+      let value: UIInterfaceOrientation
+      switch mode {
+      case "landscape-left": value = .landscapeLeft
+      case "landscape-right": value = .landscapeRight
+      default: value = .portrait
+      }
+      UIDevice.current.setValue(value.rawValue, forKey: "orientation")
       UIViewController.attemptRotationToDeviceOrientation()
     }
   }

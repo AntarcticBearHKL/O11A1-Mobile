@@ -47,6 +47,8 @@
   const rateValue = $('#rateValue');
   const rateLabel = $('#rateLabel');
   const rotateHud = $('#rotateHud');
+  const rotateArrow = $('#rotateArrow');
+  const rotateLabel = $('#rotateLabel');
   const swipeHint = $('#swipeHint');
   const commentsPanel = $('#commentsPanel');
   const commentsBody = $('#commentsBody');
@@ -249,6 +251,7 @@
     miniVisible: false,
     playing: false,
     locked: false,
+    playerLandscape: false,
     progress: 0,
     duration: 0,
     brightness: Number.isFinite(loaded?.brightness) ? Math.max(0, Math.min(100, loaded.brightness)) : 100,
@@ -301,6 +304,7 @@
   let lastStageTap = { time: 0, zone: '' };
   let levelHudTimer = null;
   let rateHudTimer = null;
+  let rotateHudTimer = null;
 
   let commentsGesture = null;
   let commentsCloseTimer = null;
@@ -1695,6 +1699,37 @@
     }, 3000);
   }
 
+  /* ---------- player orientation ---------- */
+  function setPlayerOrientation(landscape, options = {}) {
+    const next = landscape === true;
+    state.playerLandscape = next;
+    const mode = next ? 'landscape-right' : 'portrait';
+    if (window.O11A1Native && typeof window.O11A1Native.setOrientation === 'function') {
+      try { window.O11A1Native.setOrientation(mode); } catch (_) {}
+    } else if (screen.orientation && typeof screen.orientation.lock === 'function') {
+      try {
+        screen.orientation.lock(next ? 'landscape' : 'portrait').catch(() => {});
+      } catch (_) {}
+    }
+    if (options.silent) return;
+    rotateArrow.textContent = next ? '↔' : '↕';
+    rotateLabel.textContent = next ? '横屏' : '竖屏';
+    rotateHud.classList.remove('show');
+    void rotateHud.offsetWidth;
+    rotateHud.classList.add('show');
+    clearTimeout(rotateHudTimer);
+    rotateHudTimer = setTimeout(() => {
+      rotateHudTimer = null;
+      rotateHud.classList.remove('show');
+    }, 1200);
+  }
+
+  function togglePlayerOrientation() {
+    if (!state.playerOpen || state.locked) return;
+    setPlayerOrientation(!state.playerLandscape);
+    showControls();
+  }
+
   function openPlayer(options = {}) {
     if (!state.loggedIn) {
       showPage('login');
@@ -1709,6 +1744,7 @@
     }
     state.playerOpen = true;
     state.locked = false;
+    setPlayerOrientation(false, { silent: true });
     hideMiniPlayer();
     clearTimeout(hideTimer);
     pcPlay.textContent = state.playing ? 'Ⅱ' : '▶';
@@ -1744,6 +1780,7 @@
     if (!state.playerOpen) return;
     state.playerOpen = false;
     state.locked = false;
+    setPlayerOrientation(false, { silent: true });
     restoreNativeBrightness();
     clearTimeout(hideTimer);
     player.classList.remove('dragging');
@@ -1792,6 +1829,7 @@
     state.playing = false;
     state.progress = 0;
     state.locked = false;
+    setPlayerOrientation(false, { silent: true });
     restoreNativeBrightness();
     clearTimeout(hideTimer);
     hideMiniPlayer();
@@ -2202,6 +2240,7 @@
       longPressTimer: null,
       collapseY: 0,
       horizontal: 0,
+      lastDy: 0,
     };
     if (zone !== 'middle' && state.settings.longPressRate) {
       stageGesture.longPressTimer = setTimeout(() => {
@@ -2222,6 +2261,7 @@
     if (!gesture || event.pointerId !== gesture.pointerId) return;
     const dx = event.clientX - gesture.startX;
     const dy = event.clientY - gesture.startY;
+    gesture.lastDy = dy;
     if (gesture.mode === 'rate' || gesture.longPressFired) return;
 
     if (!gesture.moved) {
@@ -2233,7 +2273,7 @@
       if (state.settings.swipeComments && Math.abs(dx) > Math.abs(dy) * 1.15) {
         gesture.mode = 'horizontal';
       } else if (gesture.zone === 'middle') {
-        gesture.mode = dy > 0 ? 'collapse' : 'toolbar';
+        gesture.mode = dy > 0 ? 'collapse' : 'rotate';
         if (dy > 0 && !state.settings.middleCollapse) return;
       } else if (state.settings.swipeLevel) {
         gesture.mode = 'level';
@@ -2251,7 +2291,7 @@
       const scale = 1 - Math.min(0.05, dragY / 3000);
       player.style.transform = `translateY(${dragY}px) scale(${scale})`;
       player.style.opacity = String(1 - Math.min(0.35, dragY / 800));
-    } else if (gesture.mode === 'toolbar') {
+    } else if (gesture.mode === 'rotate') {
       showControls();
       clearTimeout(hideTimer);
     } else if (gesture.mode === 'level') {
@@ -2346,8 +2386,9 @@
           player.style.opacity = '';
         }
       }, 260);
-    } else if (gesture.mode === 'toolbar') {
-      showControls();
+    } else if (gesture.mode === 'rotate') {
+      if (!cancelled && gesture.lastDy < -60) togglePlayerOrientation();
+      else showControls();
     } else if (gesture.mode === 'level') {
       hideLevelHuds(700);
       showControls();
@@ -2796,9 +2837,10 @@
       },
       'settings-gesture': {
         title: '手势',
-        sub: '三区分工：中间收起/工具栏，左右系统亮度/系统音量，双击中间播放/暂停，长按左右减速/加速',
+        sub: '三区分工：中间下滑收起、上滑横竖屏，左右系统亮度/系统音量，双击中间播放/暂停，长按左右减速/加速',
         rows: [
-          { type: 'switch', label: '中间上滑 工具栏 / 下滑 收起', key: 'middleCollapse' },
+          { type: 'switch', label: '中间下滑 收起播放器', key: 'middleCollapse' },
+          { type: 'static', label: '中间上滑', value: '横屏 / 竖屏切换' },
           { type: 'switch', label: '左右上下滑 系统亮度 / 系统音量', key: 'swipeLevel' },
           { type: 'switch', label: '左滑 全屏评论', key: 'swipeComments' },
           { type: 'switch', label: '长按左 / 右 减速 / 加速', key: 'longPressRate' },
@@ -3716,6 +3758,13 @@
     dispatchSwipe('right', 0, 140);
     results.push(`volume=${state.volume}`);
 
+    await sleep(140);
+    dispatchSwipe('middle', 0, -150);
+    results.push(`landscape=${state.playerLandscape === true && rotateLabel.textContent === '横屏'}`);
+    await sleep(140);
+    dispatchSwipe('middle', 0, -150);
+    results.push(`portrait=${state.playerLandscape === false && rotateLabel.textContent === '竖屏'}`);
+
     await sleep(180);
     dispatchSwipe('middle', 0, 190);
     results.push(`collapsed=${!state.playerOpen && state.miniVisible}`);
@@ -3818,6 +3867,9 @@
 
   const reviewParams = new URLSearchParams(window.location.search);
   const demo = reviewParams.get('demo');
+  if (window.O11A1Native && typeof window.O11A1Native.setOrientation === 'function') {
+    try { window.O11A1Native.setOrientation('portrait'); } catch (_) {}
+  }
   if (reviewParams.has('nomotion')) document.body.classList.add('reduce-motion');
   if (demo === 'login') {
     state.loggedIn = false;
