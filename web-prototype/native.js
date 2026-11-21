@@ -1930,6 +1930,16 @@
       vip: false,
     };
     renderAccount();
+    if (accountInfo.loggedIn && !state.loggedIn) {
+      state.loggedIn = true;
+      host.save();
+      host.app.classList.remove('auth-gate');
+      if (state.page === 'login') {
+        host.showPage('home');
+        pages.home = 1;
+        loadHome(1);
+      }
+    }
   }
 
   function openAccountSheet() {
