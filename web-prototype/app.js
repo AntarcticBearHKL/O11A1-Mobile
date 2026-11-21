@@ -65,8 +65,6 @@
   const sidebarPlay = $('#sidebarPlay');
   const sidebarQueue = $('#sidebarQueue');
   const sidebarProgress = $('#sidebarProgress');
-  const sidebarModule = $('#sidebarModule');
-  const sidebarModuleName = $('#sidebarModuleName');
   const moduleSettings = $('#moduleSettings');
   const moduleCount = $('#moduleCount');
   const navSettings = $('#navSettings');
@@ -538,7 +536,6 @@
   function refreshHomeHeader() {
     const mod = currentModule();
     if (myModuleName) myModuleName.textContent = mod ? mod.name : '无模块';
-    if (sidebarModuleName) sidebarModuleName.textContent = mod ? mod.name : '无模块';
     if (!mod) {
       homeNote.textContent = '所有主页模块已关闭 · 在「主页模块」中启用';
       return;
@@ -2049,10 +2046,6 @@
     closeSidebar();
     openQueueSheet();
   });
-  sidebarModule.addEventListener('click', () => {
-    closeSidebar();
-    openModuleSheet();
-  });
   sidebarClose.addEventListener('click', closeSidebar);
   sidebarBackdrop.addEventListener('click', closeSidebar);
 
@@ -2371,6 +2364,8 @@
   } else if (demo === 'comments') {
     openPlayer();
     setTimeout(() => openComments(), 220);
+  } else if (demo === 'sidebar') {
+    setTimeout(openSidebar, 300);
   } else if (demo === 'brightness' || demo === 'volume' || demo === 'rate' || demo === 'rotate') {
     openPlayer();
     setTimeout(() => {
