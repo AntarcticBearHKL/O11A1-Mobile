@@ -8,6 +8,33 @@
 - `expo-ui/`：iOS V2 客户端。Expo 壳 + 全屏 WKWebView + 本地回环 Bilibili 桥（`modules/o11a1-bridge`）；UI 仍然是 `web-prototype/`，播放走 HTML5 `<video>` + 本地 Range 代理。
 - 根目录：Android V2 应用（`com.o11a1.videotest`）。全屏 WebView 承载 V2 设计 + 原生 Bilibili 桥 + 本地视频代理；旧 MediaCodec / GLES3 测试类保留在工程里。
 
+## 只调 UI：Expo Go 模式
+
+完整的 O11A1 app **不能直接**用 Expo Go 跑，因为 `expo-ui` 依赖自定义原生模块 `O11A1Bridge`（本地 HTTP 服务、Cookie、B 站接口、原生 WebView 宿主）。Expo Go 里没有这个模块，所以原来的行为是直接显示“原生模块未加载”。
+
+现在 `App.tsx` 增加了 UI MOCK 回退：
+
+- 在 Expo Go 中启动时检测不到 `O11A1Bridge`，会自动把 `web-prototype/` 的 `index.html / styles.css / app.js / native.js` 内联进一个 WebView。
+- 注入 `window.O11A1Native` 的 mock 实现：热门/搜索/排行/番剧/直播/收藏/历史/关注/动态/消息/评论/楼中楼/会员任务都有假数据。
+- 登录 gate、短信登录卡片、侧边栏、播放器工具栏、画质/倍速/插帧/增强/循环/评论/播放列表/设置/主题/外观滑杆/键盘映射等 UI 都可以点。
+- 视频播放、真实账号、离线下载、AI、截图、复制链接会显示“UI 调试模式…”的内联提示，不会伪造成功。
+- 左上角会显示 `UI MOCK · 无视频 / 无账号` 标识。
+
+启动：
+
+```bash
+cd expo-ui
+npx expo start
+```
+
+用 Expo Go 扫码或在 Expo Go 里打开同一局域网地址即可。也可以直接：
+
+```bash
+npx expo start --tunnel
+```
+
+如果只想在电脑上快速看 UI，直接起一个静态服务器打开 `web-prototype/` 也可以；Expo Go 模式的好处是能在手机上测试触摸手势和横屏工具栏。
+
 ## iOS V2 实装（当前 IPA）
 
 - **架构**：`expo-ui` 启动 `O11A1Bridge` 原生模块，在 `127.0.0.1` 随机端口起一个本地 HTTP 服务，把打包进 JS 的 `index.html / app.js / native.js / styles.css` 原样提供给 WKWebView。
