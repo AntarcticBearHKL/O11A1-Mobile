@@ -42,6 +42,7 @@
   const volumeHud = $('#volumeHud');
   const volumeFill = $('#volumeFill');
   const volumeValue = $('#volumeValue');
+  const volumeNote = $('#volumeNote');
   const rateHud = $('#rateHud');
   const rateValue = $('#rateValue');
   const rateLabel = $('#rateLabel');
@@ -2002,9 +2003,13 @@
     pcVolume.value = String(state.volume);
     pcMute.textContent = state.volume === 0 ? '静' : '音';
     pcMute.classList.toggle('on', state.volume === 0);
-    if (nativeApply && state.playerOpen && window.O11A1Native
-      && typeof window.O11A1Native.setVolume === 'function') {
-      try { window.O11A1Native.setVolume(state.volume); } catch (_) {}
+    if (nativeApply && state.playerOpen && window.O11A1Native) {
+      if (typeof window.O11A1Native.setVolume === 'function') {
+        try { window.O11A1Native.setVolume(state.volume); } catch (_) {}
+        if (volumeNote) volumeNote.hidden = true;
+      } else if (volumeNote) {
+        volumeNote.hidden = false;
+      }
     }
     if (persist) save();
   }

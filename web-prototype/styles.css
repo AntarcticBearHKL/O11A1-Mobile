@@ -958,6 +958,14 @@ body.grid .grid-overlay{display:block}
 .level-value{display:flex;flex-direction:column;align-items:center;gap:2px}
 .level-value b{font-size:10.5px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:.01em}
 .level-value small{font-size:8px;letter-spacing:.1em;color:rgba(255,255,255,.46)}
+.level-note{
+  position:absolute;right:0;bottom:calc(100% + 8px);width:136px;
+  padding:7px 9px;border-radius:10px;text-align:right;
+  background:rgba(10,12,17,.78);border:1px solid rgba(255,255,255,.14);
+  color:rgba(255,255,255,.72);font-size:8.5px;font-style:normal;
+  line-height:1.55;letter-spacing:.02em;
+}
+.level-note[hidden]{display:none}
 .rate-hud{
   position:absolute;left:50%;top:40%;z-index:10;transform:translate(-50%,-50%) scale(.9);
   display:flex;flex-direction:column;align-items:center;gap:3px;
