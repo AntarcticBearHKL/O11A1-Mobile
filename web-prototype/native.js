@@ -1105,20 +1105,6 @@
     }
   }
 
-  function sendDanmaku(text) {
-    if (!text) return false;
-    const item = currentItem();
-    const cid = item && Number(item.cid || 0);
-    if (!cid || typeof bridge.sendDanmaku !== 'function') return false;
-    const result = call('sendDanmaku', cid, text, Math.round((video.currentTime || 0) * 1000));
-    if (!result.ok) {
-      log('danmaku send failed ' + (result.error || ''));
-      return false;
-    }
-    if (state.settings.danmaku) spawnDanmaku({ t: video.currentTime || 0, text, color: 0xffffff, mode: 1 });
-    return true;
-  }
-
   function currentItem() {
     return state.playlist[state.currentIndex] || null;
   }
@@ -2051,9 +2037,6 @@
     },
     onTrackChange() {
       loadVideo(currentItem(), true);
-    },
-    onDanmakuSend(text) {
-      return sendDanmaku(text);
     },
     onRateHold(rate) {
       if (!video.src || mediaLive) return;

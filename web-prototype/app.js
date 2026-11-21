@@ -14,8 +14,6 @@
   const playerTitle = $('#playerTitle');
   const playerSub = $('#playerSub');
   const pcPlay = $('#pcPlay');
-  const pcPrev = $('#pcPrev');
-  const pcNext = $('#pcNext');
   const pcTime = $('#pcTime');
   const pcMute = $('#pcMute');
   const pcVolume = $('#pcVolume');
@@ -28,8 +26,6 @@
   const pcEnhance = $('#pcEnhance');
   const pcEnhanceValue = $('#pcEnhanceValue');
   const pcDanmaku = $('#pcDanmaku');
-  const pcDanmakuInput = $('#pcDanmakuInput');
-  const pcDanmakuSend = $('#pcDanmakuSend');
   const pcLoop = $('#pcLoop');
   const pcLoopValue = $('#pcLoopValue');
   const pcSide = $('#pcSide');
@@ -1897,6 +1893,7 @@
   }
 
   function setPlayIcon(playing) {
+    if (!pcPlay) return;
     pcPlay.classList.toggle('playing', playing === true);
     pcPlay.setAttribute('aria-label', playing ? '暂停' : '播放');
   }
@@ -1917,7 +1914,6 @@
     pcInterpValue.textContent = state.settings.interp;
     pcEnhanceValue.textContent = state.settings.enhance;
     pcDanmaku.classList.toggle('on', state.settings.danmaku);
-    playerControls.classList.toggle('danmaku-off', !state.settings.danmaku);
     pcLoopValue.textContent = state.settings.loop;
     pcVolume.value = String(state.volume);
     setMuteIcon(state.volume === 0);
@@ -1971,7 +1967,7 @@
       if (!state.playerOpen || state.locked) return;
       playerControls.classList.add('hidden');
       player.classList.add('ui-hidden');
-    }, 1000);
+    }, 2000);
   }
 
   /* ---------- player orientation ---------- */
@@ -2188,30 +2184,6 @@
     updatePlayerLabels();
     save();
     showControls();
-  }
-
-  function sendDanmaku() {
-    const text = pcDanmakuInput.value.trim();
-    if (!text) return;
-    const media = window.O11A1Media;
-    if (media && typeof media.onDanmakuSend === 'function') {
-      const ok = media.onDanmakuSend(text);
-      if (ok) pcDanmakuInput.value = '';
-      pcDanmakuSend.textContent = ok ? '已发送' : '请先登录';
-      pcDanmakuSend.classList.toggle('done', ok);
-      setTimeout(() => {
-        pcDanmakuSend.textContent = '发送';
-        pcDanmakuSend.classList.remove('done');
-      }, 1200);
-      return;
-    }
-    pcDanmakuInput.value = '';
-    pcDanmakuSend.textContent = '已发送';
-    pcDanmakuSend.classList.add('done');
-    setTimeout(() => {
-      pcDanmakuSend.textContent = '发送';
-      pcDanmakuSend.classList.remove('done');
-    }, 1000);
   }
 
   function openPlayerInfoSheet() {
@@ -3483,9 +3455,6 @@
   $('#playerBack').addEventListener('click', minimizePlayer);
   $('#playerQueue').addEventListener('click', openPlaylistPage);
   $('#playerMore').addEventListener('click', openPlayerMoreSheet);
-  pcPlay.addEventListener('click', togglePlay);
-  pcPrev.addEventListener('click', () => stepTrack(-1));
-  pcNext.addEventListener('click', () => stepTrack(1));
   pcMute.addEventListener('click', () => {
     if (state.volume > 0) applyVolume(0, true, true);
     else applyVolume(lastVolume || 80, true, true);
@@ -3496,13 +3465,6 @@
     state.settings.danmaku = !state.settings.danmaku;
     updatePlayerLabels();
     save();
-  });
-  pcDanmakuSend.addEventListener('click', sendDanmaku);
-  pcDanmakuInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      sendDanmaku();
-    }
   });
   pcLoop.addEventListener('click', cycleLoop);
   pcSide.addEventListener('click', openPlayerSideSheet);
@@ -4290,7 +4252,7 @@
     window.dispatchEvent(pointerEvent('pointerup', tap.x, tap.y, 0));
     await sleep(80);
     const toolbarShown = !playerControls.classList.contains('hidden');
-    await sleep(1400);
+    await sleep(2300);
     results.push(`toolbarHide=${toolbarShown && playerControls.classList.contains('hidden')}`);
     showControls();
 

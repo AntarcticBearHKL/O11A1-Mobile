@@ -988,17 +988,6 @@ body.grid .grid-overlay{display:block}
 .progress-ph:active .progress-thumb{transform:scale(1.35)}
 
 .pc-main{display:flex;align-items:center;gap:2px;min-width:0;height:48px}
-.pc-play{
-  width:44px;height:44px;flex:none;border:0;border-radius:50%;
-  background:#fff;color:#07090D;display:grid;place-items:center;cursor:pointer;
-  margin-right:4px;transition:transform .12s ease,opacity .12s ease;
-}
-.pc-play:active{transform:scale(.92)}
-.pc-play .pc-ico{width:20px;height:20px;fill:currentColor;stroke:none;animation:pcIconIn .18s cubic-bezier(.16,1,.3,1)}
-@keyframes pcIconIn{from{opacity:0;transform:scale(.72)}to{opacity:1;transform:scale(1)}}
-.pc-play .pc-ico-pause{display:none}
-.pc-play.playing .pc-ico-play{display:none}
-.pc-play.playing .pc-ico-pause{display:block}
 .pc-icon{
   width:40px;height:40px;flex:none;border:0;border-radius:50%;background:none;
   color:rgba(255,255,255,.68);display:grid;place-items:center;cursor:pointer;
@@ -1044,41 +1033,12 @@ body.grid .grid-overlay{display:block}
 .pc-tool-value{font-size:11px;font-weight:600;color:rgba(255,255,255,.86);line-height:1.2;white-space:nowrap}
 .pc-tool.done .pc-tool-value{color:#4EC9A5}
 
-.pc-composer{
-  display:flex;align-items:center;gap:10px;
-  padding:6px 0 0;margin-top:2px;
-  border-top:1px solid rgba(255,255,255,.07);
-  max-height:48px;opacity:1;overflow:hidden;
-  transition:max-height .22s ease,opacity .18s ease,padding .22s ease,margin .22s ease;
-}
-.player-controls.danmaku-off .pc-composer{
-  max-height:0;opacity:0;padding-top:0;margin-top:0;border-top-color:transparent;
-  pointer-events:none;
-}
-.pc-composer-ico{flex:none;color:rgba(255,255,255,.36);display:grid;place-items:center}
-.pc-composer-ico svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.pc-danmaku-input{
-  flex:1;min-width:0;height:30px;border:0;border-bottom:1px solid rgba(255,255,255,.14);
-  border-radius:0;background:none;color:#fff;font:inherit;font-size:12px;
-  padding:0 2px;outline:none;transition:border-color .16s;
-}
-.pc-danmaku-input::placeholder{color:rgba(255,255,255,.32)}
-.pc-danmaku-input:focus{border-bottom-color:rgba(255,255,255,.66)}
-.pc-send{
-  flex:none;height:30px;padding:0 2px;border:0;background:none;
-  color:#fff;font-size:10.5px;font-weight:600;letter-spacing:.04em;cursor:pointer;
-  opacity:.82;transition:opacity .14s,color .14s;
-}
-.pc-send:hover{opacity:1}
-.pc-send.done{color:#4EC9A5;opacity:1}
-
 @media (max-width:480px){
   .pc-volume input{display:none}
 }
 @media (max-width:380px){
   .player-controls{padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
   .pc-icon{width:36px;height:36px}
-  .pc-play{width:42px;height:42px}
   .pc-time{font-size:9px;margin-left:4px}
 }
 .seek-ripple{
