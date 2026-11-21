@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import * as Brightness from 'expo-brightness';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { WebView } from 'react-native-webview';
@@ -91,8 +92,11 @@ function bridgeShim(port: number, testFlow: string): string {
     qrGenerate: function () { return call('qrGenerate', {}); },
     qrPoll: function (key) { return call('qrPoll', { key: key }); },
     openWebLogin: function () { return call('webLogin', {}); },
+    brightness: function () { try { return Number(JSON.parse(call('brightness', {})).v || 0); } catch (error) { return 0; } },
     setBrightness: function (value) { return call('setBrightness', { v: value }); },
     restoreBrightness: function () { return call('restoreBrightness', {}); },
+    volume: function () { try { return Number(JSON.parse(call('volume', {})).v || 0); } catch (error) { return 0; } },
+    setVolume: function (value) { return call('setVolume', { v: value }); },
     setOrientation: function (mode) { return call('setOrientation', { mode: mode }); },
     proxyInfo: function () { return call('proxyInfo', {}); },
     log: function (message) { return call('log', { message: message }); }
@@ -293,8 +297,20 @@ const MOCK_BRIDGE = `
     compositorFps: function () { return 60; },
     copy: function () { return JSON.stringify({ ok: false, error: 'UI 调试模式不复制' }); },
     screenshot: function () { return JSON.stringify({ ok: false, error: 'UI 调试模式不截图' }); },
-    setBrightness: function () {},
-    restoreBrightness: function () {},
+    brightness: function () { return window.__O11A1_BRIGHTNESS || 100; },
+    setBrightness: function (value) {
+      if (window.__O11A1_SAVED_BRIGHTNESS == null) window.__O11A1_SAVED_BRIGHTNESS = window.__O11A1_BRIGHTNESS || 100;
+      window.__O11A1_BRIGHTNESS = value;
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'brightness', value: value })); } catch (_) {}
+      return JSON.stringify({ ok: true });
+    },
+    restoreBrightness: function () {
+      var saved = window.__O11A1_SAVED_BRIGHTNESS || window.__O11A1_BRIGHTNESS || 100;
+      window.__O11A1_BRIGHTNESS = saved;
+      window.__O11A1_SAVED_BRIGHTNESS = null;
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'brightness-restore' })); } catch (_) {}
+      return JSON.stringify({ ok: true });
+    },
     setOrientation: function () {},
     liveDanmuInfo: function () { return JSON.stringify({ ok: false, error: 'UI 调试模式不加载直播弹幕' }); }
   };
@@ -317,6 +333,8 @@ export default function App() {
 
   const [config, setConfig] = useState<{ port: number; testFlow: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mockBrightness, setMockBrightness] = useState<number | null>(null);
+  const savedMockBrightness = useRef<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -345,6 +363,36 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (NativeBridge) return;
+    Brightness.getBrightnessAsync()
+      .then((value) => {
+        savedMockBrightness.current = value;
+        setMockBrightness(value);
+      })
+      .catch(() => {
+        savedMockBrightness.current = 1;
+        setMockBrightness(1);
+      });
+  }, []);
+
+  const handleMockMessage = async (event: any) => {
+    try {
+      const message = JSON.parse(event.nativeEvent.data);
+      if (message.type === 'brightness') {
+        if (savedMockBrightness.current == null) {
+          savedMockBrightness.current = await Brightness.getBrightnessAsync();
+        }
+        const value = Math.max(0.02, Math.min(1, Number(message.value) / 100));
+        await Brightness.setBrightnessAsync(value);
+      } else if (message.type === 'brightness-restore') {
+        const saved = savedMockBrightness.current;
+        savedMockBrightness.current = null;
+        if (saved != null) await Brightness.setBrightnessAsync(saved);
+      }
+    } catch (_) {}
+  };
+
+  useEffect(() => {
     if (!config || !NativeBridge?.enableHighRefresh) return;
     const timer = setTimeout(() => {
       try { NativeBridge.enableHighRefresh?.(); } catch (_) {}
@@ -353,6 +401,15 @@ export default function App() {
   }, [config]);
 
   if (!NativeBridge && MOCK_HTML) {
+    if (mockBrightness == null) {
+      return (
+        <View style={styles.center}>
+          <StatusBar hidden />
+          <Text style={styles.title}>O11A1</Text>
+          <ActivityIndicator color="#B4453A" />
+        </View>
+      );
+    }
     return (
       <View style={styles.root}>
         <StatusBar hidden />
@@ -371,6 +428,8 @@ export default function App() {
           bounces={false}
           scrollEnabled={false}
           setSupportMultipleWindows={false}
+          injectedJavaScriptBeforeContentLoaded={`window.__O11A1_BRIGHTNESS=${Math.round(mockBrightness * 100)};`}
+          onMessage={handleMockMessage}
         />
       </View>
     );

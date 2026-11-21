@@ -1706,6 +1706,8 @@
     resetComments();
     applyBrightness(state.brightness);
     applyVolume(state.volume);
+    syncNativeBrightness();
+    syncNativeVolume();
     hideLevelHuds(0);
     hideRateHud(0);
     rotateHud.classList.remove('show');
@@ -1971,12 +1973,19 @@
     state.brightness = clampPercent(value);
     brightnessValue.textContent = `${state.brightness}%`;
     brightnessFill.style.height = `${state.brightness}%`;
-    playerVideo.style.setProperty('--dim', String((100 - state.brightness) / 100 * 0.82));
     if (nativeApply && state.playerOpen && window.O11A1Native
       && typeof window.O11A1Native.setBrightness === 'function') {
-      window.O11A1Native.setBrightness(state.brightness);
+      try { window.O11A1Native.setBrightness(state.brightness); } catch (_) {}
     }
     if (persist) save();
+  }
+
+  function syncNativeBrightness() {
+    if (!window.O11A1Native || typeof window.O11A1Native.brightness !== 'function') return;
+    try {
+      const value = Number(window.O11A1Native.brightness());
+      if (Number.isFinite(value) && value > 0) applyBrightness(value, false);
+    } catch (_) {}
   }
 
   function restoreNativeBrightness() {
@@ -1985,7 +1994,7 @@
     }
   }
 
-  function applyVolume(value, persist) {
+  function applyVolume(value, persist, nativeApply = false) {
     state.volume = clampPercent(value);
     if (state.volume > 0) lastVolume = state.volume;
     volumeValue.textContent = `${state.volume}%`;
@@ -1993,10 +2002,19 @@
     pcVolume.value = String(state.volume);
     pcMute.textContent = state.volume === 0 ? '静' : '音';
     pcMute.classList.toggle('on', state.volume === 0);
-    if (window.O11A1Media && typeof window.O11A1Media.onVolume === 'function') {
-      window.O11A1Media.onVolume(state.volume);
+    if (nativeApply && state.playerOpen && window.O11A1Native
+      && typeof window.O11A1Native.setVolume === 'function') {
+      try { window.O11A1Native.setVolume(state.volume); } catch (_) {}
     }
     if (persist) save();
+  }
+
+  function syncNativeVolume() {
+    if (!window.O11A1Native || typeof window.O11A1Native.volume !== 'function') return;
+    try {
+      const value = Number(window.O11A1Native.volume());
+      if (Number.isFinite(value) && value >= 0) applyVolume(value, false);
+    } catch (_) {}
   }
 
   function showLevelHud(hud) {
@@ -2213,7 +2231,7 @@
       const rect = playerStage.getBoundingClientRect();
       const delta = (-dy / Math.max(1, rect.height)) * 140;
       if (gesture.zone === 'left') applyBrightness(gesture.startBrightness + delta, false, true);
-      else applyVolume(gesture.startVolume + delta);
+      else applyVolume(gesture.startVolume + delta, false, true);
     } else if (gesture.mode === 'horizontal') {
       gesture.horizontal = dx;
       if (dx < 0 && state.settings.swipeComments) {
@@ -2493,8 +2511,8 @@
     }
     if (key === 'ArrowLeft') { event.preventDefault(); seekRelative(-5); return; }
     if (key === 'ArrowRight') { event.preventDefault(); seekRelative(5); return; }
-    if (key === 'ArrowUp') { event.preventDefault(); applyVolume(Math.min(100, state.volume + 5), true); return; }
-    if (key === 'ArrowDown') { event.preventDefault(); applyVolume(Math.max(0, state.volume - 5), true); return; }
+    if (key === 'ArrowUp') { event.preventDefault(); applyVolume(Math.min(100, state.volume + 5), true, true); return; }
+    if (key === 'ArrowDown') { event.preventDefault(); applyVolume(Math.max(0, state.volume - 5), true, true); return; }
     if (lower === 'm') { event.preventDefault(); pcMute.click(); return; }
     if (lower === 'f') { event.preventDefault(); toggleFullscreen(); return; }
     if (lower === 'c') { event.preventDefault(); commentsPanel.classList.contains('open') ? closeComments() : openComments(); return; }
@@ -3121,11 +3139,11 @@
   pcPrev.addEventListener('click', () => stepTrack(-1));
   pcNext.addEventListener('click', () => stepTrack(1));
   pcMute.addEventListener('click', () => {
-    if (state.volume > 0) applyVolume(0, true);
-    else applyVolume(lastVolume || 80, true);
+    if (state.volume > 0) applyVolume(0, true, true);
+    else applyVolume(lastVolume || 80, true, true);
   });
-  pcVolume.addEventListener('input', () => applyVolume(Number(pcVolume.value), false));
-  pcVolume.addEventListener('change', () => applyVolume(Number(pcVolume.value), true));
+  pcVolume.addEventListener('input', () => applyVolume(Number(pcVolume.value), false, true));
+  pcVolume.addEventListener('change', () => applyVolume(Number(pcVolume.value), true, true));
   pcDanmaku.addEventListener('click', () => {
     state.settings.danmaku = !state.settings.danmaku;
     updatePlayerLabels();

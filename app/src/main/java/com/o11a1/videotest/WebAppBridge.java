@@ -7,6 +7,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.graphics.Bitmap;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -424,6 +425,52 @@ final class WebAppBridge {
                 activity.getWindow().setAttributes(lp);
             } catch (Throwable error) {
                 Log.w(TAG, "brightness restore failed", error);
+            }
+        });
+    }
+
+    @JavascriptInterface
+    public int brightness() {
+        try {
+            android.view.WindowManager.LayoutParams lp = activity.getWindow().getAttributes();
+            if (lp.screenBrightness >= 0f) {
+                return Math.round(lp.screenBrightness * 100f);
+            }
+            int value = android.provider.Settings.System.getInt(
+                activity.getContentResolver(),
+                android.provider.Settings.System.SCREEN_BRIGHTNESS,
+                128
+            );
+            return Math.round(value * 100f / 255f);
+        } catch (Throwable error) {
+            return 100;
+        }
+    }
+
+    @JavascriptInterface
+    public int volume() {
+        try {
+            AudioManager audio = (AudioManager) activity.getSystemService(Context.AUDIO_SERVICE);
+            if (audio == null) return 0;
+            int max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            int current = audio.getStreamVolume(AudioManager.STREAM_MUSIC);
+            return max > 0 ? Math.round(current * 100f / max) : 0;
+        } catch (Throwable error) {
+            return 0;
+        }
+    }
+
+    @JavascriptInterface
+    public void setVolume(int percent) {
+        activity.runOnUiThread(() -> {
+            try {
+                AudioManager audio = (AudioManager) activity.getSystemService(Context.AUDIO_SERVICE);
+                if (audio == null) return;
+                int max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                int index = Math.round(Math.max(0, Math.min(100, percent)) / 100f * max);
+                audio.setStreamVolume(AudioManager.STREAM_MUSIC, index, 0);
+            } catch (Throwable error) {
+                Log.w(TAG, "volume failed", error);
             }
         });
     }

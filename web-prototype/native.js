@@ -2016,10 +2016,6 @@
       if (mediaLive || !video.duration || !Number.isFinite(video.duration)) return;
       video.currentTime = video.duration * Math.max(0, Math.min(100, percent)) / 100;
     },
-    onVolume(value) {
-      video.volume = Math.max(0, Math.min(100, value)) / 100;
-      video.muted = Number(value) === 0;
-    },
     onSettings() {
       if (danmakuLayer) danmakuLayer.style.display = state.settings.danmaku ? 'block' : 'none';
       if (!video.src) return;

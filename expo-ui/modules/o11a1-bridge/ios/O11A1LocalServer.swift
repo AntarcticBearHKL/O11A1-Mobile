@@ -1,4 +1,6 @@
+import AVFAudio
 import Foundation
+import MediaPlayer
 import Network
 import UIKit
 
@@ -15,6 +17,12 @@ final class O11A1LocalServer {
   private var mediaBytes: Int64 = 0
   private var mediaRequests: Int64 = 0
   private var savedBrightness: CGFloat?
+  private lazy var volumeView: MPVolumeView = {
+    let view = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 1, height: 1))
+    view.showsRouteButton = false
+    view.alpha = 0.01
+    return view
+  }()
 
   private(set) var port: Int = 0
 
@@ -239,6 +247,32 @@ final class O11A1LocalServer {
     )
   }
 
+  private func volumeSlider(in view: UIView) -> UISlider? {
+    if let slider = view as? UISlider { return slider }
+    for child in view.subviews {
+      if let slider = volumeSlider(in: child) { return slider }
+    }
+    return nil
+  }
+
+  private func setSystemVolume(_ percent: Int) {
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self else { return }
+      try? AVAudioSession.sharedInstance().setActive(true)
+      if self.volumeView.superview == nil {
+        let window = UIApplication.shared.connectedScenes
+          .compactMap { $0 as? UIWindowScene }
+          .flatMap { $0.windows }
+          .first { $0.isKeyWindow }
+        window?.addSubview(self.volumeView)
+        self.volumeView.layoutIfNeeded()
+      }
+      guard let slider = self.volumeSlider(in: self.volumeView) else { return }
+      slider.value = Float(max(0, min(100, percent))) / 100
+      slider.sendActions(for: .touchUpInside)
+    }
+  }
+
   private func handleAPI(
     name: String,
     query: [String: String],
@@ -421,6 +455,8 @@ final class O11A1LocalServer {
       data = client.qrGenerate()
     case "qrPoll":
       data = client.qrPoll(key: query["key"] ?? "")
+    case "brightness":
+      data = o11a1Data(["ok": true, "v": Int(round(UIScreen.main.brightness * 100))])
     case "setBrightness":
       let value = Double(query["v"] ?? "50") ?? 50
       DispatchQueue.main.async { [weak self] in
@@ -436,6 +472,13 @@ final class O11A1LocalServer {
         self.savedBrightness = nil
       }
       data = o11a1Data(["ok": true])
+    case "volume":
+      try? AVAudioSession.sharedInstance().setActive(true)
+      data = o11a1Data(["ok": true, "v": Int(round(AVAudioSession.sharedInstance().outputVolume * 100))])
+    case "setVolume":
+      let value = Int(Double(query["v"] ?? "50") ?? 50)
+      setSystemVolume(value)
+      data = o11a1Data(["ok": true, "v": value])
     case "webLogin":
       let client = self.client
       DispatchQueue.main.async {
