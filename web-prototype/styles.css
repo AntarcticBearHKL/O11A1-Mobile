@@ -595,6 +595,23 @@ body.kb-open .pd-progress{bottom:2px}
   position:relative;padding-top:12px;
   transition:transform .28s cubic-bezier(.22,1,.36,1),opacity .22s ease;
 }
+.page[data-page="playlist"].active{animation:playlistPageIn .36s cubic-bezier(.16,1,.3,1)}
+@keyframes playlistPageIn{
+  from{opacity:0;transform:translateY(16px)}
+  to{opacity:1;transform:none}
+}
+html.playlist-vt .page.active{animation:none!important}
+html.playlist-vt::view-transition-old(root){
+  animation:playlistVtOut .24s cubic-bezier(.4,0,.2,1) both;
+}
+html.playlist-vt::view-transition-new(root){
+  animation:playlistVtIn .36s cubic-bezier(.16,1,.3,1) both;
+}
+@keyframes playlistVtOut{to{opacity:0}}
+@keyframes playlistVtIn{
+  from{opacity:0;transform:translateY(16px)}
+  to{opacity:1;transform:none}
+}
 .playlist-page.dragging{transition:none}
 .playlist-grab{
   width:44px;height:5px;margin:0 auto 9px;border-radius:999px;

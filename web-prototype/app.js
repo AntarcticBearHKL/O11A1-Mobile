@@ -1239,7 +1239,7 @@
         <button class="pill-btn" type="button" id="playlistEmptyHome">去首页看看</button>`;
       playlistPageList.appendChild(empty);
       const goHome = $('#playlistEmptyHome', empty);
-      goHome.addEventListener('click', () => showPage('home'));
+      goHome.addEventListener('click', () => withPlaylistTransition(() => showPage('home')));
       return;
     }
 
@@ -1303,6 +1303,39 @@
     playlistPage.style.opacity = '';
   }
 
+  function withPlaylistTransition(run) {
+    if (!document.startViewTransition || document.body.classList.contains('reduce-motion')) {
+      run();
+      return;
+    }
+    const root = document.documentElement;
+    let ran = false;
+    const execute = () => {
+      ran = true;
+      run();
+    };
+    const clear = () => root.classList.remove('playlist-vt');
+    root.classList.add('playlist-vt');
+    let transition;
+    try {
+      transition = document.startViewTransition(execute);
+    } catch (_) {
+      clear();
+      if (!ran) run();
+      return;
+    }
+    const timer = setTimeout(clear, 700);
+    if (transition && transition.finished && typeof transition.finished.finally === 'function') {
+      transition.finished.finally(() => {
+        clearTimeout(timer);
+        clear();
+      });
+    }
+    if (transition && transition.ready && typeof transition.ready.catch === 'function') {
+      transition.ready.catch(clear);
+    }
+  }
+
   function openPlaylistPage() {
     if (!state.loggedIn) {
       showPage('login');
@@ -1313,14 +1346,18 @@
       state.playlistReturnNav = state.navActive;
     }
     if (state.playerOpen) minimizePlayer();
-    resetPlaylistPageDrag();
-    renderPlaylistPage();
-    showPage('playlist');
+    withPlaylistTransition(() => {
+      resetPlaylistPageDrag();
+      renderPlaylistPage();
+      showPage('playlist');
+    });
   }
 
-  function closePlaylistPage() {
+  function closePlaylistPage(useTransition) {
     const target = state.playlistReturn && state.playlistReturn !== 'playlist' ? state.playlistReturn : 'home';
-    showPage(target, state.playlistReturnNav || undefined);
+    const run = () => showPage(target, state.playlistReturnNav || undefined);
+    if (useTransition) withPlaylistTransition(run);
+    else run();
   }
 
   function closePlaylistWithDrag() {
@@ -3417,7 +3454,7 @@
     if (Date.now() < suppressSidebarClickUntil) return;
     closeSidebar();
   });
-  playlistBack.addEventListener('click', closePlaylistPage);
+  playlistBack.addEventListener('click', () => closePlaylistPage(true));
   playlistPage.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (!playlistPage.classList.contains('active')) return;
