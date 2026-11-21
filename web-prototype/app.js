@@ -10,13 +10,25 @@
   const playerTitle = $('#playerTitle');
   const playerSub = $('#playerSub');
   const pcPlay = $('#pcPlay');
+  const pcPrev = $('#pcPrev');
+  const pcNext = $('#pcNext');
   const pcTime = $('#pcTime');
+  const pcMute = $('#pcMute');
+  const pcVolume = $('#pcVolume');
   const pcQuality = $('#pcQuality');
   const pcSpeed = $('#pcSpeed');
   const pcInterp = $('#pcInterp');
   const pcEnhance = $('#pcEnhance');
   const pcDanmaku = $('#pcDanmaku');
+  const pcDanmakuInput = $('#pcDanmakuInput');
+  const pcDanmakuSend = $('#pcDanmakuSend');
+  const pcLoop = $('#pcLoop');
+  const pcQueue = $('#pcQueue');
+  const pcSide = $('#pcSide');
+  const pcSettings = $('#pcSettings');
+  const pcShot = $('#pcShot');
   const pcFullscreen = $('#pcFullscreen');
+  const pcGrab = $('#pcGrab');
   const progressBar = $('.progress-ph', playerControls);
   const progressPlayed = $('.progress-played', playerControls);
   const progressThumb = $('.progress-thumb', playerControls);
@@ -258,6 +270,8 @@
   let sidebarSwipeStart = null;
   let suppressFeedClickUntil = 0;
   let suppressSidebarClickUntil = 0;
+  let lastVolume = state.volume || 80;
+  let toolbarDrag = null;
 
   const MODULE_NOTES = {
     收藏: '收藏夹推荐 · 全部收藏夹 · 占位',
@@ -798,6 +812,10 @@
     pcInterp.textContent = `插帧 ${state.settings.interp}`;
     pcEnhance.textContent = state.settings.enhance;
     pcDanmaku.classList.toggle('on', state.settings.danmaku);
+    pcLoop.textContent = state.settings.loop;
+    pcVolume.value = String(state.volume);
+    pcMute.textContent = state.volume === 0 ? '静' : '音';
+    pcMute.classList.toggle('on', state.volume === 0);
     setProgress(state.progress);
     updateMiniPlayer();
   }
@@ -916,7 +934,8 @@
       document.exitFullscreen().catch(() => {});
     }
     releasePlayerOrientation();
-    pcFullscreen.textContent = '全屏';
+    pcFullscreen.classList.remove('on');
+    pcFullscreen.title = '全屏';
     setTimeout(() => {
       if (state.playerOpen) return;
       player.classList.remove('open', 'ui-hidden', 'collapsing');
@@ -959,7 +978,8 @@
       document.exitFullscreen().catch(() => {});
     }
     releasePlayerOrientation();
-    pcFullscreen.textContent = '全屏';
+    pcFullscreen.classList.remove('on');
+    pcFullscreen.title = '全屏';
     updatePlayerLabels();
   }
 
@@ -989,6 +1009,83 @@
     if (state.playerOpen) showControls();
   }
 
+  function stepTrack(delta) {
+    if (!state.playlist.length) return;
+    state.currentIndex = (state.currentIndex + delta + state.playlist.length) % state.playlist.length;
+    state.progress = 0;
+    state.playing = true;
+    updatePlayerLabels();
+    save();
+    showControls();
+  }
+
+  function cycleLoop() {
+    const list = ['循环', '继续', '下一分P', '暂停'];
+    state.settings.loop = list[(list.indexOf(state.settings.loop) + 1) % list.length];
+    updatePlayerLabels();
+    save();
+    showControls();
+  }
+
+  function sendDanmaku() {
+    const text = pcDanmakuInput.value.trim();
+    if (!text) return;
+    pcDanmakuInput.value = '';
+    pcDanmakuSend.textContent = '已发送';
+    pcDanmakuSend.classList.add('done');
+    setTimeout(() => {
+      pcDanmakuSend.textContent = '发送';
+      pcDanmakuSend.classList.remove('done');
+    }, 1000);
+  }
+
+  function openPlayerInfoSheet() {
+    openSheet('信息', '占位内容 · 不请求真实接口', (body) => {
+      [['标题', '当前播放占位'], ['UP 主', 'UP 占位'], ['播放 / 弹幕', '0 / 0'], ['BV / av', 'BV 占位'], ['简介', '简介占位']].forEach(([label, value]) => {
+        const row = document.createElement('div');
+        row.className = 'sheet-row';
+        row.innerHTML = `<span class="sr-label">${label}</span><span class="sr-value">${value}</span>`;
+        body.appendChild(row);
+      });
+    });
+  }
+
+  function openPlayerPerfSheet() {
+    openSheet('性能', '占位指标 · 不请求真实接口', (body) => {
+      [['解码', '硬解占位'], ['渲染', '120 Hz 占位'], ['缓存', '0.0 s'], ['总码率', '0 kbps'], ['AV gap', '0 ms'], ['丢帧', '0']].forEach(([label, value]) => {
+        const row = document.createElement('div');
+        row.className = 'sheet-row';
+        row.innerHTML = `<span class="sr-label">${label}</span><span class="sr-value">${value}</span>`;
+        body.appendChild(row);
+      });
+    });
+  }
+
+  function openPlayerSideSheet() {
+    openSheet('播放器面板', '信息 / 选集 / 评论 / 性能 / 设置', (body) => {
+      actionRow(body, '信息', '标题 / UP / 数据', () => {
+        closeSheet();
+        openPlayerInfoSheet();
+      });
+      actionRow(body, '选集', '播放列表 / 分P', () => {
+        closeSheet();
+        openQueueSheet();
+      });
+      actionRow(body, '评论', '全屏评论', () => {
+        closeSheet();
+        openComments();
+      });
+      actionRow(body, '性能', 'fps / 码率 / 缓存', () => {
+        closeSheet();
+        openPlayerPerfSheet();
+      });
+      actionRow(body, '设置', '播放 / 弹幕 / 截图', () => {
+        closeSheet();
+        openPlayerMoreSheet();
+      });
+    });
+  }
+
   function showRipple(text, leftPercent) {
     seekRipple.textContent = text;
     seekRipple.style.left = `${leftPercent}%`;
@@ -1007,12 +1104,14 @@
   function toggleFullscreen() {
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
-      pcFullscreen.textContent = '全屏';
+      pcFullscreen.classList.remove('on');
+      pcFullscreen.title = '全屏';
       return;
     }
     if (document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().then(() => {
-        pcFullscreen.textContent = '退出全屏';
+        pcFullscreen.classList.add('on');
+        pcFullscreen.title = '退出全屏';
       }).catch(() => {});
     }
   }
@@ -1032,8 +1131,12 @@
 
   function applyVolume(value, persist) {
     state.volume = clampPercent(value);
+    if (state.volume > 0) lastVolume = state.volume;
     volumeValue.textContent = `${state.volume}%`;
     volumeFill.style.height = `${state.volume}%`;
+    pcVolume.value = String(state.volume);
+    pcMute.textContent = state.volume === 0 ? '静' : '音';
+    pcMute.classList.toggle('on', state.volume === 0);
     if (persist) save();
   }
 
@@ -2020,13 +2123,59 @@
   $('#playerQueue').addEventListener('click', openQueueSheet);
   $('#playerMore').addEventListener('click', openPlayerMoreSheet);
   pcPlay.addEventListener('click', togglePlay);
+  pcPrev.addEventListener('click', () => stepTrack(-1));
+  pcNext.addEventListener('click', () => stepTrack(1));
+  pcMute.addEventListener('click', () => {
+    if (state.volume > 0) applyVolume(0, true);
+    else applyVolume(lastVolume || 80, true);
+  });
+  pcVolume.addEventListener('input', () => applyVolume(Number(pcVolume.value), false));
+  pcVolume.addEventListener('change', () => applyVolume(Number(pcVolume.value), true));
   pcDanmaku.addEventListener('click', () => {
     state.settings.danmaku = !state.settings.danmaku;
     updatePlayerLabels();
     save();
   });
+  pcDanmakuSend.addEventListener('click', sendDanmaku);
+  pcDanmakuInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      sendDanmaku();
+    }
+  });
+  pcLoop.addEventListener('click', cycleLoop);
+  pcQueue.addEventListener('click', openQueueSheet);
+  pcSide.addEventListener('click', openPlayerSideSheet);
+  pcSettings.addEventListener('click', openPlayerMoreSheet);
+  pcShot.addEventListener('click', () => {
+    state.shot = true;
+    pcShot.textContent = '✓';
+    pcShot.classList.add('done');
+    setTimeout(() => {
+      pcShot.textContent = '⤓';
+      pcShot.classList.remove('done');
+    }, 900);
+  });
   pcFullscreen.addEventListener('click', toggleFullscreen);
   lockBadge.addEventListener('click', unlockPlayer);
+
+  playerControls.addEventListener('pointerdown', (event) => {
+    if (event.target.closest('button, input, .progress-ph')) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    toolbarDrag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  });
+  window.addEventListener('pointerup', (event) => {
+    if (!toolbarDrag || event.pointerId !== toolbarDrag.id) return;
+    const dx = event.clientX - toolbarDrag.x;
+    const dy = event.clientY - toolbarDrag.y;
+    toolbarDrag = null;
+    if (dy > 24 && Math.abs(dy) > Math.abs(dx)) {
+      playerControls.classList.add('hidden');
+      player.classList.add('ui-hidden');
+      clearTimeout(hideTimer);
+    }
+  });
+  window.addEventListener('pointercancel', () => { toolbarDrag = null; });
 
   sidebarOpenPlayer.addEventListener('click', () => {
     closeSidebar();
@@ -2142,7 +2291,9 @@
   psheetClose.addEventListener('click', closeSheet);
 
   document.addEventListener('fullscreenchange', () => {
-    pcFullscreen.textContent = document.fullscreenElement ? '退出全屏' : '全屏';
+    const on = Boolean(document.fullscreenElement);
+    pcFullscreen.classList.toggle('on', on);
+    pcFullscreen.title = on ? '退出全屏' : '全屏';
   });
 
   /* keyboard */
@@ -2327,6 +2478,16 @@
     hold.release();
     await sleep(320);
     results.push(`rateEnd=${!rateHud.classList.contains('show')}`);
+
+    const grab = pcGrab.getBoundingClientRect();
+    const grabX = grab.left + grab.width / 2;
+    const grabY = grab.top + grab.height / 2;
+    pcGrab.dispatchEvent(pointerEvent('pointerdown', grabX, grabY, 1));
+    window.dispatchEvent(pointerEvent('pointermove', grabX, grabY + 40, 1));
+    window.dispatchEvent(pointerEvent('pointerup', grabX, grabY + 40, 0));
+    await sleep(80);
+    results.push(`toolbarHide=${playerControls.classList.contains('hidden')}`);
+    showControls();
 
     minimizePlayer();
     await sleep(420);

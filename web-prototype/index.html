@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=39">
+  <link rel="stylesheet" href="./styles.css?v=41">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -314,16 +314,35 @@
           <span class="video-hint">横屏 · 空播放器</span>
 
           <div class="player-controls" id="playerControls">
+            <span class="pc-grab" id="pcGrab" aria-hidden="true"></span>
             <div class="progress-ph"><span class="progress-buffer"></span><span class="progress-played"></span><span class="progress-thumb"></span></div>
-            <div class="controls-row">
-              <button class="pc-play" id="pcPlay">▶</button>
+            <div class="pc-row pc-transport">
+              <button class="pc-play" id="pcPlay" title="播放 / 暂停">▶</button>
+              <button class="pc-btn icon-only" id="pcPrev" title="上一个">⏮</button>
+              <button class="pc-btn icon-only" id="pcNext" title="下一个">⏭</button>
               <span class="pc-time" id="pcTime">00:00 / 24:00</span>
+              <div class="pc-volume">
+                <button class="pc-btn icon-only" id="pcMute" title="静音">音</button>
+                <input id="pcVolume" type="range" min="0" max="100" value="80" aria-label="音量">
+              </div>
+              <span class="pc-spacer"></span>
+              <button class="pc-btn icon-only" id="pcFullscreen" title="全屏">⛶</button>
+            </div>
+            <div class="pc-row pc-danmaku-row">
+              <button class="pc-btn icon-only" id="pcDanmaku" title="弹幕开关">弹</button>
+              <input class="pc-danmaku-input" id="pcDanmakuInput" placeholder="发个弹幕…" autocomplete="off">
+              <button class="pc-send" id="pcDanmakuSend" type="button">发送</button>
+            </div>
+            <div class="pc-row pc-tools">
               <button class="pc-btn" data-sheet="quality" id="pcQuality">画质</button>
               <button class="pc-btn" data-sheet="speed" id="pcSpeed">1.0×</button>
               <button class="pc-btn" data-sheet="interp" id="pcInterp">插帧 120</button>
               <button class="pc-btn" data-sheet="enhance" id="pcEnhance">CAS</button>
-              <button class="pc-btn" id="pcDanmaku">弹幕</button>
-              <button class="pc-btn" id="pcFullscreen">全屏</button>
+              <button class="pc-btn" id="pcLoop">循环</button>
+              <button class="pc-btn icon-only" id="pcQueue" title="播放列表">☰</button>
+              <button class="pc-btn icon-only" id="pcSide" title="播放器面板">▤</button>
+              <button class="pc-btn icon-only" id="pcSettings" title="播放器设置">⚙</button>
+              <button class="pc-btn icon-only" id="pcShot" title="截图">⤓</button>
             </div>
           </div>
           <div class="seek-ripple" id="seekRipple">+10s</div>
@@ -387,6 +406,6 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./app.js?v=39"></script>
+  <script src="./app.js?v=41"></script>
 </body>
 </html>
