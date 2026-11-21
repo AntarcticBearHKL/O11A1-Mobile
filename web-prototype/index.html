@@ -346,10 +346,16 @@
   <!-- 横屏空播放器 -->
   <div class="player" id="player" aria-hidden="true" inert>
     <div class="player-top">
-      <button class="back light" id="playerBack">‹</button>
+      <button class="player-top-btn" id="playerBack" title="返回" aria-label="返回">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>
+      </button>
       <div class="player-title"><b id="playerTitle">队列视频占位 01</b><small id="playerSub">UP 占位 · 1080P60 · 占位</small></div>
-      <button class="icon-btn light" id="playerQueue" title="播放列表">☰</button>
-      <button class="icon-btn light" id="playerMore" title="更多">⋯</button>
+      <button class="player-top-btn" id="playerQueue" title="播放列表" aria-label="播放列表">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h11M4 10h11M4 14h7"/><path d="m16 13 5 3-5 3z" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button class="player-top-btn" id="playerMore" title="更多" aria-label="更多">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>
+      </button>
     </div>
 
     <div class="player-body">
@@ -371,35 +377,50 @@
           <span class="video-hint">空播放器 · 上滑切换横竖屏</span>
 
           <div class="player-controls" id="playerControls">
-            <span class="pc-grab" id="pcGrab" aria-hidden="true"></span>
-            <div class="progress-ph"><span class="progress-buffer"></span><span class="progress-played"></span><span class="progress-thumb"></span></div>
-            <div class="pc-row pc-transport">
-              <button class="pc-play" id="pcPlay" title="播放 / 暂停">▶</button>
-              <button class="pc-btn icon-only" id="pcPrev" title="上一个">⏮</button>
-              <button class="pc-btn icon-only" id="pcNext" title="下一个">⏭</button>
+            <div class="pc-seek">
+              <div class="progress-ph"><span class="progress-buffer"></span><span class="progress-played"></span><span class="progress-thumb"></span></div>
+            </div>
+            <div class="pc-main">
+              <button class="pc-play" id="pcPlay" title="播放 / 暂停" aria-label="播放">
+                <svg class="pc-ico pc-ico-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.2v13.6L19 12z"/></svg>
+                <svg class="pc-ico pc-ico-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3.2v14H8zM12.8 5H16v14h-3.2z"/></svg>
+              </button>
+              <button class="pc-icon" id="pcPrev" title="上一个" aria-label="上一个">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14"/><path d="M18 6l-9 6 9 6z" fill="currentColor" stroke="none"/></svg>
+              </button>
+              <button class="pc-icon" id="pcNext" title="下一个" aria-label="下一个">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14"/><path d="M6 6l9 6-9 6z" fill="currentColor" stroke="none"/></svg>
+              </button>
               <span class="pc-time" id="pcTime">00:00 / 24:00</span>
+              <span class="pc-spacer"></span>
+              <button class="pc-icon" id="pcMute" title="静音" aria-label="静音">
+                <svg class="pc-ico pc-ico-volume" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 8.6a5 5 0 010 6.8M18.5 6.2a8.5 8.5 0 010 11.6"/></svg>
+                <svg class="pc-ico pc-ico-muted" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="m16 9 5 6M21 9l-5 6"/></svg>
+              </button>
               <div class="pc-volume">
-                <button class="pc-btn icon-only" id="pcMute" title="静音">音</button>
                 <input id="pcVolume" type="range" min="0" max="100" value="80" aria-label="音量">
               </div>
-              <span class="pc-spacer"></span>
-              <button class="pc-btn icon-only" id="pcFullscreen" title="全屏">⛶</button>
+              <button class="pc-icon" id="pcDanmaku" title="弹幕开关" aria-label="弹幕开关">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="13" rx="2"/><path d="M7 9h10M7 12.5h6"/></svg>
+              </button>
+              <button class="pc-icon" id="pcFullscreen" title="全屏" aria-label="全屏">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4"/></svg>
+              </button>
             </div>
-            <div class="pc-row pc-danmaku-row">
-              <button class="pc-btn icon-only" id="pcDanmaku" title="弹幕开关">弹</button>
+            <div class="pc-rail">
+              <button class="pc-tool" data-sheet="quality" id="pcQuality"><span class="pc-tool-label">画质</span><span class="pc-tool-value" id="pcQualityValue">1080P60</span></button>
+              <button class="pc-tool" data-sheet="speed" id="pcSpeed"><span class="pc-tool-label">倍速</span><span class="pc-tool-value" id="pcSpeedValue">1.0×</span></button>
+              <button class="pc-tool" data-sheet="interp" id="pcInterp"><span class="pc-tool-label">插帧</span><span class="pc-tool-value" id="pcInterpValue">120</span></button>
+              <button class="pc-tool" data-sheet="enhance" id="pcEnhance"><span class="pc-tool-label">增强</span><span class="pc-tool-value" id="pcEnhanceValue">CAS</span></button>
+              <button class="pc-tool" id="pcLoop"><span class="pc-tool-label">播放</span><span class="pc-tool-value" id="pcLoopValue">循环</span></button>
+              <button class="pc-tool" id="pcSide"><span class="pc-tool-label">面板</span><span class="pc-tool-value">信息</span></button>
+              <button class="pc-tool" id="pcSettings"><span class="pc-tool-label">设置</span><span class="pc-tool-value">更多</span></button>
+              <button class="pc-tool" id="pcShot"><span class="pc-tool-label">截图</span><span class="pc-tool-value" id="pcShotValue">当前帧</span></button>
+            </div>
+            <div class="pc-composer">
+              <span class="pc-composer-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4v-15z"/><path d="M8 9h8M8 12h5"/></svg></span>
               <input class="pc-danmaku-input" id="pcDanmakuInput" placeholder="发个弹幕…" autocomplete="off">
               <button class="pc-send" id="pcDanmakuSend" type="button">发送</button>
-            </div>
-            <div class="pc-row pc-tools">
-              <button class="pc-btn" data-sheet="quality" id="pcQuality">画质</button>
-              <button class="pc-btn" data-sheet="speed" id="pcSpeed">1.0×</button>
-              <button class="pc-btn" data-sheet="interp" id="pcInterp">插帧 120</button>
-              <button class="pc-btn" data-sheet="enhance" id="pcEnhance">CAS</button>
-              <button class="pc-btn" id="pcLoop">循环</button>
-              <button class="pc-btn icon-only" id="pcQueue" title="播放列表">☰</button>
-              <button class="pc-btn icon-only" id="pcSide" title="播放器面板">▤</button>
-              <button class="pc-btn icon-only" id="pcSettings" title="播放器设置">⚙</button>
-              <button class="pc-btn icon-only" id="pcShot" title="截图">⤓</button>
             </div>
           </div>
           <div class="seek-ripple" id="seekRipple">+10s</div>

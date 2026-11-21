@@ -19,17 +19,22 @@
   const pcMute = $('#pcMute');
   const pcVolume = $('#pcVolume');
   const pcQuality = $('#pcQuality');
+  const pcQualityValue = $('#pcQualityValue');
   const pcSpeed = $('#pcSpeed');
+  const pcSpeedValue = $('#pcSpeedValue');
   const pcInterp = $('#pcInterp');
+  const pcInterpValue = $('#pcInterpValue');
   const pcEnhance = $('#pcEnhance');
+  const pcEnhanceValue = $('#pcEnhanceValue');
   const pcDanmaku = $('#pcDanmaku');
   const pcDanmakuInput = $('#pcDanmakuInput');
   const pcDanmakuSend = $('#pcDanmakuSend');
   const pcLoop = $('#pcLoop');
-  const pcQueue = $('#pcQueue');
+  const pcLoopValue = $('#pcLoopValue');
   const pcSide = $('#pcSide');
   const pcSettings = $('#pcSettings');
   const pcShot = $('#pcShot');
+  const pcShotValue = $('#pcShotValue');
   const pcFullscreen = $('#pcFullscreen');
   const progressBar = $('.progress-ph', playerControls);
   const progressPlayed = $('.progress-played', playerControls);
@@ -1631,21 +1636,31 @@
     updateDebugHud();
   }
 
+  function setPlayIcon(playing) {
+    pcPlay.classList.toggle('playing', playing === true);
+    pcPlay.setAttribute('aria-label', playing ? '暂停' : '播放');
+  }
+
+  function setMuteIcon(muted) {
+    pcMute.classList.toggle('muted', muted === true);
+    pcMute.setAttribute('aria-label', muted ? '取消静音' : '静音');
+  }
+
   function updatePlayerLabels() {
     const item = state.playlist[state.currentIndex];
     playerTitle.textContent = item ? item.title : '暂无播放项';
     const nativeSuffix = window.O11A1Native ? '' : ' · 占位';
     const qualitySuffix = item && item.offlineUrl ? '' : ` · ${state.settings.quality}`;
     playerSub.textContent = `${item ? item.meta : '占位'}${qualitySuffix}${nativeSuffix}`;
-    pcQuality.textContent = state.settings.quality;
-    pcSpeed.textContent = state.settings.speed || '1.0×';
-    pcInterp.textContent = `插帧 ${state.settings.interp}`;
-    pcEnhance.textContent = state.settings.enhance;
+    pcQualityValue.textContent = state.settings.quality;
+    pcSpeedValue.textContent = state.settings.speed || '1.0×';
+    pcInterpValue.textContent = state.settings.interp;
+    pcEnhanceValue.textContent = state.settings.enhance;
     pcDanmaku.classList.toggle('on', state.settings.danmaku);
-    pcLoop.textContent = state.settings.loop;
+    playerControls.classList.toggle('danmaku-off', !state.settings.danmaku);
+    pcLoopValue.textContent = state.settings.loop;
     pcVolume.value = String(state.volume);
-    pcMute.textContent = state.volume === 0 ? '静' : '音';
-    pcMute.classList.toggle('on', state.volume === 0);
+    setMuteIcon(state.volume === 0);
     setProgress(state.progress);
     updatePlaylistDock();
     if (window.O11A1Media && typeof window.O11A1Media.onSettings === 'function') {
@@ -1747,7 +1762,7 @@
     setPlayerOrientation(false, { silent: true });
     hideMiniPlayer();
     clearTimeout(hideTimer);
-    pcPlay.textContent = state.playing ? 'Ⅱ' : '▶';
+    setPlayIcon(state.playing);
     updatePlayerLabels();
     player.style.animation = '';
     player.style.transition = '';
@@ -1849,7 +1864,7 @@
     hideLevelHuds(0);
     hideRateHud(0);
     rotateHud.classList.remove('show');
-    pcPlay.textContent = '▶';
+    setPlayIcon(false);
     closeSheet();
     if (document.fullscreenElement && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
@@ -1888,7 +1903,7 @@
       return;
     }
     state.playing = !state.playing;
-    pcPlay.textContent = state.playing ? 'Ⅱ' : '▶';
+    setPlayIcon(state.playing);
     updateMiniPlayer();
     if (state.playerOpen) showControls();
   }
@@ -2061,8 +2076,7 @@
     volumeValue.textContent = `${state.volume}%`;
     volumeFill.style.height = `${state.volume}%`;
     pcVolume.value = String(state.volume);
-    pcMute.textContent = state.volume === 0 ? '静' : '音';
-    pcMute.classList.toggle('on', state.volume === 0);
+    setMuteIcon(state.volume === 0);
     if (nativeApply && state.playerOpen && window.O11A1Native) {
       if (typeof window.O11A1Native.setVolume === 'function') {
         try { window.O11A1Native.setVolume(state.volume); } catch (_) {}
@@ -3227,7 +3241,6 @@
     }
   });
   pcLoop.addEventListener('click', cycleLoop);
-  pcQueue.addEventListener('click', openPlaylistPage);
   pcSide.addEventListener('click', openPlayerSideSheet);
   pcSettings.addEventListener('click', openPlayerMoreSheet);
   pcShot.addEventListener('click', () => {
@@ -3236,10 +3249,10 @@
       ok = window.O11A1NativeData.screenshot() === '已保存';
     }
     state.shot = ok;
-    pcShot.textContent = ok ? '✓' : '⤓';
+    pcShotValue.textContent = ok ? '已存' : '失败';
     pcShot.classList.toggle('done', ok);
     setTimeout(() => {
-      pcShot.textContent = '⤓';
+      pcShotValue.textContent = '当前帧';
       pcShot.classList.remove('done');
     }, 900);
   });
@@ -3672,6 +3685,7 @@
     playerTitle,
     playerSub,
     pcPlay,
+    setPlayIcon,
     pcTime,
     pcVolume,
     pdTitle,

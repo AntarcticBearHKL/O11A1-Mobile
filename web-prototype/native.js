@@ -1480,7 +1480,7 @@
     if (!autoplay) return;
     video.play().then(() => {
       state.playing = true;
-      host.pcPlay.textContent = 'Ⅱ';
+      host.setPlayIcon(true);
       host.updatePlaylistDock();
     }).catch(() => {});
   }
@@ -1567,7 +1567,7 @@
       if (autoplay && video.paused) {
         video.play().then(() => {
           state.playing = true;
-          host.pcPlay.textContent = 'Ⅱ';
+          host.setPlayIcon(true);
           host.updatePlaylistDock();
         }).catch(() => {});
       }
@@ -1615,11 +1615,11 @@
       if (autoplay) {
         video.play().then(() => {
           state.playing = true;
-          host.pcPlay.textContent = 'Ⅱ';
+          host.setPlayIcon(true);
           host.updatePlaylistDock();
         }).catch(() => {
           state.playing = false;
-          host.pcPlay.textContent = '▶';
+          host.setPlayIcon(false);
           setStatus('点击播放', 'error');
         });
       }
@@ -1664,11 +1664,11 @@
     if (autoplay) {
       video.play().then(() => {
         state.playing = true;
-        host.pcPlay.textContent = 'Ⅱ';
+        host.setPlayIcon(true);
         host.updatePlaylistDock();
       }).catch(() => {
         state.playing = false;
-        host.pcPlay.textContent = '▶';
+        host.setPlayIcon(false);
         setStatus('点击播放', 'error');
       });
     }
@@ -1693,7 +1693,7 @@
   });
   video.addEventListener('play', () => {
     state.playing = true;
-    host.pcPlay.textContent = 'Ⅱ';
+    host.setPlayIcon(true);
     host.updatePlaylistDock();
     playerVideo.classList.remove('video-loading');
     if (danmakuLayer) danmakuLayer.classList.remove('paused');
@@ -1702,7 +1702,7 @@
   });
   video.addEventListener('pause', () => {
     state.playing = false;
-    host.pcPlay.textContent = '▶';
+    host.setPlayIcon(false);
     host.updatePlaylistDock();
     if (danmakuLayer) danmakuLayer.classList.add('paused');
   });
@@ -1734,7 +1734,7 @@
       host.stepTrack(1);
     } else {
       state.playing = false;
-      host.pcPlay.textContent = '▶';
+      host.setPlayIcon(false);
     }
   });
   if (status) status.addEventListener('click', () => {
