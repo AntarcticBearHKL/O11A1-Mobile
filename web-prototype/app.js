@@ -3612,50 +3612,62 @@
     pdSearchInput.blur();
   }
 
+  function resetDockHeight() {
+    playlistDock.classList.remove('dragging');
+    void playlistDock.offsetWidth;
+    playlistDock.style.height = '';
+    playlistDock.style.borderTopLeftRadius = '';
+    playlistDock.style.borderTopRightRadius = '';
+    playlistDock.style.boxShadow = '';
+  }
+
   playlistDock.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (playlistDock.classList.contains('searching')) return;
     if (event.target.closest('button, input, .pd-search, .pd-search-input')) return;
     dockDrag = { id: event.pointerId, x: event.clientX, y: event.clientY, dy: 0, moved: false };
-    playlistDock.classList.add('dragging');
   });
   window.addEventListener('pointermove', (event) => {
     if (!dockDrag || event.pointerId !== dockDrag.id) return;
     const dy = event.clientY - dockDrag.y;
     dockDrag.dy = dy;
     if (Math.abs(dy) > 6) dockDrag.moved = true;
-    const up = Math.min(0, dy);
-    if (up < 0) {
-      const progress = Math.min(1, -up / 96);
-      playlistDock.style.transform = `translate(-50%, ${up}px) scale(${1 - progress * 0.05})`;
-      playlistDock.style.opacity = String(1 - progress * 0.3);
-    }
+    if (!dockDrag.moved) return;
+    if (!playlistDock.classList.contains('dragging')) playlistDock.classList.add('dragging');
+    const pull = Math.max(0, Math.min(170, -dy));
+    const progress = Math.min(1, pull / 150);
+    playlistDock.style.height = `calc(${(104 + pull).toFixed(1)}px + env(safe-area-inset-bottom))`;
+    const radius = 26 + progress * 10;
+    playlistDock.style.borderTopLeftRadius = `${radius.toFixed(1)}px`;
+    playlistDock.style.borderTopRightRadius = `${radius.toFixed(1)}px`;
+    playlistDock.style.boxShadow = `0 -${(12 + progress * 18).toFixed(0)}px ${(34 + progress * 26).toFixed(0)}px rgba(20,22,30,${(0.12 + progress * 0.09).toFixed(2)}), inset 0 1px 0 rgba(255,255,255,.8)`;
   });
   window.addEventListener('pointerup', (event) => {
     if (!dockDrag || event.pointerId !== dockDrag.id) return;
     const gesture = dockDrag;
     dockDrag = null;
     playlistDock.classList.remove('dragging');
-    if (gesture.moved && gesture.dy < -40) {
+    if (!gesture.moved) return;
+    suppressDockClickUntil = Date.now() + 420;
+    if (gesture.dy < -52 && state.playlist.length) {
       suppressDockClickUntil = Date.now() + 500;
+      const launchHeight = Math.max(214, 104 + Math.min(170, -gesture.dy));
+      void playlistDock.offsetWidth;
       playlistDock.classList.add('launching');
-      playlistDock.style.transform = '';
-      playlistDock.style.opacity = '';
+      playlistDock.style.height = `calc(${launchHeight.toFixed(1)}px + env(safe-area-inset-bottom))`;
       setTimeout(() => {
+        openPlayer({ resume: true });
         playlistDock.classList.remove('launching');
-        if (state.playlist.length) openPlayer({ resume: true });
-      }, 160);
+        resetDockHeight();
+      }, 190);
       return;
     }
-    playlistDock.style.transform = '';
-    playlistDock.style.opacity = '';
+    resetDockHeight();
   });
   window.addEventListener('pointercancel', () => {
     if (!dockDrag) return;
     dockDrag = null;
-    playlistDock.classList.remove('dragging');
-    playlistDock.style.transform = '';
-    playlistDock.style.opacity = '';
+    resetDockHeight();
   });
   playlistDock.addEventListener('click', (event) => {
     if (playlistDock.classList.contains('searching')) return;
