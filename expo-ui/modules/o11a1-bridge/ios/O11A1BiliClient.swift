@@ -326,8 +326,8 @@ final class O11A1BiliClient {
     guard !bvid.isEmpty else { return o11a1Error("bvid missing") }
     guard port > 0 else { return o11a1Error("server not ready") }
     ensureBuvid()
-    var resolvedCid = firstCid(bvid)
-    if resolvedCid <= 0 { resolvedCid = cid }
+    var resolvedCid = cid
+    if resolvedCid <= 0 { resolvedCid = firstCid(bvid) }
     guard resolvedCid > 0 else { return o11a1Error("cid not found") }
     print("[O11A1] play \(bvid) cid=\(resolvedCid)")
     var selected: [String: Any]?
@@ -385,6 +385,53 @@ final class O11A1BiliClient {
   func playQuality(bvid: String, cid: Int64, qn: Int) -> Data {
     if qn <= 0 { return play(bvid: bvid, cid: cid, qns: [64, 32, 16]) }
     return play(bvid: bvid, cid: cid, qns: [qn, 64, 32, 16])
+  }
+
+  func playRemote(bvid: String, cid: Int64, qn: Int) -> Data {
+    guard !bvid.isEmpty else { return o11a1Error("bvid missing") }
+    ensureBuvid()
+    var resolvedCid = cid
+    if resolvedCid <= 0 { resolvedCid = firstCid(bvid) }
+    guard resolvedCid > 0 else { return o11a1Error("cid not found") }
+    let qns = qn <= 0 ? [80, 64, 32, 16] : [qn, 80, 64, 32, 16]
+    var selected: [String: Any]?
+    var seen = Set<Int>()
+    for candidate in qns {
+      if seen.contains(candidate) { continue }
+      seen.insert(candidate)
+      guard let payload = json(
+        base: Self.apiBase,
+        path: "/x/player/playurl",
+        query: ["bvid": bvid, "cid": "\(resolvedCid)", "qn": "\(candidate)", "fnval": "1", "fourk": "1"]
+      ), o11a1Int(payload["code"]) == 0,
+        let data = payload["data"] as? [String: Any],
+        let durl = data["durl"] as? [[String: Any]], !durl.isEmpty else { continue }
+      selected = data
+      break
+    }
+    guard let data = selected,
+          let durl = data["durl"] as? [[String: Any]],
+          let first = durl.first,
+          let remote = first["url"] as? String, !remote.isEmpty else {
+      return o11a1Error("playurl unavailable")
+    }
+    let quality = o11a1Int(data["quality"])
+    var output: [String: Any] = [
+      "ok": true,
+      "cid": resolvedCid,
+      "url": remote,
+      "quality": quality,
+      "qualityLabel": o11a1QualityLabel(quality),
+      "format": o11a1String(data["format"])
+    ]
+    if let backups = first["backup_url"] as? [String], let backup = backups.first, !backup.isEmpty {
+      output["backup"] = backup
+    }
+    return o11a1Data(output)
+  }
+
+  func cookieHeader() -> String {
+    return cookies.header()
   }
 
   private func token(for urls: [String]) -> String {
@@ -462,22 +509,51 @@ final class O11A1BiliClient {
       return o11a1Error("comments unavailable")
     }
     let replies = data["replies"] as? [[String: Any]] ?? []
-    var items: [[String: Any]] = []
-    for reply in replies {
-      let member = reply["member"] as? [String: Any]
-      let content = reply["content"] as? [String: Any]
-      let user = o11a1String(member?["uname"])
-      items.append([
-        "user": user.isEmpty ? "用户" : user,
-        "avatar": o11a1HTTPS(o11a1String(member?["avatar"])),
-        "message": o11a1String(content?["message"]),
-        "like": o11a1Int(reply["like"]),
-        "time": o11a1Int64(reply["ctime"])
-      ])
-    }
+    let items = replies.map { replyRow($0) }
     let pageInfo = data["page"] as? [String: Any]
     let count = pageInfo == nil ? items.count : o11a1Int(pageInfo?["count"])
-    return o11a1Data(["ok": true, "items": items, "count": count])
+    return o11a1Data([
+      "ok": true, "items": items, "count": count,
+      "page": max(1, page), "hasMore": replies.count >= 20
+    ])
+  }
+
+  func commentsReplies(aid: Int64, root: Int64, page: Int) -> Data {
+    guard aid > 0, root > 0 else { return o11a1Error("reply root missing") }
+    ensureBuvid()
+    guard let payload = json(
+      base: Self.apiBase,
+      path: "/x/v2/reply/reply",
+      query: ["type": "1", "oid": "\(aid)", "root": "\(root)", "pn": "\(max(1, page))", "ps": "20"]
+    ), o11a1Int(payload["code"]) == 0,
+      let data = payload["data"] as? [String: Any] else {
+      return o11a1Error("replies unavailable")
+    }
+    let replies = data["replies"] as? [[String: Any]] ?? []
+    let items = replies.map { replyRow($0) }
+    let pageInfo = data["page"] as? [String: Any]
+    let count = pageInfo == nil ? items.count : o11a1Int(pageInfo?["count"])
+    return o11a1Data([
+      "ok": true, "items": items, "count": count,
+      "page": max(1, page), "hasMore": replies.count >= 20
+    ])
+  }
+
+  private func replyRow(_ reply: [String: Any]) -> [String: Any] {
+    let member = reply["member"] as? [String: Any]
+    let content = reply["content"] as? [String: Any]
+    let user = o11a1String(member?["uname"])
+    return [
+      "rpid": o11a1Int64(reply["rpid"]),
+      "root": o11a1Int64(reply["root"]),
+      "parent": o11a1Int64(reply["parent"]),
+      "rcount": o11a1Int(reply["rcount"]),
+      "user": user.isEmpty ? "用户" : user,
+      "avatar": o11a1HTTPS(o11a1String(member?["avatar"])),
+      "message": o11a1String(content?["message"]),
+      "like": o11a1Int(reply["like"]),
+      "time": o11a1Int64(reply["ctime"])
+    ]
   }
 
   func danmaku(cid: Int64) -> Data {
@@ -1324,6 +1400,89 @@ final class O11A1BiliClient {
       output["comments"] = o11a1Int((stats["comment"] as? [String: Any])?["count"])
     }
     return output
+  }
+
+  /* ---------- member center / AI ---------- */
+
+  func memberCenter() -> Data {
+    guard cookies.hasSession() else { return needLogin("登录后查看会员中心") }
+    guard let payload = json(base: Self.apiBase, path: "/x/member/web/exp/reward"),
+          o11a1Int(payload["code"]) == 0,
+          let data = payload["data"] as? [String: Any] else {
+      return needLogin("登录后查看会员中心")
+    }
+    let coinExp = o11a1Int(data["coins"])
+    let tasks: [[String: Any]] = [
+      ["key": "login", "label": "每日登录", "done": o11a1Bool(data["login"]), "reward": 5],
+      ["key": "watch", "label": "每日观看", "done": o11a1Bool(data["watch"]), "reward": 5],
+      ["key": "share", "label": "每日分享", "done": o11a1Bool(data["share"]), "reward": 5],
+      ["key": "coins", "label": "每日投币", "done": coinExp >= 50, "reward": 50, "detail": "已获得 \(coinExp) / 50 经验"]
+    ]
+    var output: [String: Any] = ["ok": true, "tasks": tasks]
+    if let vipPayload = json(base: Self.apiBase, path: "/x/vip/web/user/info"),
+       let vip = vipPayload["data"] as? [String: Any] {
+      output["vip"] = o11a1Int(vip["vip_status"]) == 1
+      output["vipType"] = o11a1Int(vip["vip_type"])
+      output["vipDue"] = o11a1Int64(vip["vip_due_date"])
+    }
+    if let logPayload = json(base: Self.apiBase, path: "/x/member/web/exp/log"),
+       let logData = logPayload["data"] as? [String: Any],
+       let list = logData["list"] as? [[String: Any]] {
+      output["log"] = list.prefix(8).map { row in
+        [
+          "delta": o11a1Int(row["delta"]),
+          "reason": o11a1StripHTML(o11a1String(row["reason"])),
+          "time": o11a1String(row["time"])
+        ] as [String: Any]
+      }
+    }
+    return o11a1Data(output)
+  }
+
+  func aiChat(endpoint: String, apiKey: String, model: String, prompt: String) -> Data {
+    if apiKey.isEmpty {
+      return o11a1Data(["ok": false, "needKey": true, "error": "需要先填写 API Key"])
+    }
+    guard let url = URL(string: endpoint), !endpoint.isEmpty else {
+      return o11a1Error("API 地址为空")
+    }
+    let body: [String: Any] = [
+      "model": model.isEmpty ? "deepseek-chat" : model,
+      "stream": false,
+      "messages": [["role": "user", "content": prompt]]
+    ]
+    guard let payload = try? JSONSerialization.data(withJSONObject: body) else {
+      return o11a1Error("请求体编码失败")
+    }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 70
+    request.setValue("application/json; charset=UTF-8", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    request.httpBody = payload
+    guard let (data, response) = perform(request, session: apiSession) else {
+      return o11a1Error("AI 接口无响应")
+    }
+    let raw = String(data: data, encoding: .utf8) ?? ""
+    guard (200..<300).contains(response.statusCode) else {
+      return o11a1Error("HTTP \(response.statusCode) · \(String(raw.prefix(240)))")
+    }
+    guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+      return o11a1Error("AI 返回了非 JSON 内容")
+    }
+    var text = ""
+    if let choices = json["choices"] as? [[String: Any]], let first = choices.first {
+      if let message = first["message"] as? [String: Any] { text = o11a1String(message["content"]) }
+      if text.isEmpty { text = o11a1String(first["text"]) }
+    }
+    if text.isEmpty, let error = json["error"] as? [String: Any] {
+      return o11a1Error(o11a1String(error["message"]))
+    }
+    return o11a1Data(["ok": true, "text": text, "model": o11a1String(json["model"])])
+  }
+
+  func dash(bvid: String, cid: Int64, qn: Int) -> Data {
+    return o11a1Data(["ok": false, "error": "iOS 使用渐进播放"])
   }
 
   func proxyInfo() -> Data {

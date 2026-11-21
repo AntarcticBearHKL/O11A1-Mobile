@@ -34,6 +34,7 @@ final class WebAppBridge {
     private final BiliExtras extras;
     private final StreamProxy proxy;
     private final CookieStore cookies;
+    private final DownloadManager downloads;
 
     WebAppBridge(Activity activity, BiliApi api, StreamProxy proxy, CookieStore cookies) {
         this.activity = activity;
@@ -41,6 +42,7 @@ final class WebAppBridge {
         this.extras = new BiliExtras(cookies, proxy, api);
         this.proxy = proxy;
         this.cookies = cookies;
+        this.downloads = new DownloadManager(activity, api, proxy, cookies);
     }
 
     @JavascriptInterface
@@ -185,6 +187,41 @@ final class WebAppBridge {
     @JavascriptInterface
     public String comments(long aid, int page, int sort) {
         return runExtra(() -> extras.comments(aid, page, sort).toString());
+    }
+
+    @JavascriptInterface
+    public String commentsReplies(long aid, long root, int page) {
+        return runExtra(() -> extras.commentsReplies(aid, root, page).toString());
+    }
+
+    @JavascriptInterface
+    public String mediaStats() {
+        return proxy.statsJson();
+    }
+
+    @JavascriptInterface
+    public String downloadStart(String bvid, long cid, String title, String pic, String quality) {
+        return downloads.start(bvid, cid, title, pic, quality).toString();
+    }
+
+    @JavascriptInterface
+    public String downloadList() {
+        return downloads.list().toString();
+    }
+
+    @JavascriptInterface
+    public String downloadRemove(String id) {
+        return downloads.remove(id).toString();
+    }
+
+    @JavascriptInterface
+    public String downloadPause(String id) {
+        return downloads.pause(id).toString();
+    }
+
+    @JavascriptInterface
+    public String downloadResume(String id) {
+        return downloads.resume(id).toString();
     }
 
     @JavascriptInterface
@@ -379,13 +416,32 @@ final class WebAppBridge {
         Log.i(TAG, message == null ? "null" : message);
     }
 
+    @JavascriptInterface
+    public String memberCenter() {
+        return runExtra(() -> extras.memberCenter().toString());
+    }
+
+    @JavascriptInterface
+    public String dash(String bvid, long cid, int qn) {
+        return runExtra(() -> extras.dash(bvid, cid, qn).toString(), 25);
+    }
+
+    @JavascriptInterface
+    public String aiChat(String endpoint, String apiKey, String model, String prompt) {
+        return runExtra(() -> extras.aiChat(endpoint, apiKey, model, prompt).toString(), 75);
+    }
+
     private String runExtra(Callable<String> call) {
+        return runExtra(call, 12);
+    }
+
+    private String runExtra(Callable<String> call, int seconds) {
         FutureTask<String> task = new FutureTask<>(call);
         Thread worker = new Thread(task, "o11a1-extra");
         worker.setDaemon(true);
         worker.start();
         try {
-            return task.get(12, TimeUnit.SECONDS);
+            return task.get(seconds, TimeUnit.SECONDS);
         } catch (Throwable error) {
             task.cancel(true);
             Log.w(TAG, "bridge call timed out", error);

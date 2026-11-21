@@ -59,6 +59,17 @@
   const commentInput = $('#commentInput');
   const commentSend = $('#commentSend');
   const playerVideo = $('#playerVideo');
+  const realVideo = $('#realVideo');
+  const feedDebug = $('#feedDebug');
+  const feedDebugHz = $('#feedDebugHz');
+  const feedDebugFps = $('#feedDebugFps');
+  const videoDebug = $('#videoDebug');
+  const dbgDisplay = $('#dbgDisplay');
+  const dbgRender = $('#dbgRender');
+  const dbgDecode = $('#dbgDecode');
+  const dbgDrop = $('#dbgDrop');
+  const dbgBitrate = $('#dbgBitrate');
+  const postCanvas = $('#postCanvas');
   const psheet = $('#psheet');
   const psheetBackdrop = $('#psheetBackdrop');
   const psheetTitle = $('#psheetTitle');
@@ -147,12 +158,14 @@
     defaultQuality: '最高',
     quality: '1080P60',
     speed: '1.0×',
-    interp: '120',
-    enhance: 'CAS',
+    interp: '关',
+    enhance: '关',
     native4k: false,
     audioOnly: false,
     loop: '循环',
     aspect: '适应',
+    debugHud: true,
+    feedDebug: true,
 
     danmaku: true,
     danmakuOpacity: 85,
@@ -419,6 +432,64 @@
     } catch (_) {}
   }
 
+  /* ---------- appearance / theme ---------- */
+  function resolvedTheme() {
+    if (state.settings.theme === '深色') return 'dark';
+    if (state.settings.theme === '浅色') return 'light';
+    try {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    } catch (_) {
+      return 'light';
+    }
+  }
+
+  function applyAppearance() {
+    const dark = resolvedTheme() === 'dark';
+    const theme = dark ? 'dark' : 'light';
+    const bg = Math.max(0, Math.min(100, Number(state.settings.bgTransparency) || 0));
+    const glass = Math.max(0, Math.min(100, Number(state.settings.glassBlur) || 0));
+    const bgBlur = Math.max(0, Math.min(100, Number(state.settings.bgBlur) || 0));
+    const ios = state.platform === 'ios';
+    const style = document.body.style;
+    document.body.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    style.setProperty('--wallpaper-opacity', (0.22 + (100 - bg) / 100 * 0.78).toFixed(3));
+    style.setProperty('--wallpaper-blur', `${(bgBlur / 100 * 22).toFixed(1)}px`);
+    style.setProperty('--glass-blur', `blur(${(glass / 100 * 30).toFixed(1)}px) saturate(${dark ? 1.25 : 1.6})`);
+    style.setProperty('--topbar-blur', `blur(${(glass / 100 * 26).toFixed(1)}px) saturate(1.5)`);
+    const glassAlpha = 0.5 + (100 - glass) / 100 * 0.38;
+    const sheetAlpha = 0.62 + (100 - glass) / 100 * 0.3;
+    if (dark) {
+      style.setProperty('--glass-bg', ios
+        ? `linear-gradient(135deg,rgba(28,34,46,${(glassAlpha + 0.02).toFixed(2)}),rgba(16,20,28,${(glassAlpha - 0.14).toFixed(2)}))`
+        : `rgba(18,22,30,${glassAlpha.toFixed(2)})`);
+      style.setProperty('--glass-border', 'rgba(120,140,170,.22)');
+      style.setProperty('--sheet-bg', `rgba(20,24,32,${sheetAlpha.toFixed(2)})`);
+      style.setProperty('--sheet-border', 'rgba(120,140,170,.22)');
+      style.setProperty('--topbar-bg', `linear-gradient(180deg,rgba(11,13,18,${(sheetAlpha + 0.04).toFixed(2)}),rgba(11,13,18,${(sheetAlpha - 0.28).toFixed(2)}))`);
+      style.setProperty('--topbar-border', 'rgba(120,140,170,.16)');
+    } else {
+      style.setProperty('--glass-bg', ios
+        ? `linear-gradient(135deg,rgba(255,255,255,${(glassAlpha + 0.16).toFixed(2)}),rgba(255,255,255,${(glassAlpha - 0.12).toFixed(2)}))`
+        : `rgba(255,252,246,${glassAlpha.toFixed(2)})`);
+      style.setProperty('--glass-border', 'rgba(228,220,207,.9)');
+      style.setProperty('--sheet-bg', `rgba(252,249,242,${sheetAlpha.toFixed(2)})`);
+      style.setProperty('--sheet-border', 'rgba(228,220,207,.95)');
+      style.setProperty('--topbar-bg', `linear-gradient(180deg,rgba(255,252,246,${(sheetAlpha + 0.04).toFixed(2)}),rgba(255,252,246,${(sheetAlpha - 0.3).toFixed(2)}))`);
+      style.setProperty('--topbar-border', 'rgba(228,220,207,.72)');
+    }
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', dark ? '#0B0D12' : '#F3EFE7');
+  }
+
+  if (window.matchMedia) {
+    try {
+      const query = window.matchMedia('(prefers-color-scheme: dark)');
+      if (query.addEventListener) query.addEventListener('change', applyAppearance);
+      else if (query.addListener) query.addListener(applyAppearance);
+    } catch (_) {}
+  }
+
   function escapeHTML(value) {
     return String(value)
       .replace(/&/g, '&amp;')
@@ -571,6 +642,7 @@
     });
     app.dataset.page = page;
     document.body.classList.toggle('search-mode', page === 'search');
+    if (typeof updateDebugHud === 'function') updateDebugHud();
     if (page !== 'search' && document.activeElement === searchInput) {
       searchInput.blur();
     }
@@ -1225,6 +1297,192 @@
   }
 
   /* ---------- player ---------- */
+  /* ---------- debug HUD ---------- */
+  const debugState = {
+    displayHz: 0,
+    feedFps: 0,
+    videoFps: 0,
+    decodeFps: 0,
+    dropped: 0,
+    avGap: null,
+    bitrate: 0,
+    bitrateAt: 0,
+    videoStartAt: 0,
+    lastMediaTime: null,
+    lastFrameAt: 0,
+  };
+  const debugFrame = { start: 0, count: 0, videoStart: 0, videoCount: 0, decodeTotal: null, decodeAt: 0, decodeFps: 0 };
+  let debugNetBytes = null;
+  let debugNetAt = 0;
+  let debugTimer = null;
+
+  function commonHz(value) {
+    if (!Number.isFinite(value) || value <= 0) return 0;
+    const rates = [24, 30, 48, 50, 60, 90, 120, 144, 165, 240];
+    let best = rates[0];
+    let distance = Infinity;
+    rates.forEach((rate) => {
+      const d = Math.abs(rate - value);
+      if (d < distance) { distance = d; best = rate; }
+    });
+    return Math.abs(best - value) <= 6 ? best : Math.round(value);
+  }
+
+  function targetFps() {
+    const interp = state.settings.interp;
+    if (interp === '60' || interp === '90' || interp === '120') {
+      return Math.min(Number(interp) || 60, debugState.displayHz || Number(interp) || 60);
+    }
+    return debugState.displayHz || 60;
+  }
+
+  function sampleVideoQuality() {
+    let total = null;
+    let dropped = 0;
+    try {
+      if (typeof realVideo.getVideoPlaybackQuality === 'function') {
+        const quality = realVideo.getVideoPlaybackQuality();
+        total = Number(quality.totalVideoFrames || 0);
+        dropped = Number(quality.droppedVideoFrames || 0);
+      }
+    } catch (_) {}
+    const now = performance.now();
+    if (total !== null) {
+      if (debugFrame.decodeTotal !== null && now - debugFrame.decodeAt >= 400) {
+        const delta = Math.max(0, total - debugFrame.decodeTotal);
+        const seconds = Math.max(0.2, (now - debugFrame.decodeAt) / 1000);
+        debugFrame.decodeFps = delta / seconds;
+      }
+      debugFrame.decodeTotal = total;
+      debugFrame.decodeAt = now;
+    }
+    debugState.dropped = dropped;
+    if (window.O11A1Native && typeof window.O11A1Native.mediaStats === 'function') {
+      try {
+        const stats = JSON.parse(window.O11A1Native.mediaStats());
+        if (stats && stats.ok) {
+          const bytes = Number(stats.bytes || 0);
+          if (debugNetBytes !== null && now > debugNetAt) {
+            const delta = Math.max(0, bytes - debugNetBytes);
+            const instant = Math.round(delta * 8 / ((now - debugNetAt) / 1000) / 1000);
+            if (instant > 0) {
+              debugState.bitrate = instant;
+              debugState.bitrateAt = now;
+            } else if (now - (debugState.bitrateAt || 0) > 6000) {
+              const average = Math.round(bytes * 8 / Math.max(1, (now - (debugState.videoStartAt || now)) / 1000) / 1000);
+              debugState.bitrate = average;
+            }
+          }
+          debugNetBytes = bytes;
+          debugNetAt = now;
+        }
+      } catch (_) {}
+    } else if (typeof realVideo.webkitVideoDecodedByteCount === 'number') {
+      const bytes = Number(realVideo.webkitVideoDecodedByteCount);
+      if (debugNetBytes !== null && now > debugNetAt) {
+        const delta = Math.max(0, bytes - debugNetBytes);
+        debugState.bitrate = Math.round(delta * 8 / ((now - debugNetAt) / 1000) / 1000);
+      }
+      debugNetBytes = bytes;
+      debugNetAt = now;
+    }
+  }
+
+  function updateDebugHud() {
+    const feedVisible = state.settings.feedDebug !== false
+      && ['home', 'search', 'module'].includes(state.page);
+    feedDebug.classList.toggle('show', feedVisible);
+    document.body.classList.toggle('feed-debug-on', feedVisible);
+    const playerVisible = state.settings.debugHud !== false && state.playerOpen;
+    videoDebug.hidden = !playerVisible;
+    if (!feedVisible && !playerVisible) return;
+    const hz = debugState.displayHz;
+    const target = Math.round(targetFps());
+    const render = Math.round(debugState.videoFps);
+    feedDebugHz.textContent = `${hz ? hz.toFixed(1) : '—'} Hz`;
+    feedDebugFps.textContent = `${debugState.feedFps.toFixed(1)} fps`;
+    dbgDisplay.textContent = `${hz ? hz.toFixed(1) : '—'} Hz`;
+    dbgRender.textContent = `${target || '—'} / ${render}`;
+    const decode = debugFrame.decodeFps > 0 ? debugFrame.decodeFps.toFixed(1) : '—';
+    const size = realVideo.videoWidth ? `${realVideo.videoWidth}×${realVideo.videoHeight}` : '—';
+    dbgDecode.textContent = `${decode} fps · ${size}`;
+    const av = debugState.avGap === null ? '—' : `${Math.round(debugState.avGap)} ms`;
+    dbgDrop.textContent = `${debugState.dropped} · ${av}`;
+    dbgBitrate.textContent = `${debugState.bitrate || 0} kbps`;
+    dbgRender.classList.toggle('warn', render > 0 && target > 0 && render < target * 0.8);
+    dbgDecode.classList.toggle('bad', debugState.dropped > 10);
+    dbgDrop.classList.toggle('bad', debugState.dropped > 10);
+    dbgDrop.classList.toggle('warn', debugState.avGap !== null && debugState.avGap > 220);
+    dbgBitrate.classList.toggle('warn', debugState.bitrate > 20000);
+  }
+
+  function initDebugHud() {
+    let last = performance.now();
+    const samples = [];
+    function frame(now) {
+      const delta = now - last;
+      last = now;
+      if (delta > 2 && delta < 200) samples.push(delta);
+      if (samples.length > 180) samples.splice(0, samples.length - 180);
+      debugFrame.count += 1;
+      if (realVideo && !realVideo.paused && !realVideo.ended) debugFrame.videoCount += 1;
+      if (!debugFrame.start) {
+        debugFrame.start = now;
+        debugFrame.videoStart = now;
+      }
+      const span = now - debugFrame.start;
+      if (span >= 1000) {
+        debugState.feedFps = debugFrame.count * 1000 / span;
+        debugState.videoFps = debugFrame.videoCount * 1000 / Math.max(1, now - debugFrame.videoStart);
+        if (samples.length) {
+          const sorted = samples.slice().sort((a, b) => a - b);
+          const median = sorted[Math.floor(sorted.length * 0.5)];
+          const measured = 1000 / Math.max(1, median);
+          const rounded = commonHz(measured);
+          if (rounded >= 24) {
+            debugState.displayHz = Math.max(rounded, (debugState.displayHz || 0) * 0.995);
+          }
+        }
+        debugFrame.start = now;
+        debugFrame.count = 0;
+        debugFrame.videoStart = now;
+        debugFrame.videoCount = 0;
+        sampleVideoQuality();
+        updateDebugHud();
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    const onFrame = (now, metadata) => {
+      debugState.lastMediaTime = Number(metadata && metadata.mediaTime);
+      debugState.lastFrameAt = now;
+      if (metadata && Number.isFinite(debugState.lastMediaTime)) {
+        debugState.avGap = Math.max(0, (realVideo.currentTime - debugState.lastMediaTime) * 1000);
+      }
+      if (typeof realVideo.requestVideoFrameCallback === 'function') {
+        realVideo.requestVideoFrameCallback(onFrame);
+      }
+    };
+    if (realVideo && typeof realVideo.requestVideoFrameCallback === 'function') {
+      realVideo.requestVideoFrameCallback(onFrame);
+    } else if (realVideo) {
+      realVideo.addEventListener('timeupdate', () => {
+        if (!Number.isFinite(debugState.lastMediaTime)) debugState.avGap = null;
+      });
+    }
+    if (realVideo) {
+      realVideo.addEventListener('loadedmetadata', () => {
+        debugState.videoStartAt = performance.now();
+        debugState.bitrateAt = 0;
+        debugNetBytes = null;
+        debugNetAt = 0;
+      });
+    }
+    setInterval(sampleVideoQuality, 1000);
+    updateDebugHud();
+  }
+
   function updatePlayerLabels() {
     const item = state.playlist[state.currentIndex];
     playerTitle.textContent = item ? item.title : '暂无播放项';
@@ -2071,6 +2329,109 @@
     body.appendChild(button);
   }
 
+  /* ---------- external keyboard ---------- */
+  const KEYBOARD_MAP = [
+    ['空格 / K', '播放 / 暂停'],
+    ['← / →', '快退 / 快进 5 秒'],
+    ['↑ / ↓', '音量 +5 / -5'],
+    ['M', '静音切换'],
+    ['F', '全屏 / 还原'],
+    ['C', '打开 / 关闭评论'],
+    ['D', '弹幕开关'],
+    ['L', '锁定 / 解锁'],
+    ['[ / ]', '减速 / 加速'],
+    ['1–6', '画质 4K → 480P'],
+    ['R', '横屏左 / 右'],
+    ['P', '截图'],
+    ['N / B', '下一个 / 上一个'],
+    ['Esc', '关闭面板 / 解锁 / 收起'],
+  ];
+
+  function openKeyboardSheet() {
+    openSheet('外接键盘', '播放器打开时生效 · 输入框内不拦截', (body) => {
+      KEYBOARD_MAP.forEach(([key, action]) => {
+        const row = document.createElement('div');
+        row.className = 'sheet-row';
+        row.innerHTML = `<span class="sr-label">${escapeHTML(action)}</span><span class="sr-value kbd-value">${escapeHTML(key)}</span>`;
+        body.appendChild(row);
+      });
+    });
+  }
+
+  function seekRelative(seconds) {
+    if (state.locked) return;
+    if (!realVideo || !Number.isFinite(realVideo.duration) || realVideo.duration <= 0) return;
+    const next = Math.max(0, Math.min(realVideo.duration - 0.15, realVideo.currentTime + seconds));
+    realVideo.currentTime = next;
+    showControls();
+    seekRipple.textContent = `${seconds > 0 ? '+' : ''}${seconds}s`;
+    seekRipple.classList.remove('show');
+    void seekRipple.offsetWidth;
+    seekRipple.classList.add('show');
+    clearTimeout(seekRipple._timer);
+    seekRipple._timer = setTimeout(() => seekRipple.classList.remove('show'), 520);
+  }
+
+  function changeSpeed(delta) {
+    const rates = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+    const current = parseFloat(state.settings.speed || '1') || 1;
+    let index = 0;
+    let distance = Infinity;
+    rates.forEach((rate, i) => {
+      const d = Math.abs(rate - current);
+      if (d < distance) { distance = d; index = i; }
+    });
+    const next = rates[Math.max(0, Math.min(rates.length - 1, index + delta))];
+    state.settings.speed = `${next.toFixed(2).replace(/0$/, '')}×`;
+    save();
+    updatePlayerLabels();
+    if (realVideo) realVideo.playbackRate = next;
+    showControls();
+  }
+
+  function handlePlayerKey(event) {
+    const target = event.target;
+    const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+    if (event.key === 'Escape') {
+      if (psheet.classList.contains('open')) { closeSheet(); event.preventDefault(); return; }
+      if (commentsPanel.classList.contains('open')) { closeComments(); event.preventDefault(); return; }
+      if (state.locked) { unlockPlayer(); event.preventDefault(); return; }
+      if (state.playerOpen) { minimizePlayer(); event.preventDefault(); return; }
+      return;
+    }
+    if (typing || !state.playerOpen) return;
+    const key = event.key;
+    const lower = key.toLowerCase();
+    if (key === ' ' || lower === 'k') {
+      event.preventDefault(); togglePlay(); showControls(); return;
+    }
+    if (key === 'ArrowLeft') { event.preventDefault(); seekRelative(-5); return; }
+    if (key === 'ArrowRight') { event.preventDefault(); seekRelative(5); return; }
+    if (key === 'ArrowUp') { event.preventDefault(); applyVolume(Math.min(100, state.volume + 5), true); return; }
+    if (key === 'ArrowDown') { event.preventDefault(); applyVolume(Math.max(0, state.volume - 5), true); return; }
+    if (lower === 'm') { event.preventDefault(); pcMute.click(); return; }
+    if (lower === 'f') { event.preventDefault(); toggleFullscreen(); return; }
+    if (lower === 'c') { event.preventDefault(); commentsPanel.classList.contains('open') ? closeComments() : openComments(); return; }
+    if (lower === 'd') { event.preventDefault(); pcDanmaku.click(); return; }
+    if (lower === 'l') { event.preventDefault(); state.locked ? unlockPlayer() : lockPlayer(); return; }
+    if (key === '[') { event.preventDefault(); changeSpeed(-1); return; }
+    if (key === ']') { event.preventDefault(); changeSpeed(1); return; }
+    if (lower === 'r') { event.preventDefault(); rotatePlayer(state.rotation === 'right' ? 'left' : 'right'); return; }
+    if (lower === 'p') { event.preventDefault(); pcShot.click(); return; }
+    if (lower === 'n') { event.preventDefault(); stepTrack(1); return; }
+    if (lower === 'b') { event.preventDefault(); stepTrack(-1); return; }
+    if (/^[1-6]$/.test(key)) {
+      event.preventDefault();
+      const quality = ['4K', '1080P60', '1080P', '720P', '480P', '仅音频'][Number(key) - 1];
+      state.settings.quality = quality;
+      save();
+      updatePlayerLabels();
+      if (window.O11A1Media && window.O11A1Media.onQualityChange) window.O11A1Media.onQualityChange(quality);
+      showControls();
+    }
+  }
+  window.addEventListener('keydown', handlePlayerKey);
+
   function openPlayerMoreSheet() {
     openSheet('播放器', '所有改动即时生效 · 无弹窗提示', (body) => {
       actionRow(body, '播放设置', '画质 / 插帧 / 增强', () => {
@@ -2259,6 +2620,8 @@
           { type: 'choice', label: '画质增强', key: 'enhance', options: ['关', 'CAS', 'Anime4K'], onChange: updatePlayerLabels },
           { type: 'switch', label: '原始分辨率解码（4K）', key: 'native4k' },
           { type: 'switch', label: '仅音频', key: 'audioOnly' },
+          { type: 'switch', label: '视频调试 HUD', key: 'debugHud', onChange: updateDebugHud },
+          { type: 'switch', label: '视频流刷新率', key: 'feedDebug', onChange: updateDebugHud },
           { type: 'static', label: '解码策略', value: 'WebView 媒体层 · 系统决定' },
         ],
       },
@@ -2290,10 +2653,10 @@
         title: '外观',
         sub: '浅色 / 深色 / 跟随系统；背景透明度与模糊分别控制',
         rows: [
-          { type: 'choice', label: '主题', key: 'theme', options: ['跟随系统', '浅色', '深色'] },
-          { type: 'slider', label: '背景透明度', key: 'bgTransparency', min: 0, max: 100, unit: '%' },
-          { type: 'slider', label: '玻璃模糊', key: 'glassBlur', min: 0, max: 100, unit: '%' },
-          { type: 'slider', label: '背景模糊', key: 'bgBlur', min: 0, max: 100, unit: '%' },
+          { type: 'choice', label: '主题', key: 'theme', options: ['跟随系统', '浅色', '深色'], onChange: applyAppearance },
+          { type: 'slider', label: '背景透明度', key: 'bgTransparency', min: 0, max: 100, unit: '%', onChange: applyAppearance },
+          { type: 'slider', label: '玻璃模糊', key: 'glassBlur', min: 0, max: 100, unit: '%', onChange: applyAppearance },
+          { type: 'slider', label: '背景模糊', key: 'bgBlur', min: 0, max: 100, unit: '%', onChange: applyAppearance },
           { type: 'static', label: '圆角', value: '18 / 24 / 27' },
         ],
       },
@@ -2342,15 +2705,17 @@
       },
       'settings-shortcuts': {
         title: '快捷键',
-        sub: '桌面端 11 项播放器快捷键；移动端映射为手势，外接键盘保留',
+        sub: '桌面端 11 项播放器快捷键；外接键盘全部可用',
         rows: [
-          { type: 'static', label: '播放 / 暂停', value: '空格' },
-          { type: 'static', label: '全屏 / 还原', value: '双击画面' },
+          { type: 'static', label: '播放 / 暂停', value: '空格 / K' },
+          { type: 'static', label: '全屏 / 还原', value: 'F / 双击画面' },
           { type: 'static', label: '快退 / 快进', value: '← / →' },
           { type: 'static', label: '音量', value: '↑ / ↓' },
           { type: 'static', label: '静音', value: 'M' },
-          { type: 'action', label: '全部 11 项映射', value: '打开', run: () => '当前版本未接入外接键盘映射' },
-          { type: 'action', label: '恢复默认', value: '', run: () => '已恢复默认' },
+          { type: 'static', label: '弹幕 / 评论 / 锁定', value: 'D / C / L' },
+          { type: 'static', label: '画质 / 倍速', value: '1–6 / [ ]' },
+          { type: 'action', label: '全部 14 项映射', value: '打开', run: () => { openKeyboardSheet(); return '已打开'; } },
+          { type: 'action', label: '恢复默认', value: '', run: () => '键盘映射固定为默认' },
         ],
       },
       'settings-system': {
@@ -2452,6 +2817,7 @@
     $$('#platformSwitch button').forEach((button) => {
       button.classList.toggle('on', button.dataset.platform === platform);
     });
+    applyAppearance();
     save();
   }
 
@@ -3053,6 +3419,7 @@
   $$('#platformSwitch button').forEach((button) => {
     button.classList.toggle('on', button.dataset.platform === state.platform);
   });
+  applyAppearance();
   applyHiddenEntries();
   updatePlayerLabels();
   updateSearch();
@@ -3060,6 +3427,7 @@
   applyBrightness(state.brightness);
   applyVolume(state.volume);
   hideLevelHuds(0);
+  initDebugHud();
   showPage(state.loggedIn ? 'home' : 'login');
 
   /* ---------- prototype review modes (?demo= / ?selftest=1) ---------- */

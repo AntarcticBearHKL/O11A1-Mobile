@@ -6,6 +6,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -303,26 +304,65 @@ final class BiliExtras {
             if (replies != null) {
                 for (int i = 0; i < replies.length(); i += 1) {
                     JSONObject reply = replies.optJSONObject(i);
-                    if (reply == null) continue;
-                    JSONObject member = reply.optJSONObject("member");
-                    JSONObject content = reply.optJSONObject("content");
-                    JSONObject row = new JSONObject();
-                    row.put("user", member == null ? "用户" : member.optString("uname", "用户"));
-                    row.put("avatar", member == null ? "" : https(member.optString("avatar", "")));
-                    row.put("message", content == null ? "" : content.optString("message", ""));
-                    row.put("like", reply.optInt("like", 0));
-                    row.put("time", reply.optLong("ctime", 0));
-                    items.put(row);
+                    if (reply != null) items.put(replyRow(reply));
                 }
             }
             out.put("ok", true);
             out.put("items", items);
             JSONObject pageInfo = data == null ? null : data.optJSONObject("page");
             out.put("count", pageInfo == null ? items.length() : pageInfo.optInt("count", items.length()));
+            out.put("page", Math.max(1, page));
+            out.put("hasMore", replies != null && replies.length() >= 20);
         } catch (Throwable error) {
             out = error(error);
         }
         return out;
+    }
+
+    JSONObject commentsReplies(long aid, long root, int page) {
+        JSONObject out = new JSONObject();
+        try {
+            JSONObject json = fetch("https://api.bilibili.com/x/v2/reply/reply?type=1&oid=" + aid
+                + "&root=" + root + "&pn=" + Math.max(1, page) + "&ps=20");
+            int code = json.optInt("code", -1);
+            if (code != 0) return apiFailure(code, json.optString("message", "回复加载失败"));
+            JSONObject data = json.optJSONObject("data");
+            JSONArray replies = data == null ? null : data.optJSONArray("replies");
+            JSONArray items = new JSONArray();
+            if (replies != null) {
+                for (int i = 0; i < replies.length(); i += 1) {
+                    JSONObject reply = replies.optJSONObject(i);
+                    if (reply != null) items.put(replyRow(reply));
+                }
+            }
+            JSONObject pageInfo = data == null ? null : data.optJSONObject("page");
+            out.put("ok", true);
+            out.put("items", items);
+            out.put("count", pageInfo == null ? items.length() : pageInfo.optInt("count", items.length()));
+            out.put("page", Math.max(1, page));
+            out.put("hasMore", replies != null && replies.length() >= 20);
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out;
+    }
+
+    private JSONObject replyRow(JSONObject reply) {
+        JSONObject row = new JSONObject();
+        try {
+            JSONObject member = reply.optJSONObject("member");
+            JSONObject content = reply.optJSONObject("content");
+            row.put("rpid", reply.optLong("rpid", 0));
+            row.put("root", reply.optLong("root", 0));
+            row.put("parent", reply.optLong("parent", 0));
+            row.put("rcount", reply.optInt("rcount", 0));
+            row.put("user", member == null ? "用户" : member.optString("uname", "用户"));
+            row.put("avatar", member == null ? "" : https(member.optString("avatar", "")));
+            row.put("message", content == null ? "" : content.optString("message", ""));
+            row.put("like", reply.optInt("like", 0));
+            row.put("time", reply.optLong("ctime", 0));
+        } catch (Throwable ignored) {}
+        return row;
     }
 
     /* ---------- discovery ---------- */
@@ -765,6 +805,204 @@ final class BiliExtras {
         } catch (Throwable error) {
             return error(error);
         }
+    }
+
+    /* ---------- DASH ---------- */
+
+    JSONObject dash(String bvid, long cid, int qn) {
+        JSONObject out = new JSONObject();
+        try {
+            if (cid <= 0) throw new IllegalStateException("cid not found");
+            if (qn <= 0) qn = 120;
+            String url = "https://api.bilibili.com/x/player/playurl?bvid=" + bvid + "&cid=" + cid
+                + "&qn=" + qn + "&fnval=16&fourk=1";
+            JSONObject json = fetch(url);
+            int code = json.optInt("code", -1);
+            JSONObject data = json.optJSONObject("data");
+            if (code != 0 || data == null) return apiFailure(code, json.optString("message", "DASH 播放不可用"));
+            JSONObject dash = data.optJSONObject("dash");
+            if (dash == null) return apiFailure(-1, "当前视频没有 DASH 流");
+            JSONArray videos = dash.optJSONArray("video");
+            JSONArray audios = dash.optJSONArray("audio");
+            JSONArray videoRows = new JSONArray();
+            JSONArray audioRows = new JSONArray();
+            if (videos != null) {
+                for (int i = 0; i < videos.length(); i += 1) {
+                    JSONObject track = videos.optJSONObject(i);
+                    if (track == null || track.optInt("codecid", 0) != 7) continue;
+                    JSONObject row = dashTrack(track);
+                    if (row != null) videoRows.put(row);
+                }
+            }
+            if (audios != null) {
+                for (int i = 0; i < audios.length(); i += 1) {
+                    JSONObject track = audios.optJSONObject(i);
+                    if (track == null) continue;
+                    JSONObject row = dashTrack(track);
+                    if (row != null) audioRows.put(row);
+                }
+            }
+            if (videoRows.length() == 0 || audioRows.length() == 0) {
+                return apiFailure(-1, "当前清晰度没有可用的 DASH 轨道");
+            }
+            out.put("ok", true);
+            out.put("quality", data.optInt("quality", 0));
+            out.put("qualityLabel", qualityLabel(data.optInt("quality", 0)));
+            out.put("acceptQuality", data.optJSONArray("accept_quality"));
+            out.put("video", videoRows);
+            out.put("audio", audioRows);
+            out.put("dur", data.optLong("timelength", 0));
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out;
+    }
+
+    private JSONObject dashTrack(JSONObject track) {
+        try {
+            String base = track.optString("baseUrl", track.optString("base_url", ""));
+            if (base.isEmpty()) return null;
+            JSONObject row = new JSONObject();
+            row.put("qn", track.optInt("id", 0));
+            row.put("bandwidth", track.optLong("bandwidth", 0));
+            row.put("mime", track.optString("mimeType", "video/mp4"));
+            row.put("codecs", track.optString("codecs", ""));
+            row.put("width", track.optInt("width", 0));
+            row.put("height", track.optInt("height", 0));
+            row.put("url", proxy.localUrl(base));
+            JSONArray backups = track.optJSONArray("backupUrl");
+            if (backups == null) backups = track.optJSONArray("backup_url");
+            if (backups != null && backups.length() > 0) {
+                row.put("backup", proxy.localUrl(backups.optString(0, "")));
+            }
+            return row;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+
+    JSONObject memberCenter() {
+        if (!cookies.loggedIn()) return needLogin("登录后查看会员中心");
+        JSONObject out = new JSONObject();
+        try {
+            JSONObject reward = fetch("https://api.bilibili.com/x/member/web/exp/reward");
+            int code = reward.optInt("code", -1);
+            if (code == -101) return needLogin("登录后查看会员中心");
+            JSONObject data = reward.optJSONObject("data");
+            JSONArray tasks = new JSONArray();
+            tasks.put(task("login", "每日登录", data != null && data.optBoolean("login", false), 5));
+            tasks.put(task("watch", "每日观看", data != null && data.optBoolean("watch", false), 5));
+            tasks.put(task("share", "每日分享", data != null && data.optBoolean("share", false), 5));
+            int coins = data == null ? 0 : data.optInt("coins", 0);
+            JSONObject coinTask = task("coins", "每日投币", coins >= 50, 50);
+            coinTask.put("detail", "已获得 " + coins + " / 50 经验");
+            tasks.put(coinTask);
+            out.put("ok", true);
+            out.put("tasks", tasks);
+            out.put("exp", data == null ? 0 : data.optInt("coins", 0));
+            try {
+                JSONObject vip = fetch("https://api.bilibili.com/x/vip/web/user/info").optJSONObject("data");
+                out.put("vip", vip != null && vip.optInt("vip_status", 0) == 1);
+                out.put("vipType", vip == null ? 0 : vip.optInt("vip_type", 0));
+                out.put("vipDue", vip == null ? 0 : vip.optLong("vip_due_date", 0));
+            } catch (Throwable ignored) {}
+            try {
+                JSONObject log = fetch("https://api.bilibili.com/x/member/web/exp/log").optJSONObject("data");
+                JSONArray source = log == null ? null : log.optJSONArray("list");
+                JSONArray rows = new JSONArray();
+                if (source != null) {
+                    for (int i = 0; i < Math.min(8, source.length()); i += 1) {
+                        JSONObject row = source.optJSONObject(i);
+                        if (row == null) continue;
+                        rows.put(new JSONObject()
+                            .put("delta", row.optInt("delta", 0))
+                            .put("reason", strip(row.optString("reason", "")))
+                            .put("time", row.optString("time", "")));
+                    }
+                }
+                out.put("log", rows);
+            } catch (Throwable ignored) {}
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out;
+    }
+
+    private JSONObject task(String key, String label, boolean done, int reward) throws Exception {
+        return new JSONObject().put("key", key).put("label", label).put("done", done).put("reward", reward);
+    }
+
+    /* ---------- AI (OpenAI-compatible) ---------- */
+
+    JSONObject aiChat(String endpoint, String apiKey, String model, String prompt) {
+        JSONObject out = new JSONObject();
+        try {
+            if (endpoint == null || endpoint.isEmpty()) throw new IllegalStateException("API 地址为空");
+            if (apiKey == null || apiKey.isEmpty()) {
+                out.put("ok", false);
+                out.put("needKey", true);
+                out.put("error", "需要先填写 API Key");
+                return out;
+            }
+            if (prompt == null || prompt.trim().isEmpty()) throw new IllegalStateException("请先输入内容");
+            JSONObject payload = new JSONObject();
+            payload.put("model", model == null || model.isEmpty() ? "deepseek-chat" : model);
+            payload.put("stream", false);
+            JSONArray messages = new JSONArray();
+            messages.put(new JSONObject().put("role", "user").put("content", prompt));
+            payload.put("messages", messages);
+            byte[] body = payload.toString().getBytes(StandardCharsets.UTF_8);
+            java.net.HttpURLConnection connection = (java.net.HttpURLConnection) new java.net.URL(endpoint).openConnection();
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(60000);
+            connection.setRequestMethod("POST");
+            connection.setDoOutput(true);
+            connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+            connection.setRequestProperty("Authorization", "Bearer " + apiKey);
+            connection.setFixedLengthStreamingMode(body.length);
+            try (java.io.OutputStream output = connection.getOutputStream()) {
+                output.write(body);
+            }
+            int code = connection.getResponseCode();
+            java.io.InputStream stream = code >= 400 ? connection.getErrorStream() : connection.getInputStream();
+            String raw = "";
+            if (stream != null) {
+                try (java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream()) {
+                    byte[] chunk = new byte[8192];
+                    int read;
+                    while ((read = stream.read(chunk)) >= 0) buffer.write(chunk, 0, read);
+                    raw = buffer.toString("UTF-8");
+                }
+            }
+            if (code < 200 || code >= 300) {
+                out.put("ok", false);
+                out.put("error", "HTTP " + code + " · " + (raw.isEmpty() ? "接口无响应" : raw.substring(0, Math.min(240, raw.length()))));
+                return out;
+            }
+            JSONObject json = new JSONObject(raw);
+            JSONArray choices = json.optJSONArray("choices");
+            String text = "";
+            if (choices != null && choices.length() > 0) {
+                JSONObject choice = choices.optJSONObject(0);
+                JSONObject message = choice == null ? null : choice.optJSONObject("message");
+                if (message != null) text = message.optString("content", "");
+                if (text.isEmpty()) text = choice == null ? "" : choice.optString("text", "");
+            }
+            if (text.isEmpty() && json.optJSONObject("error") != null) {
+                out.put("ok", false);
+                out.put("error", json.getJSONObject("error").optString("message", "AI 返回错误"));
+                return out;
+            }
+            out.put("ok", true);
+            out.put("text", text);
+            out.put("model", json.optString("model", model));
+            JSONObject usage = json.optJSONObject("usage");
+            if (usage != null) out.put("usage", usage);
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out;
     }
 
     /* ---------- helpers ---------- */

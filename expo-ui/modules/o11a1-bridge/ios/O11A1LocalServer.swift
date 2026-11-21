@@ -7,10 +7,13 @@ final class O11A1LocalServer {
 
   private let files: [String: String]
   private let client = O11A1BiliClient()
+  private lazy var downloads = O11A1Downloads(client: client)
   private let listener: NWListener
   private let queue = DispatchQueue(label: "o11a1.local-server", qos: .userInitiated)
   private let lock = NSLock()
   private var active: [ObjectIdentifier: NWConnection] = [:]
+  private var mediaBytes: Int64 = 0
+  private var mediaRequests: Int64 = 0
 
   private(set) var port: Int = 0
 
@@ -202,6 +205,10 @@ final class O11A1LocalServer {
       handleMedia(query: query, headers: headers, method: method, connection: connection)
       return
     }
+    if path == "/file" {
+      handleLocalFile(query: query, headers: headers, method: method, connection: connection)
+      return
+    }
     if path.hasPrefix("/api/") {
       handleAPI(name: String(path.dropFirst(5)), query: query, method: method, connection: connection)
       return
@@ -272,6 +279,45 @@ final class O11A1LocalServer {
         page: max(1, o11a1Int(query["page"] ?? "1")),
         sort: o11a1Int(query["sort"] ?? "2")
       )
+    case "commentsReplies":
+      data = client.commentsReplies(
+        aid: o11a1Int64(query["aid"] ?? "0"),
+        root: o11a1Int64(query["root"] ?? "0"),
+        page: max(1, o11a1Int(query["page"] ?? "1"))
+      )
+    case "memberCenter":
+      data = client.memberCenter()
+    case "aiChat":
+      data = client.aiChat(
+        endpoint: query["endpoint"] ?? "",
+        apiKey: query["apiKey"] ?? "",
+        model: query["model"] ?? "",
+        prompt: query["prompt"] ?? ""
+      )
+    case "dash":
+      data = client.dash(
+        bvid: query["bvid"] ?? "",
+        cid: o11a1Int64(query["cid"] ?? "0"),
+        qn: o11a1Int(query["qn"] ?? "120")
+      )
+    case "mediaStats":
+      data = o11a1Data(["ok": true, "bytes": mediaBytes, "requests": mediaRequests])
+    case "downloadStart":
+      data = downloads.start(
+        bvid: query["bvid"] ?? "",
+        cid: o11a1Int64(query["cid"] ?? "0"),
+        title: query["title"] ?? "",
+        pic: query["pic"] ?? "",
+        quality: query["quality"] ?? "720P"
+      )
+    case "downloadList":
+      data = downloads.list()
+    case "downloadRemove":
+      data = downloads.remove(id: query["id"] ?? "")
+    case "downloadPause":
+      data = downloads.pause(id: query["id"] ?? "")
+    case "downloadResume":
+      data = downloads.resume(id: query["id"] ?? "")
     case "danmaku":
       data = client.danmaku(cid: o11a1Int64(query["cid"] ?? "0"))
     case "account":
@@ -442,6 +488,10 @@ final class O11A1LocalServer {
     for url in urls {
       guard let chunk = client.fetchMedia(urlString: url, start: start, end: end) else { continue }
       let actualEnd = start + Int64(chunk.data.count) - 1
+      lock.lock()
+      mediaBytes += Int64(chunk.data.count)
+      mediaRequests += 1
+      lock.unlock()
       send(
         connection,
         status: 206,
@@ -459,6 +509,67 @@ final class O11A1LocalServer {
       return
     }
     sendText(connection, status: 502, text: "media unavailable")
+  }
+
+  private func handleLocalFile(
+    query: [String: String],
+    headers: [String: String],
+    method: String,
+    connection: NWConnection
+  ) {
+    let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    let root = documents.appendingPathComponent("offline", isDirectory: true).standardizedFileURL
+    guard let raw = query["p"], !raw.isEmpty else {
+      sendText(connection, status: 400, text: "missing file")
+      return
+    }
+    let fileURL = URL(fileURLWithPath: raw).standardizedFileURL
+    guard fileURL.path.hasPrefix(root.path),
+          FileManager.default.fileExists(atPath: fileURL.path) else {
+      sendText(connection, status: 404, text: "file not found")
+      return
+    }
+    guard let handle = try? FileHandle(forReadingFrom: fileURL) else {
+      sendText(connection, status: 500, text: "file unavailable")
+      return
+    }
+    defer { try? handle.close() }
+    let size = (try? FileManager.default.attributesOfItem(atPath: fileURL.path))?[.size] as? NSNumber
+    let total = size?.int64Value ?? 0
+    var start: Int64 = 0
+    var end = total - 1
+    var partial = false
+    if let range = headers["range"]?.lowercased(), range.hasPrefix("bytes=") {
+      let spec = range.dropFirst("bytes=".count)
+      let pieces = spec.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+      if let first = pieces.first, let value = Int64(String(first)) { start = value }
+      if pieces.count > 1, let value = Int64(String(pieces[1])) { end = min(total - 1, value) }
+      partial = true
+    }
+    guard start >= 0, start < total, end >= start else {
+      sendText(connection, status: 416, text: "range not satisfiable")
+      return
+    }
+    let count = end - start + 1
+    try? handle.seek(toOffset: UInt64(start))
+    let body = handle.readData(ofLength: Int(count))
+    var responseHeaders: [String: String] = [
+      "Content-Type": fileURL.pathExtension == "m4a" ? "audio/mp4" : "video/mp4",
+      "Accept-Ranges": "bytes",
+      "Content-Length": "\(body.count)",
+      "Cache-Control": "no-store",
+      "Access-Control-Allow-Origin": "*"
+    ]
+    if partial {
+      responseHeaders["Content-Range"] = "bytes \(start)-\(start + Int64(body.count) - 1)/\(total)"
+    }
+    send(
+      connection,
+      status: partial ? 206 : 200,
+      headers: responseHeaders,
+      body: body,
+      headOnly: method == "HEAD"
+    )
   }
 
   /* ---------- response helpers ---------- */

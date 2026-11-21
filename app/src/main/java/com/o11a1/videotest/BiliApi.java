@@ -89,12 +89,56 @@ final class BiliApi {
         return playWithQns(bvid, cid, qns);
     }
 
+    JSONObject playRemote(String bvid, long cid, int qn) {
+        JSONObject out = new JSONObject();
+        try {
+            if (cid <= 0) {
+                long pageCid = firstCid(bvid);
+                if (pageCid > 0) cid = pageCid;
+            }
+            if (cid <= 0) throw new IllegalStateException("cid not found");
+            int[] qns = qn <= 0 ? new int[]{80, 64, 32, 16} : new int[]{qn, 80, 64, 32, 16};
+            JSONObject data = null;
+            for (int candidate : qns) {
+                String url = "https://api.bilibili.com/x/player/playurl?bvid=" + bvid + "&cid=" + cid
+                    + "&qn=" + candidate + "&fnval=1&fourk=1";
+                JSONObject json = new JSONObject(cookies.request(url, null, null));
+                if (json.optInt("code", -1) != 0) continue;
+                JSONObject candidateData = json.optJSONObject("data");
+                if (candidateData != null && candidateData.optJSONArray("durl") != null
+                    && candidateData.getJSONArray("durl").length() > 0) {
+                    data = candidateData;
+                    break;
+                }
+            }
+            if (data == null) throw new IllegalStateException("playurl unavailable");
+            JSONObject first = data.getJSONArray("durl").getJSONObject(0);
+            String remote = first.optString("url", "");
+            if (remote.isEmpty()) throw new IllegalStateException("empty stream url");
+            int quality = data.optInt("quality", 16);
+            out.put("ok", true);
+            out.put("cid", cid);
+            out.put("url", remote);
+            if (first.optJSONArray("backup_url") != null && first.getJSONArray("backup_url").length() > 0) {
+                out.put("backup", first.getJSONArray("backup_url").getString(0));
+            }
+            out.put("quality", quality);
+            out.put("qualityLabel", qualityLabel(quality));
+            out.put("format", data.optString("format", "mp4"));
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out;
+    }
+
     private JSONObject playWithQns(String bvid, long cid, int[] qns) {
         JSONObject out = new JSONObject();
         try {
             Log.i(TAG, "play request bvid=" + bvid + " cid=" + cid + " cookie=" + cookies.header().length());
-            long pageCid = firstCid(bvid);
-            if (pageCid > 0) cid = pageCid;
+            if (cid <= 0) {
+                long pageCid = firstCid(bvid);
+                if (pageCid > 0) cid = pageCid;
+            }
             if (cid <= 0) throw new IllegalStateException("cid not found");
             JSONObject data = null;
             for (int qn : qns) {

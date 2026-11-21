@@ -157,14 +157,17 @@
     if (moduleName === '收藏') return { api: 'favorites', args: [], label: '收藏夹' };
     if (moduleName === '历史') return { api: 'history', args: [], label: '历史', cursor: true };
     if (moduleName === '动态') return { api: 'following', args: [], label: '关注动态' };
-    if (moduleName === '下载') return { api: null, note: '离线下载将在后续版本接入；当前可以边下边播。', label: '离线下载' };
-    if (moduleName === '会员') return { api: null, note: '大会员信息以账号中心为准。', label: '大会员' };
-    if (moduleName === '养鱼') return { api: null, note: '养鱼入口默认隐藏。', label: '养鱼' };
+    if (moduleName === '下载') return { api: null, special: 'downloads', label: '离线缓存' };
+    if (moduleName === '会员') return { api: null, special: 'member', label: '会员任务' };
+    if (moduleName === '养鱼') return { api: null, special: 'fish', label: 'AI 养鱼' };
     return { api: 'search', args: [moduleName], label: moduleName };
   }
 
   function loadFeed(name, feed, page, cursor) {
     const kind = moduleKind(name);
+    if (kind.special) {
+      return { ok: true, items: [], title: kind.label, needLogin: false };
+    }
     if (!kind.api) {
       renderEmpty(feed, kind.label, kind.note);
       return { ok: true, items: [], title: kind.label, needLogin: false };
@@ -228,11 +231,319 @@
   function loadModule(page) {
     const name = state.moduleName || '推荐';
     const kind = moduleKind(name);
-    const result = loadFeed(name, feeds.module, page || 1, cursors.module);
     const filter = $('#moduleFilter');
     if (filter) filter.textContent = kind.label || name;
+    if (kind.special === 'downloads') {
+      renderDownloads();
+      return true;
+    }
+    if (kind.special === 'member') {
+      renderMember();
+      return true;
+    }
+    if (kind.special === 'fish') {
+      renderFish();
+      return true;
+    }
+    const result = loadFeed(name, feeds.module, page || 1, cursors.module);
     if (result.ok) cursors.module = result.next || '';
     return true;
+  }
+
+  /* ---------- offline downloads ---------- */
+  let downloadItems = [];
+  let downloadTimer = null;
+  let downloadNote = '';
+
+  function stopDownloadPolling() {
+    clearInterval(downloadTimer);
+    downloadTimer = null;
+  }
+
+  function downloadRow(item) {
+    const progress = Number(item.progress || 0);
+    const status = String(item.status || '');
+    const statusText = status === 'completed' ? '已完成'
+      : status === 'downloading' ? `下载中 ${progress}%`
+        : status === 'paused' ? `已暂停 ${progress}%`
+          : status === 'missing' ? '文件已丢失'
+            : status === 'error' ? `失败 · ${item.error || '未知错误'}`
+              : status;
+    const action = status === 'completed' ? 'play'
+      : status === 'downloading' ? 'pause'
+        : status === 'paused' || status === 'error' ? 'resume'
+          : 'play';
+    const actionLabel = action === 'play' ? '播放' : action === 'pause' ? '暂停' : '继续';
+    return `
+      <article class="download-row" data-download="${attr(item.id)}">
+        <span class="download-thumb">${item.pic ? `<img src="${attr(item.pic)}" alt="" referrerpolicy="no-referrer">` : ''}</span>
+        <div class="download-copy">
+          <b>${esc(item.title || item.id)}</b>
+          <span>${esc(item.quality || '')} · ${esc(item.downloadedText || '0 B')} / ${esc(item.totalText || '未知')}</span>
+          <div class="download-track"><i style="width:${progress}%"></i></div>
+          <small class="${status === 'error' || status === 'missing' ? 'bad' : status === 'completed' ? 'ok' : ''}">${esc(statusText)}</small>
+        </div>
+        <div class="download-actions">
+          <button type="button" data-dl-action="${action}" data-dl-id="${attr(item.id)}">${actionLabel}</button>
+          <button type="button" class="ghost" data-dl-action="remove" data-dl-id="${attr(item.id)}">删除</button>
+        </div>
+      </article>`;
+  }
+
+  function paintDownloads(list) {
+    const box = $('#downloadList');
+    if (!box) return;
+    if (!list.length) {
+      box.innerHTML = '<div class="native-empty"><b>还没有离线任务</b><span>在播放器或这里缓存当前视频，完成后可离线播放。</span></div>';
+      return;
+    }
+    box.innerHTML = list.map(downloadRow).join('');
+  }
+
+  function refreshDownloads(showNote) {
+    if (typeof bridge.downloadList !== 'function') return;
+    const result = call('downloadList');
+    if (!result.ok) {
+      const box = $('#downloadList');
+      if (box) box.innerHTML = `<div class="native-empty">下载列表加载失败<br>${esc(result.error || '')}</div>`;
+      return;
+    }
+    downloadItems = Array.isArray(result.items) ? result.items : [];
+    paintDownloads(downloadItems);
+    const storage = $('#downloadStorage');
+    if (storage) storage.textContent = `已用 ${result.storage ? sizeText(result.storage) : '0 B'} · ${downloadItems.length} 个任务`;
+    if (showNote) {
+      const note = $('#downloadNote');
+      if (note) note.textContent = showNote;
+    }
+  }
+
+  function sizeText(bytes) {
+    const value = Number(bytes || 0);
+    if (value >= 1073741824) return `${(value / 1073741824).toFixed(2)} GB`;
+    if (value >= 1048576) return `${(value / 1048576).toFixed(1)} MB`;
+    if (value >= 1024) return `${Math.round(value / 1024)} KB`;
+    return `${value} B`;
+  }
+
+  function renderDownloads() {
+    stopDownloadPolling();
+    const feed = feeds.module;
+    const current = currentItem();
+    const supported = typeof bridge.downloadStart === 'function';
+    feed.innerHTML = `
+      <div class="special-page">
+        <div class="special-head">
+          <div><b>离线缓存</b><span>渐进 MP4 · 应用私有目录 · 支持断点续传</span></div>
+          <button type="button" class="filter-btn" id="downloadRefresh">刷新</button>
+        </div>
+        <div class="download-add">
+          <div>
+            <b>${current ? esc(current.title || '当前视频') : '当前没有打开视频'}</b>
+            <span id="downloadStorage">已用 0 B · 0 个任务</span>
+          </div>
+          <button type="button" class="pill-btn primary" id="downloadCurrent" ${supported && current && current.bvid ? '' : 'disabled'}>缓存当前视频</button>
+        </div>
+        <div class="special-note" id="downloadNote">${supported ? '下载完成后在这里直接播放；删除会同时移除本地文件。' : '当前版本没有可用的下载桥。'}</div>
+        <div class="download-list" id="downloadList"></div>
+      </div>`;
+    const button = $('#downloadCurrent');
+    if (button) button.addEventListener('click', () => {
+      const item = currentItem();
+      if (!item || !item.bvid) {
+        const note = $('#downloadNote');
+        if (note) note.textContent = '当前视频没有可缓存的 BV 号。';
+        return;
+      }
+      const note = $('#downloadNote');
+      if (note) note.textContent = '已加入下载队列…';
+      const result = call('downloadStart', item.bvid, Number(item.cid || 0), item.title || '', item.pic || '', state.settings.quality);
+      if (!result.ok) {
+        if (note) note.textContent = `加入失败 · ${result.error || '未知错误'}`;
+        return;
+      }
+      refreshDownloads('已开始下载。');
+    });
+    const refresh = $('#downloadRefresh');
+    if (refresh) refresh.addEventListener('click', () => refreshDownloads('已刷新。'));
+    refreshDownloads();
+    if (supported) downloadTimer = setInterval(() => {
+      if (state.page !== 'module' || state.moduleName !== '下载') {
+        stopDownloadPolling();
+        return;
+      }
+      refreshDownloads();
+    }, 1200);
+  }
+
+  function downloadAction(action, id) {
+    const item = downloadItems.find((row) => row.id === id);
+    if (!item) return;
+    if (action === 'remove') {
+      const result = call('downloadRemove', id);
+      refreshDownloads(result.ok ? '已删除本地文件。' : `删除失败 · ${result.error || ''}`);
+      return;
+    }
+    if (action === 'pause') {
+      call('downloadPause', id);
+      refreshDownloads('已暂停，可继续。');
+      return;
+    }
+    if (action === 'resume') {
+      const result = call('downloadResume', id);
+      refreshDownloads(result.ok ? '继续下载。' : `继续失败 · ${result.error || ''}`);
+      return;
+    }
+    if (action === 'play') {
+      if (!item.url) {
+        refreshDownloads('文件不在本地，请重新缓存。');
+        return;
+      }
+      playItem({
+        id: item.id,
+        key: `offline:${item.id}`,
+        title: item.title,
+        meta: `离线 · ${item.quality || ''}`,
+        pic: item.pic,
+        bvid: item.bvid,
+        cid: item.cid,
+        offlineUrl: item.url,
+      });
+    }
+  }
+
+  feeds.module.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-dl-action]');
+    if (!button) return;
+    event.preventDefault();
+    downloadAction(button.dataset.dlAction, button.dataset.dlId);
+  });
+
+  /* ---------- member center ---------- */
+  function renderMember() {
+    const feed = feeds.module;
+    if (!state.loggedIn) {
+      renderEmpty(feed, '登录后查看会员任务', '扫码登录后同步大会员状态与每日经验。', '去登录', () => host.showPage('login'));
+      return;
+    }
+    if (typeof bridge.memberCenter !== 'function') {
+      renderEmpty(feed, '当前版本不支持会员中心', '');
+      return;
+    }
+    feed.innerHTML = '<div class="native-empty">正在读取会员中心…</div>';
+    const result = call('memberCenter');
+    if (!result.ok) {
+      renderEmpty(feed, result.needLogin ? '登录已失效' : '会员中心加载失败', result.error || '', result.needLogin ? '去登录' : '重试', result.needLogin ? () => host.showPage('login') : renderMember);
+      return;
+    }
+    const tasks = Array.isArray(result.tasks) ? result.tasks : [];
+    const log = Array.isArray(result.log) ? result.log : [];
+    const due = result.vipDue ? new Date(Number(result.vipDue)) : null;
+    feed.innerHTML = `
+      <div class="special-page">
+        <div class="member-card ${result.vip ? 'vip' : ''}">
+          <span class="member-badge">${result.vip ? '大会员' : '普通会员'}</span>
+          <b>${result.vip ? '大会员权益已生效' : '未开通大会员'}</b>
+          <span>${due && result.vip ? `有效期至 ${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}` : '大会员画质与权益以 B 站账号为准'}</span>
+        </div>
+        <div class="special-title">每日任务</div>
+        <div class="task-list">
+          ${tasks.map((task) => `
+            <div class="task-row ${task.done ? 'done' : ''}">
+              <span class="task-check">${task.done ? '✓' : ''}</span>
+              <span class="task-copy"><b>${esc(task.label)}</b>${task.detail ? `<small>${esc(task.detail)}</small>` : ''}</span>
+              <span class="task-reward">+${Number(task.reward || 0)} 经验</span>
+            </div>`).join('')}
+        </div>
+        <div class="special-title">最近经验</div>
+        <div class="exp-list">
+          ${log.length ? log.map((row) => `
+            <div class="exp-row"><span>${esc(row.reason || '经验')}</span><b>+${Number(row.delta || 0)}</b><small>${esc(row.time || '')}</small></div>`).join('') : '<div class="native-empty"><b>暂无经验记录</b></div>'}
+        </div>
+        <button type="button" class="pill-btn" id="memberRefresh">刷新会员状态</button>
+      </div>`;
+    const refresh = $('#memberRefresh');
+    if (refresh) refresh.addEventListener('click', renderMember);
+  }
+
+  /* ---------- AI fish ---------- */
+  const FISH_STORE = 'o11a1.fish.config';
+  function fishConfig() {
+    try {
+      return JSON.parse(localStorage.getItem(FISH_STORE) || '{}') || {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function saveFishConfig(config) {
+    try { localStorage.setItem(FISH_STORE, JSON.stringify(config)); } catch (_) {}
+  }
+
+  function renderFish() {
+    const feed = feeds.module;
+    const config = fishConfig();
+    feed.innerHTML = `
+      <div class="special-page fish-page">
+        <div class="special-head">
+          <div><b>AI 养鱼</b><span>OpenAI 兼容接口 · 真实请求 · 结果只在本机显示</span></div>
+        </div>
+        <div class="fish-hero">
+          <span class="fish-bubble">🐟</span>
+          <div><b>给鱼缸投喂一段饲料</b><span>配置接口后，AI 会返回一条真实的生成结果。没有 Key 时不会伪造成功。</span></div>
+        </div>
+        <form id="fishForm" class="fish-form">
+          <label>API 地址<input id="fishEndpoint" value="${attr(config.endpoint || 'https://api.deepseek.com/v1/chat/completions')}" placeholder="https://api.deepseek.com/v1/chat/completions"></label>
+          <label>模型<input id="fishModel" value="${attr(config.model || 'deepseek-chat')}" placeholder="deepseek-chat"></label>
+          <label>API Key<input id="fishKey" type="password" value="${attr(config.apiKey || '')}" placeholder="sk-..." autocomplete="off"></label>
+          <label>饲料 / 提示词<textarea id="fishPrompt" rows="4">${esc(config.prompt || '用三句话点评今天 B 站最热的一条视频，并给出一个养鱼式的比喻。')}</textarea></label>
+          <div class="fish-actions">
+            <button type="submit" class="pill-btn primary" id="fishRun">投喂并生成</button>
+            <button type="button" class="pill-btn" id="fishClearKey">清除 Key</button>
+          </div>
+        </form>
+        <div class="fish-output" id="fishOutput">
+          <div class="native-empty"><b>鱼缸很安静</b><span>填写 API Key 后点击「投喂并生成」。</span></div>
+        </div>
+      </div>`;
+    const form = $('#fishForm');
+    const output = $('#fishOutput');
+    if (form) form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const endpoint = $('#fishEndpoint').value.trim();
+      const model = $('#fishModel').value.trim();
+      const apiKey = $('#fishKey').value.trim();
+      const prompt = $('#fishPrompt').value.trim();
+      saveFishConfig({ endpoint, model, apiKey, prompt });
+      if (!apiKey) {
+        output.innerHTML = '<div class="native-empty"><b>需要 API Key</b><span>AI 养鱼不会在没有 Key 时伪造结果。请填写后再试。</span></div>';
+        return;
+      }
+      if (typeof bridge.aiChat !== 'function') {
+        output.innerHTML = '<div class="native-empty"><b>当前版本不支持 AI 请求</b></div>';
+        return;
+      }
+      output.innerHTML = '<div class="native-empty"><b>鱼正在思考…</b><span>请求已发往配置的接口，最长等待 75 秒。</span></div>';
+      setTimeout(() => {
+        const result = call('aiChat', endpoint, apiKey, model, prompt);
+        if (!result.ok) {
+          output.innerHTML = `<div class="native-empty"><b>${result.needKey ? '需要 API Key' : '生成失败'}</b><span>${esc(result.error || '接口没有返回内容')}</span></div>`;
+          return;
+        }
+        output.innerHTML = `
+          <div class="fish-result">
+            <div class="fish-result-head"><b>生成结果</b><span>${esc(result.model || model || 'AI')}</span></div>
+            <p>${esc(result.text || '接口返回了空内容').replace(/\n/g, '<br>')}</p>
+          </div>`;
+      }, 60);
+    });
+    const clear = $('#fishClearKey');
+    if (clear) clear.addEventListener('click', () => {
+      const key = $('#fishKey');
+      if (key) key.value = '';
+      saveFishConfig({ ...fishConfig(), apiKey: '' });
+      output.innerHTML = '<div class="native-empty"><b>Key 已从本机清除</b><span>接口和模型设置保留。</span></div>';
+    });
   }
 
   function loadSearch(query, page) {
@@ -255,7 +566,8 @@
     if (!item) return;
     if (item.live) { playLive(item); return; }
     if (item.seasonId && !item.epId) { playSeason(item); return; }
-    const key = item.epId ? `ep:${item.epId}` : item.roomId ? `live:${item.roomId}` : `bvid:${item.bvid}`;
+    const key = item.offlineUrl ? `offline:${item.id || item.bvid}`
+      : item.epId ? `ep:${item.epId}` : item.roomId ? `live:${item.roomId}` : `bvid:${item.bvid}`;
     let index = state.playlist.findIndex((entry) => entry.key === key);
     if (index < 0) {
       state.playlist.push(Object.assign({ id: `n${Date.now()}` }, item, {
@@ -335,6 +647,8 @@
 
   /* ---------- media ---------- */
   const video = $('#realVideo');
+  const postCanvas = $('#postCanvas');
+  const playerStage = $('#playerStage');
   const playerVideo = host.playerVideo;
   const player = $('#player');
   const status = $('#realVideoStatus');
@@ -350,6 +664,12 @@
   let mediaTriedBackup = false;
   let mediaLive = false;
   let hls = null;
+  let liveSocket = null;
+  let liveHeartbeat = null;
+  let liveRetryTimer = null;
+  let liveSeen = new Map();
+  let liveRoomId = 0;
+  let dashState = null;
 
   function setStatus(text, mode) {
     if (!status) return;
@@ -424,6 +744,146 @@
     return state.playlist[state.currentIndex] || null;
   }
 
+  /* ---------- live danmaku (Bilibili websocket) ---------- */
+  function livePacket(op, body) {
+    const payload = new TextEncoder().encode(body || '');
+    const buffer = new ArrayBuffer(16 + payload.length);
+    const view = new DataView(buffer);
+    view.setInt32(0, 16 + payload.length);
+    view.setInt16(4, 16);
+    view.setInt16(6, 1);
+    view.setInt32(8, op);
+    view.setInt32(12, 1);
+    new Uint8Array(buffer, 16).set(payload);
+    return buffer;
+  }
+
+  async function inflateZlib(buffer) {
+    if (!window.DecompressionStream) return null;
+    try {
+      const stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream('deflate'));
+      return await new Response(stream).arrayBuffer();
+    } catch (error) {
+      log('live danmaku inflate failed ' + error);
+      return null;
+    }
+  }
+
+  function spawnLiveDanmaku(text, colorValue) {
+    if (!text) return;
+    const now = Date.now();
+    const last = liveSeen.get(text) || 0;
+    if (now - last < 2500) return;
+    liveSeen.set(text, now);
+    if (liveSeen.size > 200) {
+      for (const [key, at] of liveSeen) {
+        if (now - at > 60000) liveSeen.delete(key);
+      }
+    }
+    spawnDanmaku({ t: video.currentTime || 0, text, color: Number(colorValue || 0xffffff), mode: 1 });
+  }
+
+  function handleLivePacket(payload, op, version) {
+    if (op === 5) {
+      const text = new TextDecoder().decode(payload);
+      let message = null;
+      try { message = JSON.parse(text); } catch (_) { return; }
+      if (!message || !message.cmd) return;
+      if (message.cmd.indexOf('DANMU_MSG') === 0 && Array.isArray(message.info)) {
+        const body = String(message.info[1] || '');
+        const color = message.info[0] && message.info[0][3] ? message.info[0][3] : 0xffffff;
+        spawnLiveDanmaku(body, color);
+      }
+      return;
+    }
+    if (op === 3) {
+      try {
+        const popularity = new DataView(payload).getInt32(0);
+        const badge = $('#livePopularity');
+        if (badge) badge.textContent = countText(popularity);
+      } catch (_) {}
+    }
+  }
+
+  async function parseLivePackets(buffer) {
+    const view = new DataView(buffer);
+    let offset = 0;
+    while (offset + 16 <= buffer.byteLength) {
+      const length = view.getInt32(offset);
+      if (length < 16 || offset + length > buffer.byteLength) break;
+      const headerLength = view.getInt16(offset + 4);
+      const version = view.getInt16(offset + 6);
+      const op = view.getInt32(offset + 8);
+      const payload = buffer.slice(offset + headerLength, offset + length);
+      if (op === 5 && version === 2) {
+        const inflated = await inflateZlib(payload);
+        if (inflated) await parseLivePackets(inflated);
+      } else {
+        handleLivePacket(payload, op, version);
+      }
+      offset += length;
+    }
+  }
+
+  function closeLiveDanmaku() {
+    clearInterval(liveHeartbeat);
+    liveHeartbeat = null;
+    clearTimeout(liveRetryTimer);
+    liveRetryTimer = null;
+    liveRoomId = 0;
+    if (liveSocket) {
+      const socket = liveSocket;
+      liveSocket = null;
+      try { socket.close(); } catch (_) {}
+    }
+  }
+
+  function connectLiveDanmaku(roomId) {
+    closeLiveDanmaku();
+    if (!roomId || !window.WebSocket) return;
+    liveRoomId = roomId;
+    let socket;
+    try {
+      socket = new WebSocket('wss://broadcastlv.chat.bilibili.com:443/sub');
+    } catch (error) {
+      log('live danmaku socket failed ' + error);
+      return;
+    }
+    socket.binaryType = 'arraybuffer';
+    liveSocket = socket;
+    socket.addEventListener('open', () => {
+      if (liveSocket !== socket) return;
+      const auth = JSON.stringify({
+        uid: 0, roomid: roomId, protover: 2, platform: 'web', type: 2, key: '',
+      });
+      try { socket.send(livePacket(7, auth)); } catch (_) {}
+      clearInterval(liveHeartbeat);
+      liveHeartbeat = setInterval(() => {
+        if (liveSocket === socket && socket.readyState === 1) {
+          try { socket.send(livePacket(2, '[object Object]')); } catch (_) {}
+        }
+      }, 30000);
+    });
+    socket.addEventListener('message', (event) => {
+      if (event.data instanceof ArrayBuffer) {
+        parseLivePackets(event.data).catch((error) => log('live danmaku parse ' + error));
+      }
+    });
+    socket.addEventListener('close', () => {
+      clearInterval(liveHeartbeat);
+      liveHeartbeat = null;
+      if (liveSocket !== socket) return;
+      liveSocket = null;
+      if (mediaLive && liveRoomId === roomId) {
+        clearTimeout(liveRetryTimer);
+        liveRetryTimer = setTimeout(() => connectLiveDanmaku(roomId), 5000);
+      }
+    });
+    socket.addEventListener('error', () => {
+      log('live danmaku socket error');
+    });
+  }
+
   function destroyHls() {
     if (hls) {
       try { hls.destroy(); } catch (_) {}
@@ -433,6 +893,9 @@
 
   function clearVideo() {
     destroyHls();
+    destroyDash();
+    closeLiveDanmaku();
+    stopPostProcess();
     mediaItem = null;
     mediaBackup = '';
     mediaTriedBackup = false;
@@ -453,12 +916,13 @@
   }
 
   function qualityQn(value) {
-    const map = { '4K': 120, '1080P60': 116, '1080P': 80, '720P': 64, '480P': 32, '仅音频': 16 };
+    const map = { '4K': 120, '1080P60': 116, '1080P+': 112, '1080P': 80, '720P': 64, '480P': 32, '360P': 16, '仅音频': 16 };
     return map[value] || 64;
   }
 
   function loadLive(item, autoplay) {
     destroyHls();
+    stopPostProcess();
     mediaItem = item;
     mediaLive = true;
     mediaBackup = '';
@@ -474,6 +938,7 @@
       setStatus('直播地址不可用', 'error');
       return;
     }
+    connectLiveDanmaku(Number(item.roomId || 0));
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = source;
       video.load();
@@ -496,7 +961,199 @@
     setStatus('当前 WebView 不支持直播 HLS', 'error');
   }
 
-  function loadVideo(item, autoplay) {
+  /* ---------- DASH via MediaSource ---------- */
+  function destroyDash() {
+    if (!dashState) return;
+    dashState.aborted = true;
+    try {
+      if (dashState.readers) {
+        dashState.readers.forEach((reader) => { try { reader.cancel(); } catch (_) {} });
+      }
+    } catch (_) {}
+    try { URL.revokeObjectURL(dashState.url); } catch (_) {}
+    dashState = null;
+  }
+
+  function dashFallback(item, autoplay, reason) {
+    log('dash playback fallback ' + reason);
+    destroyDash();
+    mediaItem = null;
+    setStatus('切换到渐进播放…', 'loading');
+    loadVideo(item, autoplay, false);
+  }
+
+  function chooseDashTrack(tracks, targetQn) {
+    const sorted = tracks.slice().sort((a, b) => Number(a.qn || 0) - Number(b.qn || 0));
+    let best = sorted[0];
+    sorted.forEach((track) => {
+      if (Number(track.qn || 0) <= targetQn) best = track;
+    });
+    return best || sorted[sorted.length - 1];
+  }
+
+  function appendDashBuffer(buffer, data, state) {
+    return new Promise((resolve, reject) => {
+      const append = () => {
+        if (state.aborted) { resolve(); return; }
+        if (buffer.updating) {
+          buffer.addEventListener('updateend', append, { once: true });
+          return;
+        }
+        try {
+          buffer.appendBuffer(data);
+        } catch (error) {
+          reject(error);
+          return;
+        }
+        buffer.addEventListener('updateend', () => resolve(), { once: true });
+      };
+      append();
+    });
+  }
+
+  async function appendDashChunk(buffer, value, state) {
+    const step = 256 * 1024;
+    for (let offset = 0; offset < value.length; offset += step) {
+      if (state.aborted) return;
+      await appendDashBuffer(buffer, value.subarray(offset, Math.min(value.length, offset + step)), state);
+    }
+  }
+
+  async function waitDashRoom(buffer, state) {
+    let guard = 0;
+    while (!state.aborted && guard < 120) {
+      guard += 1;
+      let bufferedEnd = 0;
+      let bufferedStart = 0;
+      try {
+        if (buffer.buffered.length) {
+          bufferedEnd = buffer.buffered.end(buffer.buffered.length - 1);
+          bufferedStart = buffer.buffered.start(0);
+        }
+      } catch (_) {}
+      if (!bufferedEnd || video.currentTime <= 0) return;
+      if (bufferedEnd - video.currentTime < 45) return;
+      if (bufferedStart > 0 && bufferedStart < video.currentTime - 30 && !buffer.updating) {
+        try { buffer.remove(0, Math.max(0, video.currentTime - 20)); } catch (_) {}
+      }
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    }
+  }
+
+  async function pumpDash(urls, buffer, type, item, autoplay, state) {
+    let lastError = 'DASH 地址不可用';
+    for (const url of urls.filter(Boolean)) {
+      try {
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok || !response.body) throw new Error('HTTP ' + response.status);
+        const reader = response.body.getReader();
+        state.readers.push(reader);
+        let appended = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done || state.aborted) break;
+          if (!value || !value.length) continue;
+          await appendDashChunk(buffer, value, state);
+          appended += value.length;
+          if (!state.started && type === 'video' && appended > 350 * 1024) {
+            state.started = true;
+            startDashPlayback(autoplay);
+          }
+          await waitDashRoom(buffer, state);
+        }
+        if (!state.aborted && type === 'video') startDashPlayback(autoplay);
+        if (!state.aborted) log('dash ' + type + ' stream ended bytes=' + appended);
+        return;
+      } catch (error) {
+        lastError = String(error);
+        log('dash ' + type + ' source failed ' + lastError);
+        if (state.aborted) return;
+      }
+    }
+    if (!state.aborted) dashFallback(item, autoplay, lastError);
+  }
+
+  function startDashPlayback(autoplay) {
+    playerVideo.classList.add('has-video');
+    playerVideo.classList.remove('video-loading');
+    setStatus('', '');
+    if (!autoplay) return;
+    video.play().then(() => {
+      state.playing = true;
+      host.pcPlay.textContent = 'Ⅱ';
+      host.updatePlaylistDock();
+    }).catch(() => {});
+  }
+
+  function loadDash(item, dash, autoplay) {
+    destroyDash();
+    destroyHls();
+    const target = qualityQn(state.settings.quality);
+    const videoTrack = chooseDashTrack(dash.video, target);
+    const audioTrack = dash.audio.slice().sort((a, b) => Number(b.bandwidth || 0) - Number(a.bandwidth || 0))[0];
+    if (!window.MediaSource || !videoTrack || !audioTrack) {
+      mediaItem = null;
+      loadVideo(item, autoplay, false);
+      return;
+    }
+    const videoMime = `${videoTrack.mime || 'video/mp4'}; codecs="${videoTrack.codecs || 'avc1.640033'}"`;
+    const audioMime = `${audioTrack.mime || 'audio/mp4'}; codecs="${audioTrack.codecs || 'mp4a.40.2'}"`;
+    if (!MediaSource.isTypeSupported(videoMime) || !MediaSource.isTypeSupported(audioMime)) {
+      mediaItem = null;
+      loadVideo(item, autoplay, false);
+      return;
+    }
+    mediaItem = item;
+    mediaLive = false;
+    mediaBackup = '';
+    loadDanmaku(item.cid);
+    const mediaSource = new MediaSource();
+    const url = URL.createObjectURL(mediaSource);
+    const session = {
+      aborted: false,
+      started: false,
+      readers: [],
+      url,
+      mediaSource,
+      videoBuffer: null,
+      audioBuffer: null,
+    };
+    dashState = session;
+    playerVideo.classList.remove('video-error');
+    playerVideo.classList.add('has-video', 'video-loading');
+    setStatus('DASH 缓冲中…', 'loading');
+    if (dash.qualityLabel) {
+      window.O11A1Host.state.settings.quality = dash.qualityLabel;
+      host.updatePlayerLabels();
+    }
+    mediaSource.addEventListener('sourceopen', () => {
+      try {
+        const videoBuffer = mediaSource.addSourceBuffer(videoMime);
+        const audioBuffer = mediaSource.addSourceBuffer(audioMime);
+        videoBuffer.mode = 'segments';
+        audioBuffer.mode = 'segments';
+        session.videoBuffer = videoBuffer;
+        session.audioBuffer = audioBuffer;
+        pumpDash([videoTrack.url, videoTrack.backup], videoBuffer, 'video', item, autoplay, session);
+        pumpDash([audioTrack.url, audioTrack.backup], audioBuffer, 'audio', item, autoplay, session);
+      } catch (error) {
+        dashFallback(item, autoplay, String(error));
+      }
+    }, { once: true });
+    video.addEventListener('loadedmetadata', () => {
+      if (autoplay && video.paused) {
+        video.play().then(() => {
+          state.playing = true;
+          host.pcPlay.textContent = 'Ⅱ';
+          host.updatePlaylistDock();
+        }).catch(() => {});
+      }
+    }, { once: true });
+    video.src = url;
+    video.load();
+  }
+
+  function loadVideo(item, autoplay, allowDash = true) {
     if (!item) {
       clearVideo();
       return;
@@ -505,16 +1162,18 @@
       loadLive(item, autoplay);
       return;
     }
-    if (!item.bvid && !item.epId) {
+    if (!item.bvid && !item.epId && !item.offlineUrl) {
       clearVideo();
       return;
     }
-    const key = item.epId ? `ep:${item.epId}` : `bvid:${item.bvid}`;
+    const key = item.offlineUrl ? `offline:${item.id || item.bvid}`
+      : item.epId ? `ep:${item.epId}` : `bvid:${item.bvid}`;
     if (mediaItem && mediaItem.key === key && video.src) {
       if (autoplay) video.play().catch(() => {});
       return;
     }
     destroyHls();
+    stopPostProcess();
     mediaLive = false;
     if (player) player.classList.remove('live-player');
     mediaItem = item;
@@ -524,6 +1183,34 @@
     playerVideo.classList.remove('has-video', 'video-error');
     playerVideo.classList.add('video-loading');
     setStatus('加载中…', 'loading');
+    if (item.offlineUrl) {
+      loadDanmaku(item.cid);
+      mediaBackup = '';
+      video.src = item.offlineUrl;
+      video.load();
+      playerVideo.classList.add('has-video');
+      if (autoplay) {
+        video.play().then(() => {
+          state.playing = true;
+          host.pcPlay.textContent = 'Ⅱ';
+          host.updatePlaylistDock();
+        }).catch(() => {
+          state.playing = false;
+          host.pcPlay.textContent = '▶';
+          setStatus('点击播放', 'error');
+        });
+      }
+      return;
+    }
+    const highQuality = ['4K', '1080P60', '1080P', '1080P+'].includes(state.settings.quality);
+    if (allowDash && highQuality && item.bvid && item.cid && typeof bridge.dash === 'function') {
+      const dash = call('dash', item.bvid, item.cid, qualityQn(state.settings.quality));
+      if (dash.ok && Array.isArray(dash.video) && Array.isArray(dash.audio) && dash.video.length && dash.audio.length) {
+        loadDash(item, dash, autoplay);
+        return;
+      }
+      log('dash unavailable ' + (dash.error || ''));
+    }
     const result = item.epId
       ? call('playPgc', item.epId, item.bvid || '', item.cid || 0, qualityQn(state.settings.quality))
       : call('playQuality', item.bvid, item.cid || 0, qualityQn(state.settings.quality));
@@ -564,6 +1251,8 @@
     if (state.duration > 0 && !mediaLive) host.setProgress(video.currentTime / state.duration * 100);
     if (mediaLive && host.pcTime) host.pcTime.textContent = 'LIVE';
     playerVideo.classList.remove('video-loading');
+    post.newFrame = true;
+    syncPostProcess();
   });
   video.addEventListener('timeupdate', () => {
     if (mediaLive) {
@@ -581,6 +1270,7 @@
     playerVideo.classList.remove('video-loading');
     if (danmakuLayer) danmakuLayer.classList.remove('paused');
     if (status) status.textContent = '';
+    syncPostProcess();
   });
   video.addEventListener('pause', () => {
     state.playing = false;
@@ -626,6 +1316,255 @@
     loadVideo(item, true);
   });
 
+  /* ---------- WebGL post-process: interpolation / CAS / Anime4K ---------- */
+  const post = {
+    gl: null,
+    canvas: null,
+    program: null,
+    copyProgram: null,
+    curTex: null,
+    prevTex: null,
+    prevFbo: null,
+    width: 0,
+    height: 0,
+    raf: 0,
+    running: false,
+    newFrame: true,
+    lastFrameAt: 0,
+    initialized: false,
+  };
+
+  const POST_VERTEX = `
+    attribute vec2 aPos;
+    varying vec2 vUv;
+    void main(){ vUv = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }
+  `;
+  const POST_FRAGMENT = `
+    precision mediump float;
+    varying vec2 vUv;
+    uniform sampler2D uCur;
+    uniform sampler2D uPrev;
+    uniform vec2 uTexel;
+    uniform float uAlpha;
+    uniform float uSharp;
+    uniform float uSat;
+    void main(){
+      vec2 uv = vec2(vUv.x, 1.0 - vUv.y);
+      vec3 c = texture2D(uCur, uv).rgb;
+      vec3 p = texture2D(uPrev, uv).rgb;
+      vec3 n = texture2D(uCur, uv + vec2(0.0, uTexel.y)).rgb;
+      vec3 s = texture2D(uCur, uv - vec2(0.0, uTexel.y)).rgb;
+      vec3 e = texture2D(uCur, uv + vec2(uTexel.x, 0.0)).rgb;
+      vec3 w = texture2D(uCur, uv - vec2(uTexel.x, 0.0)).rgb;
+      vec3 blur = (n + s + e + w) * 0.25;
+      vec3 sharp = clamp(c + (c - blur) * uSharp, 0.0, 1.0);
+      vec3 col = mix(p, sharp, uAlpha);
+      float l = dot(col, vec3(0.299, 0.587, 0.114));
+      col = mix(vec3(l), col, uSat);
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `;
+  const COPY_FRAGMENT = `
+    precision mediump float;
+    varying vec2 vUv;
+    uniform sampler2D uCur;
+    void main(){ gl_FragColor = texture2D(uCur, vUv); }
+  `;
+
+  function compileShader(gl, type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      log('post shader failed ' + gl.getShaderInfoLog(shader));
+      gl.deleteShader(shader);
+      return null;
+    }
+    return shader;
+  }
+
+  function makeProgram(gl, fragment) {
+    const vertex = compileShader(gl, gl.VERTEX_SHADER, POST_VERTEX);
+    const pixel = compileShader(gl, gl.FRAGMENT_SHADER, fragment);
+    if (!vertex || !pixel) return null;
+    const program = gl.createProgram();
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, pixel);
+    gl.bindAttribLocation(program, 0, 'aPos');
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      log('post link failed ' + gl.getProgramInfoLog(program));
+      return null;
+    }
+    return program;
+  }
+
+  function newTexture(gl) {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    return texture;
+  }
+
+  function initPostProcess() {
+    if (post.initialized) return Boolean(post.gl);
+    post.initialized = true;
+    const canvas = postCanvas;
+    if (!canvas) return false;
+    const gl = canvas.getContext('webgl', { alpha: false, antialias: false, preserveDrawingBuffer: false })
+      || canvas.getContext('experimental-webgl', { alpha: false, antialias: false });
+    if (!gl) {
+      log('post process unavailable: no webgl');
+      return false;
+    }
+    post.canvas = canvas;
+    post.gl = gl;
+    post.program = makeProgram(gl, POST_FRAGMENT);
+    post.copyProgram = makeProgram(gl, COPY_FRAGMENT);
+    if (!post.program || !post.copyProgram) return false;
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    return true;
+  }
+
+  function postSettings() {
+    const interp = state.settings.interp;
+    const enhance = state.settings.enhance;
+    const enabled = mediaLive === false && !video.paused && video.readyState >= 2
+      && (interp !== '关' || enhance !== '关');
+    return {
+      enabled,
+      interp: interp === '自动' ? (window.devicePixelRatio > 1.5 ? 120 : 60) : Number(interp) || 0,
+      sharp: enhance === 'Anime4K' ? 1.65 : enhance === 'CAS' ? 1.05 : 0.15,
+      sat: enhance === 'Anime4K' ? 1.12 : enhance === 'CAS' ? 1.03 : 1,
+    };
+  }
+
+  function syncPostProcess() {
+    const settings = postSettings();
+    if (!settings.enabled) {
+      stopPostProcess();
+      return;
+    }
+    if (!initPostProcess()) {
+      log('post process fallback to css filter');
+      playerStage.classList.remove('post-active');
+      postCanvas.hidden = true;
+      video.style.filter = settings.sharp > 0.2 ? 'contrast(1.06) saturate(1.05)' : '';
+      return;
+    }
+    postCanvas.hidden = false;
+    playerStage.classList.add('post-active');
+    if (!post.running) startPostProcess();
+  }
+
+  function stopPostProcess() {
+    post.running = false;
+    cancelAnimationFrame(post.raf);
+    post.raf = 0;
+    playerStage.classList.remove('post-active');
+    if (postCanvas) postCanvas.hidden = true;
+    video.style.filter = '';
+  }
+
+  function ensurePostSize() {
+    const gl = post.gl;
+    if (!gl || !video.videoWidth) return false;
+    const width = Math.min(1280, video.videoWidth);
+    const height = Math.max(1, Math.round(width * video.videoHeight / video.videoWidth));
+    if (post.width === width && post.height === height) return true;
+    post.width = width;
+    post.height = height;
+    postCanvas.width = width;
+    postCanvas.height = height;
+    if (post.curTex) gl.deleteTexture(post.curTex);
+    if (post.prevTex) gl.deleteTexture(post.prevTex);
+    if (post.prevFbo) gl.deleteFramebuffer(post.prevFbo);
+    post.curTex = newTexture(gl);
+    post.prevTex = newTexture(gl);
+    gl.bindTexture(gl.TEXTURE_2D, post.curTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindTexture(gl.TEXTURE_2D, post.prevTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    post.prevFbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, post.prevFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, post.prevTex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    post.newFrame = true;
+    return true;
+  }
+
+  function uploadPostFrame() {
+    const gl = post.gl;
+    if (!gl || !ensurePostSize()) return;
+    if (!post.newFrame) return;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, post.prevFbo);
+    gl.viewport(0, 0, post.width, post.height);
+    gl.useProgram(post.copyProgram);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, post.curTex);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindTexture(gl.TEXTURE_2D, post.curTex);
+    try {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+    } catch (error) {
+      log('post upload failed ' + error);
+    }
+    post.newFrame = false;
+    post.lastFrameAt = performance.now();
+  }
+
+  function drawPostFrame(now) {
+    const gl = post.gl;
+    if (!gl || !post.running) return;
+    const settings = postSettings();
+    if (!settings.enabled) { stopPostProcess(); return; }
+    uploadPostFrame();
+    gl.viewport(0, 0, post.width, post.height);
+    gl.useProgram(post.program);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, post.curTex);
+    gl.uniform1i(gl.getUniformLocation(post.program, 'uCur'), 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, post.prevTex);
+    gl.uniform1i(gl.getUniformLocation(post.program, 'uPrev'), 1);
+    gl.uniform2f(gl.getUniformLocation(post.program, 'uTexel'), 1 / post.width, 1 / post.height);
+    let alpha = 1;
+    if (settings.interp) {
+      const interval = 1000 / settings.interp;
+      alpha = Math.min(1, Math.max(0.05, (now - post.lastFrameAt) / interval));
+    }
+    gl.uniform1f(gl.getUniformLocation(post.program, 'uAlpha'), alpha);
+    gl.uniform1f(gl.getUniformLocation(post.program, 'uSharp'), settings.sharp);
+    gl.uniform1f(gl.getUniformLocation(post.program, 'uSat'), settings.sat);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    post.raf = requestAnimationFrame(drawPostFrame);
+  }
+
+  function startPostProcess() {
+    if (post.running) return;
+    post.running = true;
+    post.newFrame = true;
+    post.raf = requestAnimationFrame(drawPostFrame);
+  }
+
+  if (typeof video.requestVideoFrameCallback === 'function') {
+    const onVideoFrame = () => {
+      post.newFrame = true;
+      video.requestVideoFrameCallback(onVideoFrame);
+    };
+    video.requestVideoFrameCallback(onVideoFrame);
+  }
+  video.addEventListener('seeked', () => { post.newFrame = true; });
+  video.addEventListener('loadeddata', () => { post.newFrame = true; });
+
   window.O11A1Media = {
     onOpen() {
       loadVideo(currentItem(), Boolean(state.playing));
@@ -659,6 +1598,7 @@
       const rate = parseFloat(state.settings.speed || '1');
       video.playbackRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
       video.loop = state.settings.loop === '循环';
+      syncPostProcess();
     },
     onTrackChange() {
       loadVideo(currentItem(), true);
@@ -676,7 +1616,14 @@
       video.playbackRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
     },
     onQualityChange(value) {
-      if (!mediaItem || !video.src || mediaItem.live || typeof bridge.playQuality !== 'function') return;
+      if (!mediaItem || !video.src || mediaItem.live) return;
+      if (['4K', '1080P60', '1080P', '1080P+'].includes(value) && typeof bridge.dash === 'function') {
+        const item = mediaItem;
+        mediaItem = null;
+        loadVideo(item, true);
+        return;
+      }
+      if (typeof bridge.playQuality !== 'function') return;
       const qn = qualityQn(value);
       const keepTime = video.currentTime || 0;
       const wasPlaying = !video.paused;
@@ -709,20 +1656,65 @@
 
   /* ---------- comments ---------- */
   let commentSort = 2;
-  function commentRow(row) {
+  let commentPage = 1;
+  let commentHasMore = false;
+  let commentLoading = false;
+  let commentItems = [];
+
+  function commentRow(row, depth = 0) {
+    const rpid = Number(row.rpid || 0);
+    const replies = Array.isArray(row.replies) ? row.replies : [];
     return `
-      <div class="comment-row">
+      <div class="comment-row${depth ? ' comment-reply' : ''}" data-rpid="${rpid}">
         ${row.avatar ? `<img class="comment-avatar" src="${attr(row.avatar)}" alt="" referrerpolicy="no-referrer">` : '<span class="avatar-ph sm"></span>'}
         <div class="comment-text">
-          <b>${esc(row.user || '用户')}</b>
+          <b>${esc(row.user || '用户')}${depth ? ' <span class="reply-tag">回复</span>' : ''}</b>
           <p>${esc(row.message || '')}</p>
-          <small>赞 ${Number(row.like || 0)}</small>
+          <small>赞 ${Number(row.like || 0)}${row.time ? ` · ${esc(timeAgo(row.time))}` : ''}</small>
+          ${replies.length ? `<div class="comment-replies">${replies.map((reply) => commentRow(reply, depth + 1)).join('')}</div>` : ''}
         </div>
       </div>`;
   }
 
+  function commentThread(row) {
+    const rpid = Number(row.rpid || 0);
+    const count = Number(row.rcount || 0);
+    return `
+      <div class="comment-thread" data-thread="${rpid}">
+        ${commentRow(row)}
+        ${count > 0 ? `<button class="comment-reply-toggle" type="button" data-reply-root="${rpid}" data-reply-count="${count}">共 ${count} 条回复 ⌄</button>` : ''}
+        <div class="comment-replies" data-reply-box="${rpid}" hidden></div>
+      </div>`;
+  }
+
+  function renderComments(items, append, total) {
+    if (!append) {
+      host.commentsBody.innerHTML = '';
+      commentItems = [];
+    }
+    const html = items.map(commentThread).join('');
+    host.commentsBody.insertAdjacentHTML('beforeend', html);
+    commentItems = commentItems.concat(items);
+    let footer = $('#commentFooter');
+    if (!footer) {
+      host.commentsBody.insertAdjacentHTML('beforeend', '<div class="comment-footer" id="commentFooter"></div>');
+      footer = $('#commentFooter');
+    }
+    const shown = commentItems.length;
+    const count = Number(total || shown || 0);
+    if (commentHasMore || shown < count) {
+      footer.innerHTML = `<button class="comment-more" type="button" id="commentMore">加载更多评论 · 已显示 ${shown} / ${count || '—'}</button>`;
+    } else {
+      footer.innerHTML = `<span>已显示全部 ${shown} 条评论</span>`;
+    }
+    if (total) host.commentsCount.textContent = `${total} 条`;
+  }
+
   function loadComments(sort) {
     if (typeof sort === 'number') commentSort = sort;
+    commentPage = 1;
+    commentHasMore = false;
+    commentLoading = false;
     const item = currentItem();
     const aid = item && item.aid ? Number(item.aid) : 0;
     if (!aid) {
@@ -740,15 +1732,77 @@
     if (commentSort === 0 && result.items.length === 0 && !result.count) {
       const fallback = call('comments', aid, 1, 2);
       if (fallback.ok && Array.isArray(fallback.items) && fallback.items.length) {
-        host.commentsBody.innerHTML = '<div class="native-empty" style="padding:14px 0">最新评论需要登录后查看，当前显示最热评论</div>'
-          + fallback.items.map(commentRow).join('');
-        host.commentsCount.textContent = `${fallback.count || fallback.items.length} 条`;
+        commentHasMore = fallback.hasMore === true;
+        renderComments(fallback.items, false, fallback.count);
+        host.commentsBody.insertAdjacentHTML('afterbegin', '<div class="comment-inline-note">最新评论需要登录后查看，当前显示最热评论</div>');
         return;
       }
     }
-    host.commentsBody.innerHTML = result.items.map(commentRow).join('');
-    host.commentsCount.textContent = `${result.count || result.items.length} 条`;
+    commentHasMore = result.hasMore === true;
+    renderComments(result.items, false, result.count);
   }
+
+  function loadMoreComments() {
+    if (commentLoading) return;
+    const item = currentItem();
+    const aid = item && item.aid ? Number(item.aid) : 0;
+    if (!aid) return;
+    commentLoading = true;
+    const footer = $('#commentFooter');
+    if (footer) footer.innerHTML = '<span>正在加载…</span>';
+    const nextPage = commentPage + 1;
+    const result = typeof bridge.comments === 'function'
+      ? call('comments', aid, nextPage, commentSort)
+      : { ok: false, error: '不支持评论' };
+    commentLoading = false;
+    if (!result.ok || !Array.isArray(result.items) || result.items.length === 0) {
+      commentHasMore = false;
+      if (footer) footer.innerHTML = `<span>${result.needLogin ? '更多评论需要登录后查看' : '没有更多评论了'}</span>`;
+      return;
+    }
+    commentPage = nextPage;
+    commentHasMore = result.hasMore === true;
+    renderComments(result.items, true, result.count);
+  }
+
+  function toggleReplies(button) {
+    const root = Number(button.dataset.replyRoot || 0);
+    const box = document.querySelector(`[data-reply-box="${root}"]`);
+    if (!box || !root) return;
+    if (!box.hidden) {
+      box.hidden = true;
+      button.textContent = `共 ${button.dataset.replyCount} 条回复 ⌄`;
+      return;
+    }
+    box.hidden = false;
+    button.textContent = `收起回复 ⌃`;
+    if (box.dataset.loaded === '1') return;
+    const item = currentItem();
+    const aid = item && item.aid ? Number(item.aid) : 0;
+    const result = typeof bridge.commentsReplies === 'function'
+      ? call('commentsReplies', aid, root, 1)
+      : { ok: false, error: '当前版本不支持楼中楼' };
+    if (!result.ok || !Array.isArray(result.items)) {
+      box.innerHTML = `<div class="comment-inline-note">${esc(result.error || '回复加载失败')}</div>`;
+      return;
+    }
+    box.dataset.loaded = '1';
+    box.innerHTML = result.items.map((reply) => commentRow(reply, 1)).join('')
+      || '<div class="comment-inline-note">暂无回复</div>';
+  }
+
+  host.commentsBody.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-reply-root]');
+    if (button) {
+      event.preventDefault();
+      toggleReplies(button);
+      return;
+    }
+    if (event.target.closest('#commentMore')) {
+      event.preventDefault();
+      loadMoreComments();
+    }
+  });
 
   function sendComment(text) {
     const item = currentItem();
@@ -764,8 +1818,12 @@
       avatar: accountInfo && accountInfo.face ? accountInfo.face : '',
       message: text,
       like: 0,
+      time: Math.floor(Date.now() / 1000),
     };
-    host.commentsBody.insertAdjacentHTML('afterbegin', commentRow(row));
+    const firstThread = host.commentsBody.querySelector('.comment-thread');
+    if (firstThread) firstThread.insertAdjacentHTML('beforebegin', commentThread(row));
+    else host.commentsBody.insertAdjacentHTML('afterbegin', commentThread(row));
+    commentItems.unshift(row);
     const current = parseInt(host.commentsCount.textContent, 10) || 0;
     host.commentsCount.textContent = `${current + 1} 条`;
     return true;
