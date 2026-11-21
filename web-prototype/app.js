@@ -543,6 +543,9 @@
 
   function logout() {
     state.loggedIn = false;
+    if (window.O11A1Native && typeof window.O11A1Native.logout === 'function') {
+      try { window.O11A1Native.logout(); } catch (_) {}
+    }
     if (state.playerOpen) stopPlayback();
     closeSheet();
     closeSidebar();

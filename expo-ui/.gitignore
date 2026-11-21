@@ -9,6 +9,9 @@ dist/
 web-build/
 expo-env.d.ts
 
+# generated web bundle
+src/webapp.generated.ts
+
 # Native
 .kotlin/
 *.orig.*

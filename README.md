@@ -3,10 +3,26 @@
 ![android-debug](https://github.com/AntarcticBearHKL/O11A1-Mobile/actions/workflows/android-debug.yml/badge.svg)
 ![ios-unsigned](https://github.com/AntarcticBearHKL/O11A1-Mobile/actions/workflows/ios-unsigned.yml/badge.svg)
 
-仓库里有两套东西：
+仓库里有两套 V2 客户端：
 
-- `expo-ui/`：Expo 应用。iOS 原生构建已包含 VideoToolbox + Metal 播放器（本地 Expo 模块 `modules/o11a1-video`）；Expo Go 里仍只能预览 UI。
+- `expo-ui/`：iOS V2 客户端。Expo 壳 + 全屏 WKWebView + 本地回环 Bilibili 桥（`modules/o11a1-bridge`）；UI 仍然是 `web-prototype/`，播放走 HTML5 `<video>` + 本地 Range 代理。
 - 根目录：Android V2 应用（`com.o11a1.videotest`）。全屏 WebView 承载 V2 设计 + 原生 Bilibili 桥 + 本地视频代理；旧 MediaCodec / GLES3 测试类保留在工程里。
+
+## iOS V2 实装（当前 IPA）
+
+- **架构**：`expo-ui` 启动 `O11A1Bridge` 原生模块，在 `127.0.0.1` 随机端口起一个本地 HTTP 服务，把打包进 JS 的 `index.html / app.js / native.js / styles.css` 原样提供给 WKWebView。
+- **同步桥**：注入 `window.O11A1Native`，通过同步 XHR 调本地 `/api/*`，与 Android 的 `WebAppBridge` API 完全一致；`native.js` 不需要分叉。
+- **真实数据**：Swift `O11A1BiliClient` 直接请求 B 站热门、搜索、分页 cid、playurl、评论、弹幕、导航登录态；Cookie 持久化到 UserDefaults。
+- **真实登录**：B 站 passport 二维码生成 + 轮询；二维码由 CoreImage 生成 PNG，扫码成功保存 `SESSDATA` 等 Cookie。
+- **真实播放**：progressive MP4 优先 720P，失败回退 480P / 360P；本地 `/media` 代理补 Referer/UA、转发 Range，按 8MB 分块返回 206；主 CDN 失败自动试备用 CDN。
+- **播放器**：与 Android 共用同一套 V2 播放器 UI、三区手势、评论、弹幕、播放列表、刷新和登录 gate。
+- **构建**：GitHub Actions `ios-unsigned`（macOS）每次 push 生成未签名 IPA + 模拟器 zip；成功后发布到 Releases。
+- **下载**：
+  - IPA：`https://github.com/AntarcticBearHKL/O11A1-Mobile/releases/download/ios-unsigned/o11a1-ios-unsigned.ipa`
+  - 模拟器包：`https://github.com/AntarcticBearHKL/O11A1-Mobile/releases/download/ios-unsigned/o11a1-ios-simulator.zip`
+  - Android APK：`https://github.com/AntarcticBearHKL/O11A1-Mobile/releases/download/android-debug/app-debug.apk`
+- **安装**：未签名 IPA 需要自己签名（Sideloadly / AltStore / eSign / 自有开发者证书）；模拟器 zip 解压后用 `xcrun simctl install booted O11A1.app`，需要 macOS。
+- **iOS 限制**：HTML5 `<video>` 在 iOS 上不允许程序改音量，音量滑杆只改变 UI 与静音状态，实际音量请用实体音量键；亮度会调整系统亮度。当前环境没有 macOS，iOS 只做到 CI 编译/打包验证，真机运行需要你签名后测试。
 
 ## Android V2 实装（当前 APK）
 

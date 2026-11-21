@@ -4,10 +4,13 @@ on:
   workflow_dispatch:
   push:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     defaults:
       run:
         working-directory: expo-ui
@@ -21,17 +24,32 @@ jobs:
           cache: npm
           cache-dependency-path: expo-ui/package-lock.json
 
+      - name: Prepare logs
+        run: mkdir -p artifacts
+
       - name: Install JS dependencies
-        run: npm ci
+        run: |
+          set -o pipefail
+          npm ci 2>&1 | tee artifacts/npm-ci.log
+
+      - name: Build web bundle
+        run: |
+          set -o pipefail
+          npm run build:web 2>&1 | tee artifacts/build-web.log
 
       - name: Generate iOS project
-        run: npx expo prebuild --platform ios --clean --no-install
+        run: |
+          set -o pipefail
+          npx expo prebuild --platform ios --clean --no-install 2>&1 | tee artifacts/prebuild.log
 
       - name: Install CocoaPods
-        run: cd ios && pod install
+        run: |
+          set -o pipefail
+          cd ios && pod install 2>&1 | tee ../artifacts/pod-install.log
 
       - name: Build unsigned device app
         run: |
+          set -o pipefail
           WORKSPACE="$(find ios -maxdepth 1 -name '*.xcworkspace' | head -n 1)"
           SCHEME="$(basename "$WORKSPACE" .xcworkspace)"
           echo "workspace=$WORKSPACE scheme=$SCHEME"
@@ -45,7 +63,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            build
+            build 2>&1 | tee artifacts/xcodebuild-device.log
           APP="$(find build-device/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' | head -n 1)"
           test -n "$APP"
           mkdir -p artifacts/Payload
@@ -54,6 +72,7 @@ jobs:
 
       - name: Build simulator app
         run: |
+          set -o pipefail
           WORKSPACE="$(find ios -maxdepth 1 -name '*.xcworkspace' | head -n 1)"
           SCHEME="$(basename "$WORKSPACE" .xcworkspace)"
           xcodebuild \
@@ -63,16 +82,37 @@ jobs:
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$PWD/build-sim" \
-            build
+            build 2>&1 | tee artifacts/xcodebuild-sim.log
           APP="$(find build-sim/Build/Products/Debug-iphonesimulator -maxdepth 1 -name '*.app' | head -n 1)"
           test -n "$APP"
           ditto -c -k --sequesterRsrc --keepParent "$APP" artifacts/o11a1-ios-simulator.zip
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: o11a1-ios-unsigned
           path: |
             expo-ui/artifacts/o11a1-ios-unsigned.ipa
             expo-ui/artifacts/o11a1-ios-simulator.zip
-          if-no-files-found: error
+            expo-ui/artifacts/*.log
+          if-no-files-found: warn
           retention-days: 14
+
+      - name: Publish unsigned IPA
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view ios-unsigned >/dev/null 2>&1 || gh release create ios-unsigned --title "iOS unsigned build" --notes "Unsigned IPA and simulator app built from $GITHUB_SHA."
+          gh release upload ios-unsigned artifacts/o11a1-ios-unsigned.ipa artifacts/o11a1-ios-simulator.zip --clobber
+
+      - name: Publish failure logs
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(artifacts/*.log)
+          if [ ${#files[@]} -eq 0 ]; then exit 0; fi
+          gh release view ios-build-logs >/dev/null 2>&1 || gh release create ios-build-logs --title "iOS build logs" --notes "Diagnostic logs from failed iOS builds."
+          gh release upload ios-build-logs "${files[@]}" --clobber

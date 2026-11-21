@@ -1,23 +1,31 @@
 {
   "expo": {
-    "name": "O11A1 Video Lab",
+    "name": "O11A1",
     "slug": "o11a1-video-lab",
-    "version": "1.0.0",
-    "orientation": "portrait",
+    "version": "0.2.0",
+    "orientation": "default",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#0b0d12",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F4EFE5",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.o11a1.videolab",
+      "bundleIdentifier": "com.o11a1.videotest",
+      "requireFullScreen": true,
       "infoPlist": {
-        "CADisableMinimumFrameDurationOnPhone": true
+        "CADisableMinimumFrameDurationOnPhone": true,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        },
+        "NSLocalNetworkUsageDescription": "O11A1 使用本机回环地址连接 B 站接口并播放视频。",
+        "UIStatusBarHidden": true,
+        "UIViewControllerBasedStatusBarAppearance": false
       }
     },
     "android": {
-      "package": "com.o11a1.videolab",
+      "package": "com.o11a1.videotest",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#F4EFE5",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
