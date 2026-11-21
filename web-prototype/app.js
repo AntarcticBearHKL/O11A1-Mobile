@@ -2774,10 +2774,10 @@
       },
       'settings-gesture': {
         title: '手势',
-        sub: '三区分工：中间收起/工具栏，左右亮度/音量，双击中间播放/暂停，长按左右减速/加速',
+        sub: '三区分工：中间收起/工具栏，左右系统亮度/系统音量，双击中间播放/暂停，长按左右减速/加速',
         rows: [
           { type: 'switch', label: '中间上滑 工具栏 / 下滑 收起', key: 'middleCollapse' },
-          { type: 'switch', label: '左右上下滑 亮度 / 音量', key: 'swipeLevel' },
+          { type: 'switch', label: '左右上下滑 系统亮度 / 系统音量', key: 'swipeLevel' },
           { type: 'switch', label: '左滑 全屏评论', key: 'swipeComments' },
           { type: 'switch', label: '长按左 / 右 减速 / 加速', key: 'longPressRate' },
           { type: 'static', label: '进度条', value: '横向拖动 seek' },
