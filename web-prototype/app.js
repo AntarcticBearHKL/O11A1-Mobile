@@ -3629,6 +3629,22 @@
     playlistDock.style.borderTopRightRadius = `${radius.toFixed(1)}px`;
     playlistDock.style.boxShadow = `0 -${(12 + progress * 18).toFixed(0)}px ${(34 + progress * 26).toFixed(0)}px rgba(20,22,30,${(0.12 + progress * 0.09).toFixed(2)}), inset 0 1px 0 rgba(255,255,255,.8)`;
   });
+  function launchPlayerFromDock() {
+    if (!state.playlist.length) {
+      openPlaylistPage();
+      return;
+    }
+    suppressDockClickUntil = Date.now() + 600;
+    void playlistDock.offsetWidth;
+    playlistDock.classList.add('launching');
+    playlistDock.style.height = 'calc(214px + env(safe-area-inset-bottom))';
+    setTimeout(() => {
+      openPlayer({ resume: true });
+      playlistDock.classList.remove('launching');
+      resetDockHeight();
+    }, 190);
+  }
+
   window.addEventListener('pointerup', (event) => {
     if (!dockDrag || event.pointerId !== dockDrag.id) return;
     const gesture = dockDrag;
@@ -3636,17 +3652,10 @@
     playlistDock.classList.remove('dragging');
     if (!gesture.moved) return;
     suppressDockClickUntil = Date.now() + 420;
-    if (gesture.dy < -52 && state.playlist.length) {
-      suppressDockClickUntil = Date.now() + 500;
-      const launchHeight = Math.max(214, 104 + Math.min(170, -gesture.dy));
-      void playlistDock.offsetWidth;
-      playlistDock.classList.add('launching');
-      playlistDock.style.height = `calc(${launchHeight.toFixed(1)}px + env(safe-area-inset-bottom))`;
-      setTimeout(() => {
-        openPlayer({ resume: true });
-        playlistDock.classList.remove('launching');
-        resetDockHeight();
-      }, 190);
+    if (gesture.dy < -52) {
+      suppressDockClickUntil = Date.now() + 600;
+      resetDockHeight();
+      openPlaylistPage();
       return;
     }
     resetDockHeight();
@@ -3660,14 +3669,15 @@
     if (playlistDock.classList.contains('searching')) return;
     if (event.target.closest('.pd-search, .pd-search-input')) return;
     if (Date.now() < suppressDockClickUntil) return;
-    openPlaylistPage();
+    launchPlayerFromDock();
   });
   playlistDock.addEventListener('keydown', (event) => {
     if (event.target !== playlistDock) return;
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       if (playlistDock.classList.contains('searching')) return;
-      openPlaylistPage();
+      if (Date.now() < suppressDockClickUntil) return;
+      launchPlayerFromDock();
     }
   });
   if (pdSearch) {
@@ -4266,8 +4276,14 @@
     minimizePlayer();
     await sleep(420);
     results.push(`dock=${playlistDock.classList.contains('show')}`);
-    playlistDock.click();
-    await sleep(280);
+    const dockRect = playlistDock.getBoundingClientRect();
+    const dockX = dockRect.left + dockRect.width * 0.45;
+    const dockY = dockRect.top + Math.min(50, dockRect.height * 0.5);
+    playlistDock.dispatchEvent(pointerEvent('pointerdown', dockX, dockY, 1));
+    window.dispatchEvent(pointerEvent('pointermove', dockX, dockY - 24, 1));
+    window.dispatchEvent(pointerEvent('pointermove', dockX, dockY - 82, 1));
+    window.dispatchEvent(pointerEvent('pointerup', dockX, dockY - 82, 0));
+    await sleep(480);
     const playlistOpened = state.page === 'playlist';
     const grab = $('#playlistGrab');
     const grabRect = grab.getBoundingClientRect();
