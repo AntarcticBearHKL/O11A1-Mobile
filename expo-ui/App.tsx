@@ -9,6 +9,8 @@ type BridgeModule = {
   start(files: Record<string, string>): Promise<number>;
   port(): number;
   testFlow(): string;
+  enableHighRefresh?(): void;
+  highRefreshInfo?(): { maxHz: number; compositorFps: number };
 };
 
 const NativeBridge = requireOptionalNativeModule('O11A1Bridge') as BridgeModule | null;
@@ -74,6 +76,7 @@ function bridgeShim(port: number, testFlow: string): string {
     dash: function (bvid, cid, qn) { return call('dash', { bvid: bvid, cid: cid, qn: qn }); },
     mediaStats: function () { return call('mediaStats', {}); },
     displayHz: function () { try { return JSON.parse(call('displayHz', {})).hz || 0; } catch (error) { return 0; } },
+    compositorFps: function () { try { return JSON.parse(call('displayHz', {})).fps || 0; } catch (error) { return 0; } },
     downloadStart: function (bvid, cid, title, pic, quality) { return call('downloadStart', { bvid: bvid, cid: cid, title: title, pic: pic, quality: quality }); },
     downloadList: function () { return call('downloadList', {}); },
     downloadRemove: function (id) { return call('downloadRemove', { id: id }); },
@@ -273,6 +276,7 @@ const MOCK_BRIDGE = `
     downloadResume: function () { return JSON.stringify({ ok: false, error: 'UI 调试模式不下载' }); },
     mediaStats: function () { return JSON.stringify({ ok: true, bytes: 0, requests: 0 }); },
     displayHz: function () { return 60; },
+    compositorFps: function () { return 60; },
     copy: function () { return JSON.stringify({ ok: false, error: 'UI 调试模式不复制' }); },
     screenshot: function () { return JSON.stringify({ ok: false, error: 'UI 调试模式不截图' }); },
     setBrightness: function () {},
@@ -321,6 +325,14 @@ export default function App() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!config || !NativeBridge?.enableHighRefresh) return;
+    const timer = setTimeout(() => {
+      try { NativeBridge.enableHighRefresh?.(); } catch (_) {}
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [config]);
 
   if (!NativeBridge && MOCK_HTML) {
     return (

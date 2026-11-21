@@ -1340,6 +1340,7 @@
   const debugState = {
     displayHz: 0,
     nativeHz: 0,
+    compositorHz: 0,
     feedFps: 0,
     videoFps: 0,
     decodeFps: 0,
@@ -1445,7 +1446,7 @@
     const target = Math.round(targetFps());
     const render = Math.round(debugState.videoFps);
     feedDebugHz.textContent = `${hz ? hz.toFixed(1) : '—'} Hz`;
-    feedDebugFps.textContent = `${debugState.feedFps.toFixed(1)} fps`;
+    feedDebugFps.textContent = `${(debugState.compositorHz || debugState.feedFps).toFixed(1)} fps`;
     dbgDisplay.textContent = `${hz ? hz.toFixed(1) : '—'} Hz`;
     dbgRender.textContent = `${target || '—'} / ${render}`;
     const decode = debugFrame.decodeFps > 0 ? debugFrame.decodeFps.toFixed(1) : '—';
@@ -1462,12 +1463,20 @@
   }
 
   function initDebugHud() {
-    try {
-      if (window.O11A1Native && typeof window.O11A1Native.displayHz === 'function') {
-        const hz = Number(window.O11A1Native.displayHz());
-        if (Number.isFinite(hz) && hz > 0) debugState.nativeHz = hz;
-      }
-    } catch (_) {}
+    const readNativeRates = () => {
+      try {
+        if (window.O11A1Native && typeof window.O11A1Native.displayHz === 'function') {
+          const hz = Number(window.O11A1Native.displayHz());
+          if (Number.isFinite(hz) && hz > 0) debugState.nativeHz = hz;
+        }
+        if (window.O11A1Native && typeof window.O11A1Native.compositorFps === 'function') {
+          const fps = Number(window.O11A1Native.compositorFps());
+          if (Number.isFinite(fps) && fps > 0) debugState.compositorHz = fps;
+        }
+      } catch (_) {}
+    };
+    readNativeRates();
+    setInterval(readNativeRates, 1200);
     let last = performance.now();
     const samples = [];
     function frame(now) {
