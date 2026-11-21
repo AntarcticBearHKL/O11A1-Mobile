@@ -22,6 +22,27 @@
   const progressThumb = $('.progress-thumb', playerControls);
   const seekRipple = $('#seekRipple');
   const lockBadge = $('#lockBadge');
+  const brightnessHud = $('#brightnessHud');
+  const brightnessFill = $('#brightnessFill');
+  const brightnessValue = $('#brightnessValue');
+  const volumeHud = $('#volumeHud');
+  const volumeFill = $('#volumeFill');
+  const volumeValue = $('#volumeValue');
+  const rateHud = $('#rateHud');
+  const rateValue = $('#rateValue');
+  const rateLabel = $('#rateLabel');
+  const rotateHud = $('#rotateHud');
+  const rotateArrow = $('#rotateArrow');
+  const rotateLabel = $('#rotateLabel');
+  const swipeHint = $('#swipeHint');
+  const commentsPanel = $('#commentsPanel');
+  const commentsBack = $('#commentsBack');
+  const commentsTabs = $('#commentsTabs');
+  const commentsBody = $('#commentsBody');
+  const commentsCount = $('#commentsCount');
+  const commentInput = $('#commentInput');
+  const commentSend = $('#commentSend');
+  const playerVideo = $('#playerVideo');
   const psheet = $('#psheet');
   const psheetBackdrop = $('#psheetBackdrop');
   const psheetTitle = $('#psheetTitle');
@@ -65,6 +86,7 @@
   const protoDrawer = $('#protoDrawer');
   const protoBackdrop = $('#protoBackdrop');
   const protoFab = $('#protoFab');
+  const homeLandscapeBtn = $('#homeLandscapeBtn');
 
   const STORAGE_KEY = 'o11a1.v2.prototype';
   const TOTAL_SECONDS = 24 * 60;
@@ -134,6 +156,11 @@
     longPress2x: true,
     swipeBrightness: true,
     doubleFullscreen: true,
+    doubleRotate: true,
+    longPressRate: true,
+    swipeLevel: true,
+    middleCollapse: true,
+    swipeComments: true,
 
     hideLive: false,
     hideBangumi: false,
@@ -178,6 +205,10 @@
     playing: false,
     locked: false,
     progress: 0,
+    brightness: Number.isFinite(loaded?.brightness) ? Math.max(0, Math.min(100, loaded.brightness)) : 100,
+    volume: Number.isFinite(loaded?.volume) ? Math.max(0, Math.min(100, loaded.volume)) : 80,
+    rotation: 'right',
+    landscapeHome: loaded?.landscapeHome === true,
     detailAdded: false,
     fav: false,
     coin: false,
@@ -217,11 +248,17 @@
   }
 
   let hideTimer = null;
-  let clickTimer = null;
   let clearArmed = false;
   let clearTimer = null;
-  let playerDrag = null;
-  let suppressPlayerClick = false;
+  let stageGesture = null;
+  let stageTapTimer = null;
+  let lastStageTap = { time: 0, zone: '' };
+  let levelHudTimer = null;
+  let rateHudTimer = null;
+  let rotateHudTimer = null;
+  let commentsGesture = null;
+  let commentsCloseTimer = null;
+  let commentTotal = 128;
 
   const MODULE_NOTES = {
     收藏: '收藏夹推荐 · 全部收藏夹 · 占位',
@@ -336,6 +373,9 @@
         settings: state.settings,
         navAllVisible: state.navAllVisible,
         navSelected: state.navSelected,
+        brightness: state.brightness,
+        volume: state.volume,
+        landscapeHome: state.landscapeHome,
       }));
     } catch (_) {}
   }
@@ -826,10 +866,14 @@
     player.classList.remove('ui-hidden');
     lockBadge.classList.remove('show');
     closeSheet();
+    resetComments();
+    applyBrightness(state.brightness);
+    applyVolume(state.volume);
+    hideLevelHuds(0);
+    hideRateHud(0);
+    rotateHud.classList.remove('show');
     showControls();
-    if (screen.orientation && screen.orientation.lock) {
-      screen.orientation.lock('landscape').catch(() => {});
-    }
+    lockPlayerOrientation();
   }
 
   function minimizePlayer() {
@@ -837,8 +881,6 @@
     state.playerOpen = false;
     state.locked = false;
     clearTimeout(hideTimer);
-    clearTimeout(clickTimer);
-    clickTimer = null;
     player.classList.remove('dragging');
     player.style.animation = 'none';
     player.style.transition = 'transform .3s cubic-bezier(.4,0,.2,1), opacity .28s ease';
@@ -847,15 +889,17 @@
     player.style.pointerEvents = 'none';
     playerControls.classList.remove('hidden');
     lockBadge.classList.remove('show');
+    resetComments();
+    hideLevelHuds(0);
+    hideRateHud(0);
+    rotateHud.classList.remove('show');
     closeSheet();
     if (player.contains(document.activeElement)) document.activeElement.blur();
     showMiniPlayer();
     if (document.fullscreenElement && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
     }
-    if (screen.orientation && screen.orientation.unlock) {
-      try { screen.orientation.unlock(); } catch (_) {}
-    }
+    releasePlayerOrientation();
     pcFullscreen.textContent = '全屏';
     setTimeout(() => {
       if (state.playerOpen) return;
@@ -877,8 +921,6 @@
     state.progress = 0;
     state.locked = false;
     clearTimeout(hideTimer);
-    clearTimeout(clickTimer);
-    clickTimer = null;
     hideMiniPlayer();
     if (player.contains(document.activeElement)) document.activeElement.blur();
     player.classList.remove('open', 'dragging', 'collapsing', 'ui-hidden');
@@ -891,14 +933,16 @@
     player.style.pointerEvents = '';
     playerControls.classList.remove('hidden');
     lockBadge.classList.remove('show');
+    resetComments();
+    hideLevelHuds(0);
+    hideRateHud(0);
+    rotateHud.classList.remove('show');
     pcPlay.textContent = '▶';
     closeSheet();
     if (document.fullscreenElement && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
     }
-    if (screen.orientation && screen.orientation.unlock) {
-      try { screen.orientation.unlock(); } catch (_) {}
-    }
+    releasePlayerOrientation();
     pcFullscreen.textContent = '全屏';
     updatePlayerLabels();
   }
@@ -909,6 +953,10 @@
     player.classList.add('ui-hidden');
     playerControls.classList.add('hidden');
     lockBadge.classList.add('show');
+    resetComments();
+    hideLevelHuds(0);
+    hideRateHud(0);
+    rotateHud.classList.remove('show');
     closeSheet();
   }
 
@@ -953,58 +1001,407 @@
     }
   }
 
-  /* swipe down from the player -> in-app mini player, audio keeps playing */
-  function startPlayerDrag(event) {
+  /* ---------- brightness / volume ---------- */
+  function clampPercent(value) {
+    return Math.max(0, Math.min(100, Math.round(value)));
+  }
+
+  function applyBrightness(value, persist) {
+    state.brightness = clampPercent(value);
+    brightnessValue.textContent = `${state.brightness}%`;
+    brightnessFill.style.height = `${state.brightness}%`;
+    playerVideo.style.setProperty('--dim', String((100 - state.brightness) / 100 * 0.82));
+    if (persist) save();
+  }
+
+  function applyVolume(value, persist) {
+    state.volume = clampPercent(value);
+    volumeValue.textContent = `${state.volume}%`;
+    volumeFill.style.height = `${state.volume}%`;
+    if (persist) save();
+  }
+
+  function showLevelHud(hud) {
+    clearTimeout(levelHudTimer);
+    levelHudTimer = null;
+    brightnessHud.classList.toggle('show', hud === brightnessHud);
+    volumeHud.classList.toggle('show', hud === volumeHud);
+    brightnessHud.setAttribute('aria-hidden', hud === brightnessHud ? 'false' : 'true');
+    volumeHud.setAttribute('aria-hidden', hud === volumeHud ? 'false' : 'true');
+  }
+
+  function hideLevelHuds(delay = 0) {
+    clearTimeout(levelHudTimer);
+    levelHudTimer = setTimeout(() => {
+      levelHudTimer = null;
+      brightnessHud.classList.remove('show');
+      volumeHud.classList.remove('show');
+      brightnessHud.setAttribute('aria-hidden', 'true');
+      volumeHud.setAttribute('aria-hidden', 'true');
+    }, delay);
+  }
+
+  function showRateHud(direction) {
+    const restore = state.settings.speed || '1.0×';
+    clearTimeout(rateHudTimer);
+    rateHudTimer = null;
+    rateValue.textContent = direction === 'left' ? '0.5×' : '2.0×';
+    rateLabel.textContent = `${direction === 'left' ? '慢放' : '快放'}中 · 松开恢复 ${restore}`;
+    rateHud.classList.add('show');
+  }
+
+  function hideRateHud(delay = 0) {
+    clearTimeout(rateHudTimer);
+    rateHudTimer = setTimeout(() => {
+      rateHudTimer = null;
+      rateHud.classList.remove('show');
+    }, delay);
+  }
+
+  function rotatePlayer(direction) {
+    if (!state.playerOpen || state.locked) return;
+    state.rotation = direction;
+    rotateArrow.textContent = direction === 'right' ? '↻' : '↺';
+    rotateLabel.textContent = direction === 'right' ? '横屏 · 右' : '横屏 · 左';
+    rotateHud.classList.remove('turn-left', 'turn-right', 'show');
+    void rotateHud.offsetWidth;
+    rotateHud.classList.add(direction === 'right' ? 'turn-right' : 'turn-left', 'show');
+    clearTimeout(rotateHudTimer);
+    rotateHudTimer = setTimeout(() => rotateHud.classList.remove('show'), 1200);
+    lockPlayerOrientation();
+  }
+
+  function lockPlayerOrientation() {
+    if (!screen.orientation || !screen.orientation.lock) return;
+    const target = state.rotation === 'left' ? 'landscape-primary' : 'landscape-secondary';
+    screen.orientation.lock(target).catch(() => {
+      screen.orientation.lock('landscape').catch(() => {});
+    });
+  }
+
+  function releasePlayerOrientation() {
+    if (screen.orientation && screen.orientation.unlock) {
+      try { screen.orientation.unlock(); } catch (_) {}
+    }
+  }
+
+  /* ---------- main page landscape ---------- */
+  function syncLandscape() {
+    const auto = window.innerWidth > window.innerHeight && window.innerWidth <= 960;
+    const landscape = state.landscapeHome || auto;
+    app.classList.toggle('landscape', landscape);
+    document.body.classList.toggle('landscape', landscape);
+    if (homeLandscapeBtn) {
+      homeLandscapeBtn.classList.toggle('on', state.landscapeHome);
+      homeLandscapeBtn.setAttribute('aria-pressed', state.landscapeHome ? 'true' : 'false');
+      homeLandscapeBtn.textContent = state.landscapeHome ? '横屏主页 · 开' : '横屏主页';
+    }
+  }
+
+  /* ---------- full-screen comments ---------- */
+  function openComments(fromPeek) {
+    if (!state.playerOpen) return;
+    clearTimeout(commentsCloseTimer);
+    commentsCloseTimer = null;
+    commentsPanel.inert = false;
+    commentsPanel.classList.remove('closing', 'peeking', 'dragging');
+    commentsPanel.setAttribute('aria-hidden', 'false');
+    if (fromPeek) {
+      void commentsPanel.offsetWidth;
+      commentsPanel.classList.add('open');
+      requestAnimationFrame(() => { commentsPanel.style.transform = ''; });
+    } else {
+      commentsPanel.style.transform = '';
+      commentsPanel.classList.add('open');
+    }
+    player.classList.add('comments-open');
+    swipeHint.classList.remove('show');
+    commentsBody.scrollTop = 0;
+    clearTimeout(hideTimer);
+    playerControls.classList.add('hidden');
+    player.classList.add('ui-hidden');
+  }
+
+  function resetComments() {
+    clearTimeout(commentsCloseTimer);
+    commentsCloseTimer = null;
+    commentsPanel.classList.remove('open', 'peeking', 'closing', 'dragging');
+    commentsPanel.style.transform = '';
+    commentsPanel.setAttribute('aria-hidden', 'true');
+    commentsPanel.inert = true;
+    player.classList.remove('comments-open');
+    swipeHint.classList.remove('show');
+  }
+
+  function closeComments(options = {}) {
+    const wasOpen = commentsPanel.classList.contains('open') || commentsPanel.classList.contains('peeking');
+    if (!wasOpen) return;
+    commentsPanel.inert = true;
+    commentsPanel.classList.remove('peeking', 'dragging');
+    commentsPanel.classList.add('closing');
+    commentsPanel.classList.remove('open');
+    commentsPanel.style.transform = 'translateX(102%)';
+    commentsPanel.setAttribute('aria-hidden', 'true');
+    player.classList.remove('comments-open');
+    if (commentsPanel.contains(document.activeElement)) document.activeElement.blur();
+    clearTimeout(commentsCloseTimer);
+    commentsCloseTimer = setTimeout(() => {
+      commentsCloseTimer = null;
+      commentsPanel.classList.remove('closing');
+      commentsPanel.style.transform = '';
+    }, 340);
+    if (!options.silent && state.playerOpen) {
+      setTimeout(() => {
+        if (state.playerOpen && !commentsPanel.classList.contains('open')) showControls();
+      }, 40);
+    }
+  }
+
+  function cancelCommentsPeek() {
+    if (!commentsPanel.classList.contains('peeking')) return;
+    commentsPanel.classList.remove('peeking', 'dragging');
+    commentsPanel.classList.add('closing');
+    commentsPanel.style.transform = '';
+    commentsPanel.setAttribute('aria-hidden', 'true');
+    commentsPanel.inert = true;
+    player.classList.remove('comments-open');
+    clearTimeout(commentsCloseTimer);
+    commentsCloseTimer = setTimeout(() => {
+      commentsCloseTimer = null;
+      commentsPanel.classList.remove('closing');
+    }, 340);
+  }
+
+  /* ---------- player gesture state machine ---------- */
+  function stageZone(clientX) {
+    const rect = playerStage.getBoundingClientRect();
+    const ratio = (clientX - rect.left) / Math.max(1, rect.width);
+    if (ratio < 1 / 3) return 'left';
+    if (ratio > 2 / 3) return 'right';
+    return 'middle';
+  }
+
+  function startStageGesture(event) {
     if (!state.playerOpen || state.locked) return;
     if (event.button !== undefined && event.button !== 0) return;
-    if (event.target.closest('.player-controls')) return;
-    playerDrag = {
+    if (event.target.closest('.player-controls, .player-top, .lock-badge, button, input, textarea')) return;
+    if (commentsPanel.classList.contains('open')) return;
+    clearTimeout(hideTimer);
+    clearTimeout(stageTapTimer);
+    stageTapTimer = null;
+    const zone = stageZone(event.clientX);
+    stageGesture = {
+      pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      dy: 0,
+      zone,
+      mode: null,
       moved: false,
+      longPressFired: false,
+      longPressTimer: null,
+      collapseY: 0,
+      horizontal: 0,
     };
-    player.classList.add('dragging');
-    clearTimeout(hideTimer);
-  }
-
-  function movePlayerDrag(event) {
-    if (!playerDrag) return;
-    const dx = event.clientX - playerDrag.startX;
-    const dy = event.clientY - playerDrag.startY;
-    if (!playerDrag.moved && Math.abs(dy) < 8 && Math.abs(dx) < 8) return;
-    if (Math.abs(dx) > Math.abs(dy) && !playerDrag.moved) return;
-    playerDrag.moved = true;
-    const dragY = Math.max(0, dy);
-    playerDrag.dy = dragY;
-    const scale = 1 - Math.min(0.05, dragY / 3000);
-    player.style.transform = `translateY(${dragY}px) scale(${scale})`;
-    player.style.opacity = String(1 - Math.min(0.35, dragY / 800));
-  }
-
-  function endPlayerDrag() {
-    if (!playerDrag) return;
-    const { dy, moved } = playerDrag;
-    playerDrag = null;
-    player.classList.remove('dragging');
-    if (moved) {
-      suppressPlayerClick = true;
-      setTimeout(() => { suppressPlayerClick = false; }, 260);
+    if (zone !== 'middle' && state.settings.longPressRate) {
+      stageGesture.longPressTimer = setTimeout(() => {
+        const gesture = stageGesture;
+        if (!gesture || gesture.moved || gesture.mode) return;
+        gesture.longPressFired = true;
+        gesture.mode = 'rate';
+        clearTimeout(hideTimer);
+        showRateHud(gesture.zone);
+        if (navigator.vibrate) navigator.vibrate(8);
+      }, 360);
     }
-    if (dy > 110) {
-      minimizePlayer();
+    event.preventDefault();
+  }
+
+  function moveStageGesture(event) {
+    const gesture = stageGesture;
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    const dx = event.clientX - gesture.startX;
+    const dy = event.clientY - gesture.startY;
+    if (gesture.mode === 'rate' || gesture.longPressFired) return;
+
+    if (!gesture.moved) {
+      if (Math.hypot(dx, dy) < 8) return;
+      gesture.moved = true;
+      clearTimeout(gesture.longPressTimer);
+      gesture.longPressTimer = null;
+      player.classList.add('gesture-active');
+      if (state.settings.swipeComments && Math.abs(dx) > Math.abs(dy) * 1.15) {
+        gesture.mode = 'horizontal';
+      } else if (gesture.zone === 'middle') {
+        gesture.mode = dy > 0 ? 'collapse' : 'toolbar';
+        if (dy > 0 && !state.settings.middleCollapse) return;
+      } else if (state.settings.swipeLevel) {
+        gesture.mode = 'level';
+        gesture.startBrightness = state.brightness;
+        gesture.startVolume = state.volume;
+        showLevelHud(gesture.zone === 'left' ? brightnessHud : volumeHud);
+      } else {
+        return;
+      }
+    }
+
+    if (gesture.mode === 'collapse') {
+      const dragY = Math.max(0, dy);
+      gesture.collapseY = dragY;
+      const scale = 1 - Math.min(0.05, dragY / 3000);
+      player.style.transform = `translateY(${dragY}px) scale(${scale})`;
+      player.style.opacity = String(1 - Math.min(0.35, dragY / 800));
+    } else if (gesture.mode === 'toolbar') {
+      showControls();
+      clearTimeout(hideTimer);
+    } else if (gesture.mode === 'level') {
+      const rect = playerStage.getBoundingClientRect();
+      const delta = (-dy / Math.max(1, rect.height)) * 140;
+      if (gesture.zone === 'left') applyBrightness(gesture.startBrightness + delta);
+      else applyVolume(gesture.startVolume + delta);
+    } else if (gesture.mode === 'horizontal') {
+      gesture.horizontal = dx;
+      if (dx < 0 && state.settings.swipeComments) {
+        const rect = playerStage.getBoundingClientRect();
+        const progress = Math.min(1, -dx / Math.max(1, rect.width * 0.62));
+        commentsPanel.classList.add('peeking');
+        commentsPanel.setAttribute('aria-hidden', 'false');
+        commentsPanel.inert = true;
+        commentsPanel.style.transform = `translateX(${(1 - progress) * 100}%)`;
+        player.classList.add('comments-open');
+        swipeHint.classList.toggle('show', -dx > 46);
+      } else {
+        swipeHint.classList.remove('show');
+      }
+    }
+  }
+
+  function handleStageTap(zone) {
+    const now = Date.now();
+    if (lastStageTap.zone === zone && now - lastStageTap.time < 300) {
+      lastStageTap = { time: 0, zone: '' };
+      clearTimeout(stageTapTimer);
+      stageTapTimer = null;
+      if (zone === 'middle') {
+        togglePlay();
+      } else if (state.settings.doubleRotate) {
+        rotatePlayer(zone);
+      } else {
+        toggleStageControls();
+      }
       return;
     }
-    player.style.transition = 'transform .24s cubic-bezier(.16,1,.3,1), opacity .2s ease';
-    player.style.transform = 'none';
-    player.style.opacity = '1';
-    setTimeout(() => {
-      if (state.playerOpen) {
-        player.style.transition = '';
-        player.style.transform = '';
-        player.style.opacity = '';
-      }
+    lastStageTap = { time: now, zone };
+    clearTimeout(stageTapTimer);
+    stageTapTimer = setTimeout(() => {
+      stageTapTimer = null;
+      lastStageTap = { time: 0, zone: '' };
+      toggleStageControls();
     }, 260);
+  }
+
+  function toggleStageControls() {
+    if (!state.playerOpen || state.locked) return;
+    if (playerControls.classList.contains('hidden') || player.classList.contains('ui-hidden')) {
+      showControls();
+    } else {
+      playerControls.classList.add('hidden');
+      player.classList.add('ui-hidden');
+      clearTimeout(hideTimer);
+    }
+  }
+
+  function endStageGesture(event) {
+    const gesture = stageGesture;
+    if (!gesture) return;
+    if (event && event.pointerId !== undefined && event.pointerId !== gesture.pointerId) return;
+    stageGesture = null;
+    clearTimeout(gesture.longPressTimer);
+    gesture.longPressTimer = null;
+    player.classList.remove('gesture-active');
+    swipeHint.classList.remove('show');
+    const cancelled = event && event.type === 'pointercancel';
+
+    if (gesture.longPressFired) {
+      hideRateHud(220);
+      showControls();
+      return;
+    }
+
+    if (!gesture.moved) {
+      if (!cancelled) handleStageTap(gesture.zone);
+      return;
+    }
+
+    if (gesture.mode === 'collapse') {
+      if (gesture.collapseY > 110) {
+        minimizePlayer();
+        return;
+      }
+      player.style.transition = 'transform .24s cubic-bezier(.16,1,.3,1), opacity .2s ease';
+      player.style.transform = 'none';
+      player.style.opacity = '1';
+      setTimeout(() => {
+        if (state.playerOpen) {
+          player.style.transition = '';
+          player.style.transform = '';
+          player.style.opacity = '';
+        }
+      }, 260);
+    } else if (gesture.mode === 'toolbar') {
+      showControls();
+    } else if (gesture.mode === 'level') {
+      hideLevelHuds(700);
+      showControls();
+      save();
+    } else if (gesture.mode === 'horizontal') {
+      if (gesture.horizontal < -70) openComments(true);
+      else cancelCommentsPeek();
+    }
+  }
+
+  /* ---------- comments panel swipe ---------- */
+  function startCommentsGesture(event) {
+    if (!commentsPanel.classList.contains('open')) return;
+    if (event.button !== undefined && event.button !== 0) return;
+    if (event.target.closest('input, button, .comments-input')) return;
+    commentsGesture = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      dragging: false,
+      dx: 0,
+    };
+  }
+
+  function moveCommentsGesture(event) {
+    const gesture = commentsGesture;
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    const dx = event.clientX - gesture.startX;
+    const dy = event.clientY - gesture.startY;
+    gesture.dx = dx;
+    if (!gesture.moved) {
+      if (Math.hypot(dx, dy) < 10) return;
+      gesture.moved = true;
+      if (dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.25) {
+        gesture.dragging = true;
+        commentsPanel.classList.add('dragging');
+      }
+    }
+    if (!gesture.dragging) return;
+    const width = commentsPanel.getBoundingClientRect().width || 1;
+    const progress = Math.min(1, Math.max(0, dx / (width * 0.75)));
+    commentsPanel.style.transform = `translateX(${progress * 100}%)`;
+  }
+
+  function endCommentsGesture() {
+    const gesture = commentsGesture;
+    if (!gesture) return;
+    commentsGesture = null;
+    if (!gesture.dragging) return;
+    commentsPanel.classList.remove('dragging');
+    if (gesture.dx > 90) closeComments();
+    else commentsPanel.style.transform = '';
   }
 
   /* ---------- sheets ---------- */
@@ -1351,13 +1748,14 @@
       },
       'settings-gesture': {
         title: '手势',
-        sub: '移动端把桌面快捷键转成手势；外接键盘仍可用',
+        sub: '三区分工：中间收起/工具栏，左右亮度/音量，双击左右旋转，长按左右减速/加速',
         rows: [
-          { type: 'switch', label: '双击左 / 右 ±10s', key: 'doubleSeek' },
-          { type: 'switch', label: '长按 2× 快放', key: 'longPress2x' },
-          { type: 'switch', label: '上下滑 音量 / 亮度', key: 'swipeBrightness' },
-          { type: 'switch', label: '双击画面 全屏 / 还原', key: 'doubleFullscreen' },
-          { type: 'static', label: '进度条', value: '拖动精确 seek · 占位' },
+          { type: 'switch', label: '中间上滑 工具栏 / 下滑 收起', key: 'middleCollapse' },
+          { type: 'switch', label: '左右上下滑 亮度 / 音量', key: 'swipeLevel' },
+          { type: 'switch', label: '左滑 全屏评论', key: 'swipeComments' },
+          { type: 'switch', label: '双击左 / 右 旋转屏幕', key: 'doubleRotate' },
+          { type: 'switch', label: '长按左 / 右 减速 / 加速', key: 'longPressRate' },
+          { type: 'static', label: '进度条', value: '横向拖动 seek · 占位' },
         ],
       },
       'settings-distraction': {
@@ -1727,45 +2125,59 @@
   $('#miniQueue').addEventListener('click', openQueueSheet);
   $('#miniClose').addEventListener('click', stopPlayback);
 
-  playerStage.addEventListener('pointerdown', startPlayerDrag);
-  window.addEventListener('pointermove', movePlayerDrag);
-  window.addEventListener('pointerup', endPlayerDrag);
-  window.addEventListener('pointercancel', endPlayerDrag);
+  playerStage.addEventListener('pointerdown', startStageGesture);
+  window.addEventListener('pointermove', moveStageGesture);
+  window.addEventListener('pointerup', endStageGesture);
+  window.addEventListener('pointercancel', endStageGesture);
 
-  playerStage.addEventListener('pointermove', () => {
-    if (playerDrag) return;
-    if (state.playerOpen && !state.locked) showControls();
+  commentsBack.addEventListener('click', () => closeComments());
+  commentsTabs.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-comment-tab]');
+    if (!button) return;
+    $$('[data-comment-tab]', commentsTabs).forEach((item) => item.classList.toggle('on', item === button));
+    commentsBody.style.opacity = '0.3';
+    setTimeout(() => { commentsBody.style.opacity = ''; }, 160);
   });
 
-  playerStage.addEventListener('click', (event) => {
-    if (suppressPlayerClick) {
-      suppressPlayerClick = false;
-      return;
+  commentInput.addEventListener('input', () => {
+    commentSend.disabled = !commentInput.value.trim();
+  });
+  commentInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commentSend.click();
     }
-    if (event.target.closest('.player-controls')) return;
-    if (state.locked) return;
-    if (clickTimer) return;
-    clickTimer = setTimeout(() => {
-      clickTimer = null;
-      if (playerControls.classList.contains('hidden')) showControls();
-      else {
-        playerControls.classList.add('hidden');
-        player.classList.add('ui-hidden');
-        clearTimeout(hideTimer);
-      }
-    }, 220);
+  });
+  commentSend.addEventListener('click', () => {
+    const text = commentInput.value.trim();
+    if (!text) return;
+    const row = document.createElement('div');
+    row.className = 'comment-row';
+    row.innerHTML = `
+      <span class="avatar-ph sm"></span>
+      <div class="comment-text">
+        <b>我</b>
+        <p>${escapeHTML(text)}</p>
+        <small>刚刚 · 占位</small>
+      </div>`;
+    commentsBody.prepend(row);
+    commentInput.value = '';
+    commentSend.disabled = true;
+    commentTotal += 1;
+    commentsCount.textContent = `${commentTotal} 条`;
+    commentSend.classList.add('done');
+    commentSend.textContent = '已发送';
+    setTimeout(() => {
+      commentSend.classList.remove('done');
+      commentSend.textContent = '发送';
+    }, 1200);
+    commentsBody.scrollTop = 0;
   });
 
-  playerStage.addEventListener('dblclick', (event) => {
-    if (suppressPlayerClick) return;
-    if (event.target.closest('.player-controls')) return;
-    if (state.locked) return;
-    clearTimeout(clickTimer);
-    clickTimer = null;
-    const rect = playerStage.getBoundingClientRect();
-    const right = event.clientX > rect.left + rect.width / 2;
-    seekBy(right ? 10 : -10);
-  });
+  commentsPanel.addEventListener('pointerdown', startCommentsGesture);
+  window.addEventListener('pointermove', moveCommentsGesture);
+  window.addEventListener('pointerup', endCommentsGesture);
+  window.addEventListener('pointercancel', endCommentsGesture);
 
   progressBar.addEventListener('click', (event) => {
     const rect = progressBar.getBoundingClientRect();
@@ -1789,6 +2201,7 @@
       return;
     }
     if (event.key === 'Escape') {
+      if (commentsPanel.classList.contains('open')) { closeComments(); return; }
       if (psheet.classList.contains('open')) { closeSheet(); return; }
       if (protoDrawer.classList.contains('open')) { closeDrawer(); return; }
       if (state.playerOpen) { minimizePlayer(); return; }
@@ -1816,6 +2229,14 @@
   $('#protoClose').addEventListener('click', closeDrawer);
   protoBackdrop.addEventListener('click', closeDrawer);
   $('#landscapeBtn').addEventListener('click', () => { closeDrawer(); openPlayer(); });
+  homeLandscapeBtn.addEventListener('click', () => {
+    state.landscapeHome = !state.landscapeHome;
+    syncLandscape();
+    save();
+    closeDrawer();
+  });
+  window.addEventListener('resize', syncLandscape);
+  window.addEventListener('orientationchange', syncLandscape);
   $('#resetBtn').addEventListener('click', resetPrototype);
   $$('#platformSwitch button').forEach((button) => {
     button.addEventListener('click', () => setPlatform(button.dataset.platform));
@@ -1855,5 +2276,145 @@
   renderCommands('');
   updatePlayerLabels();
   updateSearch();
+  syncLandscape();
+  applyBrightness(state.brightness);
+  applyVolume(state.volume);
+  hideLevelHuds(0);
   showPage('home');
+
+  /* ---------- prototype review modes (?demo= / ?selftest=1) ---------- */
+  function stagePoint(zone) {
+    const rect = playerStage.getBoundingClientRect();
+    const ratio = zone === 'left' ? 0.16 : zone === 'right' ? 0.84 : 0.5;
+    return {
+      x: rect.left + rect.width * ratio,
+      y: rect.top + rect.height * 0.5,
+    };
+  }
+
+  function pointerEvent(type, x, y, buttons) {
+    return new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 11,
+      pointerType: 'touch',
+      isPrimary: true,
+      button: 0,
+      buttons,
+      clientX: x,
+      clientY: y,
+    });
+  }
+
+  function dispatchSwipe(zone, dx, dy) {
+    const start = stagePoint(zone);
+    playerStage.dispatchEvent(pointerEvent('pointerdown', start.x, start.y, 1));
+    for (let step = 1; step <= 6; step += 1) {
+      window.dispatchEvent(pointerEvent(
+        'pointermove',
+        start.x + (dx * step) / 6,
+        start.y + (dy * step) / 6,
+        1,
+      ));
+    }
+    window.dispatchEvent(pointerEvent('pointerup', start.x + dx, start.y + dy, 0));
+  }
+
+  function dispatchTap(zone) {
+    const point = stagePoint(zone);
+    playerStage.dispatchEvent(pointerEvent('pointerdown', point.x, point.y, 1));
+    window.dispatchEvent(pointerEvent('pointerup', point.x, point.y, 0));
+  }
+
+  function pressStage(zone) {
+    const point = stagePoint(zone);
+    playerStage.dispatchEvent(pointerEvent('pointerdown', point.x, point.y, 1));
+    return {
+      release() {
+        window.dispatchEvent(pointerEvent('pointerup', point.x, point.y, 0));
+      },
+    };
+  }
+
+  async function runGestureSelfTest() {
+    const results = [];
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    openPlayer();
+    applyBrightness(50);
+    applyVolume(40);
+    await sleep(120);
+    dispatchSwipe('left', 0, -140);
+    results.push(`brightness=${state.brightness}`);
+
+    await sleep(120);
+    dispatchSwipe('right', 0, 140);
+    results.push(`volume=${state.volume}`);
+
+    await sleep(180);
+    dispatchSwipe('middle', 0, 190);
+    results.push(`collapsed=${!state.playerOpen && state.miniVisible}`);
+
+    await sleep(420);
+    openPlayer({ resume: true });
+    await sleep(360);
+    dispatchSwipe('middle', -240, 0);
+    results.push(`comments=${commentsPanel.classList.contains('open')}`);
+
+    commentInput.value = '测试评论';
+    commentInput.dispatchEvent(new Event('input', { bubbles: true }));
+    const sendEnabled = !commentSend.disabled;
+    commentSend.click();
+    results.push(`send=${sendEnabled && commentTotal === 129 && commentsBody.firstElementChild.textContent.includes('测试评论')}`);
+
+    closeComments();
+    await sleep(380);
+    dispatchTap('left');
+    await sleep(80);
+    dispatchTap('left');
+    await sleep(80);
+    results.push(`rotate=${rotateHud.classList.contains('show') && state.rotation === 'left'}`);
+
+    const hold = pressStage('right');
+    await sleep(430);
+    results.push(`rate=${rateHud.classList.contains('show') && rateValue.textContent === '2.0×'}`);
+    hold.release();
+    await sleep(320);
+    results.push(`rateEnd=${!rateHud.classList.contains('show')}`);
+
+    document.title = `SELFTEST ${results.join(' ')}`;
+  }
+
+  const reviewParams = new URLSearchParams(window.location.search);
+  const demo = reviewParams.get('demo');
+  if (reviewParams.has('nomotion')) document.body.classList.add('reduce-motion');
+  if (demo === 'landscape') {
+    state.landscapeHome = true;
+    syncLandscape();
+  } else if (demo === 'comments') {
+    openPlayer();
+    setTimeout(() => openComments(), 220);
+  } else if (demo === 'brightness' || demo === 'volume' || demo === 'rate' || demo === 'rotate') {
+    openPlayer();
+    setTimeout(() => {
+      if (demo === 'brightness') {
+        applyBrightness(42);
+        showLevelHud(brightnessHud);
+        hideLevelHuds(9000);
+      } else if (demo === 'volume') {
+        applyVolume(64);
+        showLevelHud(volumeHud);
+        hideLevelHuds(9000);
+      } else if (demo === 'rate') {
+        applyBrightness(74);
+        showRateHud('right');
+        hideRateHud(9000);
+      } else {
+        rotatePlayer('left');
+        clearTimeout(rotateHudTimer);
+        rotateHudTimer = setTimeout(() => rotateHud.classList.remove('show'), 9000);
+      }
+    }, 220);
+  }
+  if (reviewParams.has('selftest')) setTimeout(runGestureSelfTest, 400);
 })();
