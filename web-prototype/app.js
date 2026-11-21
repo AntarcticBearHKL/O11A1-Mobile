@@ -823,10 +823,11 @@
       const oldHeight = firstOld && lastOld
         ? lastOld.getBoundingClientRect().bottom - firstOld.getBoundingClientRect().top
         : 0;
+      const beforeScroll = oldHeight > 0 ? appScroll.scrollTop : 0;
       oldRows.forEach((row) => row.remove());
       if (oldHeight > 0) {
         window.__o11a1ScrollAdjust = Date.now();
-        appScroll.scrollTop = Math.max(0, appScroll.scrollTop - oldHeight);
+        appScroll.scrollTop = Math.max(0, beforeScroll - oldHeight);
       }
     }
   }

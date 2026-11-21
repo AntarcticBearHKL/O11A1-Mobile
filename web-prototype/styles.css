@@ -251,11 +251,11 @@ body.search-mode .app.has-playlist .page[data-page="search"]{padding-bottom:calc
 }
 .feed-tail{
   display:flex;align-items:center;justify-content:center;gap:7px;
-  min-height:0;padding:0;overflow:hidden;
+  height:34px;min-height:34px;padding:0;overflow:hidden;
   color:var(--faint);font-size:10px;font-weight:600;letter-spacing:.02em;
-  opacity:0;transition:opacity .18s ease,padding .18s ease,min-height .18s ease;
+  opacity:0;pointer-events:none;transition:opacity .18s ease;
 }
-.feed-tail.show{opacity:1;min-height:34px;padding:6px 0 18px}
+.feed-tail.show{opacity:1;pointer-events:auto}
 .feed-tail-spinner{
   width:12px;height:12px;border-radius:50%;flex:none;
   border:1.5px solid rgba(47,124,246,.22);border-top-color:var(--blue);
