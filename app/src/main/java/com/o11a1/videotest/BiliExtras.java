@@ -902,10 +902,12 @@ final class BiliExtras {
             row.put("codecs", track.optString("codecs", ""));
             row.put("width", track.optInt("width", 0));
             row.put("height", track.optInt("height", 0));
+            row.put("remote", base);
             row.put("url", proxy.localUrl(base));
             JSONArray backups = track.optJSONArray("backupUrl");
             if (backups == null) backups = track.optJSONArray("backup_url");
             if (backups != null && backups.length() > 0) {
+                row.put("backupRemote", backups.optString(0, ""));
                 row.put("backup", proxy.localUrl(backups.optString(0, "")));
             }
             return row;

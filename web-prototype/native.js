@@ -265,6 +265,7 @@
     const status = String(item.status || '');
     const statusText = status === 'completed' ? '已完成'
       : status === 'downloading' ? `下载中 ${progress}%`
+        : status === 'merging' ? '正在合流音视频…'
         : status === 'paused' ? `已暂停 ${progress}%`
           : status === 'missing' ? '文件已丢失'
             : status === 'error' ? `失败 · ${item.error || '未知错误'}`
@@ -272,19 +273,20 @@
     const action = status === 'completed' ? 'play'
       : status === 'downloading' ? 'pause'
         : status === 'paused' || status === 'error' ? 'resume'
-          : 'play';
+          : status === 'merging' ? ''
+            : 'play';
     const actionLabel = action === 'play' ? '播放' : action === 'pause' ? '暂停' : '继续';
     return `
       <article class="download-row" data-download="${attr(item.id)}">
         <span class="download-thumb">${item.pic ? `<img src="${attr(item.pic)}" alt="" referrerpolicy="no-referrer">` : ''}</span>
         <div class="download-copy">
           <b>${esc(item.title || item.id)}</b>
-          <span>${esc(item.quality || '')} · ${esc(item.downloadedText || '0 B')} / ${esc(item.totalText || '未知')}</span>
+          <span>${esc(item.quality || '')}${item.mode === 'dash' ? ' · DASH 合流' : ''} · ${esc(item.downloadedText || '0 B')} / ${esc(item.totalText || '未知')}</span>
           <div class="download-track"><i style="width:${progress}%"></i></div>
           <small class="${status === 'error' || status === 'missing' ? 'bad' : status === 'completed' ? 'ok' : ''}">${esc(statusText)}</small>
         </div>
         <div class="download-actions">
-          <button type="button" data-dl-action="${action}" data-dl-id="${attr(item.id)}">${actionLabel}</button>
+          ${action ? `<button type="button" data-dl-action="${action}" data-dl-id="${attr(item.id)}">${actionLabel}</button>` : ''}
           <button type="button" class="ghost" data-dl-action="remove" data-dl-id="${attr(item.id)}">删除</button>
         </div>
       </article>`;
@@ -344,6 +346,7 @@
           </div>
           <button type="button" class="pill-btn primary" id="downloadCurrent" ${supported && current && current.bvid ? '' : 'disabled'}>缓存当前视频</button>
         </div>
+        ${typeof bridge.downloadDash === 'function' ? `<div class="download-add dash-add"><div><b>DASH 音视频合流</b><span>分轨下载后用 MediaMuxer 合成 MP4</span></div><button type="button" class="pill-btn" id="downloadDash" ${current && current.bvid ? '' : 'disabled'}>DASH 合流缓存</button></div>` : ''}
         <div class="special-note" id="downloadNote">${supported ? '下载完成后在这里直接播放；删除会同时移除本地文件。' : '当前版本没有可用的下载桥。'}</div>
         <div class="download-list" id="downloadList"></div>
       </div>`;
@@ -366,6 +369,23 @@
     });
     const refresh = $('#downloadRefresh');
     if (refresh) refresh.addEventListener('click', () => refreshDownloads('已刷新。'));
+    const dashButton = $('#downloadDash');
+    if (dashButton) dashButton.addEventListener('click', () => {
+      const item = currentItem();
+      if (!item || !item.bvid) {
+        const note = $('#downloadNote');
+        if (note) note.textContent = '当前视频没有可缓存的 BV 号。';
+        return;
+      }
+      const note = $('#downloadNote');
+      if (note) note.textContent = '已加入 DASH 合流队列…';
+      const result = call('downloadDash', item.bvid, Number(item.cid || 0), item.title || '', item.pic || '', state.settings.quality);
+      if (!result.ok) {
+        if (note) note.textContent = `加入失败 · ${result.error || '未知错误'}`;
+        return;
+      }
+      refreshDownloads('DASH 音视频分轨下载中，完成后自动合流。');
+    });
     refreshDownloads();
     if (supported) downloadTimer = setInterval(() => {
       if (state.page !== 'module' || state.moduleName !== '下载') {

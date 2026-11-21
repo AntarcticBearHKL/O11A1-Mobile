@@ -1487,7 +1487,8 @@
     const item = state.playlist[state.currentIndex];
     playerTitle.textContent = item ? item.title : '暂无播放项';
     const nativeSuffix = window.O11A1Native ? '' : ' · 占位';
-    playerSub.textContent = `${item ? item.meta : '占位'} · ${state.settings.quality}${nativeSuffix}`;
+    const qualitySuffix = item && item.offlineUrl ? '' : ` · ${state.settings.quality}`;
+    playerSub.textContent = `${item ? item.meta : '占位'}${qualitySuffix}${nativeSuffix}`;
     pcQuality.textContent = state.settings.quality;
     pcSpeed.textContent = state.settings.speed || '1.0×';
     pcInterp.textContent = `插帧 ${state.settings.interp}`;

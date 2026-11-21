@@ -42,7 +42,7 @@ final class WebAppBridge {
         this.extras = new BiliExtras(cookies, proxy, api);
         this.proxy = proxy;
         this.cookies = cookies;
-        this.downloads = new DownloadManager(activity, api, proxy, cookies);
+        this.downloads = new DownloadManager(activity, api, this.extras, proxy, cookies);
     }
 
     @JavascriptInterface
@@ -193,6 +193,11 @@ final class WebAppBridge {
     @JavascriptInterface
     public String downloadStart(String bvid, long cid, String title, String pic, String quality) {
         return downloads.start(bvid, cid, title, pic, quality).toString();
+    }
+
+    @JavascriptInterface
+    public String downloadDash(String bvid, long cid, String title, String pic, String quality) {
+        return runExtra(() -> downloads.startDash(bvid, cid, title, pic, quality).toString(), 30);
     }
 
     @JavascriptInterface
