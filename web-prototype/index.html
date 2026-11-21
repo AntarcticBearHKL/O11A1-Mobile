@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=48">
+  <link rel="stylesheet" href="./styles.css?v=52">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -13,6 +13,10 @@
     <div class="app" id="app" data-page="home">
       <div class="statusbar"><span>9:41</span><span class="status-icons">5G ▮▮▮ ▰</span></div>
       <div class="top-glass" aria-hidden="true"></div>
+      <div class="pull-refresh" id="pullRefresh" aria-hidden="true">
+        <span class="pr-ico">↻</span>
+        <span id="pullRefreshLabel">下拉刷新</span>
+      </div>
 
       <div class="app-scroll" id="appScroll">
         <!-- 首页：单列，每行一个视频 -->
@@ -55,7 +59,7 @@
               <span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w50"></i></span><span class="row-meta"><i class="ph-line w35"></i><i class="ph-line w22"></i></span></span>
             </button>
           </div>
-          <div class="list-note" id="homeNote">推荐模块占位 · 单列 · 下拉刷新 / 触底加载</div>
+          <div class="list-note" id="homeNote">推荐模块占位 · 单列 · 下拉刷新 / 触底刷新</div>
         </section>
 
         <!-- 搜索：视频结果，无命令列表 -->
@@ -417,6 +421,6 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./app.js?v=48"></script>
+  <script src="./app.js?v=52"></script>
 </body>
 </html>

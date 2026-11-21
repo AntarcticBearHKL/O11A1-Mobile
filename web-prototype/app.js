@@ -4,6 +4,10 @@
 
   const app = $('#app');
   const appScroll = $('#appScroll');
+  const pullRefresh = $('#pullRefresh');
+  const pullRefreshLabel = $('#pullRefreshLabel');
+  const homeFeed = $('#homeFeed');
+  const moduleFeed = $('#moduleFeed');
   const player = $('#player');
   const playerStage = $('#playerStage');
   const playerControls = $('#playerControls');
@@ -276,6 +280,15 @@
   let dockDrag = null;
   let lastVolume = state.volume || 80;
   let toolbarDrag = null;
+  let touchPull = null;
+  let pullDistance = 0;
+  let pullBusy = false;
+  let pullSettleTimer = null;
+  let bottomRefreshTimer = null;
+  let bottomRefreshArmed = true;
+  const feedRefreshCounts = { home: 0, search: 0, module: 0 };
+  const PULL_THRESHOLD = 64;
+  const PULL_MAX = 112;
 
   const MODULE_NOTES = {
     收藏: '收藏夹推荐 · 全部收藏夹 · 占位',
@@ -518,6 +531,9 @@
     }
     updateNavActive();
     updatePlaylistDock();
+    bottomRefreshArmed = true;
+    clearTimeout(bottomRefreshTimer);
+    if (pullDistance > 0) resetPullVisual();
     appScroll.scrollTop = 0;
     if (page === 'search') {
       setTimeout(() => searchInput.focus(), 120);
@@ -539,6 +555,113 @@
     showPage('module', navId || navItem?.id || state.navActive);
   }
 
+  /* ---------- feed refresh ---------- */
+  function activeFeed() {
+    if (state.page === 'home') return homeFeed;
+    if (state.page === 'search') return searchResults;
+    if (state.page === 'module') return moduleFeed;
+    return null;
+  }
+
+  const FEED_ROW_VARIANTS = [
+    { thumb: '', w1: 'w90', w2: 'w60', m1: 'w30', m2: 'w18' },
+    { thumb: 'alt', w1: 'w80', w2: 'w50', m1: 'w35', m2: 'w18' },
+    { thumb: 'alt2', w1: 'w85', w2: 'w55', m1: 'w25', m2: 'w20' },
+    { thumb: 'alt3', w1: 'w75', w2: 'w65', m1: 'w30', m2: 'w18' },
+    { thumb: '', w1: 'w90', w2: 'w55', m1: 'w30', m2: 'w22' },
+    { thumb: 'alt', w1: 'w75', w2: 'w45', m1: 'w25', m2: 'w20' },
+  ];
+
+  function feedRowMarkup(variant) {
+    const v = FEED_ROW_VARIANTS[variant % FEED_ROW_VARIANTS.length];
+    return `
+      <button class="video-row" type="button" data-open-player>
+        <span class="row-thumb ${v.thumb}"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span>
+        <span class="row-copy"><span class="ph-title"><i class="ph-line ${v.w1}"></i><i class="ph-line ${v.w2}"></i></span><span class="row-meta"><i class="ph-line ${v.m1}"></i><i class="ph-line ${v.m2}"></i></span></span>
+      </button>`;
+  }
+
+  function renderFeedRows(feed, count, offset) {
+    const rows = [];
+    for (let i = 0; i < count; i += 1) rows.push(feedRowMarkup(i + offset));
+    feed.innerHTML = rows.join('');
+  }
+
+  function resetPullVisual() {
+    pullDistance = 0;
+    app.classList.remove('pulling');
+    pullRefresh.classList.remove('show', 'ready');
+  }
+
+  function settlePullVisual() {
+    app.classList.remove('pulling');
+    app.classList.add('pull-settle');
+    app.style.setProperty('--pull', '0px');
+    clearTimeout(pullSettleTimer);
+    pullSettleTimer = setTimeout(() => {
+      app.classList.remove('pull-settle');
+      app.style.removeProperty('--pull');
+    }, 260);
+  }
+
+  function updatePull(dy) {
+    if (pullBusy) return;
+    pullDistance = Math.min(PULL_MAX, Math.max(0, dy * 0.5));
+    if (pullDistance < 2) {
+      resetPullVisual();
+      return;
+    }
+    app.classList.add('pulling');
+    app.classList.remove('pull-settle');
+    app.style.setProperty('--pull', `${pullDistance}px`);
+    pullRefresh.classList.add('show');
+    const ready = pullDistance >= PULL_THRESHOLD;
+    pullRefresh.classList.toggle('ready', ready);
+    if (!pullRefresh.classList.contains('refreshing')) {
+      pullRefreshLabel.textContent = ready ? '松开刷新' : '下拉刷新';
+    }
+  }
+
+  function finishPull() {
+    if (pullDistance <= 0) return;
+    const shouldRefresh = pullDistance >= PULL_THRESHOLD;
+    settlePullVisual();
+    if (!shouldRefresh) {
+      pullDistance = 0;
+      pullRefresh.classList.remove('show', 'ready');
+      return;
+    }
+    pullDistance = 0;
+    refreshActiveFeed();
+  }
+
+  function refreshActiveFeed() {
+    const feed = activeFeed();
+    if (!feed || pullBusy) return;
+    const key = state.page;
+    const count = feed.children.length || (key === 'home' ? 9 : key === 'search' ? 5 : 4);
+    feedRefreshCounts[key] = (feedRefreshCounts[key] || 0) + 1;
+    pullBusy = true;
+    pullRefresh.classList.add('show', 'refreshing');
+    pullRefresh.classList.remove('ready', 'done');
+    pullRefreshLabel.textContent = '刷新中';
+    renderFeedRows(feed, count, feedRefreshCounts[key]);
+    feed.classList.remove('is-refreshing');
+    void feed.offsetWidth;
+    feed.classList.add('is-refreshing');
+    appScroll.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => {
+      feed.classList.remove('is-refreshing');
+      pullRefresh.classList.remove('refreshing');
+      pullRefresh.classList.add('done');
+      pullRefreshLabel.textContent = '已刷新';
+      setTimeout(() => {
+        pullRefresh.classList.remove('show', 'done');
+        pullBusy = false;
+      }, 420);
+    }, 360);
+  }
+
   /* ---------- home modules ---------- */
   function currentModule() {
     return state.modules.find((mod) => mod.id === state.moduleId && mod.on) || null;
@@ -551,7 +674,7 @@
       homeNote.textContent = '所有主页模块已关闭 · 在「主页模块」中启用';
       return;
     }
-    homeNote.textContent = `${mod.name}模块占位 · 单列 · 下拉刷新 / 触底加载`;
+    homeNote.textContent = `${mod.name}模块占位 · 单列 · 下拉刷新 / 触底刷新`;
   }
 
   function selectModule(moduleId) {
@@ -2319,7 +2442,29 @@
       x: event.clientX,
       y: event.clientY,
       row: event.target.closest('.video-row'),
+      pull: appScroll.scrollTop <= 0 && Boolean(activeFeed()) && !pullBusy,
+      pulling: false,
     };
+  });
+  window.addEventListener('pointermove', (event) => {
+    if (!feedSwipeStart || event.pointerId !== feedSwipeStart.id) return;
+    if (!feedSwipeStart.pull || pullBusy) return;
+    const dx = event.clientX - feedSwipeStart.x;
+    const dy = event.clientY - feedSwipeStart.y;
+    if (Math.abs(dx) > Math.abs(dy) * 1.15 && Math.abs(dx) > 8) {
+      feedSwipeStart.pull = false;
+      if (feedSwipeStart.pulling) {
+        feedSwipeStart.pulling = false;
+        settlePullVisual();
+        pullRefresh.classList.remove('show', 'ready');
+      }
+      return;
+    }
+    if (dy > 8) {
+      feedSwipeStart.pulling = true;
+      if (event.cancelable) event.preventDefault();
+      updatePull(dy);
+    }
   });
   window.addEventListener('pointerup', (event) => {
     if (!feedSwipeStart || event.pointerId !== feedSwipeStart.id) return;
@@ -2327,6 +2472,11 @@
     const dy = event.clientY - feedSwipeStart.y;
     const start = feedSwipeStart;
     feedSwipeStart = null;
+    if (start.pulling) {
+      suppressFeedClickUntil = Date.now() + 360;
+      finishPull();
+      return;
+    }
     if (dx < -64 && Math.abs(dx) > Math.abs(dy) * 1.4 && start.row) {
       suppressFeedClickUntil = Date.now() + 360;
       addFeedRowToPlaylist(start.row);
@@ -2337,7 +2487,75 @@
       openSidebar();
     }
   });
-  window.addEventListener('pointercancel', () => { feedSwipeStart = null; });
+  window.addEventListener('pointercancel', () => {
+    if (feedSwipeStart?.pulling) {
+      settlePullVisual();
+      pullRefresh.classList.remove('show', 'ready');
+    }
+    feedSwipeStart = null;
+  });
+
+  appScroll.addEventListener('touchstart', (event) => {
+    if (event.touches.length !== 1 || pullBusy) return;
+    const touch = event.touches[0];
+    touchPull = {
+      x: touch.clientX,
+      y: touch.clientY,
+      active: appScroll.scrollTop <= 0 && Boolean(activeFeed()),
+      pulling: false,
+    };
+  }, { passive: true });
+  appScroll.addEventListener('touchmove', (event) => {
+    if (!touchPull || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const dx = touch.clientX - touchPull.x;
+    const dy = touch.clientY - touchPull.y;
+    if (!touchPull.active || dy <= 0) return;
+    if (Math.abs(dx) > Math.abs(dy) * 1.15) return;
+    if (dy > 8) {
+      if (event.cancelable) event.preventDefault();
+      touchPull.pulling = true;
+      updatePull(dy);
+    }
+  }, { passive: false });
+  const endTouchPull = () => {
+    if (!touchPull) return;
+    const wasPulling = touchPull.pulling;
+    touchPull = null;
+    if (wasPulling) {
+      suppressFeedClickUntil = Date.now() + 360;
+      finishPull();
+    }
+  };
+  appScroll.addEventListener('touchend', endTouchPull);
+  appScroll.addEventListener('touchcancel', () => {
+    if (touchPull?.pulling) {
+      settlePullVisual();
+      pullRefresh.classList.remove('show', 'ready');
+    }
+    touchPull = null;
+  });
+
+  appScroll.addEventListener('scroll', () => {
+    if (!activeFeed() || pullBusy) return;
+    const max = appScroll.scrollHeight - appScroll.clientHeight;
+    if (max <= 0) return;
+    const atBottom = appScroll.scrollTop >= max - 12;
+    if (!atBottom) {
+      bottomRefreshArmed = true;
+      clearTimeout(bottomRefreshTimer);
+      return;
+    }
+    if (!bottomRefreshArmed) return;
+    bottomRefreshArmed = false;
+    clearTimeout(bottomRefreshTimer);
+    bottomRefreshTimer = setTimeout(() => {
+      if (pullBusy || !activeFeed()) return;
+      const maxNow = appScroll.scrollHeight - appScroll.clientHeight;
+      if (appScroll.scrollTop < maxNow - 14) return;
+      refreshActiveFeed();
+    }, 160);
+  });
 
   sidebar.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -2658,6 +2876,26 @@
       save();
     }
 
+    const bottomBefore = feedRefreshCounts.home;
+    appScroll.scrollTop = appScroll.scrollHeight;
+    appScroll.dispatchEvent(new Event('scroll'));
+    await sleep(700);
+    results.push(`bottomRefresh=${feedRefreshCounts.home > bottomBefore}`);
+    await sleep(900);
+
+    appScroll.scrollTop = 0;
+    const pullBefore = feedRefreshCounts.home;
+    const feedRect = homeFeed.getBoundingClientRect();
+    const pullX = feedRect.left + feedRect.width / 2;
+    const pullY = Math.max(feedRect.top + 40, 80);
+    homeFeed.dispatchEvent(pointerEvent('pointerdown', pullX, pullY, 1));
+    for (let step = 1; step <= 6; step += 1) {
+      window.dispatchEvent(pointerEvent('pointermove', pullX, pullY + step * 24, 1));
+    }
+    window.dispatchEvent(pointerEvent('pointerup', pullX, pullY + 144, 0));
+    await sleep(200);
+    results.push(`pullRefresh=${feedRefreshCounts.home > pullBefore}`);
+
     document.title = `SELFTEST ${results.join(' ')}`;
   }
 
@@ -2672,6 +2910,8 @@
     setTimeout(() => openComments(), 220);
   } else if (demo === 'sidebar') {
     setTimeout(openSidebar, 300);
+  } else if (demo === 'refresh') {
+    setTimeout(() => updatePull(150), 400);
   } else if (demo === 'brightness' || demo === 'volume' || demo === 'rate' || demo === 'rotate') {
     openPlayer();
     setTimeout(() => {
