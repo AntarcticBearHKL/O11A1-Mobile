@@ -1345,6 +1345,10 @@ body.feed-debug-on .app-scroll{top:52px}
   object-fit:contain;z-index:2;pointer-events:none;background:#000;
 }
 .post-canvas[hidden]{display:none!important}
+.live-dm-badge{position:absolute;left:8px;bottom:8px;z-index:10;padding:4px 8px;border-radius:999px;background:rgba(6,8,12,.7);border:1px solid rgba(255,255,255,.14);color:#9FB3CC;font:600 9px/1 var(--font-mono);pointer-events:none}
+.live-dm-badge.on{color:#7CE0B4;border-color:rgba(78,201,165,.4)}
+.live-dm-badge.off{color:#FFB26B;border-color:rgba(255,178,107,.35)}
+.live-dm-badge[hidden]{display:none!important}
 .player-stage.post-active .real-video{opacity:0}
 .player-stage.post-active .real-video-status{opacity:.35}
 .player-stage.post-active .danmaku-layer{z-index:6}

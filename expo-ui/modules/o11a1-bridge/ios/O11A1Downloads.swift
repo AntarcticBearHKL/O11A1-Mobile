@@ -147,6 +147,10 @@ final class O11A1Downloads {
           self.saveLocked()
           return
         }
+        if self.items[index]["status"] as? String == "paused" {
+          self.saveLocked()
+          return
+        }
         do {
           if FileManager.default.fileExists(atPath: target.path) {
             try FileManager.default.removeItem(at: target)

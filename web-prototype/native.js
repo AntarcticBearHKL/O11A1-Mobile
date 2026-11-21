@@ -669,6 +669,7 @@
   let liveRetryTimer = null;
   let liveSeen = new Map();
   let liveRoomId = 0;
+  let liveDanmakuCount = 0;
   let dashState = null;
 
   function setStatus(text, mode) {
@@ -793,6 +794,8 @@
         const body = String(message.info[1] || '');
         const color = message.info[0] && message.info[0][3] ? message.info[0][3] : 0xffffff;
         spawnLiveDanmaku(body, color);
+        liveDanmakuCount += 1;
+        setLiveDanmakuBadge(`直播弹幕 ${liveDanmakuCount}`, 'on');
       }
       return;
     }
@@ -838,25 +841,52 @@
     }
   }
 
+  function setLiveDanmakuBadge(text, mode) {
+    const badge = $('#liveDmBadge');
+    if (!badge) return;
+    if (!text) { badge.hidden = true; return; }
+    badge.hidden = false;
+    badge.textContent = text;
+    badge.classList.toggle('on', mode === 'on');
+    badge.classList.toggle('off', mode === 'off');
+  }
+
   function connectLiveDanmaku(roomId) {
     closeLiveDanmaku();
     if (!roomId || !window.WebSocket) return;
     liveRoomId = roomId;
+    liveDanmakuCount = 0;
+    let info = { ok: false };
+    if (typeof bridge.liveDanmuInfo === 'function') {
+      info = call('liveDanmuInfo', roomId);
+    }
+    const host = info.ok && info.host ? info.host : 'broadcastlv.chat.bilibili.com';
+    const port = info.ok && info.wssPort ? Number(info.wssPort) : 443;
+    const token = info.ok ? String(info.token || '') : '';
+    const url = `wss://${host}:${port}/sub`;
+    setLiveDanmakuBadge(info.ok ? '弹幕连接中…' : '弹幕受限 · 未取到 token', info.ok ? '' : 'off');
     let socket;
     try {
-      socket = new WebSocket('wss://broadcastlv.chat.bilibili.com:443/sub');
+      socket = new WebSocket(url);
     } catch (error) {
       log('live danmaku socket failed ' + error);
+      setLiveDanmakuBadge('直播弹幕连接失败', 'off');
       return;
     }
     socket.binaryType = 'arraybuffer';
     liveSocket = socket;
+    const connectTimer = setTimeout(() => {
+      if (socket.readyState === 1) return;
+      setLiveDanmakuBadge('直播弹幕超时 · 稍后重试', 'off');
+    }, 12000);
     socket.addEventListener('open', () => {
+      clearTimeout(connectTimer);
       if (liveSocket !== socket) return;
       const auth = JSON.stringify({
-        uid: 0, roomid: roomId, protover: 2, platform: 'web', type: 2, key: '',
+        uid: 0, roomid: roomId, protover: 2, platform: 'web', type: 2, key: token,
       });
       try { socket.send(livePacket(7, auth)); } catch (_) {}
+      setLiveDanmakuBadge('直播弹幕已连接', 'on');
       clearInterval(liveHeartbeat);
       liveHeartbeat = setInterval(() => {
         if (liveSocket === socket && socket.readyState === 1) {
@@ -870,17 +900,20 @@
       }
     });
     socket.addEventListener('close', () => {
+      clearTimeout(connectTimer);
       clearInterval(liveHeartbeat);
       liveHeartbeat = null;
       if (liveSocket !== socket) return;
       liveSocket = null;
       if (mediaLive && liveRoomId === roomId) {
+        setLiveDanmakuBadge('直播弹幕断开 · 重连中', 'off');
         clearTimeout(liveRetryTimer);
         liveRetryTimer = setTimeout(() => connectLiveDanmaku(roomId), 5000);
       }
     });
     socket.addEventListener('error', () => {
       log('live danmaku socket error');
+      setLiveDanmakuBadge('直播弹幕连接失败 · 需登录', 'off');
     });
   }
 

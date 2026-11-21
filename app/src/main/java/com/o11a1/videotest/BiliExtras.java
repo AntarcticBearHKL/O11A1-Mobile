@@ -548,6 +548,39 @@ final class BiliExtras {
         return out;
     }
 
+    JSONObject liveDanmuInfo(long roomId) {
+        JSONObject out = new JSONObject();
+        try {
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Referer", "https://live.bilibili.com/" + roomId);
+            headers.put("Origin", "https://live.bilibili.com");
+            JSONObject json = new JSONObject(cookies.request(
+                "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=" + roomId + "&type=0",
+                headers, null));
+            int code = json.optInt("code", -1);
+            if (code != 0) return apiFailure(code, json.optString("message", "直播弹幕信息不可用"));
+            JSONObject data = json.optJSONObject("data");
+            if (data == null) throw new IllegalStateException("直播弹幕信息为空");
+            JSONArray hosts = data.optJSONArray("host_list");
+            String host = "broadcastlv.chat.bilibili.com";
+            int wssPort = 443;
+            if (hosts != null && hosts.length() > 0) {
+                JSONObject first = hosts.optJSONObject(0);
+                if (first != null) {
+                    host = first.optString("host", host);
+                    wssPort = first.optInt("wss_port", 443);
+                }
+            }
+            out.put("ok", true);
+            out.put("token", data.optString("token", ""));
+            out.put("host", host);
+            out.put("wssPort", wssPort);
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out;
+    }
+
     JSONObject liveRoom(long roomId) {
         JSONObject out = new JSONObject();
         try {

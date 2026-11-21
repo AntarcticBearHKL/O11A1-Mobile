@@ -14,8 +14,9 @@
 - **同步桥**：注入 `window.O11A1Native`，通过同步 XHR 调本地 `/api/*`，与 Android 的 `WebAppBridge` API 完全一致；`native.js` 不需要分叉。
 - **真实数据**：Swift `O11A1BiliClient` 直接请求 B 站热门、搜索、分页 cid、playurl、评论、弹幕、导航登录态、账户资料、收藏夹、历史、关注动态、动态、消息、排行榜、番剧/影视索引、番剧选集、直播推荐与直播地址、分区、视频详情；Cookie 持久化到 UserDefaults。
 - **真实登录**：B 站 passport 二维码生成 + 轮询；二维码由 CoreImage 生成 PNG，扫码成功保存 `SESSDATA` 等 Cookie。
-- **真实播放**：progressive MP4 优先 720P，失败回退 480P / 360P；本地 `/media` 代理补 Referer/UA、转发 Range，按 8MB 分块返回 206；主 CDN 失败自动试备用 CDN；番剧通过 `pgc/player/web/playurl` 播放并一次加入整季选集；直播使用原生 HLS。
-- **播放器**：与 Android 共用同一套 V2 播放器 UI、三区手势、评论、弹幕、播放列表、刷新和登录 gate；视频信息/性能面板、截图、复制链接、收藏/投币/关注、评论与弹幕发送会调用真实接口（未登录时内联提示）。
+- **真实播放**：progressive MP4 优先 720P，失败回退 480P / 360P；本地 `/media` 代理补 Referer/UA、转发 Range，按 8MB 分块返回 206；主 CDN 失败自动试备用 CDN；番剧通过 `pgc/player/web/playurl` 播放并一次加入整季选集；直播使用原生 HLS；1080P / 4K / 1080P+ 会先尝试 DASH，失败自动回退渐进播放。
+- **离线缓存**：`O11A1Downloads` 在 Documents/offline 保存 progressive MP4，支持进度、暂停、继续、断点续传、删除，完成后由本地 `/file` 路由播放。
+- **播放器**：与 Android 共用同一套 V2 播放器 UI、三区手势、评论、弹幕、播放列表、刷新和登录 gate；视频信息/性能面板、截图、复制链接、收藏/投币/关注/评论与弹幕发送会调用真实接口（未登录时内联提示）；外接键盘映射、深色主题、评论楼中楼/分页、会员任务、AI 养鱼、WebGL 插帧/CAS 全部共用 web 实现。
 - **构建**：GitHub Actions `ios-unsigned`（macOS）每次 push 生成未签名 IPA + 模拟器 zip；成功后发布到 Releases。
 - **下载**：
   - IPA：`https://github.com/AntarcticBearHKL/O11A1-Mobile/releases/download/ios-unsigned/o11a1-ios-unsigned.ipa`
@@ -28,19 +29,21 @@
 ## Android V2 实装（当前 APK）
 
 - **架构**：`web-prototype/` 是唯一 UI 源；Gradle 构建时复制到 `assets/web`，`MainActivity` 用全屏 WebView 加载。
-- **原生桥**：`WebAppBridge` / `BiliApi` / `BiliExtras` / `CookieStore` / `StreamProxy` 提供热门、搜索、分集 cid、playurl、评论、弹幕、真实二维码登录、Cookie、账户、收藏、历史、关注、动态、消息、排行榜、番剧/影视、直播、分区、视频详情、互动写入、亮度、方向、剪贴板和截图。
-- **真实数据**：首页热门 / 排行 / 番剧 / 影视 / 直播 / 分区 / 收藏 / 历史 / 关注；搜索；模块页；账户卡；动态 / 消息；视频信息。未登录的账户页会显示登录 CTA。
-- **真实播放**：Bridge 取 B 站 progressive MP4（画质选择 720P / 480P / 360P，优先高画质失败回退），本地代理补齐 Referer/UA 并转发 Range；番剧按集播放并加入播放列表；直播 HLS 使用 hls.js；HTML5 `<video>` 播放。
+- **原生桥**：`WebAppBridge` / `BiliApi` / `BiliExtras` / `DownloadManager` / `CookieStore` / `StreamProxy` 提供热门、搜索、分集 cid、playurl、DASH、评论与楼中楼、弹幕、真实二维码登录、Cookie、账户、收藏、历史、关注、动态、消息、排行榜、番剧/影视、直播、分区、视频详情、互动写入、会员中心、AI 接口、离线下载、亮度、方向、剪贴板和截图。
+- **真实数据**：首页热门 / 排行 / 番剧 / 影视 / 直播 / 分区 / 收藏 / 历史 / 关注；搜索；模块页；账户卡；动态 / 消息；视频信息；会员中心每日任务与经验记录。未登录的账户页会显示登录 CTA。
+- **真实播放**：Bridge 取 B 站 progressive MP4；1080P / 1080P60 / 1080P+ / 4K 先请求 DASH，用 MediaSource 分流视频/音频，失败自动回退渐进播放。本地代理补齐 Referer/UA 并转发 Range；番剧按集播放并加入播放列表；直播 HLS 使用 hls.js；HTML5 `<video>` 播放。
 - **真实登录**：B 站 passport 二维码生成 + 轮询；扫码成功保存 Cookie；「模拟登录」保留用于无扫码测试；未登录所有路由回到 gate。收藏/投币/关注/点赞/评论/弹幕等写入接口在无 Cookie 时返回“请先登录”，不会伪造成功。
-- **播放器**：播放/暂停、进度、音量、倍速、循环、画质重取、全屏方向、三区手势、收起进浮动播放列表、真实评论（最热/最新）、真实弹幕滚动、信息/性能面板、截图保存到相册、复制 BV 链接、收藏/投币/关注、评论与弹幕发送。
+- **播放器**：播放/暂停、进度、音量、倍速、循环、画质重取、全屏方向、三区手势、收起进浮动播放列表、真实评论（最热/最新 + 楼中楼 + 分页）、真实弹幕滚动、信息/性能面板、截图保存到相册、复制 BV 链接、收藏/投币/关注/点赞、评论与弹幕发送、外接键盘映射、深色主题与外观滑杆、会员任务、AI 养鱼、WebGL 插帧 / CAS / Anime4K。
+- **调试信息**：视频流右上角实时显示 FEED 刷新率与 FPS；播放器右上角五条 HUD：DSP 显示刷新率、TGT/RND 目标/渲染帧率、DEC 解码帧率与分辨率、DRP/AV 丢帧与音画间隔、NET 实时码率。
+- **离线缓存**：`DownloadManager` 下载 progressive MP4 到应用私有目录，支持队列、进度、暂停、继续、断点续传、删除和本地播放；渐进 MP4 已自带音轨，无需二次合流。
 - **列表**：视频行左滑加入播放列表（封面飞入浮动框）；浮动框上滑展开播放器、点击进播放列表页；下拉/触底刷新都请求下一批真实数据并回顶；历史行显示观看进度。
 - **构建**：
   ```bash
   ./gradlew :app:assembleDebug
   adb install -r app/build/outputs/apk/debug/app-debug.apk
   ```
-- **模拟器验证**：`Medium_Phone_API_37.0`，480×800 / 160dpi。已验证登录 gate / 真实二维码、热门 20 条、搜索“原神”20 条、排行/番剧/影视/分区真实列表、番剧第一集 360P 播放（整季 11 集入队）、真实评论（8709 条）、最新评论未登录回退最热、弹幕、下拉/触底刷新、侧边栏、左滑播放列表、播放列表页/移除、视频信息/性能面板、截图（MediaStore）、复制链接、画质切换、倍速/循环、设置账户卡。直播列表 20 条和直播地址 HLS 已验证；长时间 720P/直播软解会让模拟器不稳定，真机为准。
-- **仍属占位**：离线下载 / FFmpeg 合流、养鱼 AI、会员任务、外接键盘映射、深色主题与外观滑杆、评论楼中楼/分页、直播弹幕、DASH/4K/1080P+、原生插帧 / CAS / 增强；这些入口会显示“暂未接入”而不是伪造成功。
+- **模拟器验证**：`Medium_Phone_API_37.0`，480×800 / 160dpi。已验证登录 gate / 真实二维码、热门 20 条、搜索“原神”20 条、排行/番剧/影视/分区真实列表、番剧第一集 360P 播放（整季 11 集入队）、真实评论（8709 条）、最新评论未登录回退最热、楼中楼展开 12 条、下拉/触底刷新、侧边栏、左滑播放列表、播放列表页/移除、视频信息/性能面板、截图（MediaStore）、复制链接、画质切换、倍速/循环、设置账户卡、视频流刷新率、五条播放 HUD、深色/浅色主题、离线下载 141.5MB 完成并从本地播放、DASH 720P 播放、WebGL 插帧/CAS。直播列表 20 条和直播地址 HLS 已验证；模拟器长时间 720P/直播软解会让模拟器不稳定，真机为准。
+- **未验证 / 需要账号**：真实登录后的收藏/历史/关注/动态/消息/会员任务、4K/1080P+（需要大会员）、点赞/投币/收藏/关注/评论/弹幕发送、直播弹幕（B 站匿名接口 -352，需登录 Cookie）、AI 养鱼（需要用户提供 DeepSeek/OpenAI 兼容 Key）。这些入口在条件不满足时会内联提示，不会伪造成功。
 
 ## 移动端 V2 规划（当前）
 
@@ -73,7 +76,7 @@
 - 1920×1080、H.264、29.97 fps、无音轨、约 6 MB
 - Android：`app/src/main/assets/BV1NS4t6oEXQ.mp4`
 - iOS：`expo-ui/modules/o11a1-video/ios/Resources/BV1NS4t6oEXQ.mp4`
-- 未登录的 B 站接口最高只能取到 1080p；4K / 60fps 需要登录和大会员，等接 DASH 播放时再做。
+- 未登录的 B 站接口最高只能取到 720P；1080P / 4K / 60fps 需要登录和大会员，客户端已经实现 DASH 请求与 MediaSource 播放，未登录时会自动回退到服务端允许的清晰度。
 
 ## 1. Expo 应用 / iOS 原生播放器
 
@@ -106,7 +109,7 @@ Expo Go 扫码只能看 UI。真正的播放器在 iOS 原生构建里：
 
 - unsigned IPA 不能直接安装到未越狱 iPhone；下载后自己用证书 / Sideloadly / AltStore 等方式签名安装。签名方案和免费 Apple ID 限制见 [SIGNING.md](SIGNING.md)。
 - simulator zip 只能在 Mac 的 Simulator 里运行；Windows 不能跑 iOS Simulator。
-- 当前还没有音频、Anime4K 和 B 站 DASH 登录。
+- 当前未接音频、Anime4K 和 B 站 DASH 登录；DASH 播放只在 Android WebView 可用，iOS 自动回退渐进播放。
 
 ## 2. Android 原生测试
 

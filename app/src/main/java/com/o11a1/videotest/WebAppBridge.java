@@ -127,21 +127,12 @@ final class WebAppBridge {
 
     @JavascriptInterface
     public String liveRoom(long roomId) {
-        FutureTask<String> task = new FutureTask<>(() -> extras.liveRoom(roomId).toString());
-        Thread worker = new Thread(task, "o11a1-live-room");
-        worker.setDaemon(true);
-        worker.start();
-        try {
-            return task.get(12, TimeUnit.SECONDS);
-        } catch (Throwable error) {
-            task.cancel(true);
-            JSONObject out = new JSONObject();
-            try {
-                out.put("ok", false);
-                out.put("error", "直播接口超时");
-            } catch (Throwable ignored) {}
-            return out.toString();
-        }
+        return runExtra(() -> extras.liveRoom(roomId).toString(), 15);
+    }
+
+    @JavascriptInterface
+    public String liveDanmuInfo(long roomId) {
+        return runExtra(() -> extras.liveDanmuInfo(roomId).toString(), 15);
     }
 
     @JavascriptInterface

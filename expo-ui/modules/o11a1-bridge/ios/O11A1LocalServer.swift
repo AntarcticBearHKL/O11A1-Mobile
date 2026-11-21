@@ -361,6 +361,8 @@ final class O11A1LocalServer {
       data = client.live(page: max(1, o11a1Int(query["page"] ?? "1")))
     case "liveRoom":
       data = client.liveRoom(roomId: o11a1Int64(query["roomId"] ?? "0"))
+    case "liveDanmuInfo":
+      data = client.liveDanmuInfo(roomId: o11a1Int64(query["roomId"] ?? "0"))
     case "zone":
       data = client.zone(
         rid: o11a1Int(query["rid"] ?? "1"),
@@ -544,6 +546,11 @@ final class O11A1LocalServer {
       let pieces = spec.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
       if let first = pieces.first, let value = Int64(String(first)) { start = value }
       if pieces.count > 1, let value = Int64(String(pieces[1])) { end = min(total - 1, value) }
+      partial = true
+    }
+    let maximum = start + 8 * 1024 * 1024 - 1
+    if end > maximum {
+      end = min(total - 1, maximum)
       partial = true
     }
     guard start >= 0, start < total, end >= start else {

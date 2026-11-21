@@ -1024,6 +1024,39 @@ final class O11A1BiliClient {
     return o11a1Data(["ok": true, "items": items, "page": max(1, page), "hasMore": list.count >= 20])
   }
 
+  func liveDanmuInfo(roomId: Int64) -> Data {
+    guard roomId > 0,
+          let url = URL(string: "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=\(roomId)&type=0") else {
+      return o11a1Error("直播弹幕信息不可用")
+    }
+    var request = URLRequest(url: url)
+    request.timeoutInterval = 15
+    request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+    request.setValue("https://live.bilibili.com/\(roomId)", forHTTPHeaderField: "Referer")
+    request.setValue("https://live.bilibili.com", forHTTPHeaderField: "Origin")
+    let cookie = cookies.header()
+    if !cookie.isEmpty { request.setValue(cookie, forHTTPHeaderField: "Cookie") }
+    guard let (data, http) = perform(request, session: apiSession) else {
+      return o11a1Error("直播弹幕信息不可用")
+    }
+    cookies.absorb(http)
+    guard let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+      return o11a1Error("直播弹幕信息不可用")
+    }
+    let code = o11a1Int(payload["code"])
+    guard code == 0, let info = payload["data"] as? [String: Any] else {
+      return apiFailure(code, o11a1String(payload["message"]))
+    }
+    let hosts = info["host_list"] as? [[String: Any]] ?? []
+    let first = hosts.first
+    return o11a1Data([
+      "ok": true,
+      "token": o11a1String(info["token"]),
+      "host": first == nil ? "broadcastlv.chat.bilibili.com" : o11a1String(first?["host"]),
+      "wssPort": first == nil ? 443 : o11a1Int(first?["wss_port"])
+    ])
+  }
+
   func liveRoom(roomId: Int64) -> Data {
     guard let url = URL(string: "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=\(roomId)&protocol=0,1&format=0,1,2&codec=0,1&qn=10000&platform=web&ptype=8") else {
       return o11a1Error("直播地址错误")

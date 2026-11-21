@@ -58,6 +58,7 @@ function bridgeShim(port: number, testFlow: string): string {
     season: function (seasonId) { return call('season', { seasonId: seasonId }); },
     live: function (page) { return call('live', { page: page }); },
     liveRoom: function (roomId) { return call('liveRoom', { roomId: roomId }); },
+    liveDanmuInfo: function (roomId) { return call('liveDanmuInfo', { roomId: roomId }); },
     zone: function (rid, page) { return call('zone', { rid: rid, page: page }); },
     videoInfo: function (bvid) { return call('videoInfo', { bvid: bvid }); },
     like: function (aid, on) { return call('like', { aid: aid, on: on ? 1 : 0 }); },
