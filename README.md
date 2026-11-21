@@ -24,10 +24,20 @@
 
 ```bash
 cd expo-ui
-npx expo start
+npm run dev
 ```
 
-用 Expo Go 扫码或在 Expo Go 里打开同一局域网地址即可。也可以直接：
+`npm run dev` 会同时启动 Expo 和 `web-prototype` 文件监听：改 `web-prototype/app.js / native.js / styles.css / index.html` 后自动重生成 `src/webapp.generated.ts`，Expo Go 会重新加载 WebView；改 `App.tsx` 则由 Metro Fast Refresh 处理。
+
+也可以分别启动：
+
+```bash
+npx expo start --lan
+# 另一个终端
+npm run watch:web
+```
+
+用 Expo Go 扫 Metro 的二维码，或在 Expo Go 里打开同一局域网地址。局域网不通时用：
 
 ```bash
 npx expo start --tunnel

@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { WebView } from 'react-native-webview';
-import { WEBAPP_FILES } from './src/webapp.generated';
+import { WEBAPP_BUILD, WEBAPP_FILES } from './src/webapp.generated';
 
 type BridgeModule = {
   start(files: Record<string, string>): Promise<number>;
@@ -327,6 +327,7 @@ export default function App() {
       <View style={styles.root}>
         <StatusBar hidden />
         <WebView
+          key={`mock-${WEBAPP_BUILD}`}
           source={{ html: MOCK_HTML, baseUrl: 'https://o11a1.local/' }}
           style={styles.web}
           containerStyle={styles.web}
