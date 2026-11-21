@@ -74,6 +74,7 @@
   const sidebarNav = $('#sidebarNav');
   const sidebarSearch = $('#sidebarSearch');
   const playlistDock = $('#playlistDock');
+  const pdThumb = $('#pdThumb');
   const pdTitle = $('#pdTitle');
   const pdMeta = $('#pdMeta');
   const pdProgress = $('#pdProgress');
@@ -278,6 +279,7 @@
   let suppressSidebarClickUntil = 0;
   let suppressDockClickUntil = 0;
   let dockDrag = null;
+  let dockAbsorbTimer = null;
   let lastVolume = state.volume || 80;
   let toolbarDrag = null;
   let touchPull = null;
@@ -945,6 +947,71 @@
     setTimeout(() => playlistDock.classList.remove('receiving'), 500);
   }
 
+  function absorbPlaylistDock() {
+    if (!playlistDock.classList.contains('show')) return;
+    playlistDock.classList.remove('absorbing');
+    void playlistDock.offsetWidth;
+    playlistDock.classList.add('absorbing');
+    clearTimeout(dockAbsorbTimer);
+    dockAbsorbTimer = setTimeout(() => playlistDock.classList.remove('absorbing'), 560);
+  }
+
+  function flyRowToPlaylist(row) {
+    const thumb = row ? row.querySelector('.row-thumb') : null;
+    const dockVisible = playlistDock.classList.contains('show');
+    if (!thumb || !dockVisible || document.body.classList.contains('reduce-motion')
+      || typeof thumb.animate !== 'function') {
+      absorbPlaylistDock();
+      return;
+    }
+    const start = thumb.getBoundingClientRect();
+    const end = pdThumb.getBoundingClientRect();
+    if (!start.width || !end.width) {
+      absorbPlaylistDock();
+      return;
+    }
+    const flyer = thumb.cloneNode(true);
+    flyer.querySelectorAll('.ph-label, .dur-ph').forEach((node) => node.remove());
+    flyer.classList.add('playlist-fly');
+    row.classList.add('row-flying');
+    setTimeout(() => row.classList.remove('row-flying'), 620);
+    flyer.style.left = `${start.left}px`;
+    flyer.style.top = `${start.top}px`;
+    flyer.style.width = `${start.width}px`;
+    flyer.style.height = `${start.height}px`;
+    document.body.appendChild(flyer);
+
+    const dx = end.left + end.width / 2 - (start.left + start.width / 2);
+    const dy = end.top + end.height / 2 - (start.top + start.height / 2);
+    const scale = Math.max(0.18, end.width / start.width);
+    const flight = flyer.animate([
+      {
+        transform: 'translate3d(0,0,0) scale(1)',
+        opacity: 1,
+        borderRadius: '14px',
+        boxShadow: '0 14px 34px rgba(20,20,30,.22)',
+      },
+      {
+        transform: `translate3d(${dx * 0.52}px, ${dy * 0.52 - 46}px,0) scale(${scale + 0.3})`,
+        opacity: 0.94,
+        offset: 0.55,
+        borderRadius: '13px',
+        boxShadow: '0 22px 48px rgba(47,124,246,.34)',
+      },
+      {
+        transform: `translate3d(${dx}px, ${dy}px,0) scale(${scale})`,
+        opacity: 0,
+        borderRadius: '11px',
+        boxShadow: '0 8px 20px rgba(47,124,246,.24)',
+      },
+    ], {
+      duration: 560,
+      easing: 'cubic-bezier(.22,1,.36,1)',
+    });
+    flight.finished.then(() => flyer.remove()).catch(() => flyer.remove());
+    setTimeout(absorbPlaylistDock, 430);
+  }
+
   function setCurrent(index) {
     if (index < 0 || index >= state.playlist.length) return;
     state.currentIndex = index;
@@ -1116,16 +1183,12 @@
 
   function addFeedRowToPlaylist(row) {
     if (!row || !state.loggedIn) return;
-    const result = addToPlaylist(feedRowTitle(row), 'UP 占位 · 左滑加入', feedRowKey(row));
-    row.dataset.addNote = result.added ? '已加入播放列表' : '已在播放列表';
-    row.classList.remove('swiped-add');
+    addToPlaylist(feedRowTitle(row), 'UP 占位 · 左滑加入', feedRowKey(row));
+    row.classList.remove('row-queued');
     void row.offsetWidth;
-    row.classList.add('swiped-add');
-    setTimeout(() => {
-      row.classList.remove('swiped-add');
-      delete row.dataset.addNote;
-    }, 950);
-    pulsePlaylistDock();
+    row.classList.add('row-queued');
+    setTimeout(() => row.classList.remove('row-queued'), 520);
+    flyRowToPlaylist(row);
   }
 
   /* ---------- player ---------- */
@@ -2988,6 +3051,11 @@
     setTimeout(openSidebar, 300);
   } else if (demo === 'refresh') {
     setTimeout(() => updatePull(150), 400);
+  } else if (demo === 'queue') {
+    setTimeout(() => {
+      const row = $('#homeFeed .video-row');
+      if (row) addFeedRowToPlaylist(row);
+    }, 700);
   } else if (demo === 'brightness' || demo === 'volume' || demo === 'rate' || demo === 'rotate') {
     openPlayer();
     setTimeout(() => {
