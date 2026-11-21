@@ -1341,10 +1341,9 @@
       showPage('login');
       return;
     }
-    if (state.page !== 'playlist') {
-      state.playlistReturn = state.page;
-      state.playlistReturnNav = state.navActive;
-    }
+    if (state.page === 'playlist') return;
+    state.playlistReturn = state.page;
+    state.playlistReturnNav = state.navActive;
     if (state.playerOpen) minimizePlayer();
     withPlaylistTransition(() => {
       resetPlaylistPageDrag();
