@@ -1449,7 +1449,8 @@
         debugFrame.videoCount = 0;
         debugFrame.decodeFps = 0;
         sampleVideoQuality();
-        if (!debugFrame.decodeFps && debugFrame.rvfcCount > 0) {
+        if (debugFrame.rvfcCount > 0
+          && (!debugFrame.decodeFps || debugFrame.decodeFps < debugState.videoFps * 0.35)) {
           debugFrame.decodeFps = debugFrame.rvfcCount;
         }
         debugFrame.rvfcCount = 0;
