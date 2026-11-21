@@ -57,7 +57,6 @@
   const sidebar = $('#sidebar');
   const sidebarBackdrop = $('#sidebarBackdrop');
   const sidebarNav = $('#sidebarNav');
-  const sidebarClose = $('#sidebarClose');
   const sidebarPlayback = $('#sidebarPlayback');
   const sidebarOpenPlayer = $('#sidebarOpenPlayer');
   const sidebarTitle = $('#sidebarTitle');
@@ -2046,7 +2045,6 @@
     closeSidebar();
     openQueueSheet();
   });
-  sidebarClose.addEventListener('click', closeSidebar);
   sidebarBackdrop.addEventListener('click', closeSidebar);
 
   appScroll.addEventListener('pointerdown', (event) => {

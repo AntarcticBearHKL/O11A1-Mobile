@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=30">
+  <link rel="stylesheet" href="./styles.css?v=31">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -235,23 +235,21 @@
 
       <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
       <aside class="sidebar" id="sidebar" aria-hidden="true" inert>
-        <div class="sidebar-top">
-          <b>导航</b>
-          <button class="icon-btn small" id="sidebarClose" type="button" aria-label="关闭导航">×</button>
+        <div class="sidebar-inner">
+          <div class="sidebar-playback" id="sidebarPlayback" hidden>
+            <button class="sidebar-now" id="sidebarOpenPlayer" type="button" aria-label="展开播放器">
+              <span class="sidebar-cover"><span class="ph-label">封面</span></span>
+              <span class="sidebar-now-copy">
+                <b id="sidebarTitle">队列视频占位 01</b>
+                <small id="sidebarMeta">UP 占位 · 正在播放</small>
+              </span>
+            </button>
+            <button class="mini-play" id="sidebarPlay" type="button" aria-label="播放 / 暂停">Ⅱ</button>
+            <button class="mini-queue" id="sidebarQueue" type="button" aria-label="播放列表">☰</button>
+            <span class="sidebar-progress" aria-hidden="true"><i id="sidebarProgress"></i></span>
+          </div>
+          <nav class="sidebar-nav" id="sidebarNav" aria-label="主导航"></nav>
         </div>
-        <div class="sidebar-playback" id="sidebarPlayback" hidden>
-          <button class="sidebar-now" id="sidebarOpenPlayer" type="button" aria-label="展开播放器">
-            <span class="sidebar-cover"><span class="ph-label">封面</span></span>
-            <span class="sidebar-now-copy">
-              <b id="sidebarTitle">队列视频占位 01</b>
-              <small id="sidebarMeta">UP 占位 · 正在播放</small>
-            </span>
-          </button>
-          <button class="mini-play" id="sidebarPlay" type="button" aria-label="播放 / 暂停">Ⅱ</button>
-          <button class="mini-queue" id="sidebarQueue" type="button" aria-label="播放列表">☰</button>
-          <span class="sidebar-progress" aria-hidden="true"><i id="sidebarProgress"></i></span>
-        </div>
-        <nav class="sidebar-nav" id="sidebarNav" aria-label="主导航"></nav>
       </aside>
 
       <div class="search-dock" id="searchDock">
@@ -411,6 +409,6 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./app.js?v=30"></script>
+  <script src="./app.js?v=31"></script>
 </body>
 </html>
