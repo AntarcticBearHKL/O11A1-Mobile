@@ -53,6 +53,7 @@
   const myPlaylistCount = $('#myPlaylistCount');
   const myModuleName = $('#myModuleName');
   const myModuleRow = $('#myModuleRow');
+  const myFishRow = $('#myFishRow');
   const tabbar = $('#tabbar');
   const tabbarTabs = $('#tabbarTabs');
   const moduleSettings = $('#moduleSettings');
@@ -162,7 +163,7 @@
 
     hideLive: false,
     hideBangumi: false,
-    hideFish: false,
+    hideFish: true,
     hideHotSearch: false,
 
     wifiPreload: true,
@@ -394,10 +395,15 @@
   }
 
   /* ---------- navigation ---------- */
+  function navItemsVisible() {
+    return NAV_ITEMS.filter((item) => !(state.settings.hideFish && item.id === 'fish'));
+  }
+
   function visibleNavItems() {
-    if (state.navAllVisible) return NAV_ITEMS;
+    const allowed = navItemsVisible();
+    if (state.navAllVisible) return allowed;
     return state.navSelected
-      .map((id) => NAV_ITEMS.find((item) => item.id === id))
+      .map((id) => allowed.find((item) => item.id === id))
       .filter(Boolean);
   }
 
@@ -551,7 +557,7 @@
   }
 
   function openModuleSheet() {
-    const enabled = state.modules.filter((mod) => mod.on);
+    const enabled = state.modules.filter((mod) => mod.on && !(state.settings.hideFish && mod.id === 'fish'));
     openSheet('首页模块', '选择首页当前模块', (body) => {
       if (!enabled.length) {
         const empty = document.createElement('div');
@@ -589,6 +595,7 @@
 
   function renderModuleSettings() {
     moduleSettings.innerHTML = '';
+    const visibleModules = state.modules.filter((mod) => !(state.settings.hideFish && mod.id === 'fish'));
     const groups = ['首页', '内容', '社区'];
     groups.forEach((group) => {
       const wrap = document.createElement('div');
@@ -598,7 +605,7 @@
       label.textContent = group;
       wrap.appendChild(label);
 
-      state.modules.filter((mod) => mod.group === group).forEach((mod) => {
+      visibleModules.filter((mod) => mod.group === group).forEach((mod) => {
         const row = document.createElement('button');
         row.type = 'button';
         row.className = `module-toggle${mod.on ? ' on' : ''}`;
@@ -625,23 +632,44 @@
       moduleSettings.appendChild(wrap);
     });
 
-    const enabledCount = state.modules.filter((mod) => mod.on).length;
-    moduleCount.textContent = `已启用 ${enabledCount} / ${state.modules.length} 个模块 · 首页标题下拉即可切换`;
+    const enabledCount = visibleModules.filter((mod) => mod.on).length;
+    moduleCount.textContent = `已启用 ${enabledCount} / ${visibleModules.length} 个模块 · 首页模块 sheet 即可切换`;
+  }
+
+  /* ---------- hidden entries (fish off for now) ---------- */
+  function applyHiddenEntries() {
+    const hideFish = state.settings.hideFish;
+    if (hideFish) {
+      state.navSelected = normalizeNavSelected(state.navSelected.filter((id) => id !== 'fish'));
+      const fish = state.modules.find((mod) => mod.id === 'fish');
+      if (fish) fish.on = false;
+      if (state.moduleId === 'fish') {
+        state.moduleId = state.modules.find((mod) => mod.on && mod.id !== 'fish')?.id || null;
+      }
+    }
+    if (myFishRow) myFishRow.hidden = hideFish;
+    renderNav();
+    renderNavSettings();
+    renderModuleSettings();
+    refreshHomeHeader();
+    save();
   }
 
   /* ---------- bottom navigation editor ---------- */
   function renderNavSettings() {
-    const selectedCount = state.navSelected.length;
+    const visibleItems = navItemsVisible();
+    const selectedIds = state.navSelected.filter((id) => visibleItems.some((item) => item.id === id));
+    const selectedCount = selectedIds.length;
     navCount.textContent = `${selectedCount} / 5`;
     navSettingsMeta.textContent = state.navAllVisible ? '全量预览' : `自选 ${selectedCount} 个`;
     navAllToggle.classList.toggle('on', state.navAllVisible);
     navModeNote.textContent = state.navAllVisible
-      ? `全量预览中：底部显示全部 ${NAV_ITEMS.length} 个按钮；关掉后只显示下面勾选的 ${selectedCount} 个。`
+      ? `全量预览中：底部显示全部 ${visibleItems.length} 个按钮；关掉后只显示下面勾选的 ${selectedCount} 个。`
       : `自定义：底部只显示你勾选的 ${selectedCount} 个按钮。`;
 
     navSelectedPreview.innerHTML = '';
-    state.navSelected.forEach((id) => {
-      const item = NAV_ITEMS.find((entry) => entry.id === id);
+    selectedIds.forEach((id) => {
+      const item = visibleItems.find((entry) => entry.id === id);
       if (!item) return;
       const chip = document.createElement('span');
       chip.className = 'nav-chip on';
@@ -656,7 +684,7 @@
       label.textContent = group === '桌面端' ? '桌面端底部按钮' : '移动端新增';
       navSettings.appendChild(label);
 
-      NAV_ITEMS.filter((item) => item.group === group).forEach((item) => {
+      visibleItems.filter((item) => item.group === group).forEach((item) => {
         const on = state.navSelected.includes(item.id);
         const row = document.createElement('button');
         row.type = 'button';
@@ -1763,7 +1791,7 @@
         rows: [
           { type: 'switch', label: '隐藏直播入口', key: 'hideLive' },
           { type: 'switch', label: '隐藏番剧入口', key: 'hideBangumi' },
-          { type: 'switch', label: '隐藏养鱼入口', key: 'hideFish' },
+          { type: 'switch', label: '隐藏养鱼入口', key: 'hideFish', onChange: applyHiddenEntries },
           { type: 'switch', label: '隐藏热搜', key: 'hideHotSearch' },
           { type: 'static', label: '应用范围', value: '首页 / 底栏 / 搜索' },
         ],
@@ -2206,10 +2234,7 @@
   $$('#platformSwitch button').forEach((button) => {
     button.classList.toggle('on', button.dataset.platform === state.platform);
   });
-  refreshHomeHeader();
-  renderModuleSettings();
-  renderNav();
-  renderNavSettings();
+  applyHiddenEntries();
   updatePlayerLabels();
   updateSearch();
   syncLandscape();

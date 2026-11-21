@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=17">
+  <link rel="stylesheet" href="./styles.css?v=19">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -160,7 +160,7 @@
             <button class="my-row" data-module="收藏"><span>收藏</span><span class="my-meta">收藏夹 / 推荐</span></button>
             <button class="my-row" data-module="历史"><span>历史</span><span class="my-meta">继续观看</span></button>
             <button class="my-row" data-module="关注"><span>关注</span><span class="my-meta">UP 动态</span></button>
-            <button class="my-row" data-module="养鱼"><span>养鱼 · AI 看片</span><span class="my-meta">实验</span></button>
+            <button class="my-row" data-module="养鱼" id="myFishRow"><span>养鱼 · AI 看片</span><span class="my-meta">实验</span></button>
             <button class="my-row" data-module="下载"><span>离线缓存</span><span class="my-meta">占位</span></button>
             <button class="my-row" data-module="会员"><span>大会员</span><span class="my-meta">占位</span></button>
             <button class="my-row" id="myModuleRow"><span>当前模块</span><span class="my-meta" id="myModuleName">推荐</span></button>
@@ -202,7 +202,7 @@
             <button class="back" data-goto="my">‹</button>
             <b>主页模块</b>
           </div>
-          <p class="page-desc">选择出现在首页标题切换器里的模块。长按拖动排序可后续接入。</p>
+          <p class="page-desc">选择可以出现在首页的模块；在「我的 → 当前模块」里切换。长按拖动排序可后续接入。</p>
           <div class="module-count" id="moduleCount"></div>
           <div id="moduleSettings" class="module-settings"></div>
         </section>
@@ -450,6 +450,6 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./app.js?v=17"></script>
+  <script src="./app.js?v=19"></script>
 </body>
 </html>
