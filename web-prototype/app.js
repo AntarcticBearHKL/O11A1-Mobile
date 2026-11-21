@@ -7,6 +7,7 @@
   const homeFeed = $('#homeFeed');
   const moduleFeed = $('#moduleFeed');
   const player = $('#player');
+  const playerTop = $('.player-top');
   const playerStage = $('#playerStage');
   const playerControls = $('#playerControls');
   const playerTitle = $('#playerTitle');
@@ -30,7 +31,6 @@
   const pcSettings = $('#pcSettings');
   const pcShot = $('#pcShot');
   const pcFullscreen = $('#pcFullscreen');
-  const pcGrab = $('#pcGrab');
   const progressBar = $('.progress-ph', playerControls);
   const progressPlayed = $('.progress-played', playerControls);
   const progressThumb = $('.progress-thumb', playerControls);
@@ -1696,7 +1696,7 @@
       if (!state.playerOpen || state.locked) return;
       playerControls.classList.add('hidden');
       player.classList.add('ui-hidden');
-    }, 3000);
+    }, 1000);
   }
 
   /* ---------- player orientation ---------- */
@@ -2331,7 +2331,7 @@
     stageTapTimer = setTimeout(() => {
       stageTapTimer = null;
       lastStageTap = { time: 0, zone: '' };
-      toggleStageControls();
+      scheduleHide();
     }, 260);
   }
 
@@ -2841,6 +2841,7 @@
         rows: [
           { type: 'switch', label: '中间下滑 收起播放器', key: 'middleCollapse' },
           { type: 'static', label: '中间上滑', value: '横屏 / 竖屏切换' },
+          { type: 'static', label: '单击画面', value: '显示工具栏 · 1 秒后自动隐藏' },
           { type: 'switch', label: '左右上下滑 系统亮度 / 系统音量', key: 'swipeLevel' },
           { type: 'switch', label: '左滑 全屏评论', key: 'swipeComments' },
           { type: 'switch', label: '长按左 / 右 减速 / 加速', key: 'longPressRate' },
@@ -3533,6 +3534,25 @@
   window.addEventListener('pointerup', endStageGesture);
   window.addEventListener('pointercancel', endStageGesture);
 
+  player.addEventListener('pointerdown', (event) => {
+    if (!state.playerOpen || commentsPanel.classList.contains('open')) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    showControls();
+  }, true);
+  player.addEventListener('pointermove', (event) => {
+    if (!state.playerOpen || commentsPanel.classList.contains('open')) return;
+    if (event.pointerType === 'mouse' && event.buttons === 0) return;
+    scheduleHide();
+  }, { passive: true });
+  player.addEventListener('input', () => {
+    if (state.playerOpen) scheduleHide();
+  });
+  playerTop.addEventListener('click', (event) => {
+    if (!state.playerOpen) return;
+    if (event.target.closest('button')) return;
+    showControls();
+  });
+
   commentsPanel.addEventListener('pointerdown', startCommentsGesture);
   window.addEventListener('pointermove', moveCommentsGesture);
   window.addEventListener('pointerup', endCommentsGesture);
@@ -3786,14 +3806,13 @@
     await sleep(320);
     results.push(`rateEnd=${!rateHud.classList.contains('show')}`);
 
-    const grab = pcGrab.getBoundingClientRect();
-    const grabX = grab.left + grab.width / 2;
-    const grabY = grab.top + grab.height / 2;
-    pcGrab.dispatchEvent(pointerEvent('pointerdown', grabX, grabY, 1));
-    window.dispatchEvent(pointerEvent('pointermove', grabX, grabY + 40, 1));
-    window.dispatchEvent(pointerEvent('pointerup', grabX, grabY + 40, 0));
+    const tap = stagePoint('middle');
+    playerStage.dispatchEvent(pointerEvent('pointerdown', tap.x, tap.y, 1));
+    window.dispatchEvent(pointerEvent('pointerup', tap.x, tap.y, 0));
     await sleep(80);
-    results.push(`toolbarHide=${playerControls.classList.contains('hidden')}`);
+    const toolbarShown = !playerControls.classList.contains('hidden');
+    await sleep(1400);
+    results.push(`toolbarHide=${toolbarShown && playerControls.classList.contains('hidden')}`);
     showControls();
 
     minimizePlayer();
