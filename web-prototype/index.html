@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=32">
+  <link rel="stylesheet" href="./styles.css?v=34">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -60,10 +60,6 @@
 
         <!-- 搜索：视频结果，无命令列表 -->
         <section class="page" data-page="search">
-          <div class="search-title">
-            <b>搜索视频</b>
-            <span>视频 / UP / 番剧</span>
-          </div>
           <div class="section-label" id="searchResultsLabel">热门视频</div>
           <div class="feed" id="searchResults">
             <button class="video-row" data-open-player><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w60"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w18"></i></span></span></button>
@@ -78,8 +74,7 @@
         <!-- 视频流点击直接进播放器，没有中间详情页 -->
         <!-- 动态 -->
         <section class="page" data-page="dynamic">
-          <div class="page-top">
-            <b>动态</b>
+          <div class="page-filter-row">
             <button class="filter-btn" id="dynamicFilter" data-index="0">全部 ⌄</button>
           </div>
           <div class="list-placeholder">
@@ -92,8 +87,7 @@
 
         <!-- 消息 -->
         <section class="page" data-page="messages">
-          <div class="page-top">
-            <b>消息</b>
+          <div class="page-filter-row">
             <button class="filter-btn" id="messageFilter" data-index="0">回复 ⌄</button>
           </div>
           <div class="list-placeholder">
@@ -106,10 +100,6 @@
 
         <!-- 我的 -->
         <section class="page" data-page="my">
-          <div class="page-top">
-            <b>我的</b>
-            <button class="icon-btn" data-goto="settings" title="设置">⚙</button>
-          </div>
           <button class="account-card" id="accountCard" type="button">
             <span class="avatar-ph lg"></span>
             <div class="ph-title" style="flex:1"><i class="ph-line w35"></i><i class="ph-line w55"></i></div>
@@ -142,12 +132,9 @@
 
         <!-- 通用模块占位页：收藏 / 历史 / 下载 / 会员 / 番剧 / 直播 / 分区... -->
         <section class="page" data-page="module">
-          <div class="page-top">
-            <button class="back" id="moduleBack">‹</button>
-            <b id="modulePageTitle">模块</b>
+          <div class="page-filter-row">
             <button class="filter-btn" id="moduleFilter" title="筛选">全部</button>
           </div>
-          <div class="module-note" id="moduleNote">模块占位 · 内容由真实接口接入</div>
           <div class="feed" id="moduleFeed">
             <button class="video-row" data-open-player><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w60"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w18"></i></span></span></button>
             <button class="video-row" data-open-player><span class="row-thumb alt"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w80"></i><i class="ph-line w50"></i></span><span class="row-meta"><i class="ph-line w35"></i><i class="ph-line w18"></i></span></span></button>
@@ -158,10 +145,6 @@
 
         <!-- 主页模块设置 -->
         <section class="page" data-page="modules">
-          <div class="page-top">
-            <button class="back" data-goto="my">‹</button>
-            <b>主页模块</b>
-          </div>
           <p class="page-desc">选择可以出现在首页的模块；在「我的 → 当前模块」里切换。长按拖动排序可后续接入。</p>
           <div class="module-count" id="moduleCount"></div>
           <div id="moduleSettings" class="module-settings"></div>
@@ -169,11 +152,6 @@
 
         <!-- 设置 -->
         <section class="page" data-page="settings">
-          <div class="page-top">
-            <button class="back" data-goto="my">‹</button>
-            <b>设置</b>
-          </div>
-
           <div class="settings-group">
             <div class="section-label">播放与弹幕</div>
             <div class="my-list">
@@ -409,6 +387,6 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./app.js?v=32"></script>
+  <script src="./app.js?v=34"></script>
 </body>
 </html>

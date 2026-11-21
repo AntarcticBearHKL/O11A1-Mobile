@@ -76,8 +76,6 @@
   const searchResultsLabel = $('#searchResultsLabel');
   const searchResults = $('#searchResults');
   const searchEmpty = $('#searchEmpty');
-  const modulePageTitle = $('#modulePageTitle');
-  const moduleNote = $('#moduleNote');
   const moduleFilter = $('#moduleFilter');
   const dynamicFilter = $('#dynamicFilter');
   const messageFilter = $('#messageFilter');
@@ -520,9 +518,7 @@
     }
     state.moduleName = name;
     state.moduleFilterIndex = 0;
-    modulePageTitle.textContent = name;
     moduleFilter.textContent = MODULE_FILTERS[0];
-    moduleNote.textContent = MODULE_NOTES[name] || '模块占位 · 内容由真实接口接入';
     const navItem = findNavItemByModule(name);
     showPage('module', navId || navItem?.id || state.navActive);
   }
@@ -2018,10 +2014,7 @@
   moduleFilter.addEventListener('click', () => {
     state.moduleFilterIndex = (state.moduleFilterIndex + 1) % MODULE_FILTERS.length;
     moduleFilter.textContent = MODULE_FILTERS[state.moduleFilterIndex];
-    moduleNote.textContent = `${state.moduleName} · ${MODULE_FILTERS[state.moduleFilterIndex]} · 占位`;
   });
-
-  $('#moduleBack').addEventListener('click', () => showPage(state.moduleReturn || 'home'));
 
   /* player */
   $('#playerBack').addEventListener('click', minimizePlayer);
