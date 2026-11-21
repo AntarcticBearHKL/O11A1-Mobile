@@ -733,6 +733,15 @@
       host.commentsCount.textContent = '';
       return;
     }
+    if (commentSort === 0 && result.items.length === 0 && !result.count) {
+      const fallback = call('comments', aid, 1, 2);
+      if (fallback.ok && Array.isArray(fallback.items) && fallback.items.length) {
+        host.commentsBody.innerHTML = '<div class="native-empty" style="padding:14px 0">最新评论需要登录后查看，当前显示最热评论</div>'
+          + fallback.items.map(commentRow).join('');
+        host.commentsCount.textContent = `${fallback.count || fallback.items.length} 条`;
+        return;
+      }
+    }
     host.commentsBody.innerHTML = result.items.map(commentRow).join('');
     host.commentsCount.textContent = `${result.count || result.items.length} 条`;
   }

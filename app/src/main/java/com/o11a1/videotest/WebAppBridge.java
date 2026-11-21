@@ -21,6 +21,7 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
@@ -54,72 +55,72 @@ final class WebAppBridge {
 
     @JavascriptInterface
     public String popular(int page, int ps) {
-        return api.popular(page, ps <= 0 ? 20 : ps).toString();
+        return runExtra(() -> api.popular(page, ps <= 0 ? 20 : ps).toString());
     }
 
     @JavascriptInterface
     public String search(String keyword, int page) {
-        return api.search(keyword, page).toString();
+        return runExtra(() -> api.search(keyword, page).toString());
     }
 
     @JavascriptInterface
     public String play(String bvid, long cid) {
-        return api.play(bvid, cid).toString();
+        return runExtra(() -> api.play(bvid, cid).toString());
     }
 
     @JavascriptInterface
     public String account() {
-        return extras.account().toString();
+        return runExtra(() -> extras.account().toString());
     }
 
     @JavascriptInterface
     public String favorites(int page) {
-        return extras.favorites(page).toString();
+        return runExtra(() -> extras.favorites(page).toString());
     }
 
     @JavascriptInterface
     public String history(int page, String cursor) {
-        return extras.history(page, cursor).toString();
+        return runExtra(() -> extras.history(page, cursor).toString());
     }
 
     @JavascriptInterface
     public String following(int page) {
-        return extras.following(page).toString();
+        return runExtra(() -> extras.following(page).toString());
     }
 
     @JavascriptInterface
     public String dynamicFeed(int page, String filter) {
-        return extras.dynamicFeed(page, filter).toString();
+        return runExtra(() -> extras.dynamicFeed(page, filter).toString());
     }
 
     @JavascriptInterface
     public String messages(int page, String filter) {
-        return extras.messages(page, filter).toString();
+        return runExtra(() -> extras.messages(page, filter).toString());
     }
 
     @JavascriptInterface
     public String ranking(int page) {
-        return extras.ranking(page).toString();
+        return runExtra(() -> extras.ranking(page).toString());
     }
 
     @JavascriptInterface
     public String bangumi(int page, int seasonType) {
-        return extras.bangumi(page, seasonType).toString();
+        return runExtra(() -> extras.bangumi(page, seasonType).toString());
     }
 
     @JavascriptInterface
     public String season(long seasonId) {
-        return extras.season(seasonId).toString();
+        return runExtra(() -> extras.season(seasonId).toString());
     }
 
     @JavascriptInterface
     public String playPgc(long epId, String bvid, long cid, int qn) {
-        return extras.playPgc(epId, bvid, cid, qn).toString();
+        return runExtra(() -> extras.playPgc(epId, bvid, cid, qn).toString());
     }
 
     @JavascriptInterface
     public String live(int page) {
-        return extras.live(page).toString();
+        return runExtra(() -> extras.live(page).toString());
     }
 
     @JavascriptInterface
@@ -143,47 +144,47 @@ final class WebAppBridge {
 
     @JavascriptInterface
     public String zone(int rid, int page) {
-        return extras.zone(rid, page).toString();
+        return runExtra(() -> extras.zone(rid, page).toString());
     }
 
     @JavascriptInterface
     public String videoInfo(String bvid) {
-        return extras.videoInfo(bvid).toString();
+        return runExtra(() -> extras.videoInfo(bvid).toString());
     }
 
     @JavascriptInterface
     public String like(long aid, boolean on) {
-        return extras.like(aid, on).toString();
+        return runExtra(() -> extras.like(aid, on).toString());
     }
 
     @JavascriptInterface
     public String coin(long aid, int count, boolean likeAlso) {
-        return extras.coin(aid, count, likeAlso).toString();
+        return runExtra(() -> extras.coin(aid, count, likeAlso).toString());
     }
 
     @JavascriptInterface
     public String favorite(long aid, boolean on) {
-        return extras.favorite(aid, on).toString();
+        return runExtra(() -> extras.favorite(aid, on).toString());
     }
 
     @JavascriptInterface
     public String follow(long mid, boolean on) {
-        return extras.follow(mid, on).toString();
+        return runExtra(() -> extras.follow(mid, on).toString());
     }
 
     @JavascriptInterface
     public String sendComment(long aid, String message) {
-        return extras.sendComment(aid, message).toString();
+        return runExtra(() -> extras.sendComment(aid, message).toString());
     }
 
     @JavascriptInterface
     public String sendDanmaku(long cid, String message, long progressMs) {
-        return extras.sendDanmaku(cid, message, progressMs).toString();
+        return runExtra(() -> extras.sendDanmaku(cid, message, progressMs).toString());
     }
 
     @JavascriptInterface
     public String comments(long aid, int page, int sort) {
-        return extras.comments(aid, page, sort).toString();
+        return runExtra(() -> extras.comments(aid, page, sort).toString());
     }
 
     @JavascriptInterface
@@ -263,22 +264,22 @@ final class WebAppBridge {
 
     @JavascriptInterface
     public String playLow(String bvid, long cid) {
-        return api.playLow(bvid, cid).toString();
+        return runExtra(() -> api.playLow(bvid, cid).toString());
     }
 
     @JavascriptInterface
     public String playQuality(String bvid, long cid, int qn) {
-        return api.playQuality(bvid, cid, qn).toString();
+        return runExtra(() -> api.playQuality(bvid, cid, qn).toString());
     }
 
     @JavascriptInterface
     public String comments(long aid, int page) {
-        return api.comments(aid, page).toString();
+        return runExtra(() -> api.comments(aid, page).toString());
     }
 
     @JavascriptInterface
     public String danmaku(long cid) {
-        return api.danmaku(cid).toString();
+        return runExtra(() -> api.danmaku(cid).toString());
     }
 
     @JavascriptInterface
@@ -376,6 +377,20 @@ final class WebAppBridge {
     @JavascriptInterface
     public void log(String message) {
         Log.i(TAG, message == null ? "null" : message);
+    }
+
+    private String runExtra(Callable<String> call) {
+        FutureTask<String> task = new FutureTask<>(call);
+        Thread worker = new Thread(task, "o11a1-extra");
+        worker.setDaemon(true);
+        worker.start();
+        try {
+            return task.get(12, TimeUnit.SECONDS);
+        } catch (Throwable error) {
+            task.cancel(true);
+            Log.w(TAG, "bridge call timed out", error);
+            return "{\"ok\":false,\"error\":\"请求超时\"}";
+        }
     }
 
     private static JSONObject error(Throwable error) {
