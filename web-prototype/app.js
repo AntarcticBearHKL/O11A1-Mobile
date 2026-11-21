@@ -3359,6 +3359,24 @@
   window.addEventListener('resize', syncKeyboardOffset);
   syncKeyboardOffset();
 
+  function isEditableTarget(target) {
+    return Boolean(target && target.closest
+      && target.closest('input, textarea, select, [contenteditable="true"]'));
+  }
+
+  document.addEventListener('contextmenu', (event) => {
+    if (isEditableTarget(event.target)) return;
+    event.preventDefault();
+  }, true);
+  document.addEventListener('selectstart', (event) => {
+    if (isEditableTarget(event.target)) return;
+    event.preventDefault();
+  }, true);
+  document.addEventListener('dragstart', (event) => {
+    if (isEditableTarget(event.target)) return;
+    event.preventDefault();
+  }, true);
+
   /* ---------- event wiring ---------- */
   document.addEventListener('click', (event) => {
     const searchTerm = event.target.closest('[data-search-term]');
