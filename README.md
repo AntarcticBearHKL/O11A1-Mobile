@@ -22,7 +22,8 @@
   - 模拟器包：`https://github.com/AntarcticBearHKL/O11A1-Mobile/releases/download/ios-unsigned/o11a1-ios-simulator.zip`
   - Android APK：`https://github.com/AntarcticBearHKL/O11A1-Mobile/releases/download/android-debug/app-debug.apk`
 - **安装**：未签名 IPA 需要自己签名（Sideloadly / AltStore / eSign / 自有开发者证书）；模拟器 zip 解压后用 `xcrun simctl install booted O11A1.app`，需要 macOS。
-- **iOS 限制**：HTML5 `<video>` 在 iOS 上不允许程序改音量，音量滑杆只改变 UI 与静音状态，实际音量请用实体音量键；亮度会调整系统亮度。当前环境没有 macOS，iOS 只做到 CI 编译/打包验证，真机运行需要你签名后测试。
+- **CI 验证**：`ios-unsigned` 在 macOS runner 上启动 iOS Simulator，已实际跑通登录 gate + 真实二维码 → 模拟登录 → 真实热门流 → 首个视频 720P 播放 + 弹幕。Release 里的 `ios-simulator.png` 是登录 gate，`ios-simulator-player.png` 是真实播放画面。真机仍需你自己签名后测试。
+- **iOS 限制**：HTML5 `<video>` 在 iOS 上不允许程序改音量，音量滑杆只改变 UI 与静音状态，实际音量请用实体音量键；亮度会调整系统亮度。
 
 ## Android V2 实装（当前 APK）
 
@@ -154,9 +155,10 @@ adb logcat -s O11A1VideoTest
 
 - Android V2：WebView UI + 真实热门/搜索/模块数据、B 站二维码登录、progressive 720P 播放、评论、弹幕、播放列表、下拉/触底刷新。
 - Android 旧测试管线：MediaCodec 硬解、SurfaceTexture 零拷贝、GLES3 双帧 blend、CAS-like。
-- iOS：VideoToolbox 硬解、Metal 双帧 blend、CAS-like、60/120 目标、运行统计。
+- iOS V2：Expo + WKWebView + 本地回环桥；CI 的 iOS Simulator 已跑通登录 gate/真实二维码、真实热门流、首个视频 720P 播放、真实弹幕，截图随 Release 发布。
+- iOS 旧测试管线：VideoToolbox 硬解、Metal 双帧 blend、CAS-like、60/120 目标、运行统计。
 - 两端统一使用 BV1NS4t6oEXQ 测试片段。
-- GitHub Actions 每次 push 自动构建 Android APK 和 unsigned iOS 包。
+- GitHub Actions 每次 push 自动构建 Android APK 和 unsigned iOS 包，并把 IPA/APK 发布到 Releases。
 
 还没覆盖：
 
