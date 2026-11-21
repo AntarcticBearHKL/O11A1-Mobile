@@ -121,6 +121,7 @@
     { id: 'dynamic', label: '动态', icon: '◉', type: 'page', target: 'dynamic', group: '桌面端' },
     { id: 'messages', label: '消息', icon: '✉', type: 'page', target: 'messages', group: '桌面端' },
     { id: 'history', label: '历史', icon: '↺', type: 'module', target: '历史', group: '桌面端' },
+    { id: 'queue', label: '播放列表', icon: '☰', type: 'queue', group: '桌面端' },
     { id: 'my', label: '我的', icon: '◌', type: 'page', target: 'my', group: '移动端' },
   ];
 
@@ -415,6 +416,7 @@
     const many = items.length > 5;
     tabbarTabs.innerHTML = '';
     tabbar.classList.toggle('many', many);
+    tabbar.classList.toggle('six', items.length > 10);
     app.classList.toggle('nav-many', many);
     tabbar.style.setProperty('--nav-count', String(items.length));
 
@@ -452,6 +454,10 @@
   function handleNav(item, button) {
     if (item.type === 'search') {
       openSearch();
+      return;
+    }
+    if (item.type === 'queue') {
+      openQueueSheet();
       return;
     }
     if (item.type === 'module') {
@@ -676,7 +682,7 @@
           <span class="nav-setting-ico">${item.icon}</span>
           <span class="mt-copy">
             <span class="mt-name">${escapeHTML(item.label)}</span>
-            <span class="mt-desc">${item.type === 'search' ? '动作 · 打开视频搜索' : item.type === 'module' ? `页面 · ${escapeHTML(item.target)}` : '页面'}</span>
+            <span class="mt-desc">${item.type === 'search' ? '动作 · 打开视频搜索' : item.type === 'queue' ? '动作 · 打开播放列表' : item.type === 'module' ? `页面 · ${escapeHTML(item.target)}` : '页面'}</span>
           </span>
           <span class="switch"></span>`;
         row.addEventListener('click', () => toggleNavItem(item.id));
@@ -1461,7 +1467,7 @@
     const count = state.playlist.length;
     clearArmed = false;
     clearTimeout(clearTimer);
-    openSheet('播放列表', `${count} 项 · 队列固定在底部播放行`, (body) => {
+    openSheet('播放列表', `${count} 项 · 底栏按钮或播放行 ☰ 打开`, (body) => {
       if (!count) {
         const empty = document.createElement('div');
         empty.className = 'empty-state';

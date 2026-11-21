@@ -529,6 +529,7 @@ body.search-mode .proto-fab{opacity:0;pointer-events:none}
 .tabbar.many{height:112px}
 .tabbar.many .tabbar-track{height:110px;flex-wrap:wrap;align-content:center;justify-content:center}
 .tabbar.many .tab{flex:0 0 calc(100% / 5);height:52px}
+.tabbar.many.six .tab{flex:0 0 calc(100% / 6)}
 .tabbar.many .tab-pill{display:none}
 .tabbar.many .tab.on::before{
   content:"";position:absolute;inset:4px 5px;border-radius:22px;
