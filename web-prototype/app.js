@@ -200,9 +200,9 @@
     danmakuDensity: true,
 
     theme: '跟随系统',
-    bgTransparency: 70,
+    bgTransparency: 0,
     glassBlur: 60,
-    bgBlur: 40,
+    bgBlur: 100,
 
     doubleSeek: true,
     longPress2x: true,
@@ -283,6 +283,10 @@
     playlistReturnNav: null,
   };
 
+  if (loaded?.bgStyleVersion !== 2) {
+    state.settings.bgTransparency = 0;
+    state.settings.bgBlur = 100;
+  }
   if (!state.modules.some((mod) => mod.id === state.moduleId && mod.on)) {
     state.moduleId = state.modules.find((mod) => mod.on)?.id || null;
   }
@@ -455,6 +459,7 @@
         brightness: state.brightness,
         volume: state.volume,
         landscapeHome: state.landscapeHome,
+        bgStyleVersion: 2,
       }));
     } catch (_) {}
   }
@@ -481,7 +486,7 @@
     document.body.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
     style.setProperty('--wallpaper-opacity', (0.22 + (100 - bg) / 100 * 0.78).toFixed(3));
-    style.setProperty('--wallpaper-blur', `${(bgBlur / 100 * 22).toFixed(1)}px`);
+    style.setProperty('--wallpaper-blur', `${(bgBlur / 100 * 60).toFixed(1)}px`);
     style.setProperty('--glass-blur', `blur(${(glass / 100 * 30).toFixed(1)}px) saturate(${dark ? 1.25 : 1.6})`);
     style.setProperty('--topbar-blur', `blur(${(glass / 100 * 26).toFixed(1)}px) saturate(1.5)`);
     const glassAlpha = 0.5 + (100 - glass) / 100 * 0.38;
@@ -498,15 +503,15 @@
     } else {
       style.setProperty('--glass-bg', ios
         ? `linear-gradient(135deg,rgba(255,255,255,${(glassAlpha + 0.16).toFixed(2)}),rgba(255,255,255,${(glassAlpha - 0.12).toFixed(2)}))`
-        : `rgba(255,252,246,${glassAlpha.toFixed(2)})`);
-      style.setProperty('--glass-border', 'rgba(228,220,207,.9)');
-      style.setProperty('--sheet-bg', `rgba(252,249,242,${sheetAlpha.toFixed(2)})`);
-      style.setProperty('--sheet-border', 'rgba(228,220,207,.95)');
-      style.setProperty('--topbar-bg', `linear-gradient(180deg,rgba(255,252,246,${(sheetAlpha + 0.04).toFixed(2)}),rgba(255,252,246,${(sheetAlpha - 0.3).toFixed(2)}))`);
-      style.setProperty('--topbar-border', 'rgba(228,220,207,.72)');
+        : `rgba(250,250,252,${glassAlpha.toFixed(2)})`);
+      style.setProperty('--glass-border', 'rgba(0,0,0,.08)');
+      style.setProperty('--sheet-bg', `rgba(255,255,255,${sheetAlpha.toFixed(2)})`);
+      style.setProperty('--sheet-border', 'rgba(0,0,0,.08)');
+      style.setProperty('--topbar-bg', `linear-gradient(180deg,rgba(250,250,252,${(sheetAlpha + 0.04).toFixed(2)}),rgba(250,250,252,${(sheetAlpha - 0.3).toFixed(2)}))`);
+      style.setProperty('--topbar-border', 'rgba(0,0,0,.06)');
     }
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', dark ? '#0B0D12' : '#F3EFE7');
+    if (meta) meta.setAttribute('content', dark ? '#0B0D12' : '#FAFAFC');
   }
 
   if (window.matchMedia) {
