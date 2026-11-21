@@ -22,6 +22,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "dev": "node scripts/dev.mjs",
+    "dev:android": "node scripts/dev.mjs --android",
+    "dev:ios": "node scripts/dev.mjs --ios",
     "watch:web": "node scripts/watch-web.mjs",
     "build:web": "node scripts/build-web.mjs",
     "postinstall": "node scripts/build-web.mjs",

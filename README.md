@@ -29,6 +29,18 @@ npm run dev
 
 `npm run dev` 会同时启动 Expo 和 `web-prototype` 文件监听：改 `web-prototype/app.js / native.js / styles.css / index.html` 后自动重生成 `src/webapp.generated.ts`，Expo Go 会重新加载 WebView；改 `App.tsx` 则由 Metro Fast Refresh 处理。
 
+快速在 Android 模拟器上自动打开 Expo Go：
+
+```bash
+npm run dev:android
+```
+
+iOS Simulator（macOS）：
+
+```bash
+npm run dev:ios
+```
+
 也可以分别启动：
 
 ```bash

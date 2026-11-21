@@ -298,6 +298,7 @@ function buildMockHtml(files: Record<string, string>): string {
 }
 
 const MOCK_HTML = NativeBridge ? null : buildMockHtml(WEBAPP_FILES);
+const MOCK_BUILD_LABEL = WEBAPP_BUILD.slice(-6);
 
 export default function App() {
 
@@ -355,7 +356,7 @@ export default function App() {
           setSupportMultipleWindows={false}
         />
         <View style={styles.mockBadge} pointerEvents="none">
-          <Text style={styles.mockBadgeText}>UI MOCK · 无视频 / 无账号</Text>
+          <Text style={styles.mockBadgeText}>UI MOCK {MOCK_BUILD_LABEL} · 无视频 / 无账号</Text>
         </View>
       </View>
     );

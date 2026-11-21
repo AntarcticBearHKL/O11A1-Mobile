@@ -11,7 +11,8 @@ const watcher = spawn(process.execPath, [path.join(project, 'scripts', 'watch-we
   stdio: 'inherit',
 });
 
-const expo = spawn(npm, ['expo', 'start', '--lan', '--port', '8081'], {
+const extraArgs = process.argv.slice(2);
+const expo = spawn(npm, ['expo', 'start', '--lan', '--port', '8081', ...extraArgs], {
   cwd: project,
   stdio: 'inherit',
   shell: process.platform === 'win32',
