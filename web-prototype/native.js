@@ -279,7 +279,9 @@
   function playSeason(item) {
     const detail = call('season', item.seasonId);
     if (!detail.ok || !Array.isArray(detail.episodes) || !detail.episodes.length) {
-      renderEmpty(feeds.module, '番剧加载失败', detail.error || '没有可播放的剧集', '重试', () => loadModule(1));
+      renderEmpty(state.page === 'module' ? feeds.module : feeds.home,
+        '番剧加载失败', detail.error || '没有可播放的剧集', '重试',
+        () => (state.page === 'module' ? loadModule(1) : loadHome(1)));
       return;
     }
     const seasonTitle = detail.title || item.title || '番剧';
@@ -316,7 +318,9 @@
   function playLive(item) {
     const room = call('liveRoom', item.roomId);
     if (!room.ok || !room.url) {
-      renderEmpty(feeds.home, '直播加载失败', room.error || '直播间暂不可用', '重试', () => loadHome(1));
+      renderEmpty(state.page === 'module' ? feeds.module : feeds.home,
+        '直播加载失败', room.error || '直播间暂不可用', '重试',
+        () => (state.page === 'module' ? loadModule(1) : loadHome(1)));
       return;
     }
     playItem(Object.assign({}, item, {
@@ -1105,10 +1109,14 @@
   let qrKey = '';
   let qrTimer = null;
   let qrLoading = false;
+  let qrRetry = 0;
+  let qrRetryTimer = null;
 
   function stopQr() {
     clearInterval(qrTimer);
     qrTimer = null;
+    clearTimeout(qrRetryTimer);
+    qrRetryTimer = null;
     qrKey = '';
   }
 
@@ -1119,11 +1127,19 @@
     try {
       const result = parse(bridge.qrGenerate());
       if (!result.ok || !result.image) {
-        host.loginStatus.textContent = '二维码加载失败 · 可用模拟登录';
+        host.loginStatus.textContent = '二维码加载失败 · 正在重试';
         qr.classList.remove('has-real-qr');
+        qrRetry += 1;
+        if (qrRetry <= 3 && state.page === 'login') {
+          clearTimeout(qrRetryTimer);
+          qrRetryTimer = setTimeout(startQr, 2500);
+        }
         qrLoading = false;
         return;
       }
+      qrRetry = 0;
+      clearTimeout(qrRetryTimer);
+      qrRetryTimer = null;
       qrKey = result.key || '';
       qrImage.src = `data:image/png;base64,${result.image}`;
       qr.classList.add('has-real-qr');
@@ -1131,8 +1147,13 @@
       clearInterval(qrTimer);
       qrTimer = setInterval(pollQr, 2200);
     } catch (error) {
-      host.loginStatus.textContent = '二维码加载失败 · 可用模拟登录';
+      host.loginStatus.textContent = '二维码加载失败 · 正在重试';
       log('qr generate ' + error);
+      qrRetry += 1;
+      if (qrRetry <= 3 && state.page === 'login') {
+        clearTimeout(qrRetryTimer);
+        qrRetryTimer = setTimeout(startQr, 2500);
+      }
     }
     qrLoading = false;
   }
