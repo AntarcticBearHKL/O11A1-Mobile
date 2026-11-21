@@ -497,10 +497,6 @@ body.search-mode .proto-fab{opacity:0;pointer-events:none}
 .nav-setting.on .switch{background:var(--blue)}
 .nav-setting.on .switch:after{transform:translateX(17px)}
 .nav-note{font-size:10px;color:var(--coral);min-height:14px;margin-top:8px;line-height:1.5}
-.tab-ico.spin{animation:navSpin .65s cubic-bezier(.2,0,0,1)}
-@keyframes navSpin{to{transform:rotate(360deg)}}
-.page.refreshing .feed,
-.page.refreshing .list-placeholder{opacity:.5;transition:opacity .15s}
 
 /* ---------- bottom bar: playback row + nav in one glass surface ---------- */
 .tabbar{
@@ -530,11 +526,9 @@ body.search-mode .proto-fab{opacity:0;pointer-events:none}
 .tab-ico{position:relative;z-index:1;font-size:18px;line-height:1;height:19px}
 .tab-label{position:relative;z-index:1;white-space:nowrap;line-height:1.1}
 .tab.on{color:var(--blue);font-weight:700}
-.tab-dot{position:relative;z-index:1;width:3px;height:3px;border-radius:50%;background:transparent;margin-top:1px}
-.tab.on .tab-dot{background:var(--blue)}
 .tabbar.many{height:112px}
 .tabbar.many .tabbar-track{height:110px;flex-wrap:wrap;align-content:center;justify-content:center}
-.tabbar.many .tab{flex:0 0 calc(100% / 6);height:52px}
+.tabbar.many .tab{flex:0 0 calc(100% / 5);height:52px}
 .tabbar.many .tab-pill{display:none}
 .tabbar.many .tab.on::before{
   content:"";position:absolute;inset:4px 5px;border-radius:22px;

@@ -121,7 +121,6 @@
     { id: 'dynamic', label: '动态', icon: '◉', type: 'page', target: 'dynamic', group: '桌面端' },
     { id: 'messages', label: '消息', icon: '✉', type: 'page', target: 'messages', group: '桌面端' },
     { id: 'history', label: '历史', icon: '↺', type: 'module', target: '历史', group: '桌面端' },
-    { id: 'refresh', label: '刷新', icon: '↻', type: 'refresh', group: '桌面端' },
     { id: 'my', label: '我的', icon: '◌', type: 'page', target: 'my', group: '移动端' },
   ];
 
@@ -427,8 +426,7 @@
       tab.setAttribute('aria-label', item.label);
       tab.innerHTML = `
         <span class="tab-ico">${item.icon}</span>
-        <span class="tab-label">${escapeHTML(item.label)}</span>
-        <span class="tab-dot"></span>`;
+        <span class="tab-label">${escapeHTML(item.label)}</span>`;
       tab.addEventListener('click', () => handleNav(item, tab));
       tabbarTabs.appendChild(tab);
     });
@@ -452,10 +450,6 @@
   }
 
   function handleNav(item, button) {
-    if (item.type === 'refresh') {
-      refreshCurrent(button);
-      return;
-    }
     if (item.type === 'search') {
       openSearch();
       return;
@@ -465,17 +459,6 @@
       return;
     }
     showPage(item.target, item.id);
-  }
-
-  function refreshCurrent(button) {
-    const icon = $('.tab-ico', button);
-    const pageEl = $(`.page[data-page="${state.page}"]`);
-    icon?.classList.add('spin');
-    pageEl?.classList.add('refreshing');
-    setTimeout(() => {
-      icon?.classList.remove('spin');
-      pageEl?.classList.remove('refreshing');
-    }, 650);
   }
 
   function openSearch() {
@@ -693,7 +676,7 @@
           <span class="nav-setting-ico">${item.icon}</span>
           <span class="mt-copy">
             <span class="mt-name">${escapeHTML(item.label)}</span>
-            <span class="mt-desc">${item.type === 'refresh' ? '动作 · 不占页面' : item.type === 'search' ? '动作 · 打开命令面板' : item.type === 'module' ? `页面 · ${escapeHTML(item.target)}` : '页面'}</span>
+            <span class="mt-desc">${item.type === 'search' ? '动作 · 打开视频搜索' : item.type === 'module' ? `页面 · ${escapeHTML(item.target)}` : '页面'}</span>
           </span>
           <span class="switch"></span>`;
         row.addEventListener('click', () => toggleNavItem(item.id));
