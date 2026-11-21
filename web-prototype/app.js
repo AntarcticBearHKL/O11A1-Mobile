@@ -69,13 +69,7 @@
   const sidebar = $('#sidebar');
   const sidebarBackdrop = $('#sidebarBackdrop');
   const sidebarNav = $('#sidebarNav');
-  const sidebarPlayback = $('#sidebarPlayback');
-  const sidebarOpenPlayer = $('#sidebarOpenPlayer');
-  const sidebarTitle = $('#sidebarTitle');
-  const sidebarMeta = $('#sidebarMeta');
-  const sidebarPlay = $('#sidebarPlay');
-  const sidebarQueue = $('#sidebarQueue');
-  const sidebarProgress = $('#sidebarProgress');
+  const sidebarSearch = $('#sidebarSearch');
   const moduleSettings = $('#moduleSettings');
   const moduleCount = $('#moduleCount');
   const navSettings = $('#navSettings');
@@ -422,7 +416,7 @@
   }
 
   function renderSidebar() {
-    const items = visibleNavItems();
+    const items = visibleNavItems().filter((item) => item.type !== 'search');
     sidebarNav.innerHTML = '';
     items.forEach((item) => {
       const row = document.createElement('button');
@@ -448,6 +442,7 @@
     $$('.sidebar-item', sidebarNav).forEach((row) => {
       row.classList.toggle('on', row.dataset.nav === state.navActive);
     });
+    sidebarSearch.classList.toggle('on', state.navActive === 'search');
   }
 
   function openSidebar() {
@@ -821,18 +816,7 @@
   }
 
   function updateMiniPlayer() {
-    const item = state.playlist[state.currentIndex];
-    const hasPlayback = Boolean(item) && (state.playerOpen || state.miniVisible || state.playing || state.progress > 0);
-    sidebarPlayback.hidden = !hasPlayback;
-    if (item) {
-      sidebarTitle.textContent = item.title;
-      sidebarMeta.textContent = `${item.meta} · ${state.playing ? '正在播放' : '已暂停'}`;
-    } else {
-      sidebarTitle.textContent = '暂无播放项';
-      sidebarMeta.textContent = '队列为空';
-    }
-    sidebarPlay.textContent = state.playing ? 'Ⅱ' : '▶';
-    sidebarProgress.style.width = `${state.progress}%`;
+    // Playback continues without a persistent mini card; the queue sheet owns playback state.
   }
 
   function showMiniPlayer() {
@@ -843,7 +827,6 @@
 
   function hideMiniPlayer() {
     state.miniVisible = false;
-    if (sidebarPlayback.contains(document.activeElement)) document.activeElement.blur();
     updateMiniPlayer();
   }
 
@@ -851,7 +834,6 @@
     state.progress = Math.min(100, Math.max(0, percent));
     progressPlayed.style.width = `${state.progress}%`;
     progressThumb.style.left = `${state.progress}%`;
-    sidebarProgress.style.width = `${state.progress}%`;
     const current = TOTAL_SECONDS * state.progress / 100;
     pcTime.textContent = `${formatTime(current)} / ${formatTime(TOTAL_SECONDS)}`;
   }
@@ -1570,7 +1552,7 @@
     const count = state.playlist.length;
     clearArmed = false;
     clearTimeout(clearTimer);
-    openSheet('播放列表', `${count} 项 · 底栏按钮或播放行 ☰ 打开`, (body) => {
+    openSheet('播放列表', `${count} 项 · 当前项、切换、移除、清空`, (body) => {
       if (!count) {
         const empty = document.createElement('div');
         empty.className = 'empty-state';
@@ -1587,6 +1569,13 @@
         });
         return;
       }
+
+      actionRow(body, '继续播放', state.playing ? '正在播放 · 展开播放器' : '已暂停 · 展开播放器', () => {
+        closeSheet();
+        state.playing = true;
+        save();
+        openPlayer({ resume: true });
+      });
 
       state.playlist.forEach((item, index) => {
         const row = document.createElement('div');
@@ -2177,14 +2166,9 @@
   });
   window.addEventListener('pointercancel', () => { toolbarDrag = null; });
 
-  sidebarOpenPlayer.addEventListener('click', () => {
+  sidebarSearch.addEventListener('click', () => {
     closeSidebar();
-    openPlayer({ resume: true });
-  });
-  sidebarPlay.addEventListener('click', togglePlay);
-  sidebarQueue.addEventListener('click', () => {
-    closeSidebar();
-    openQueueSheet();
+    openSearch();
   });
   sidebarBackdrop.addEventListener('click', closeSidebar);
 
