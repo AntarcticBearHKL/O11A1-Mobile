@@ -93,6 +93,7 @@
   const searchHomePage = $('.page[data-page="search-home"]');
   const playlistDock = $('#playlistDock');
   const playlistPage = $('.page[data-page="playlist"]');
+  const upPage = $('.page[data-page="up"]');
   const pdThumb = $('#pdThumb');
   const pdTitle = $('#pdTitle');
   const pdMeta = $('#pdMeta');
@@ -717,9 +718,42 @@
   }
 
   function showPage(page, navId) {
+    const previousPage = state.page;
     if (!state.loggedIn && page !== 'login') {
       page = 'login';
       navId = null;
+    }
+    if (page === 'up' && upPage) {
+      const base = state.upReturn && state.upReturn !== 'up'
+        ? state.upReturn
+        : (previousPage !== 'up' ? previousPage : 'home');
+      state.page = 'up';
+      app.classList.toggle('auth-gate', !state.loggedIn);
+      $$('.page').forEach((section) => {
+        if (section === upPage) return;
+        section.classList.toggle('active', section.dataset.page === base);
+      });
+      app.dataset.page = 'up';
+      document.body.classList.toggle('search-mode', false);
+      if (typeof updateDebugHud === 'function') updateDebugHud();
+      upPage.classList.remove('up-dragging');
+      upPage.style.transition = '';
+      upPage.style.transform = '';
+      upPage.style.opacity = '';
+      upPage.style.boxShadow = '';
+      upPage.classList.add('active');
+      upPage.scrollTop = 0;
+      updatePlaylistDock();
+      return;
+    }
+    const returningToBase = previousPage === 'up'
+      && page === (state.upReturn || 'home');
+    if (previousPage === 'up' && upPage) {
+      upPage.classList.remove('active', 'up-dragging');
+      upPage.style.transition = '';
+      upPage.style.transform = '';
+      upPage.style.opacity = '';
+      upPage.style.boxShadow = '';
     }
     state.page = page;
     app.classList.toggle('auth-gate', !state.loggedIn);
@@ -742,7 +776,7 @@
     }
     updateNavActive();
     updatePlaylistDock();
-    appScroll.scrollTop = 0;
+    if (!returningToBase) appScroll.scrollTop = 0;
     if (page === 'search-home') {
       setTimeout(() => searchInput.focus(), 120);
     }
@@ -1487,6 +1521,31 @@
     openSheet('UP 主', item.owner || 'UP 主', (body) => {
       body.innerHTML = `<div class="native-empty"><b>${escapeHTML(item.owner || 'UP 主')}</b><span>当前版本没有 UP 主主页接口。</span></div>`;
     });
+  }
+
+  function resetUpPageDrag() {
+    if (!upPage) return;
+    upPage.classList.remove('up-dragging');
+    upPage.style.transition = 'transform .3s cubic-bezier(.16,1,.3,1)';
+    upPage.style.transform = '';
+    upPage.style.boxShadow = '';
+    setTimeout(() => {
+      if (!upPage.classList.contains('up-dragging')) upPage.style.transition = '';
+    }, 320);
+  }
+
+  function closeUpPageFromSwipe() {
+    if (!upPage) {
+      showPage(state.upReturn || 'home');
+      return;
+    }
+    upPage.classList.remove('up-dragging');
+    upPage.style.transition = 'transform .3s cubic-bezier(.16,1,.3,1)';
+    upPage.style.transform = 'translate3d(105%,0,0)';
+    upPage.style.boxShadow = '-18px 0 46px rgba(10,12,20,.18)';
+    setTimeout(() => {
+      showPage(state.upReturn || 'home', state.upReturnNav || undefined);
+    }, 300);
   }
 
   function triggerRowAction(wrapper, action) {
@@ -3642,7 +3701,7 @@
     });
   }
 
-  appScroll.addEventListener('pointerdown', (event) => {
+  function startFeedGesture(event, surface) {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (event.target.closest('input, textarea')) return;
     if (app.classList.contains('sidebar-open')) return;
@@ -3655,6 +3714,7 @@
       wrapper: row ? row.closest('.feed-item') : null,
       offset: 0,
       direction: null,
+      surface,
       sidebarActive: false,
       sidebarProgress: 0,
       sidebarSelecting: false,
@@ -3662,7 +3722,10 @@
       sidebarLastX: event.clientX,
       sidebarLastY: event.clientY,
     };
-  });
+  }
+
+  appScroll.addEventListener('pointerdown', (event) => startFeedGesture(event, 'scroll'));
+  if (upPage) upPage.addEventListener('pointerdown', (event) => startFeedGesture(event, 'up'));
   window.addEventListener('pointermove', (event) => {
     if (!rowSwipe || event.pointerId !== rowSwipe.id) return;
     const dx = event.clientX - rowSwipe.x;
@@ -3674,6 +3737,13 @@
         return;
       }
       if (dx > 8) {
+        if (rowSwipe.surface === 'up') {
+          rowSwipe.direction = 'up-close';
+          rowSwipe.upOffset = 0;
+          upPage.classList.add('up-dragging');
+          upPage.style.transition = 'none';
+          return;
+        }
         if (!beginSidebarDrag()) {
           rowSwipe.direction = 'vertical';
           return;
@@ -3697,6 +3767,15 @@
         rowSwipe.direction = 'left';
         rowSwipe.wrapper.classList.add('swiping');
       }
+    }
+    if (rowSwipe.direction === 'up-close') {
+      if (event.cancelable) event.preventDefault();
+      const width = app.clientWidth || window.innerWidth;
+      const offset = Math.max(0, Math.min(width, dx));
+      rowSwipe.upOffset = offset;
+      upPage.style.transform = `translate3d(${offset}px,0,0)`;
+      upPage.style.boxShadow = offset > 0 ? '-18px 0 46px rgba(10,12,20,.18)' : '';
+      return;
     }
     if (rowSwipe.direction === 'right') {
       if (event.cancelable) event.preventDefault();
@@ -3723,6 +3802,13 @@
       endSidebarDrag(start, event);
       return;
     }
+    if (start.direction === 'up-close') {
+      suppressFeedClickUntil = Date.now() + 420;
+      const width = app.clientWidth || window.innerWidth;
+      if ((start.upOffset || 0) > width * 0.24) closeUpPageFromSwipe();
+      else resetUpPageDrag();
+      return;
+    }
     if (start.direction !== 'left') return;
     suppressFeedClickUntil = Date.now() + 420;
     const action = rowActionForOffset(start.offset);
@@ -3738,6 +3824,7 @@
     if (!start) return;
     if (start.direction === 'right') endSidebarDrag(start, { type: 'pointercancel' });
     else if (start.direction === 'left') resetRowSwipe(start.wrapper);
+    else if (start.direction === 'up-close') resetUpPageDrag();
   });
 
   appScroll.addEventListener('scroll', maybeAppendMockFeed);
@@ -4248,9 +4335,16 @@
     window.dispatchEvent(pointerEvent('pointerup', upX - 260, upY, 0));
     await sleep(500);
     results.push(`rowUp=${state.page === 'up' && $$('#upFeed .real-row').length > 0}`);
-    const upBackButton = $('#upBack');
-    if (upBackButton) upBackButton.click();
-    await sleep(300);
+    const upOverlay = $('.page[data-page="up"]');
+    const upOverlayRect = upOverlay.getBoundingClientRect();
+    const upOverlayX = upOverlayRect.left + upOverlayRect.width * 0.5;
+    const upOverlayY = upOverlayRect.top + Math.min(120, upOverlayRect.height * 0.3);
+    upOverlay.dispatchEvent(pointerEvent('pointerdown', upOverlayX, upOverlayY, 1));
+    for (let step = 1; step <= 6; step += 1) {
+      window.dispatchEvent(pointerEvent('pointermove', upOverlayX + (150 * step) / 6, upOverlayY, 1));
+    }
+    window.dispatchEvent(pointerEvent('pointerup', upOverlayX + 150, upOverlayY, 0));
+    await sleep(420);
     results.push(`upBack=${state.page === 'home'}`);
 
     const chunksBefore = Array.from(new Set($$('#homeFeed [data-chunk]').map((row) => row.dataset.chunk)));

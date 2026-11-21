@@ -170,21 +170,6 @@
           </div>
         </section>
 
-        <!-- UP 主主页 -->
-        <section class="page up-page" data-page="up">
-          <div class="up-head">
-            <button class="back" id="upBack" type="button" title="返回">‹</button>
-            <span class="up-avatar" id="upAvatar"></span>
-            <div class="up-copy">
-              <b id="upName">UP 主</b>
-              <small id="upMid">UID —</small>
-            </div>
-            <button class="pill-btn up-follow" id="upFollow" type="button">关注</button>
-          </div>
-          <div class="feed" id="upFeed"></div>
-          <div class="list-note" id="upNote">UP 主视频</div>
-        </section>
-
         <!-- 主页模块设置 -->
         <section class="page" data-page="modules">
           <p class="page-desc">选择可以出现在首页的模块；在「我的 → 当前模块」里切换。长按拖动排序可后续接入。</p>
@@ -262,6 +247,21 @@
           <div class="nav-note" id="navNote"></div>
         </section>
       </div>
+
+      <!-- UP 主主页：覆盖在视频流上的一层 -->
+      <section class="page up-page" data-page="up">
+        <div class="up-head">
+          <span class="up-avatar" id="upAvatar"></span>
+          <div class="up-copy">
+            <span class="up-kicker">UP 主</span>
+            <b id="upName">UP 主</b>
+            <small id="upMid">UID —</small>
+          </div>
+          <button class="pill-btn up-follow" id="upFollow" type="button">关注</button>
+        </div>
+        <div class="feed" id="upFeed"></div>
+        <div class="list-note" id="upNote">UP 主视频</div>
+      </section>
       </div>
 
       <div class="sidebar-backdrop" id="sidebarBackdrop"></div>

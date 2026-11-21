@@ -257,10 +257,11 @@
       const oldHeight = firstOld && lastOld
         ? lastOld.getBoundingClientRect().bottom - firstOld.getBoundingClientRect().top
         : 0;
-      const scroll = $('#appScroll');
+      const scroll = feed === feeds.up ? $('.page[data-page="up"]') : $('#appScroll');
       const isActive = (feed === feeds.home && state.page === 'home')
         || (feed === feeds.search && state.page === 'search')
-        || (feed === feeds.module && state.page === 'module');
+        || (feed === feeds.module && state.page === 'module')
+        || (feed === feeds.up && state.page === 'up');
       const beforeScroll = scroll && oldHeight > 0 && isActive ? scroll.scrollTop : 0;
       oldRows.forEach((row) => row.remove());
       delete feed.__chunkItems[oldPage];
@@ -2738,7 +2739,7 @@
   if (appScroll) appScroll.addEventListener('scroll', () => {
     if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
     if (appScroll.scrollTop + appScroll.clientHeight < appScroll.scrollHeight - 260) return;
-    if (state.page === 'home' || state.page === 'search' || state.page === 'module' || state.page === 'up') {
+    if (state.page === 'home' || state.page === 'search' || state.page === 'module') {
       requestFeedPage(state.page);
     }
     if (state.page === 'dynamic' && more.dynamic) {
@@ -2751,6 +2752,14 @@
       pages.messages += 1;
       if (loadMessages(pages.messages, true) && $('#messageFeed').querySelector('.native-empty')) more.messages = false;
     }
+  });
+
+  const upScroller = $('.page[data-page="up"]');
+  if (upScroller) upScroller.addEventListener('scroll', () => {
+    if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
+    if (state.page !== 'up') return;
+    if (upScroller.scrollTop + upScroller.clientHeight < upScroller.scrollHeight - 260) return;
+    requestFeedPage('up');
   });
 
   const pageObserver = new MutationObserver(() => {
@@ -2782,8 +2791,6 @@
     }).observe(moduleLabel, { childList: true, characterData: true, subtree: true });
   }
 
-  const upBack = $('#upBack');
-  if (upBack) upBack.addEventListener('click', () => host.showPage(state.upReturn || 'home', state.upReturnNav || undefined));
   const upFollow = $('#upFollow');
   if (upFollow) upFollow.addEventListener('click', () => {
     const mid = Number(state.upItem && state.upItem.mid ? state.upItem.mid : 0);
