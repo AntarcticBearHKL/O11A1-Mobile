@@ -8,14 +8,16 @@ import { WEBAPP_FILES } from './src/webapp.generated';
 type BridgeModule = {
   start(files: Record<string, string>): Promise<number>;
   port(): number;
+  testFlow(): string;
 };
 
 const NativeBridge = requireOptionalNativeModule('O11A1Bridge') as BridgeModule | null;
 
-function bridgeShim(port: number): string {
+function bridgeShim(port: number, testFlow: string): string {
   return `
 (function () {
   var PORT = ${JSON.stringify(port)};
+  var TEST_FLOW = ${JSON.stringify(testFlow)};
   function request(path) {
     try {
       var xhr = new XMLHttpRequest();
@@ -55,12 +57,31 @@ function bridgeShim(port: number): string {
     proxyInfo: function () { return call('proxyInfo', {}); },
     log: function (message) { return call('log', { message: message }); }
   };
+  if (TEST_FLOW) {
+    setTimeout(function () {
+      try {
+        var host = window.O11A1Host;
+        if (!host) return;
+        host.state.loggedIn = true;
+        host.save();
+        host.showPage('home');
+        if (TEST_FLOW === 'player') {
+          setTimeout(function () {
+            try {
+              var row = document.querySelector('#homeFeed .real-row');
+              if (row) row.click();
+            } catch (error) {}
+          }, 3500);
+        }
+      } catch (error) {}
+    }, 1500);
+  }
 })();
 `;
 }
 
 export default function App() {
-  const [port, setPort] = useState<number | null>(null);
+  const [config, setConfig] = useState<{ port: number; testFlow: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -70,8 +91,14 @@ export default function App() {
         if (!NativeBridge) {
           throw new Error('O11A1Bridge 原生模块未加载，请使用原生 iOS 构建。');
         }
-        const value = await NativeBridge.start(WEBAPP_FILES);
-        if (active) setPort(value);
+        const port = await NativeBridge.start(WEBAPP_FILES);
+        let testFlow = '';
+        try {
+          testFlow = NativeBridge.testFlow();
+        } catch {
+          testFlow = '';
+        }
+        if (active) setConfig({ port, testFlow });
       } catch (cause) {
         if (active) setError(cause instanceof Error ? cause.message : String(cause));
       }
@@ -91,7 +118,7 @@ export default function App() {
     );
   }
 
-  if (!port) {
+  if (!config) {
     return (
       <View style={styles.center}>
         <StatusBar hidden />
@@ -100,6 +127,8 @@ export default function App() {
       </View>
     );
   }
+
+  const { port, testFlow } = config;
 
   return (
     <View style={styles.root}>
@@ -114,7 +143,7 @@ export default function App() {
         allowsInlineMediaPlayback
         allowsPictureInPictureMediaPlayback={false}
         mediaPlaybackRequiresUserAction={false}
-        injectedJavaScriptBeforeContentLoaded={bridgeShim(port)}
+        injectedJavaScriptBeforeContentLoaded={bridgeShim(port, testFlow)}
         onShouldStartLoadWithRequest={(request) =>
           request.url.startsWith(`http://127.0.0.1:${port}`) || request.url.startsWith('about:')
         }

@@ -217,6 +217,7 @@ final class O11A1BiliClient {
     }
     var items: [[String: Any]] = []
     for item in list { items.append(video(item, search: false)) }
+    print("[O11A1] popular page=\(pageNumber) items=\(items.count)")
     return o11a1Data(["ok": true, "items": items, "page": pageNumber])
   }
 
@@ -316,6 +317,7 @@ final class O11A1BiliClient {
     var resolvedCid = firstCid(bvid)
     if resolvedCid <= 0 { resolvedCid = cid }
     guard resolvedCid > 0 else { return o11a1Error("cid not found") }
+    print("[O11A1] play \(bvid) cid=\(resolvedCid)")
     var selected: [String: Any]?
     var seen = Set<Int>()
     for qn in qns {
@@ -387,6 +389,7 @@ final class O11A1BiliClient {
 
   func fetchMedia(urlString: String, start: Int64, end: Int64) -> O11A1MediaChunk? {
     guard let url = URL(string: urlString) else { return nil }
+    print("[O11A1] media \(start)-\(end) host=\(url.host ?? "?")")
     var total: Int64 = 0
     var headRequest = URLRequest(url: url)
     headRequest.httpMethod = "HEAD"

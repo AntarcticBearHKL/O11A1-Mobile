@@ -112,9 +112,13 @@ jobs:
           xcrun simctl launch "$DEVICE_ID" com.o11a1.videotest
           sleep 14
           xcrun simctl io "$DEVICE_ID" screenshot artifacts/ios-simulator.png
-          xcrun simctl spawn "$DEVICE_ID" log show --last 3m --style compact --predicate 'process == "O11A1"' > artifacts/ios-simulator.log 2>&1 || true
+          xcrun simctl terminate "$DEVICE_ID" com.o11a1.videotest 2>/dev/null || true
+          SIMCTL_CHILD_O11A1_TEST_FLOW=player xcrun simctl launch "$DEVICE_ID" com.o11a1.videotest
+          sleep 22
+          xcrun simctl io "$DEVICE_ID" screenshot artifacts/ios-simulator-player.png
+          xcrun simctl spawn "$DEVICE_ID" log show --last 4m --style compact --predicate 'process == "O11A1"' > artifacts/ios-simulator.log 2>&1 || true
           echo "---- simulator log ----"
-          tail -n 120 artifacts/ios-simulator.log || true
+          tail -n 160 artifacts/ios-simulator.log || true
           xcrun simctl terminate "$DEVICE_ID" com.o11a1.videotest 2>/dev/null || true
           xcrun simctl shutdown "$DEVICE_ID" 2>/dev/null || true
 
@@ -126,6 +130,7 @@ jobs:
             expo-ui/artifacts/o11a1-ios-unsigned.ipa
             expo-ui/artifacts/o11a1-ios-simulator.zip
             expo-ui/artifacts/ios-simulator.png
+            expo-ui/artifacts/ios-simulator-player.png
             expo-ui/artifacts/ios-simulator.log
             expo-ui/artifacts/*.log
           if-no-files-found: warn
@@ -137,7 +142,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view ios-unsigned >/dev/null 2>&1 || gh release create ios-unsigned --title "iOS unsigned build" --notes "Unsigned IPA and simulator app built from $GITHUB_SHA."
-          gh release upload ios-unsigned artifacts/o11a1-ios-unsigned.ipa artifacts/o11a1-ios-simulator.zip artifacts/ios-simulator.png artifacts/ios-simulator.log --clobber
+          gh release upload ios-unsigned artifacts/o11a1-ios-unsigned.ipa artifacts/o11a1-ios-simulator.zip artifacts/ios-simulator.png artifacts/ios-simulator-player.png artifacts/ios-simulator.log --clobber
 
       - name: Publish failure logs
         if: failure()

@@ -1,3 +1,4 @@
+import Foundation
 import ExpoModulesCore
 
 public final class O11A1BridgeModule: Module {
@@ -18,6 +19,10 @@ public final class O11A1BridgeModule: Module {
 
     Function("port") { () -> Int in
       return self.server?.port ?? 0
+    }
+
+    Function("testFlow") { () -> String in
+      return ProcessInfo.processInfo.environment["O11A1_TEST_FLOW"] ?? ""
     }
   }
 }
