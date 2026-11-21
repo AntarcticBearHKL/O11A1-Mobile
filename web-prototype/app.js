@@ -1386,28 +1386,36 @@
     return '';
   }
 
+  function ensureRowMask(row) {
+    let mask = row.querySelector('.row-swipe-mask');
+    if (mask) return mask;
+    mask = document.createElement('span');
+    mask.className = 'row-swipe-mask';
+    mask.dataset.action = 'queue';
+    mask.setAttribute('aria-hidden', 'true');
+    mask.innerHTML = '<b class="rsm-label">加入播放列表</b><small class="rsm-hint">继续左滑</small>';
+    row.appendChild(mask);
+    return mask;
+  }
+
   function setRowSwipe(wrapper, offset) {
     if (!wrapper) return;
     const row = wrapper.querySelector('.video-row');
     if (!row) return;
-    if (wrapper.classList.contains('swiping')) row.style.transition = 'none';
-    row.style.transform = '';
-    const mask = row.querySelector('.row-swipe-mask');
+    const mask = ensureRowMask(row);
     const armedQueue = offset >= ROW_ACTION_FIRST;
     const armedUp = offset >= ROW_ACTION_SECOND;
     const action = armedUp ? 'up' : 'queue';
     const armed = armedUp ? 'up' : armedQueue ? 'queue' : '';
     const opacity = Math.min(1, Math.max(0, offset / 108));
-    if (mask) {
-      mask.dataset.action = action;
-      mask.style.opacity = String(opacity);
-      const label = mask.querySelector('.rsm-label');
-      const hint = mask.querySelector('.rsm-hint');
-      if (label) label.textContent = armedUp ? '打开 UP 主' : '加入播放列表';
-      if (hint) hint.textContent = armedUp ? '松开执行' : armedQueue ? '松开执行 · 继续左滑切换 UP 主' : '继续左滑';
-      mask.classList.toggle('armed', Boolean(armed));
-      mask.classList.toggle('armed-up', armedUp);
-    }
+    mask.dataset.action = action;
+    mask.style.opacity = String(opacity);
+    const label = mask.querySelector('.rsm-label');
+    const hint = mask.querySelector('.rsm-hint');
+    if (label) label.textContent = armedUp ? '打开 UP 主' : '加入播放列表';
+    if (hint) hint.textContent = armedUp ? '松开执行' : armedQueue ? '松开执行 · 继续左滑切换 UP 主' : '继续左滑';
+    mask.classList.toggle('armed', Boolean(armed));
+    mask.classList.toggle('armed-up', armedUp);
     if (armed && armed !== wrapper.__rowArmed && navigator.vibrate) navigator.vibrate(6);
     wrapper.__rowArmed = armed;
     wrapper.__rowAction = action;
@@ -1420,8 +1428,6 @@
     wrapper.__rowAction = '';
     wrapper.__rowArmed = '';
     if (row) {
-      row.style.transition = '';
-      row.style.transform = '';
       const mask = row.querySelector('.row-swipe-mask');
       if (mask) {
         mask.style.opacity = '';
@@ -3240,13 +3246,6 @@
     if (searchTerm) {
       event.preventDefault();
       performSearch(searchTerm.dataset.searchTerm);
-      return;
-    }
-    const rowAction = event.target.closest('[data-row-action]');
-    if (rowAction) {
-      event.preventDefault();
-      event.stopPropagation();
-      triggerRowAction(rowAction.closest('.feed-item'), rowAction.dataset.rowAction);
       return;
     }
     if (Date.now() < suppressFeedClickUntil) return;

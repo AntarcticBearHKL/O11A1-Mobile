@@ -302,31 +302,20 @@ body.search-mode .app.has-playlist .page[data-page="search"]{padding-bottom:calc
   position:relative;overflow:hidden;height:var(--feed-row-h,116px);
   background:var(--paper);contain:layout paint;
 }
-.feed-item .video-row{height:100%;z-index:1;transition:background .15s,box-shadow .15s,transform .3s cubic-bezier(.22,1,.36,1)}
+.feed-item .video-row{height:100%;z-index:1;transition:background .15s,box-shadow .15s}
 .feed-item.swiping .video-row{transition:none}
-.row-actions{position:absolute;top:0;right:0;bottom:0;display:flex;z-index:0}
-.row-action{
-  width:76px;height:100%;border:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:5px;color:#fff;font-size:10px;font-weight:700;letter-spacing:.02em;
-  background:#2F7CF6;appearance:none;cursor:pointer;
-  transition:filter .15s ease,transform .15s ease,box-shadow .15s ease;
-}
-.row-action.up{background:#7C5CFC}
-.row-action.queue{background:#2F7CF6}
-.row-action .ra-ico{font-size:18px;line-height:1;font-weight:400}
-.row-action.on{filter:brightness(1.16);box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}
-.row-action.pressed{transform:scale(.94);filter:brightness(1.22)}
-.feed-item.swiping .row-action{transition:none}
 .row-swipe-mask{
   position:absolute;inset:0;z-index:4;pointer-events:none;
   display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:5px;
-  padding:0 22px;opacity:0;
-  background:linear-gradient(90deg,rgba(0,95,184,.04) 0%,rgba(0,95,184,.24) 46%,rgba(0,95,184,.94) 100%);
+  padding:0 22px;opacity:0;will-change:opacity;
+  background:linear-gradient(90deg,rgba(0,95,184,.58) 0%,rgba(0,95,184,.74) 52%,rgba(0,95,184,.96) 100%);
   color:#fff;text-align:right;
+  text-shadow:0 1px 10px rgba(0,20,50,.35);
   transition:opacity .12s ease;
 }
+.feed-item.swiping .row-swipe-mask{transition:none}
 .row-swipe-mask[data-action="up"]{
-  background:linear-gradient(90deg,rgba(124,92,252,.04) 0%,rgba(124,92,252,.24) 46%,rgba(124,92,252,.94) 100%);
+  background:linear-gradient(90deg,rgba(124,92,252,.58) 0%,rgba(124,92,252,.74) 52%,rgba(124,92,252,.96) 100%);
 }
 .row-swipe-mask .rsm-label{
   font-size:16px;font-weight:700;line-height:1.15;letter-spacing:.01em;
