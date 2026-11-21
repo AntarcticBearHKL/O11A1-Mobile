@@ -131,21 +131,23 @@ const MOCK_BRIDGE = `
       + '</svg>';
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   }
-  function items(prefix, count) {
+  function items(prefix, count, page) {
+    page = page || 1;
+    var base = (page - 1) * count;
     var out = [];
     for (var i = 0; i < count; i += 1) {
       out.push({
-        bvid: 'BVmock' + prefix + i,
-        aid: 9000 + i,
-        cid: 8000 + i,
+        bvid: 'BVmock' + prefix + 'P' + page + 'I' + i,
+        aid: 9000 + base + i,
+        cid: 8000 + base + i,
         mid: 10001,
-        title: prefix + ' · UI 调试视频 ' + (i + 1),
-        pic: cover(prefix + (i + 1)),
+        title: prefix + ' · UI 调试视频 ' + (base + i + 1),
+        pic: cover(prefix + page + (i + 1)),
         owner: 'O11A1 UI',
         duration: '12:34',
         durationSec: 754,
-        pubdate: 1760000000 + i,
-        play: 12000 + i * 317,
+        pubdate: 1760000000 + base + i,
+        play: 12000 + (base + i) * 317,
         playText: '1.2 万',
         desc: '这是 UI 调试模式的占位简介。',
         meta: 'O11A1 UI · 1.2 万 播放'
@@ -153,23 +155,33 @@ const MOCK_BRIDGE = `
     }
     return out;
   }
-  var popular = items('推荐', 20);
+  var popular = items('推荐', 20, 1);
   var ranking = items('排行', 20);
-  var bangumi = [];
-  for (var b = 0; b < 20; b += 1) {
-    bangumi.push({
-      kind: 'season', seasonId: 7001 + b, title: 'UI 番剧 ' + (b + 1),
-      pic: cover('番剧' + (b + 1)), owner: '番剧', duration: '', bvid: '', aid: 0, cid: 0,
-      meta: '全 12 话 · 9.5 分', badge: '番剧'
-    });
+  function bangumiItems(page) {
+    page = page || 1;
+    var out = [];
+    for (var b = 0; b < 20; b += 1) {
+      var n = (page - 1) * 20 + b + 1;
+      out.push({
+        kind: 'season', seasonId: 7000 + n, title: 'UI 番剧 ' + n,
+        pic: cover('番剧' + n), owner: '番剧', duration: '', bvid: '', aid: 0, cid: 0,
+        meta: '全 12 话 · 9.5 分', badge: '番剧'
+      });
+    }
+    return out;
   }
-  var live = [];
-  for (var l = 0; l < 20; l += 1) {
-    live.push({
-      kind: 'live', live: true, roomId: 5000 + l, title: 'UI 直播房间 ' + (l + 1),
-      pic: cover('直播' + (l + 1)), owner: '主播 ' + (l + 1), mid: 10001,
-      duration: 'LIVE', online: 12000 + l * 100, meta: '主播 ' + (l + 1) + ' · 1.2 万人气'
-    });
+  function liveItems(page) {
+    page = page || 1;
+    var out = [];
+    for (var l = 0; l < 20; l += 1) {
+      var n = (page - 1) * 20 + l + 1;
+      out.push({
+        kind: 'live', live: true, roomId: 5000 + n, title: 'UI 直播房间 ' + n,
+        pic: cover('直播' + n), owner: '主播 ' + n, mid: 10001,
+        duration: 'LIVE', online: 12000 + n * 100, meta: '主播 ' + n + ' · 1.2 万人气'
+      });
+    }
+    return out;
   }
   function episodes(seasonId) {
     var out = [];
@@ -232,17 +244,17 @@ const MOCK_BRIDGE = `
     available: function () { return true; },
     version: function () { return '0.3.0-ui-mock'; },
     log: function () {},
-    popular: function (page, ps) { return JSON.stringify({ ok: true, items: popular.slice(0, ps || 20), page: page || 1 }); },
-    search: function (keyword, page) { return JSON.stringify({ ok: true, items: items('搜索', 20), page: page || 1 }); },
-    ranking: function (page) { return JSON.stringify({ ok: true, items: ranking, page: page || 1, total: 100 }); },
-    bangumi: function (page, type) { return JSON.stringify({ ok: true, items: bangumi, page: page || 1 }); },
+    popular: function (page, ps) { page = page || 1; return JSON.stringify({ ok: true, items: items('推荐', ps || 20, page), page: page, hasMore: true }); },
+    search: function (keyword, page) { page = page || 1; return JSON.stringify({ ok: true, items: items('搜索', 20, page), page: page, hasMore: true }); },
+    ranking: function (page) { page = page || 1; return JSON.stringify({ ok: true, items: items('排行', 20, page), page: page, total: 100, hasMore: true }); },
+    bangumi: function (page, type) { page = page || 1; return JSON.stringify({ ok: true, items: bangumiItems(page), page: page, hasMore: true }); },
     season: function (seasonId) { return JSON.stringify({ ok: true, seasonId: seasonId, title: 'UI 番剧 ' + seasonId, cover: cover('番剧'), episodes: episodes(seasonId) }); },
-    live: function (page) { return JSON.stringify({ ok: true, items: live, page: page || 1 }); },
+    live: function (page) { page = page || 1; return JSON.stringify({ ok: true, items: liveItems(page), page: page, hasMore: true }); },
     liveRoom: function () { return JSON.stringify({ ok: false, error: 'UI 调试模式不加载直播' }); },
-    zone: function (rid, page) { return JSON.stringify({ ok: true, items: items('分区', 20), page: page || 1, title: 'UI 分区' }); },
-    favorites: function (page) { return JSON.stringify({ ok: true, items: items('收藏', 20), page: page || 1, count: 20, title: '收藏夹' }); },
-    history: function (page) { return JSON.stringify({ ok: true, items: items('历史', 20), page: page || 1, next: '', title: '历史' }); },
-    following: function (page) { return JSON.stringify({ ok: true, items: items('关注', 20), page: page || 1 }); },
+    zone: function (rid, page) { page = page || 1; return JSON.stringify({ ok: true, items: items('分区', 20, page), page: page, title: 'UI 分区', hasMore: true }); },
+    favorites: function (page) { page = page || 1; return JSON.stringify({ ok: true, items: items('收藏', 20, page), page: page, count: 20, title: '收藏夹', hasMore: true }); },
+    history: function (page) { page = page || 1; return JSON.stringify({ ok: true, items: items('历史', 20, page), page: page, next: '', title: '历史', hasMore: true }); },
+    following: function (page) { page = page || 1; return JSON.stringify({ ok: true, items: items('关注', 20, page), page: page, hasMore: true }); },
     dynamicFeed: function (page, filter) { return JSON.stringify({ ok: true, items: dynamicFeed(filter), page: page || 1 }); },
     messages: function (page, filter) { return JSON.stringify({ ok: true, items: [0,1,2,3,4,5].map(function (i) { return { user: '消息用户 ' + (i + 1), avatar: cover('消息' + i), text: '这是一条 UI 调试消息 ' + (i + 1), kind: filter || 'reply', unread: i % 2 === 0, time: 1760000000 - i * 600 }; }), page: page || 1 }); },
     account: function () { return JSON.stringify({ ok: true, loggedIn: false, hasSession: false, name: '', face: '', mid: 0, level: 0, vip: false, vipLabel: '', coins: 0, sign: '' }); },

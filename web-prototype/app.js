@@ -4,8 +4,6 @@
 
   const app = $('#app');
   const appScroll = $('#appScroll');
-  const pullRefresh = $('#pullRefresh');
-  const pullRefreshLabel = $('#pullRefreshLabel');
   const homeFeed = $('#homeFeed');
   const moduleFeed = $('#moduleFeed');
   const player = $('#player');
@@ -298,15 +296,7 @@
   let dockAbsorbTimer = null;
   let lastVolume = state.volume || 80;
   let toolbarDrag = null;
-  let touchPull = null;
-  let pullDistance = 0;
-  let pullBusy = false;
-  let pullSettleTimer = null;
-  let bottomRefreshTimer = null;
-  let bottomRefreshArmed = true;
-  const feedRefreshCounts = { home: 0, search: 0, module: 0 };
-  const PULL_THRESHOLD = 64;
-  const PULL_MAX = 112;
+  let mockFeedLoading = false;
 
   const MODULE_NOTES = {
     收藏: '真实收藏夹 · 第一页 20 条',
@@ -695,9 +685,6 @@
     }
     updateNavActive();
     updatePlaylistDock();
-    bottomRefreshArmed = true;
-    clearTimeout(bottomRefreshTimer);
-    if (pullDistance > 0) resetPullVisual();
     appScroll.scrollTop = 0;
     if (page === 'search') {
       setTimeout(() => searchInput.focus(), 120);
@@ -723,7 +710,7 @@
     showPage('module', navId || navItem?.id || state.navActive);
   }
 
-  /* ---------- feed refresh ---------- */
+  /* ---------- feed window ---------- */
   function activeFeed() {
     if (state.page === 'home') return homeFeed;
     if (state.page === 'search') return searchResults;
@@ -749,88 +736,56 @@
       </button>`;
   }
 
-  function renderFeedRows(feed, count, offset) {
-    const rows = [];
-    for (let i = 0; i < count; i += 1) rows.push(feedRowMarkup(i + offset));
-    feed.innerHTML = rows.join('');
+  function markMockChunk(feed, chunk) {
+    $$('.video-row', feed).forEach((row) => { row.dataset.chunk = String(chunk); });
   }
 
-  function resetPullVisual() {
-    pullDistance = 0;
-    app.classList.remove('pulling');
-    pullRefresh.classList.remove('show', 'ready');
-  }
-
-  function settlePullVisual() {
-    app.classList.remove('pulling');
-    app.classList.add('pull-settle');
-    app.style.setProperty('--pull', '0px');
-    clearTimeout(pullSettleTimer);
-    pullSettleTimer = setTimeout(() => {
-      app.classList.remove('pull-settle');
-      app.style.removeProperty('--pull');
-    }, 260);
-  }
-
-  function updatePull(dy) {
-    if (pullBusy) return;
-    pullDistance = Math.min(PULL_MAX, Math.max(0, dy * 0.5));
-    if (pullDistance < 2) {
-      resetPullVisual();
-      return;
+  function appendMockFeedChunk(feed) {
+    if (!feed || document.body.classList.contains('native-app')) return;
+    if (!Array.isArray(feed.__chunkPages) || !feed.__chunkPages.length) {
+      feed.__chunkPages = [1];
+      markMockChunk(feed, 1);
     }
-    app.classList.add('pulling');
-    app.classList.remove('pull-settle');
-    app.style.setProperty('--pull', `${pullDistance}px`);
-    pullRefresh.classList.add('show');
-    const ready = pullDistance >= PULL_THRESHOLD;
-    pullRefresh.classList.toggle('ready', ready);
-    if (!pullRefresh.classList.contains('refreshing')) {
-      pullRefreshLabel.textContent = ready ? '松开刷新' : '下拉刷新';
+    const next = Math.max(...feed.__chunkPages) + 1;
+    const fragment = document.createDocumentFragment();
+    for (let i = 0; i < 9; i += 1) {
+      const holder = document.createElement('div');
+      holder.innerHTML = feedRowMarkup(i + next * 3);
+      const row = holder.firstElementChild;
+      if (!row) continue;
+      row.dataset.chunk = String(next);
+      row.classList.add('feed-row-enter');
+      row.style.animationDelay = `${Math.min(i, 7) * 18}ms`;
+      fragment.appendChild(row);
+    }
+    feed.appendChild(fragment);
+    feed.__chunkPages.push(next);
+    while (feed.__chunkPages.length > 2) {
+      const oldPage = feed.__chunkPages.shift();
+      const oldRows = $$(`[data-chunk="${oldPage}"]`, feed);
+      const firstOld = oldRows[0];
+      const lastOld = oldRows[oldRows.length - 1];
+      const oldHeight = firstOld && lastOld
+        ? lastOld.getBoundingClientRect().bottom - firstOld.getBoundingClientRect().top
+        : 0;
+      oldRows.forEach((row) => row.remove());
+      if (oldHeight > 0) appScroll.scrollTop = Math.max(0, appScroll.scrollTop - oldHeight);
     }
   }
 
-  function finishPull() {
-    if (pullDistance <= 0) return;
-    const shouldRefresh = pullDistance >= PULL_THRESHOLD;
-    settlePullVisual();
-    if (!shouldRefresh) {
-      pullDistance = 0;
-      pullRefresh.classList.remove('show', 'ready');
-      return;
-    }
-    pullDistance = 0;
-    refreshActiveFeed();
-  }
-
-  function refreshActiveFeed() {
+  function maybeAppendMockFeed() {
+    if (document.body.classList.contains('native-app') || mockFeedLoading) return;
     const feed = activeFeed();
-    if (!feed || pullBusy) return;
+    if (!feed) return;
+    const max = appScroll.scrollHeight - appScroll.clientHeight;
+    if (max <= 0 || appScroll.scrollTop < max - 260) return;
+    mockFeedLoading = true;
     const key = state.page;
-    const nativeHandled = !!(window.O11A1NativeData
-      && typeof window.O11A1NativeData.refresh === 'function'
-      && window.O11A1NativeData.refresh(key));
-    const count = feed.children.length || (key === 'home' ? 9 : key === 'search' ? 5 : 4);
-    feedRefreshCounts[key] = (feedRefreshCounts[key] || 0) + 1;
-    pullBusy = true;
-    pullRefresh.classList.add('show', 'refreshing');
-    pullRefresh.classList.remove('ready', 'done');
-    pullRefreshLabel.textContent = '刷新中';
-    if (!nativeHandled) renderFeedRows(feed, count, feedRefreshCounts[key]);
-    feed.classList.remove('is-refreshing');
-    void feed.offsetWidth;
-    feed.classList.add('is-refreshing');
-    appScroll.scrollTo({ top: 0, behavior: 'smooth' });
     setTimeout(() => {
-      feed.classList.remove('is-refreshing');
-      pullRefresh.classList.remove('refreshing');
-      pullRefresh.classList.add('done');
-      pullRefreshLabel.textContent = '已刷新';
-      setTimeout(() => {
-        pullRefresh.classList.remove('show', 'done');
-        pullBusy = false;
-      }, 420);
-    }, 360);
+      mockFeedLoading = false;
+      if (state.page !== key) return;
+      appendMockFeedChunk(feed);
+    }, 160);
   }
 
   /* ---------- home modules ---------- */
@@ -845,7 +800,7 @@
       homeNote.textContent = '所有主页模块已关闭 · 在「主页模块」中启用';
       return;
     }
-    homeNote.textContent = `${mod.name} · 下拉刷新 / 触底刷新`;
+    homeNote.textContent = `${mod.name} · 触底加载 · 保留最近两段`;
   }
 
   function selectModule(moduleId) {
@@ -3142,29 +3097,7 @@
       x: event.clientX,
       y: event.clientY,
       row: event.target.closest('.video-row'),
-      pull: appScroll.scrollTop <= 0 && Boolean(activeFeed()) && !pullBusy,
-      pulling: false,
     };
-  });
-  window.addEventListener('pointermove', (event) => {
-    if (!feedSwipeStart || event.pointerId !== feedSwipeStart.id) return;
-    if (!feedSwipeStart.pull || pullBusy) return;
-    const dx = event.clientX - feedSwipeStart.x;
-    const dy = event.clientY - feedSwipeStart.y;
-    if (Math.abs(dx) > Math.abs(dy) * 1.15 && Math.abs(dx) > 8) {
-      feedSwipeStart.pull = false;
-      if (feedSwipeStart.pulling) {
-        feedSwipeStart.pulling = false;
-        settlePullVisual();
-        pullRefresh.classList.remove('show', 'ready');
-      }
-      return;
-    }
-    if (dy > 8) {
-      feedSwipeStart.pulling = true;
-      if (event.cancelable) event.preventDefault();
-      updatePull(dy);
-    }
   });
   window.addEventListener('pointerup', (event) => {
     if (!feedSwipeStart || event.pointerId !== feedSwipeStart.id) return;
@@ -3172,11 +3105,6 @@
     const dy = event.clientY - feedSwipeStart.y;
     const start = feedSwipeStart;
     feedSwipeStart = null;
-    if (start.pulling) {
-      suppressFeedClickUntil = Date.now() + 360;
-      finishPull();
-      return;
-    }
     if (dx < -64 && Math.abs(dx) > Math.abs(dy) * 1.4 && start.row) {
       suppressFeedClickUntil = Date.now() + 360;
       addFeedRowToPlaylist(start.row);
@@ -3188,74 +3116,10 @@
     }
   });
   window.addEventListener('pointercancel', () => {
-    if (feedSwipeStart?.pulling) {
-      settlePullVisual();
-      pullRefresh.classList.remove('show', 'ready');
-    }
     feedSwipeStart = null;
   });
 
-  appScroll.addEventListener('touchstart', (event) => {
-    if (event.touches.length !== 1 || pullBusy) return;
-    const touch = event.touches[0];
-    touchPull = {
-      x: touch.clientX,
-      y: touch.clientY,
-      active: appScroll.scrollTop <= 0 && Boolean(activeFeed()),
-      pulling: false,
-    };
-  }, { passive: true });
-  appScroll.addEventListener('touchmove', (event) => {
-    if (!touchPull || event.touches.length !== 1) return;
-    const touch = event.touches[0];
-    const dx = touch.clientX - touchPull.x;
-    const dy = touch.clientY - touchPull.y;
-    if (!touchPull.active || dy <= 0) return;
-    if (Math.abs(dx) > Math.abs(dy) * 1.15) return;
-    if (dy > 8) {
-      if (event.cancelable) event.preventDefault();
-      touchPull.pulling = true;
-      updatePull(dy);
-    }
-  }, { passive: false });
-  const endTouchPull = () => {
-    if (!touchPull) return;
-    const wasPulling = touchPull.pulling;
-    touchPull = null;
-    if (wasPulling) {
-      suppressFeedClickUntil = Date.now() + 360;
-      finishPull();
-    }
-  };
-  appScroll.addEventListener('touchend', endTouchPull);
-  appScroll.addEventListener('touchcancel', () => {
-    if (touchPull?.pulling) {
-      settlePullVisual();
-      pullRefresh.classList.remove('show', 'ready');
-    }
-    touchPull = null;
-  });
-
-  appScroll.addEventListener('scroll', () => {
-    if (!activeFeed() || pullBusy) return;
-    const max = appScroll.scrollHeight - appScroll.clientHeight;
-    if (max <= 0) return;
-    const atBottom = appScroll.scrollTop >= max - 12;
-    if (!atBottom) {
-      bottomRefreshArmed = true;
-      clearTimeout(bottomRefreshTimer);
-      return;
-    }
-    if (!bottomRefreshArmed) return;
-    bottomRefreshArmed = false;
-    clearTimeout(bottomRefreshTimer);
-    bottomRefreshTimer = setTimeout(() => {
-      if (pullBusy || !activeFeed()) return;
-      const maxNow = appScroll.scrollHeight - appScroll.clientHeight;
-      if (appScroll.scrollTop < maxNow - 14) return;
-      refreshActiveFeed();
-    }, 160);
-  });
+  appScroll.addEventListener('scroll', maybeAppendMockFeed);
 
   sidebar.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -3649,7 +3513,7 @@
     }
     window.dispatchEvent(pointerEvent('pointerup', rowX - 120, rowY, 0));
     await sleep(120);
-    results.push(`rowQueue=${state.playlist.some((item) => item.key === feedRowKey(row))}`);
+    results.push(`rowQueue=${state.playlist.length > countBefore}`);
     if (state.playlist.length > countBefore) {
       state.playlist.pop();
       state.currentIndex = Math.min(state.currentIndex, Math.max(0, state.playlist.length - 1));
@@ -3658,25 +3522,20 @@
       save();
     }
 
-    const bottomBefore = feedRefreshCounts.home;
+    const chunksBefore = Array.from(new Set($$('#homeFeed [data-chunk]').map((row) => row.dataset.chunk)));
+    const rowsBefore = $$('#homeFeed .video-row').length;
     appScroll.scrollTop = appScroll.scrollHeight;
     appScroll.dispatchEvent(new Event('scroll'));
-    await sleep(700);
-    results.push(`bottomRefresh=${feedRefreshCounts.home > bottomBefore}`);
     await sleep(900);
+    const chunksAfter = Array.from(new Set($$('#homeFeed [data-chunk]').map((row) => row.dataset.chunk)));
+    const rowsAfter = $$('#homeFeed .video-row').length;
+    results.push(`feedWindow=${chunksAfter.length === 2 && rowsAfter > rowsBefore}`);
 
-    appScroll.scrollTop = 0;
-    const pullBefore = feedRefreshCounts.home;
-    const feedRect = homeFeed.getBoundingClientRect();
-    const pullX = feedRect.left + feedRect.width / 2;
-    const pullY = Math.max(feedRect.top + 40, 80);
-    homeFeed.dispatchEvent(pointerEvent('pointerdown', pullX, pullY, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', pullX, pullY + step * 24, 1));
-    }
-    window.dispatchEvent(pointerEvent('pointerup', pullX, pullY + 144, 0));
-    await sleep(200);
-    results.push(`pullRefresh=${feedRefreshCounts.home > pullBefore}`);
+    appScroll.scrollTop = appScroll.scrollHeight;
+    appScroll.dispatchEvent(new Event('scroll'));
+    await sleep(900);
+    const chunksNext = Array.from(new Set($$('#homeFeed [data-chunk]').map((row) => row.dataset.chunk)));
+    results.push(`feedSlide=${chunksNext.length === 2 && !chunksNext.includes(chunksBefore[0] || '1')}`);
 
     document.title = `SELFTEST ${results.join(' ')}`;
   }
@@ -3703,8 +3562,11 @@
     setTimeout(() => openComments(), 220);
   } else if (demo === 'sidebar') {
     setTimeout(openSidebar, 300);
-  } else if (demo === 'refresh') {
-    setTimeout(() => updatePull(150), 400);
+  } else if (demo === 'feed') {
+    setTimeout(() => {
+      appScroll.scrollTop = appScroll.scrollHeight;
+      appScroll.dispatchEvent(new Event('scroll'));
+    }, 700);
   } else if (demo === 'queue') {
     setTimeout(() => {
       const row = $('#homeFeed .video-row');

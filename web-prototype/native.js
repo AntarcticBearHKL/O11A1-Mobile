@@ -27,9 +27,13 @@
     search: host.searchResults,
     module: host.moduleFeed,
   };
-  const pages = { home: 1, search: 1, module: 1, dynamic: 1, messages: 1 };
-  const cursors = { home: '', module: '' };
-  const more = { home: true, module: true, dynamic: true, messages: true };
+  const pages = { dynamic: 1, messages: 1 };
+  const windows = {
+    home: { page: 0, cursor: '', hasMore: true, loading: false, token: 0, query: '' },
+    search: { page: 0, cursor: '', hasMore: true, loading: false, token: 0, query: '' },
+    module: { page: 0, cursor: '', hasMore: true, loading: false, token: 0, name: '' },
+  };
+  const more = { dynamic: true, messages: true };
   const dynamicFilterNames = ['全部', '视频', '图文'];
   const messageFilterNames = ['回复', '@我', '收到的赞', '私信'];
   const moduleFilterNames = {
@@ -79,60 +83,140 @@
     if (note) note.textContent = text;
   }
 
+  function tailFor(feed) {
+    if (feed.__tail && feed.__tail.isConnected) return feed.__tail;
+    const tail = document.createElement('div');
+    tail.className = 'feed-tail';
+    tail.innerHTML = `
+      <span class="feed-tail-spinner" aria-hidden="true"></span>
+      <span class="feed-tail-text"></span>
+      <button class="feed-tail-retry" type="button">重试</button>`;
+    feed.insertAdjacentElement('afterend', tail);
+    tail.querySelector('.feed-tail-retry').addEventListener('click', () => {
+      if (typeof tail.__retry === 'function') tail.__retry();
+    });
+    feed.__tail = tail;
+    return tail;
+  }
+
+  function setTail(feed, mode, text, retry) {
+    const tail = tailFor(feed);
+    tail.classList.toggle('show', mode !== 'idle');
+    tail.classList.toggle('loading', mode === 'loading');
+    tail.classList.toggle('end', mode === 'end');
+    tail.classList.toggle('error', mode === 'error');
+    const copy = tail.querySelector('.feed-tail-text');
+    if (copy) {
+      copy.textContent = text || (mode === 'loading' ? '正在加载下一段…'
+        : mode === 'end' ? '已经到底了' : '');
+    }
+    tail.__retry = retry || null;
+  }
+
   function renderEmpty(feed, title, detail, actionLabel, action) {
     feed.__nativeItems = [];
+    feed.__chunkPages = [];
+    feed.__chunkItems = {};
     feed.innerHTML = `
       <div class="native-empty">
         <b>${esc(title || '暂无内容')}</b>
         ${detail ? `<span>${esc(detail)}</span>` : ''}
         ${actionLabel ? `<button class="pill-btn" type="button">${esc(actionLabel)}</button>` : ''}
       </div>`;
+    setTail(feed, 'idle');
     const button = feed.querySelector('button');
     if (button && action) button.addEventListener('click', action);
   }
 
-  function renderRows(feed, items, label) {
+  function buildRow(item, label, page, index) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = `video-row real-row${item.live ? ' live-row' : ''}${item.seasonId ? ' season-row' : ''}`;
+    row.__nativeItem = item;
+    row.dataset.nativeIndex = String(index);
+    row.dataset.chunk = String(page);
+    const pic = item.pic || '';
+    const progress = item.durationSec > 0 && item.progress > 0
+      ? Math.min(100, Math.round(item.progress / item.durationSec * 100))
+      : 0;
+    row.innerHTML = `
+      <span class="row-thumb real">
+        ${pic ? `<img src="${attr(pic)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
+        ${item.live ? '<span class="live-badge">LIVE</span>' : ''}
+        ${item.live ? '' : `<span class="dur-ph">${esc(item.duration || (item.seasonId ? '番剧' : '00:00'))}</span>`}
+        ${progress ? `<span class="row-progress"><span style="width:${progress}%"></span></span>` : ''}
+      </span>
+      <span class="row-copy">
+        <span class="real-title">${esc(item.title || '视频')}</span>
+        <span class="real-meta">${esc(item.meta || item.owner || label || '')}</span>
+      </span>`;
+    const image = $('img', row);
+    if (image) image.addEventListener('error', () => image.remove());
+    row.addEventListener('click', (event) => {
+      if (host.isFeedClickSuppressed && host.isFeedClickSuppressed()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (item.live) playLive(item);
+      else if (item.seasonId && !item.epId) playSeason(item);
+      else playItem(item);
+    });
+    return row;
+  }
+
+  function renderRows(feed, items, label, page) {
+    const chunk = page || 1;
     feed.innerHTML = '';
-    feed.__nativeItems = items;
+    feed.__nativeItems = items.slice();
+    feed.__chunkPages = [chunk];
+    feed.__chunkItems = { [chunk]: items.slice() };
+    const fragment = document.createDocumentFragment();
+    items.forEach((item, index) => fragment.appendChild(buildRow(item, label, chunk, index)));
+    feed.appendChild(fragment);
+  }
+
+  function appendRows(feed, items, label, page) {
+    const chunk = page || 1;
+    feed.__chunkPages = feed.__chunkPages || [];
+    feed.__chunkItems = feed.__chunkItems || {};
+    if (!feed.__chunkPages.includes(chunk)) feed.__chunkPages.push(chunk);
+    feed.__chunkItems[chunk] = items.slice();
     const fragment = document.createDocumentFragment();
     items.forEach((item, index) => {
-      const row = document.createElement('button');
-      row.type = 'button';
-      row.className = `video-row real-row${item.live ? ' live-row' : ''}${item.seasonId ? ' season-row' : ''}`;
-      row.__nativeItem = item;
-      row.dataset.nativeIndex = String(index);
-      const pic = item.pic || '';
-      const progress = item.durationSec > 0 && item.progress > 0
-        ? Math.min(100, Math.round(item.progress / item.durationSec * 100))
-        : 0;
-      row.innerHTML = `
-        <span class="row-thumb real">
-          ${pic ? `<img src="${attr(pic)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
-          ${item.live ? '<span class="live-badge">LIVE</span>' : ''}
-          ${item.live ? '' : `<span class="dur-ph">${esc(item.duration || (item.seasonId ? '番剧' : '00:00'))}</span>`}
-          ${progress ? `<span class="row-progress"><span style="width:${progress}%"></span></span>` : ''}
-        </span>
-        <span class="row-copy">
-          <span class="real-title">${esc(item.title || '视频')}</span>
-          <span class="real-meta">${esc(item.meta || item.owner || label || '')}</span>
-        </span>`;
-      const image = $('img', row);
-      if (image) image.addEventListener('error', () => image.remove());
-      row.addEventListener('click', (event) => {
-        if (host.isFeedClickSuppressed && host.isFeedClickSuppressed()) return;
-        event.preventDefault();
-        event.stopPropagation();
-        if (item.live) playLive(item);
-        else if (item.seasonId && !item.epId) playSeason(item);
-        else playItem(item);
-      });
+      const row = buildRow(item, label, chunk, index);
+      row.classList.add('feed-row-enter');
+      row.style.animationDelay = `${Math.min(index, 7) * 18}ms`;
       fragment.appendChild(row);
     });
     feed.appendChild(fragment);
+    while (feed.__chunkPages.length > 2) {
+      const oldPage = feed.__chunkPages.shift();
+      const oldRows = $$(`[data-chunk="${oldPage}"]`, feed);
+      const firstOld = oldRows[0];
+      const lastOld = oldRows[oldRows.length - 1];
+      const oldHeight = firstOld && lastOld
+        ? lastOld.getBoundingClientRect().bottom - firstOld.getBoundingClientRect().top
+        : 0;
+      oldRows.forEach((row) => row.remove());
+      delete feed.__chunkItems[oldPage];
+      const scroll = $('#appScroll');
+      const isActive = (feed === feeds.home && state.page === 'home')
+        || (feed === feeds.search && state.page === 'search')
+        || (feed === feeds.module && state.page === 'module');
+      if (scroll && oldHeight > 0 && isActive) {
+        scroll.scrollTop = Math.max(0, scroll.scrollTop - oldHeight);
+      }
+    }
+    feed.__nativeItems = feed.__chunkPages.flatMap((pageNo) => feed.__chunkItems[pageNo] || []);
   }
 
   function feedResult(api, args) {
     return call(api, ...args);
+  }
+
+  function feedKey(feed) {
+    if (feed === feeds.home) return 'home';
+    if (feed === feeds.search) return 'search';
+    return 'module';
   }
 
   function moduleKind(name) {
@@ -163,91 +247,152 @@
     return { api: 'search', args: [moduleName], label: moduleName };
   }
 
-  function loadFeed(name, feed, page, cursor) {
+  function loadFeed(name, feed, page, cursor, append) {
     const kind = moduleKind(name);
+    const pageNo = page || 1;
     if (kind.special) {
-      return { ok: true, items: [], title: kind.label, needLogin: false };
+      if (!append) renderEmpty(feed, kind.label, kind.note);
+      setTail(feed, 'idle');
+      return { ok: true, items: [], title: kind.label, needLogin: false, hasMore: false };
     }
     if (!kind.api) {
-      renderEmpty(feed, kind.label, kind.note);
-      return { ok: true, items: [], title: kind.label, needLogin: false };
+      if (!append) renderEmpty(feed, kind.label, kind.note);
+      return { ok: true, items: [], title: kind.label, needLogin: false, hasMore: false };
     }
     if (kind.api === 'favorites' && !state.loggedIn) {
-      renderEmpty(feed, '登录后查看收藏', '短信登录后同步收藏夹。', '去登录', () => host.showPage('login'));
-      return { ok: true, items: [], title: kind.label, needLogin: true };
+      if (!append) renderEmpty(feed, '登录后查看收藏', '短信登录后同步收藏夹。', '去登录', () => host.showPage('login'));
+      return { ok: true, items: [], title: kind.label, needLogin: true, hasMore: false };
     }
     if ((kind.api === 'history' || kind.api === 'following') && !state.loggedIn) {
-      renderEmpty(feed, `登录后查看${kind.label}`, '短信登录后同步 B 站账号。', '去登录', () => host.showPage('login'));
-      return { ok: true, items: [], title: kind.label, needLogin: true };
+      if (!append) renderEmpty(feed, `登录后查看${kind.label}`, '短信登录后同步 B 站账号。', '去登录', () => host.showPage('login'));
+      return { ok: true, items: [], title: kind.label, needLogin: true, hasMore: false };
     }
-    const args = kind.api === 'popular' ? [page || 1, 20]
-      : kind.api === 'history' ? [page || 1, cursor || '']
+    const args = kind.api === 'popular' ? [pageNo, 20]
+      : kind.api === 'history' ? [pageNo, cursor || '']
         : kind.api === 'favorites' || kind.api === 'ranking' || kind.api === 'live' || kind.api === 'following'
-          ? [page || 1]
-          : kind.api === 'bangumi' ? [page || 1, kind.args[0]]
-            : kind.api === 'zone' ? [kind.args[0], page || 1]
+          ? [pageNo]
+          : kind.api === 'bangumi' ? [pageNo, kind.args[0]]
+            : kind.api === 'zone' ? [kind.args[0], pageNo]
               : kind.api === 'search'
-                ? [name, page || 1]
-                : [page || 1];
+                ? [name, pageNo]
+                : [pageNo];
     const result = feedResult(kind.api, args);
     if (!result.ok) {
-      if (result.needLogin) {
-        renderEmpty(feed, `登录后查看${kind.label}`, '短信登录后同步 B 站账号。', '去登录', () => host.showPage('login'));
+      if (!append) {
+        if (result.needLogin) {
+          renderEmpty(feed, `登录后查看${kind.label}`, '短信登录后同步 B 站账号。', '去登录', () => host.showPage('login'));
+        } else {
+          renderEmpty(feed, `${kind.label}加载失败`, result.error || '网络错误', '重试', () => loadFeed(name, feed, 1, ''));
+        }
       } else {
-        renderEmpty(feed, `${kind.label}加载失败`, result.error || '网络错误', '重试', () => loadFeed(name, feed, 1, ''));
+        setTail(feed, 'error', result.needLogin ? '登录后继续加载' : '加载失败 · 点击重试',
+          () => requestFeedPage(feedKey(feed), true));
       }
-      return { ok: false, items: [], title: kind.label, needLogin: Boolean(result.needLogin) };
+      return { ok: false, items: [], title: kind.label, needLogin: Boolean(result.needLogin), hasMore: true };
     }
     const items = Array.isArray(result.items) ? result.items : [];
     if (items.length === 0) {
-      renderEmpty(feed, result.note || `${kind.label}暂无内容`, result.hasMore === false ? '' : '下拉刷新或稍后再试');
-    } else {
-      renderRows(feed, items, kind.label);
+      if (!append) renderEmpty(feed, result.note || `${kind.label}暂无内容`, result.hasMore === false ? '' : '稍后再试');
+      else setTail(feed, 'end', '已经到底了');
+      return {
+        ok: true,
+        items: [],
+        title: result.title || kind.label,
+        next: result.next || '',
+        hasMore: false,
+        needLogin: false,
+      };
     }
+    if (append) appendRows(feed, items, kind.label, pageNo);
+    else renderRows(feed, items, kind.label, pageNo);
+    const hasMore = result.hasMore !== false;
+    setTail(feed, hasMore ? 'idle' : 'end', hasMore ? '' : '已经到底了');
     return {
       ok: true,
       items,
       title: result.title || kind.label,
       next: result.next || '',
-      hasMore: result.hasMore !== false,
+      hasMore,
       needLogin: false,
     };
   }
 
-  function loadHome(page) {
+  function loadHome(page, append) {
     const module = state.modules.find((mod) => mod.id === state.moduleId && mod.on);
     const name = module ? module.name : '推荐';
     const kind = moduleKind(name);
-    const result = loadFeed(name, feeds.home, page || 1, cursors.home);
+    const win = windows.home;
+    const appendPage = Boolean(append) && win.name === name;
+    if (!appendPage) {
+      win.token += 1;
+      win.page = 0;
+      win.cursor = '';
+      win.hasMore = true;
+      win.loading = false;
+      win.name = name;
+    }
+    const pageNo = appendPage ? (page || 1) : 1;
+    const result = loadFeed(name, feeds.home, pageNo, win.cursor, appendPage);
     if (result.ok) {
-      cursors.home = result.next || '';
-      setNote(`${result.title || kind.label} · 下拉刷新 / 触底刷新`);
+      win.page = pageNo;
+      win.cursor = result.next || '';
+      win.hasMore = result.hasMore !== false;
+      setNote(`${result.title || kind.label} · 触底加载 · 保留最近两段`);
     } else {
       setNote(`${result.title || kind.label} · 加载失败`);
     }
-    return true;
+    win.loading = false;
+    return result.ok;
   }
 
-  function loadModule(page) {
+  function loadModule(page, append) {
     const name = state.moduleName || '推荐';
     const kind = moduleKind(name);
+    const win = windows.module;
     const filter = $('#moduleFilter');
     if (filter) filter.textContent = kind.label || name;
+    const appendPage = Boolean(append) && win.name === name;
+    if (!appendPage) {
+      win.token += 1;
+      win.page = 0;
+      win.cursor = '';
+      win.hasMore = true;
+      win.loading = false;
+      win.name = name;
+    }
     if (kind.special === 'downloads') {
-      renderDownloads();
+      win.hasMore = false;
+      win.page = 1;
+      win.loading = false;
+      if (!appendPage) renderDownloads();
+      setTail(feeds.module, 'idle');
       return true;
     }
     if (kind.special === 'member') {
-      renderMember();
+      win.hasMore = false;
+      win.page = 1;
+      win.loading = false;
+      if (!appendPage) renderMember();
+      setTail(feeds.module, 'idle');
       return true;
     }
     if (kind.special === 'fish') {
-      renderFish();
+      win.hasMore = false;
+      win.page = 1;
+      win.loading = false;
+      if (!appendPage) renderFish();
+      setTail(feeds.module, 'idle');
       return true;
     }
-    const result = loadFeed(name, feeds.module, page || 1, cursors.module);
-    if (result.ok) cursors.module = result.next || '';
-    return true;
+    const pageNo = appendPage ? (page || 1) : 1;
+    const result = loadFeed(name, feeds.module, pageNo, win.cursor, appendPage);
+    if (result.ok) {
+      win.page = pageNo;
+      win.cursor = result.next || '';
+      win.hasMore = result.hasMore !== false;
+    }
+    win.loading = false;
+    return result.ok;
   }
 
   /* ---------- offline downloads ---------- */
@@ -566,20 +711,78 @@
     });
   }
 
-  function loadSearch(query, page) {
-    const items = query
-      ? (feedResult('search', [query, page || 1]).items || [])
-      : (feedResult('popular', [page || 1, 20]).items || []);
-    if (!items.length) {
-      renderEmpty(feeds.search, query ? `“${query}”暂无结果` : '热门视频加载失败', '', query ? '' : '重试', () => loadSearch(query, 1));
+  function loadSearch(query, page, append) {
+    const win = windows.search;
+    const appendPage = Boolean(append) && win.query === query;
+    if (!appendPage) {
+      win.token += 1;
+      win.page = 0;
+      win.hasMore = true;
+      win.loading = false;
+      win.query = query;
+    }
+    const pageNo = appendPage ? (page || 1) : 1;
+    const result = query ? feedResult('search', [query, pageNo]) : feedResult('popular', [pageNo, 20]);
+    if (!result.ok) {
+      if (!appendPage) {
+        renderEmpty(feeds.search, query ? `“${query}”加载失败` : '热门视频加载失败',
+          result.error || '网络错误', '重试', () => loadSearch(query, 1));
+      } else {
+        setTail(feeds.search, 'error', '加载失败 · 点击重试', () => requestFeedPage('search', true));
+      }
       host.searchResultsLabel.textContent = query ? `“${query}”的视频` : '热门视频';
       host.searchEmpty.hidden = true;
+      win.loading = false;
+      return false;
+    }
+    const items = Array.isArray(result.items) ? result.items : [];
+    if (!items.length) {
+      if (!appendPage) {
+        renderEmpty(feeds.search, query ? `“${query}”暂无结果` : '热门视频暂无内容',
+          '', query ? '' : '重试', () => loadSearch(query, 1));
+      } else {
+        setTail(feeds.search, 'end', '已经到底了');
+      }
+      host.searchResultsLabel.textContent = query ? `“${query}”的视频` : '热门视频';
+      host.searchEmpty.hidden = true;
+      win.hasMore = false;
+      win.loading = false;
       return true;
     }
-    renderRows(feeds.search, items, query ? '搜索结果' : '热门');
+    if (appendPage) appendRows(feeds.search, items, query ? '搜索结果' : '热门', pageNo);
+    else renderRows(feeds.search, items, query ? '搜索结果' : '热门', pageNo);
+    const hasMore = result.hasMore !== false;
+    setTail(feeds.search, hasMore ? 'idle' : 'end', hasMore ? '' : '已经到底了');
+    win.page = pageNo;
+    win.hasMore = hasMore;
+    win.loading = false;
     host.searchResultsLabel.textContent = query ? `“${query}”的视频` : '热门视频';
     host.searchEmpty.hidden = true;
     return true;
+  }
+
+  function requestFeedPage(key, force) {
+    const win = windows[key];
+    const feed = feeds[key];
+    if (!win || !feed) return;
+    if (!force && (win.loading || !win.hasMore)) return;
+    if (!feed.querySelector('.real-row')) return;
+    if (win.page < 1) return;
+    const next = win.page + 1;
+    const token = win.token;
+    win.loading = true;
+    setTail(feed, 'loading', '正在加载下一段…');
+    setTimeout(() => {
+      if (win.token !== token) return;
+      if (state.page !== key) {
+        win.loading = false;
+        setTail(feed, win.hasMore ? 'idle' : 'end', win.hasMore ? '' : '已经到底了');
+        return;
+      }
+      if (key === 'home') loadHome(next, true);
+      else if (key === 'search') loadSearch(host.searchInput.value.trim(), next, true);
+      else loadModule(next, true);
+    }, 220);
   }
 
   function playItem(item) {
@@ -1978,7 +2181,6 @@
       host.app.classList.remove('auth-gate');
       if (state.page === 'login') {
         host.showPage('home');
-        pages.home = 1;
         loadHome(1);
       }
     }
@@ -2306,15 +2508,16 @@
   const moduleFilter = $('#moduleFilter');
   if (moduleFilter) moduleFilter.addEventListener('click', () => {
     setTimeout(() => {
-      pages.module = 1;
-      cursors.module = '';
       loadModule(1);
     }, 0);
   });
 
   const appScroll = $('#appScroll');
   if (appScroll) appScroll.addEventListener('scroll', () => {
-    if (appScroll.scrollTop + appScroll.clientHeight < appScroll.scrollHeight - 220) return;
+    if (appScroll.scrollTop + appScroll.clientHeight < appScroll.scrollHeight - 260) return;
+    if (state.page === 'home' || state.page === 'search' || state.page === 'module') {
+      requestFeedPage(state.page);
+    }
     if (state.page === 'dynamic' && more.dynamic) {
       more.dynamic = false;
       pages.dynamic += 1;
@@ -2329,15 +2532,12 @@
 
   const pageObserver = new MutationObserver(() => {
     if (state.page === 'home') {
-      if (!feeds.home.querySelector('.real-row')) {
-        pages.home = 1;
-        cursors.home = '';
-        loadHome(1);
-      }
+      if (!feeds.home.querySelector('.real-row')) loadHome(1);
+    }
+    if (state.page === 'search') {
+      if (!feeds.search.querySelector('.real-row')) loadSearch(host.searchInput.value.trim(), 1);
     }
     if (state.page === 'module') {
-      pages.module = 1;
-      cursors.module = '';
       loadModule(1);
     }
     if (state.page === 'dynamic') {
@@ -2355,30 +2555,11 @@
   const moduleLabel = $('#myModuleName');
   if (moduleLabel) {
     new MutationObserver(() => {
-      if (state.page === 'home') {
-        pages.home = 1;
-        cursors.home = '';
-        loadHome(1);
-      }
+      if (state.page === 'home') loadHome(1);
     }).observe(moduleLabel, { childList: true, characterData: true, subtree: true });
   }
 
   window.O11A1NativeData = {
-    refresh(key) {
-      if (key === 'home') {
-        pages.home += 1;
-        return loadHome(pages.home);
-      }
-      if (key === 'search') {
-        pages.search += 1;
-        return loadSearch(host.searchInput.value.trim(), pages.search);
-      }
-      if (key === 'module') {
-        pages.module += 1;
-        return loadModule(pages.module);
-      }
-      return false;
-    },
     onComments: (sort) => loadComments(sort),
     sendComment,
     favorite: favoriteCurrent,
@@ -2397,7 +2578,6 @@
   host.searchInput.addEventListener('input', () => {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
-      pages.search = 1;
       loadSearch(host.searchInput.value.trim(), 1);
     }, 320);
   });
