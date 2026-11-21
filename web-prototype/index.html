@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=23">
+  <link rel="stylesheet" href="./styles.css?v=27">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -188,7 +188,6 @@
             <div class="my-list">
               <button class="my-row" data-sheet="settings-appearance"><span>外观</span><span class="my-meta">主题 / 透明度 / 模糊</span></button>
               <button class="my-row" data-sheet="settings-gesture"><span>手势</span><span class="my-meta">双击 / 长按 / 滑动</span></button>
-              <button class="my-row" data-goto="nav"><span>底部导航</span><span class="my-meta" id="navSettingsMeta">全量预览</span></button>
               <button class="my-row" data-sheet="settings-distraction"><span>防干扰</span><span class="my-meta">入口 / 热搜</span></button>
               <button class="my-row" data-goto="modules"><span>主页模块</span><span class="my-meta">首页快速切换</span></button>
             </div>
@@ -234,31 +233,41 @@
         </section>
       </div>
 
-      <nav class="tabbar" id="tabbar" aria-label="主导航">
-        <div class="mini-player" id="miniPlayer" aria-hidden="true" inert>
-          <button class="mini-main" id="miniOpen" type="button" aria-label="展开播放器">
-            <span class="mini-cover"><span class="ph-label">封面</span></span>
-            <span class="mini-copy">
-              <b id="miniTitle">队列视频占位 01</b>
-              <small id="miniMeta">UP 占位 · 正在播放</small>
+      <button class="sidebar-handle" id="sidebarHandle" type="button" aria-label="打开导航">☰</button>
+      <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+      <aside class="sidebar" id="sidebar" aria-hidden="true" inert>
+        <div class="sidebar-top">
+          <b>导航</b>
+          <button class="icon-btn small" id="sidebarClose" type="button" aria-label="关闭导航">×</button>
+        </div>
+        <div class="sidebar-playback" id="sidebarPlayback" hidden>
+          <button class="sidebar-now" id="sidebarOpenPlayer" type="button" aria-label="展开播放器">
+            <span class="sidebar-cover"><span class="ph-label">封面</span></span>
+            <span class="sidebar-now-copy">
+              <b id="sidebarTitle">队列视频占位 01</b>
+              <small id="sidebarMeta">UP 占位 · 正在播放</small>
             </span>
           </button>
-          <button class="mini-play" id="miniPlay" type="button" aria-label="播放 / 暂停">Ⅱ</button>
-          <button class="mini-queue" id="miniQueue" type="button" aria-label="播放列表">☰</button>
-          <button class="mini-close" id="miniClose" type="button" aria-label="关闭播放">×</button>
-          <span class="mini-progress" aria-hidden="true"><i id="miniProgress"></i></span>
+          <button class="mini-play" id="sidebarPlay" type="button" aria-label="播放 / 暂停">Ⅱ</button>
+          <button class="mini-queue" id="sidebarQueue" type="button" aria-label="播放列表">☰</button>
+          <span class="sidebar-progress" aria-hidden="true"><i id="sidebarProgress"></i></span>
         </div>
-        <span class="tab-pill"></span>
-        <div class="tabbar-track" id="tabbarTabs"></div>
-        <div class="search-dock" id="searchDock">
-          <label class="search-field" id="searchField">
-            <span>⌕</span>
-            <input id="searchInput" placeholder="搜索视频 / UP / 番剧" autocomplete="off">
-            <button class="search-clear" id="searchClear" type="button" aria-label="清空搜索" hidden>×</button>
-          </label>
-          <button class="text-btn search-cancel" id="searchCancel" type="button">取消</button>
-        </div>
-      </nav>
+        <nav class="sidebar-nav" id="sidebarNav" aria-label="主导航"></nav>
+        <button class="sidebar-module" id="sidebarModule" type="button">
+          <span>当前模块</span>
+          <b id="sidebarModuleName">推荐</b>
+          <span class="chev">⌄</span>
+        </button>
+      </aside>
+
+      <div class="search-dock" id="searchDock">
+        <label class="search-field" id="searchField">
+          <span>⌕</span>
+          <input id="searchInput" placeholder="搜索视频 / UP / 番剧" autocomplete="off">
+          <button class="search-clear" id="searchClear" type="button" aria-label="清空搜索" hidden>×</button>
+        </label>
+        <button class="text-btn search-cancel" id="searchCancel" type="button">取消</button>
+      </div>
 
       <div class="grid-overlay" aria-hidden="true"></div>
     </div>
@@ -293,7 +302,6 @@
       <button data-goto="my">我的</button>
       <button data-goto="login">登录</button>
       <button data-goto="modules">主页模块</button>
-      <button data-goto="nav">底部导航</button>
       <button data-goto="settings">设置</button>
     </div>
     <div class="drawer-label">TOKENS</div>
@@ -302,8 +310,8 @@
       <div><span>内容边距</span><b>18</b></div>
       <div><span>行高</span><b>56 / 108</b></div>
       <div><span>封面</span><b>150 × 84</b></div>
-      <div><span>Tab bar</span><b>58 / 29</b></div>
-      <div><span>Session</span><b>5 槽 / 11 全量</b></div>
+      <div><span>Sidebar</span><b>左滑出 / 右滑开</b></div>
+      <div><span>Session</span><b>全部入口</b></div>
       <div><span>Sheet</span><b>26 顶部圆角</b></div>
       <div><span>播放器</span><b>三区手势 + 横屏</b></div>
       <div><span>主页</span><b>竖屏 / 横屏</b></div>
@@ -409,6 +417,6 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./app.js?v=23"></script>
+  <script src="./app.js?v=27"></script>
 </body>
 </html>

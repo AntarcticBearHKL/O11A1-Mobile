@@ -54,8 +54,20 @@
   const myModuleName = $('#myModuleName');
   const myModuleRow = $('#myModuleRow');
   const myFishRow = $('#myFishRow');
-  const tabbar = $('#tabbar');
-  const tabbarTabs = $('#tabbarTabs');
+  const sidebar = $('#sidebar');
+  const sidebarBackdrop = $('#sidebarBackdrop');
+  const sidebarNav = $('#sidebarNav');
+  const sidebarClose = $('#sidebarClose');
+  const sidebarHandle = $('#sidebarHandle');
+  const sidebarPlayback = $('#sidebarPlayback');
+  const sidebarOpenPlayer = $('#sidebarOpenPlayer');
+  const sidebarTitle = $('#sidebarTitle');
+  const sidebarMeta = $('#sidebarMeta');
+  const sidebarPlay = $('#sidebarPlay');
+  const sidebarQueue = $('#sidebarQueue');
+  const sidebarProgress = $('#sidebarProgress');
+  const sidebarModule = $('#sidebarModule');
+  const sidebarModuleName = $('#sidebarModuleName');
   const moduleSettings = $('#moduleSettings');
   const moduleCount = $('#moduleCount');
   const navSettings = $('#navSettings');
@@ -64,7 +76,6 @@
   const navModeNote = $('#navModeNote');
   const navNote = $('#navNote');
   const navAllToggle = $('#navAllToggle');
-  const navSettingsMeta = $('#navSettingsMeta');
   const searchInput = $('#searchInput');
   const searchResultsLabel = $('#searchResultsLabel');
   const searchResults = $('#searchResults');
@@ -75,11 +86,6 @@
   const dynamicFilter = $('#dynamicFilter');
   const messageFilter = $('#messageFilter');
   const loginStatus = $('#loginStatus');
-  const miniPlayer = $('#miniPlayer');
-  const miniTitle = $('#miniTitle');
-  const miniMeta = $('#miniMeta');
-  const miniPlay = $('#miniPlay');
-  const miniProgress = $('#miniProgress');
   const searchClear = $('#searchClear');
   const protoDrawer = $('#protoDrawer');
   const protoBackdrop = $('#protoBackdrop');
@@ -125,7 +131,7 @@
   ];
 
   const DEFAULT_NAV_SELECTED = ['home', 'favorite', 'dynamic', 'messages', 'my'];
-  const PAGE_NAV = { home: 'home', dynamic: 'dynamic', messages: 'messages', my: 'my' };
+  const PAGE_NAV = { home: 'home', search: 'search', dynamic: 'dynamic', messages: 'messages', my: 'my' };
 
   const DEFAULT_SETTINGS = {
     defaultQuality: '最高',
@@ -254,6 +260,10 @@
   let commentsGesture = null;
   let commentsCloseTimer = null;
   let commentTotal = 128;
+  let feedSwipeStart = null;
+  let sidebarSwipeStart = null;
+  let suppressFeedClickUntil = 0;
+  let suppressSidebarClickUntil = 0;
 
   const MODULE_NOTES = {
     收藏: '收藏夹推荐 · 全部收藏夹 · 占位',
@@ -396,37 +406,31 @@
   }
 
   function visibleNavItems() {
-    const allowed = navItemsVisible();
-    if (state.navAllVisible) return allowed;
-    return state.navSelected
-      .map((id) => allowed.find((item) => item.id === id))
-      .filter(Boolean);
+    return navItemsVisible();
   }
 
   function findNavItemByModule(name) {
     return NAV_ITEMS.find((item) => item.type === 'module' && item.target === name) || null;
   }
 
-  function renderNav() {
+  function renderSidebar() {
     const items = visibleNavItems();
-    const many = items.length > 5;
-    tabbarTabs.innerHTML = '';
-    tabbar.classList.toggle('many', many);
-    tabbar.classList.toggle('six', items.length > 10);
-    app.classList.toggle('nav-many', many);
-    tabbar.style.setProperty('--nav-count', String(items.length));
-
+    sidebarNav.innerHTML = '';
     items.forEach((item) => {
-      const tab = document.createElement('button');
-      tab.type = 'button';
-      tab.className = 'tab';
-      tab.dataset.nav = item.id;
-      tab.setAttribute('aria-label', item.label);
-      tab.innerHTML = `
-        <span class="tab-ico">${item.icon}</span>
-        <span class="tab-label">${escapeHTML(item.label)}</span>`;
-      tab.addEventListener('click', () => handleNav(item, tab));
-      tabbarTabs.appendChild(tab);
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'sidebar-item';
+      row.dataset.nav = item.id;
+      row.innerHTML = `
+        <span class="sidebar-ico">${item.icon}</span>
+        <span class="sidebar-label">${escapeHTML(item.label)}</span>
+        ${item.type === 'queue' ? '<span class="sidebar-count" data-queue-count></span>' : ''}
+        <span class="sidebar-chev">›</span>`;
+      row.addEventListener('click', () => {
+        closeSidebar();
+        handleNav(item, row);
+      });
+      sidebarNav.appendChild(row);
     });
 
     updateNavActive();
@@ -434,17 +438,29 @@
   }
 
   function updateNavActive() {
-    const tabs = $$('.tab', tabbarTabs);
-    let visibleIndex = -1;
-    tabs.forEach((tab, index) => {
-      const on = tab.dataset.nav === state.navActive;
-      tab.classList.toggle('on', on);
-      if (on) visibleIndex = index;
+    $$('.sidebar-item', sidebarNav).forEach((row) => {
+      row.classList.toggle('on', row.dataset.nav === state.navActive);
     });
-    tabbar.classList.toggle('no-active', visibleIndex < 0);
-    if (visibleIndex >= 0) {
-      app.style.setProperty('--tab', String(visibleIndex));
-    }
+  }
+
+  function openSidebar() {
+    renderSidebar();
+    updateMiniPlayer();
+    sidebar.inert = false;
+    sidebar.classList.add('open');
+    sidebarBackdrop.classList.add('show');
+    sidebar.setAttribute('aria-hidden', 'false');
+    app.classList.add('sidebar-open');
+  }
+
+  function closeSidebar() {
+    if (!sidebar.classList.contains('open')) return;
+    sidebar.classList.remove('open');
+    sidebarBackdrop.classList.remove('show');
+    sidebar.setAttribute('aria-hidden', 'true');
+    sidebar.inert = true;
+    app.classList.remove('sidebar-open');
+    if (sidebar.contains(document.activeElement)) document.activeElement.blur();
   }
 
   function handleNav(item, button) {
@@ -482,8 +498,6 @@
       section.classList.toggle('active', section.dataset.page === page);
     });
     app.dataset.page = page;
-    tabbar.classList.toggle('search-mode', page === 'search');
-    tabbar.setAttribute('aria-label', page === 'search' ? '搜索' : '主导航');
     document.body.classList.toggle('search-mode', page === 'search');
     if (page !== 'search' && document.activeElement === searchInput) {
       searchInput.blur();
@@ -525,6 +539,7 @@
   function refreshHomeHeader() {
     const mod = currentModule();
     if (myModuleName) myModuleName.textContent = mod ? mod.name : '无模块';
+    if (sidebarModuleName) sidebarModuleName.textContent = mod ? mod.name : '无模块';
     if (!mod) {
       homeNote.textContent = '所有主页模块已关闭 · 在「主页模块」中启用';
       return;
@@ -633,7 +648,7 @@
       }
     }
     if (myFishRow) myFishRow.hidden = hideFish;
-    renderNav();
+    renderSidebar();
     renderNavSettings();
     renderModuleSettings();
     refreshHomeHeader();
@@ -646,7 +661,6 @@
     const selectedIds = state.navSelected.filter((id) => visibleItems.some((item) => item.id === id));
     const selectedCount = selectedIds.length;
     navCount.textContent = `${selectedCount} / 5`;
-    navSettingsMeta.textContent = state.navAllVisible ? '全量预览' : `自选 ${selectedCount} 个`;
     navAllToggle.classList.toggle('on', state.navAllVisible);
     navModeNote.textContent = state.navAllVisible
       ? `全量预览中：底部显示全部 ${visibleItems.length} 个按钮；关掉后只显示下面勾选的 ${selectedCount} 个。`
@@ -705,7 +719,7 @@
     navNote.textContent = '';
     save();
     renderNavSettings();
-    if (!state.navAllVisible) renderNav();
+    if (!state.navAllVisible) renderSidebar();
   }
 
   /* ---------- queue / playlist (lives in the bottom bar) ---------- */
@@ -725,6 +739,11 @@
     myPlaylistCount.textContent = `${count} 项`;
     const sheetCount = document.getElementById('queueCount');
     if (sheetCount) sheetCount.textContent = `${count} 项`;
+    const navCountEl = $('[data-queue-count]', sidebarNav);
+    if (navCountEl) {
+      navCountEl.textContent = String(count);
+      navCountEl.hidden = count === 0;
+    }
   }
 
   function setCurrent(index, closeSheetAfter) {
@@ -795,42 +814,37 @@
 
   function updateMiniPlayer() {
     const item = state.playlist[state.currentIndex];
-    miniTitle.textContent = item ? item.title : '暂无播放项';
-    miniMeta.textContent = item
-      ? `${item.meta} · ${state.playing ? '正在播放' : '已暂停'}`
-      : '队列为空';
-    miniPlay.textContent = state.playing ? 'Ⅱ' : '▶';
-    miniProgress.style.width = `${state.progress}%`;
+    const hasPlayback = Boolean(item) && (state.playerOpen || state.miniVisible || state.playing || state.progress > 0);
+    sidebarPlayback.hidden = !hasPlayback;
+    if (item) {
+      sidebarTitle.textContent = item.title;
+      sidebarMeta.textContent = `${item.meta} · ${state.playing ? '正在播放' : '已暂停'}`;
+    } else {
+      sidebarTitle.textContent = '暂无播放项';
+      sidebarMeta.textContent = '队列为空';
+    }
+    sidebarPlay.textContent = state.playing ? 'Ⅱ' : '▶';
+    sidebarProgress.style.width = `${state.progress}%`;
+    sidebarHandle.classList.toggle('playing', state.playing && state.miniVisible);
   }
 
   function showMiniPlayer() {
     if (!state.playlist.length) return;
     state.miniVisible = true;
     updateMiniPlayer();
-    miniPlayer.inert = false;
-    miniPlayer.classList.add('show');
-    miniPlayer.setAttribute('aria-hidden', 'false');
-    tabbar.classList.add('has-dock');
-    app.classList.add('mini-open');
-    document.body.classList.add('mini-open');
   }
 
   function hideMiniPlayer() {
     state.miniVisible = false;
-    if (miniPlayer.contains(document.activeElement)) document.activeElement.blur();
-    miniPlayer.classList.remove('show');
-    miniPlayer.setAttribute('aria-hidden', 'true');
-    miniPlayer.inert = true;
-    tabbar.classList.remove('has-dock');
-    app.classList.remove('mini-open');
-    document.body.classList.remove('mini-open');
+    if (sidebarPlayback.contains(document.activeElement)) document.activeElement.blur();
+    updateMiniPlayer();
   }
 
   function setProgress(percent) {
     state.progress = Math.min(100, Math.max(0, percent));
     progressPlayed.style.width = `${state.progress}%`;
     progressThumb.style.left = `${state.progress}%`;
-    miniProgress.style.width = `${state.progress}%`;
+    sidebarProgress.style.width = `${state.progress}%`;
     const current = TOTAL_SECONDS * state.progress / 100;
     pcTime.textContent = `${formatTime(current)} / ${formatTime(TOTAL_SECONDS)}`;
   }
@@ -1919,6 +1933,7 @@
 
   /* ---------- event wiring ---------- */
   document.addEventListener('click', (event) => {
+    if (Date.now() < suppressFeedClickUntil) return;
     const queueTarget = event.target.closest('[data-queue]');
     if (queueTarget) {
       openQueueSheet();
@@ -1982,7 +1997,7 @@
     state.navAllVisible = !state.navAllVisible;
     navNote.textContent = '';
     save();
-    renderNav();
+    renderSidebar();
     renderNavSettings();
   });
 
@@ -2027,10 +2042,60 @@
   pcFullscreen.addEventListener('click', toggleFullscreen);
   lockBadge.addEventListener('click', unlockPlayer);
 
-  $('#miniOpen').addEventListener('click', () => openPlayer({ resume: true }));
-  miniPlay.addEventListener('click', togglePlay);
-  $('#miniQueue').addEventListener('click', openQueueSheet);
-  $('#miniClose').addEventListener('click', stopPlayback);
+  sidebarOpenPlayer.addEventListener('click', () => {
+    closeSidebar();
+    openPlayer({ resume: true });
+  });
+  sidebarPlay.addEventListener('click', togglePlay);
+  sidebarQueue.addEventListener('click', () => {
+    closeSidebar();
+    openQueueSheet();
+  });
+  sidebarModule.addEventListener('click', () => {
+    closeSidebar();
+    openModuleSheet();
+  });
+  sidebarHandle.addEventListener('click', openSidebar);
+  sidebarClose.addEventListener('click', closeSidebar);
+  sidebarBackdrop.addEventListener('click', closeSidebar);
+
+  appScroll.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (event.target.closest('input, textarea')) return;
+    feedSwipeStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  });
+  window.addEventListener('pointerup', (event) => {
+    if (!feedSwipeStart || event.pointerId !== feedSwipeStart.id) return;
+    const dx = event.clientX - feedSwipeStart.x;
+    const dy = event.clientY - feedSwipeStart.y;
+    feedSwipeStart = null;
+    if (dx > 64 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      suppressFeedClickUntil = Date.now() + 360;
+      openSidebar();
+    }
+  });
+  window.addEventListener('pointercancel', () => { feedSwipeStart = null; });
+
+  sidebar.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    sidebarSwipeStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  });
+  window.addEventListener('pointerup', (event) => {
+    if (!sidebarSwipeStart || event.pointerId !== sidebarSwipeStart.id) return;
+    const dx = event.clientX - sidebarSwipeStart.x;
+    const dy = event.clientY - sidebarSwipeStart.y;
+    sidebarSwipeStart = null;
+    if (dx < -56 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      suppressSidebarClickUntil = Date.now() + 360;
+      closeSidebar();
+    }
+  });
+  sidebar.addEventListener('click', (event) => {
+    if (Date.now() < suppressSidebarClickUntil) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, true);
 
   playerStage.addEventListener('pointerdown', startStageGesture);
   window.addEventListener('pointermove', moveStageGesture);
@@ -2108,6 +2173,7 @@
       return;
     }
     if (event.key === 'Escape') {
+      if (sidebar.classList.contains('open')) { closeSidebar(); return; }
       if (commentsPanel.classList.contains('open')) { closeComments(); return; }
       if (psheet.classList.contains('open')) { closeSheet(); return; }
       if (protoDrawer.classList.contains('open')) { closeDrawer(); return; }
@@ -2281,6 +2347,20 @@
     hold.release();
     await sleep(320);
     results.push(`rateEnd=${!rateHud.classList.contains('show')}`);
+
+    minimizePlayer();
+    await sleep(420);
+    const rect = appScroll.getBoundingClientRect();
+    const startX = rect.left + rect.width * 0.5;
+    const startY = rect.top + rect.height * 0.5;
+    appScroll.dispatchEvent(pointerEvent('pointerdown', startX, startY, 1));
+    for (let step = 1; step <= 6; step += 1) {
+      window.dispatchEvent(pointerEvent('pointermove', startX + (120 * step) / 6, startY, 1));
+    }
+    window.dispatchEvent(pointerEvent('pointerup', startX + 120, startY, 0));
+    await sleep(80);
+    results.push(`sidebar=${sidebar.classList.contains('open')}`);
+    closeSidebar();
 
     document.title = `SELFTEST ${results.join(' ')}`;
   }
