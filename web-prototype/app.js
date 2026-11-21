@@ -203,6 +203,7 @@
 
   const state = {
     page: 'home',
+    loggedIn: loaded?.loggedIn === true,
     platform: loaded?.platform === 'android' ? 'android' : 'ios',
     moduleId: loaded?.moduleId || 'recommend',
     modules: DEFAULT_MODULES.map((mod) => ({
@@ -395,6 +396,7 @@
       const modules = {};
       state.modules.forEach((mod) => { modules[mod.id] = mod.on; });
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        loggedIn: state.loggedIn,
         platform: state.platform,
         moduleId: state.moduleId,
         modules,
@@ -468,6 +470,10 @@
   }
 
   function openSidebar() {
+    if (!state.loggedIn) {
+      showPage('login');
+      return;
+    }
     renderSidebar();
     updateMiniPlayer();
     sidebar.inert = false;
@@ -502,6 +508,10 @@
   }
 
   function openSearch() {
+    if (!state.loggedIn) {
+      showPage('login');
+      return;
+    }
     if (state.page !== 'search') {
       state.searchReturn = state.page;
       state.searchReturnNav = state.navActive;
@@ -514,8 +524,38 @@
     showPage(target, state.searchReturnNav || undefined);
   }
 
+  function loginSucceeded() {
+    if (!state.loggedIn) {
+      state.loggedIn = true;
+      app.classList.remove('auth-gate');
+      save();
+    }
+    loginStatus.textContent = '登录成功 · 正在进入首页…';
+    setTimeout(() => {
+      if (state.loggedIn) showPage('home');
+    }, 600);
+  }
+
+  function logout() {
+    state.loggedIn = false;
+    if (state.playerOpen) stopPlayback();
+    closeSheet();
+    closeSidebar();
+    app.classList.add('auth-gate');
+    state.navActive = '';
+    save();
+    updateNavActive();
+    showPage('login');
+    loginStatus.textContent = '已退出登录 · 扫码登录';
+  }
+
   function showPage(page, navId) {
+    if (!state.loggedIn && page !== 'login') {
+      page = 'login';
+      navId = null;
+    }
     state.page = page;
+    app.classList.toggle('auth-gate', !state.loggedIn);
     $$('.page').forEach((section) => {
       section.classList.toggle('active', section.dataset.page === page);
     });
@@ -524,7 +564,10 @@
     if (page !== 'search' && document.activeElement === searchInput) {
       searchInput.blur();
     }
-    if (navId !== undefined && navId !== null) {
+    if (page === 'login') {
+      state.navActive = '';
+      loginStatus.textContent = state.loggedIn ? '已登录 · 可重新扫码（占位）' : '扫码登录 · 占位';
+    } else if (navId !== undefined && navId !== null) {
       state.navActive = navId;
     } else if (PAGE_NAV[page]) {
       state.navActive = PAGE_NAV[page];
@@ -541,6 +584,10 @@
   }
 
   function openModulePage(name, navId) {
+    if (!state.loggedIn) {
+      showPage('login');
+      return;
+    }
     if (PAGE_NAV[state.page]) {
       state.moduleReturn = state.page;
     } else if (['settings', 'modules', 'nav'].includes(state.page)) {
@@ -872,7 +919,7 @@
     const count = state.playlist.length;
     const item = state.playlist[state.currentIndex];
     const feedPage = ['home', 'search', 'module', 'dynamic'].includes(state.page);
-    const feedVisible = count > 0 && feedPage && !state.playerOpen;
+    const feedVisible = state.loggedIn && count > 0 && feedPage && !state.playerOpen;
     const show = feedVisible && !app.classList.contains('sidebar-open');
     playlistDock.classList.toggle('show', show);
     playlistDock.setAttribute('aria-hidden', show ? 'false' : 'true');
@@ -1032,6 +1079,10 @@
   }
 
   function openPlaylistPage() {
+    if (!state.loggedIn) {
+      showPage('login');
+      return;
+    }
     if (state.page !== 'playlist') {
       state.playlistReturn = state.page;
       state.playlistReturnNav = state.navActive;
@@ -1067,7 +1118,7 @@
   }
 
   function addFeedRowToPlaylist(row) {
-    if (!row) return;
+    if (!row || !state.loggedIn) return;
     const result = addToPlaylist(feedRowTitle(row), 'UP 占位 · 左滑加入', feedRowKey(row));
     row.dataset.addNote = result.added ? '已加入播放列表' : '已在播放列表';
     row.classList.remove('swiped-add');
@@ -1141,6 +1192,10 @@
   }
 
   function openPlayer(options = {}) {
+    if (!state.loggedIn) {
+      showPage('login');
+      return;
+    }
     const resume = options.resume === true;
     const autoplay = options.autoplay === true;
     if (!state.playlist.length) addToPlaylist();
@@ -2082,9 +2137,9 @@
           { type: 'static', label: 'UID', value: '100000000' },
           { type: 'static', label: '等级', value: 'Lv6 · 占位' },
           { type: 'static', label: '大会员', value: '未开通' },
-          { type: 'action', label: '扫码登录', value: '未登录 / 占位', run: () => { closeSheet(); showPage('login'); return '打开登录'; } },
+          { type: 'action', label: '扫码登录', value: state.loggedIn ? '已登录' : '未登录 / 占位', run: () => { closeSheet(); showPage('login'); return '打开登录'; } },
           { type: 'action', label: '打开账户页', value: '账户 / 经验 / 权益', run: () => '账户页（占位）' },
-          { type: 'action', label: '退出登录', value: '', run: () => '已退出（占位）' },
+          { type: 'action', label: '退出登录', value: '', run: () => { logout(); return '已退出'; } },
         ],
       },
       'settings-shortcuts': {
@@ -2300,10 +2355,13 @@
   $('#loginRefresh').addEventListener('click', () => {
     loginStatus.textContent = '二维码已刷新 · 占位';
   });
-  $('#loginQr').addEventListener('click', () => {
-    loginStatus.textContent = '登录成功 · 正在进入首页…';
-    setTimeout(() => showPage('home'), 700);
+  $('#loginQr').addEventListener('click', loginSucceeded);
+  $('#loginQr').addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    loginSucceeded();
   });
+  $('#loginCta').addEventListener('click', loginSucceeded);
 
   dynamicFilter.addEventListener('click', () => {
     state.dynamicFilterIndex = (state.dynamicFilterIndex + 1) % DYNAMIC_FILTERS.length;
@@ -2719,6 +2777,7 @@
 
   /* init */
   document.body.dataset.platform = state.platform;
+  app.classList.toggle('auth-gate', !state.loggedIn);
   $$('#platformSwitch button').forEach((button) => {
     button.classList.toggle('on', button.dataset.platform === state.platform);
   });
@@ -2729,7 +2788,7 @@
   applyBrightness(state.brightness);
   applyVolume(state.volume);
   hideLevelHuds(0);
-  showPage('home');
+  showPage(state.loggedIn ? 'home' : 'login');
 
   /* ---------- prototype review modes (?demo= / ?selftest=1) ---------- */
   function stagePoint(zone) {
@@ -2788,6 +2847,15 @@
   async function runGestureSelfTest() {
     const results = [];
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const gate = app.dataset.page === 'login';
+    if (!state.loggedIn) {
+      state.loggedIn = true;
+      app.classList.remove('auth-gate');
+      save();
+      showPage('home');
+    }
+    results.push(`gate=${gate}`);
 
     openPlayer();
     applyBrightness(50);
@@ -2902,6 +2970,17 @@
   const reviewParams = new URLSearchParams(window.location.search);
   const demo = reviewParams.get('demo');
   if (reviewParams.has('nomotion')) document.body.classList.add('reduce-motion');
+  if (demo === 'login') {
+    state.loggedIn = false;
+    app.classList.add('auth-gate');
+    save();
+    showPage('login');
+  } else if (demo && !state.loggedIn) {
+    state.loggedIn = true;
+    app.classList.remove('auth-gate');
+    save();
+    showPage('home');
+  }
   if (demo === 'landscape') {
     state.landscapeHome = true;
     syncLandscape();

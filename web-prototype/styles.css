@@ -509,16 +509,21 @@ body.search-mode .playlist-dock{bottom:calc(80px + var(--kb,0px) + env(safe-area
   position:absolute;top:10px;left:8px;z-index:5;
 }
 .login-qr{
-  width:216px;height:216px;border-radius:18px;
+  width:216px;height:216px;border-radius:18px;cursor:pointer;
   border:1px dashed var(--line-strong);
   background:
     repeating-linear-gradient(135deg,#EDE7DB 0 7px,#F9F5EE 7px 14px);
   display:flex;align-items:center;justify-content:center;
   box-shadow:0 12px 30px rgba(30,30,36,.06);
+  transition:border-color .15s,transform .1s;
 }
+.login-qr:hover{border-color:var(--blue)}
+.login-qr:active{transform:scale(.985)}
 .login-status{font-size:13px;font-weight:700;margin-top:6px;text-align:center}
 .login-note{font-size:10px;line-height:1.6;color:var(--muted);text-align:center;max-width:250px}
 .login-gate .pill-btn{margin-top:6px}
+.login-cta{background:var(--blue);border-color:var(--blue);color:#fff}
+.app.auth-gate .login-back{display:none}
 
 /* ---------- module settings ---------- */
 .module-settings{padding-bottom:20px}

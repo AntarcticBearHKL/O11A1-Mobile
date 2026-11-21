@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=52">
+  <link rel="stylesheet" href="./styles.css?v=54">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -126,10 +126,11 @@
         <section class="page" data-page="login">
           <button class="back login-back" data-goto="my" title="返回">‹</button>
           <div class="login-gate">
-            <div class="login-qr" id="loginQr"><span class="ph-label">二维码占位</span></div>
+            <div class="login-qr" id="loginQr" role="button" tabindex="0" aria-label="模拟扫码登录"><span class="ph-label">二维码占位</span></div>
             <div class="login-status" id="loginStatus">扫码登录 · 占位</div>
-            <div class="login-note">登录后同步收藏 / 历史 / 大会员画质</div>
+            <div class="login-note">登录后同步收藏 / 历史 / 大会员画质<br>原型：点二维码或下方按钮直接登录</div>
             <button class="pill-btn" type="button" id="loginRefresh">刷新二维码</button>
+            <button class="pill-btn login-cta" type="button" id="loginCta">模拟登录</button>
           </div>
         </section>
 
@@ -421,6 +422,6 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./app.js?v=52"></script>
+  <script src="./app.js?v=54"></script>
 </body>
 </html>
