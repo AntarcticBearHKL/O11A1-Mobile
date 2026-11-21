@@ -10,6 +10,8 @@ final class O11A1WebLogin: NSObject, WKNavigationDelegate {
   private let onImport: (String) -> Void
   private var timer: Timer?
   private var finished = false
+  private var initialSess = ""
+  private var initialReady = false
 
   private init(onImport: @escaping (String) -> Void) {
     self.onImport = onImport
@@ -67,6 +69,13 @@ final class O11A1WebLogin: NSObject, WKNavigationDelegate {
 
     if let url = URL(string: "https://passport.bilibili.com/login") {
       webView.load(URLRequest(url: url))
+    }
+    WKWebsiteDataStore.default().httpCookieStore.getAllCookies { [weak self] cookies in
+      let sess = cookies.first { $0.domain.contains("bilibili.com") && $0.name == "SESSDATA" }?.value ?? ""
+      DispatchQueue.main.async {
+        self?.initialSess = sess
+        self?.initialReady = true
+      }
     }
     timer = Timer.scheduledTimer(withTimeInterval: 1.2, repeats: true) { [weak self] _ in
       self?.checkCookies()
@@ -126,9 +135,10 @@ final class O11A1WebLogin: NSObject, WKNavigationDelegate {
   private func checkCookies() {
     guard !finished else { return }
     WKWebsiteDataStore.default().httpCookieStore.getAllCookies { [weak self] cookies in
-      guard let self = self, !self.finished else { return }
+      guard let self = self, !self.finished, self.initialReady else { return }
       let relevant = cookies.filter { $0.domain.contains("bilibili.com") }
-      guard relevant.contains(where: { $0.name == "SESSDATA" && !$0.value.isEmpty }),
+      let sess = relevant.first { $0.name == "SESSDATA" }?.value ?? ""
+      guard !sess.isEmpty, sess != self.initialSess,
             relevant.contains(where: { $0.name == "bili_jct" && !$0.value.isEmpty }) else { return }
       let header = relevant.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
       DispatchQueue.main.async { self.finish(header) }

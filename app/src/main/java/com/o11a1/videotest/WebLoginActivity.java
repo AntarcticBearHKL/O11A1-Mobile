@@ -23,19 +23,30 @@ public final class WebLoginActivity extends Activity {
     private WebView webView;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean finished = false;
+    private String initialSess = "";
 
     private final Runnable cookiePoll = new Runnable() {
         @Override
         public void run() {
             if (finished) return;
             String cookie = CookieManager.getInstance().getCookie("https://www.bilibili.com");
-            if (cookie != null && cookie.contains("SESSDATA=") && cookie.contains("bili_jct=")) {
+            String sess = cookieValue(cookie, "SESSDATA");
+            if (!sess.isEmpty() && !sess.equals(initialSess) && cookie.contains("bili_jct=")) {
                 complete(cookie);
                 return;
             }
             handler.postDelayed(this, 1200);
         }
     };
+
+    private static String cookieValue(String header, String name) {
+        if (header == null) return "";
+        for (String part : header.split(";")) {
+            String[] pair = part.trim().split("=", 2);
+            if (pair.length == 2 && pair[0].trim().equals(name)) return pair[1].trim();
+        }
+        return "";
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,6 +93,7 @@ public final class WebLoginActivity extends Activity {
         CookieManager manager = CookieManager.getInstance();
         manager.setAcceptCookie(true);
         manager.setAcceptThirdPartyCookies(webView, true);
+        initialSess = cookieValue(manager.getCookie("https://www.bilibili.com"), "SESSDATA");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
