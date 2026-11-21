@@ -96,6 +96,9 @@
   const pdProgress = $('#pdProgress');
   const pdSearch = $('#pdSearch');
   const pdSearchInput = $('#pdSearchInput');
+  const dockPlaylistBody = $('#dockPlaylistBody');
+  const dockPlaylistList = $('#dockPlaylistList');
+  const dockPlaylistCount = $('#dockPlaylistCount');
   const playlistPageList = $('#playlistPageList');
   const playlistPageCount = $('#playlistPageCount');
   const playlistBack = $('#playlistBack');
@@ -1085,6 +1088,64 @@
       ${removable ? '<button class="pl-remove" type="button" title="移出播放列表">×</button>' : ''}`;
   }
 
+  function setDockExpanded(expanded) {
+    const next = Boolean(expanded);
+    playlistDock.classList.remove('dragging');
+    playlistDock.classList.toggle('expanded', next);
+    void playlistDock.offsetWidth;
+    playlistDock.style.height = '';
+    playlistDock.style.borderTopLeftRadius = '';
+    playlistDock.style.borderTopRightRadius = '';
+    playlistDock.style.boxShadow = '';
+    if (next) renderDockPlaylist();
+  }
+
+  function openPlaylistItem(index) {
+    if (!Number.isInteger(index) || index < 0 || index >= state.playlist.length) return;
+    if (index !== state.currentIndex) state.progress = 0;
+    state.currentIndex = index;
+    state.playing = true;
+    save();
+    setDockExpanded(false);
+    openPlayer({ resume: true });
+  }
+
+  function renderDockPlaylist() {
+    if (!dockPlaylistList) return;
+    const count = state.playlist.length;
+    if (dockPlaylistCount) dockPlaylistCount.textContent = `${count} 项`;
+    dockPlaylistList.innerHTML = '';
+    if (!count) {
+      dockPlaylistList.innerHTML = '<div class="pd-empty"><b>播放列表是空的</b><span>在视频行上向左滑加入播放列表</span></div>';
+      return;
+    }
+    state.playlist.forEach((item, index) => {
+      const row = document.createElement('div');
+      row.className = `playlist-page-item${index === state.currentIndex ? ' on' : ''}`;
+      row.setAttribute('role', 'button');
+      row.tabIndex = 0;
+      row.innerHTML = playlistItemMarkup(item, index, index === state.currentIndex, true);
+      const open = () => openPlaylistItem(index);
+      row.addEventListener('click', (event) => {
+        if (event.target.closest('.pl-remove')) return;
+        open();
+      });
+      row.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        open();
+      });
+      const remove = $('.pl-remove', row);
+      if (remove) {
+        remove.addEventListener('click', (event) => {
+          event.stopPropagation();
+          removeFromPlaylist(index);
+        });
+      }
+      dockPlaylistList.appendChild(row);
+    });
+  }
+
   function updatePlaylistCounts() {
     updatePlaylistDock();
   }
@@ -1092,6 +1153,7 @@
   function updatePlaylistDock() {
     const count = state.playlist.length;
     const item = state.playlist[state.currentIndex];
+    renderDockPlaylist();
     const dockVisible = state.loggedIn && !state.playerOpen;
     const show = dockVisible && !app.classList.contains('sidebar-open');
     playlistDock.classList.toggle('show', show);
@@ -1284,13 +1346,7 @@
       row.setAttribute('role', 'button');
       row.tabIndex = 0;
       row.innerHTML = playlistItemMarkup(item, index, index === state.currentIndex, true);
-      const openItem = () => {
-        if (index !== state.currentIndex) state.progress = 0;
-        state.currentIndex = index;
-        state.playing = true;
-        save();
-        openPlayer({ resume: true });
-      };
+      const openItem = () => openPlaylistItem(index);
       row.addEventListener('click', (event) => {
         if (event.target.closest('.pl-remove')) return;
         openItem();
@@ -1376,6 +1432,7 @@
       showPage('login');
       return;
     }
+    setDockExpanded(false);
     if (state.page === 'playlist') return;
     state.playlistReturn = state.page;
     state.playlistReturnNav = state.navActive;
@@ -3584,6 +3641,7 @@
 
   function enterDockSearch() {
     if (!pdSearchInput || !playlistDock.classList.contains('show')) return;
+    setDockExpanded(false);
     playlistDock.classList.add('searching');
     pdSearchInput.value = '';
     void pdSearchInput.offsetWidth;
@@ -3599,39 +3657,18 @@
     pdSearchInput.blur();
   }
 
-  function resetDockHeight() {
-    playlistDock.classList.remove('dragging');
-    void playlistDock.offsetWidth;
-    playlistDock.style.height = '';
-    playlistDock.style.borderTopLeftRadius = '';
-    playlistDock.style.borderTopRightRadius = '';
-    playlistDock.style.boxShadow = '';
+  function dockContentTarget() {
+    return Math.min(window.innerHeight * 0.55, 540);
   }
 
-  playlistDock.addEventListener('pointerdown', (event) => {
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    if (playlistDock.classList.contains('searching')) return;
-    if (event.target.closest('button, input, .pd-search, .pd-search-input')) return;
-    dockDrag = { id: event.pointerId, x: event.clientX, y: event.clientY, dy: 0, moved: false };
-  });
-  window.addEventListener('pointermove', (event) => {
-    if (!dockDrag || event.pointerId !== dockDrag.id) return;
-    const dy = event.clientY - dockDrag.y;
-    dockDrag.dy = dy;
-    if (Math.abs(dy) > 6) dockDrag.moved = true;
-    if (!dockDrag.moved) return;
-    if (!playlistDock.classList.contains('dragging')) playlistDock.classList.add('dragging');
-    const pull = Math.max(0, Math.min(170, -dy));
-    const progress = Math.min(1, pull / 150);
-    playlistDock.style.height = `calc(${(104 + pull).toFixed(1)}px + env(safe-area-inset-bottom))`;
-    const radius = 26 + progress * 10;
-    playlistDock.style.borderTopLeftRadius = `${radius.toFixed(1)}px`;
-    playlistDock.style.borderTopRightRadius = `${radius.toFixed(1)}px`;
-    playlistDock.style.boxShadow = `0 -${(12 + progress * 18).toFixed(0)}px ${(34 + progress * 26).toFixed(0)}px rgba(20,22,30,${(0.12 + progress * 0.09).toFixed(2)}), inset 0 1px 0 rgba(255,255,255,.8)`;
-  });
   function launchPlayerFromDock() {
     if (!state.playlist.length) {
-      openPlaylistPage();
+      setDockExpanded(true);
+      return;
+    }
+    if (playlistDock.classList.contains('expanded')) {
+      setDockExpanded(false);
+      openPlayer({ resume: true });
       return;
     }
     suppressDockClickUntil = Date.now() + 600;
@@ -3641,10 +3678,41 @@
     setTimeout(() => {
       openPlayer({ resume: true });
       playlistDock.classList.remove('launching');
-      resetDockHeight();
+      setDockExpanded(false);
     }, 190);
   }
 
+  playlistDock.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (playlistDock.classList.contains('searching')) return;
+    if (event.target.closest('.pd-body')) return;
+    if (event.target.closest('button, input, .pd-search, .pd-search-input')) return;
+    dockDrag = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      dy: 0,
+      moved: false,
+      expanded: playlistDock.classList.contains('expanded'),
+    };
+  });
+  window.addEventListener('pointermove', (event) => {
+    if (!dockDrag || event.pointerId !== dockDrag.id) return;
+    const dy = event.clientY - dockDrag.y;
+    dockDrag.dy = dy;
+    if (Math.abs(dy) > 6) dockDrag.moved = true;
+    if (!dockDrag.moved) return;
+    if (!playlistDock.classList.contains('dragging')) playlistDock.classList.add('dragging');
+    const target = dockContentTarget();
+    const startContent = dockDrag.expanded ? target : 104;
+    const content = Math.max(104, Math.min(target, startContent - dy));
+    const progress = (content - 104) / Math.max(1, target - 104);
+    playlistDock.style.height = `calc(${content.toFixed(1)}px + env(safe-area-inset-bottom))`;
+    const radius = 26 + progress * 10;
+    playlistDock.style.borderTopLeftRadius = `${radius.toFixed(1)}px`;
+    playlistDock.style.borderTopRightRadius = `${radius.toFixed(1)}px`;
+    playlistDock.style.boxShadow = `0 -${(12 + progress * 18).toFixed(0)}px ${(34 + progress * 26).toFixed(0)}px rgba(20,22,30,${(0.12 + progress * 0.09).toFixed(2)}), inset 0 1px 0 rgba(255,255,255,.8)`;
+  });
   window.addEventListener('pointerup', (event) => {
     if (!dockDrag || event.pointerId !== dockDrag.id) return;
     const gesture = dockDrag;
@@ -3652,22 +3720,20 @@
     playlistDock.classList.remove('dragging');
     if (!gesture.moved) return;
     suppressDockClickUntil = Date.now() + 420;
-    if (gesture.dy < -52) {
-      suppressDockClickUntil = Date.now() + 600;
-      resetDockHeight();
-      openPlaylistPage();
-      return;
-    }
-    resetDockHeight();
+    let expanded = gesture.expanded;
+    if (!gesture.expanded && gesture.dy < -52) expanded = true;
+    if (gesture.expanded && gesture.dy > 52) expanded = false;
+    setDockExpanded(expanded);
   });
   window.addEventListener('pointercancel', () => {
     if (!dockDrag) return;
+    const wasExpanded = dockDrag.expanded;
     dockDrag = null;
-    resetDockHeight();
+    setDockExpanded(wasExpanded);
   });
   playlistDock.addEventListener('click', (event) => {
     if (playlistDock.classList.contains('searching')) return;
-    if (event.target.closest('.pd-search, .pd-search-input')) return;
+    if (event.target.closest('.pd-search, .pd-search-input, .pd-body')) return;
     if (Date.now() < suppressDockClickUntil) return;
     launchPlayerFromDock();
   });
@@ -4283,6 +4349,10 @@
     window.dispatchEvent(pointerEvent('pointermove', dockX, dockY - 24, 1));
     window.dispatchEvent(pointerEvent('pointermove', dockX, dockY - 82, 1));
     window.dispatchEvent(pointerEvent('pointerup', dockX, dockY - 82, 0));
+    await sleep(480);
+    const dockExpanded = playlistDock.classList.contains('expanded') && state.page !== 'playlist';
+    results.push(`dockExpand=${dockExpanded}`);
+    openPlaylistPage();
     await sleep(480);
     const playlistOpened = state.page === 'playlist';
     const grab = $('#playlistGrab');

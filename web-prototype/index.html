@@ -273,15 +273,21 @@
       </aside>
 
       <div class="playlist-dock" id="playlistDock" role="button" tabindex="0" aria-hidden="true" inert>
-        <span class="pd-thumb" id="pdThumb"><span class="ph-label">封面</span></span>
-        <span class="pd-copy">
-          <b id="pdTitle">播放列表</b>
-          <small id="pdMeta">0 项</small>
-        </span>
-        <button class="pd-search" id="pdSearch" type="button" aria-label="搜索">
-          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
-        </button>
-        <input class="pd-search-input" id="pdSearchInput" type="text" placeholder="搜索视频 / UP / 关键词" autocomplete="off" enterkeyhint="search">
+        <div class="pd-head">
+          <span class="pd-thumb" id="pdThumb"><span class="ph-label">封面</span></span>
+          <span class="pd-copy">
+            <b id="pdTitle">播放列表</b>
+            <small id="pdMeta">0 项</small>
+          </span>
+          <button class="pd-search" id="pdSearch" type="button" aria-label="搜索">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+          </button>
+          <input class="pd-search-input" id="pdSearchInput" type="text" placeholder="搜索视频 / UP / 关键词" autocomplete="off" enterkeyhint="search">
+        </div>
+        <div class="pd-body" id="dockPlaylistBody">
+          <div class="pd-body-head"><b>播放列表</b><span id="dockPlaylistCount">0 项</span></div>
+          <div class="playlist-page-list pd-list" id="dockPlaylistList"></div>
+        </div>
         <span class="pd-progress" aria-hidden="true"><i id="pdProgress"></i></span>
       </div>
 
