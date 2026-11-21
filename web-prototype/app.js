@@ -49,9 +49,10 @@
   const psheetSub = $('#psheetSub');
   const psheetBody = $('#psheetBody');
   const psheetClose = $('#psheetClose');
-  const moduleMenu = $('#moduleMenu');
   const homeNote = $('#homeNote');
   const myPlaylistCount = $('#myPlaylistCount');
+  const myModuleName = $('#myModuleName');
+  const myModuleRow = $('#myModuleRow');
   const tabbar = $('#tabbar');
   const tabbarTabs = $('#tabbarTabs');
   const moduleSettings = $('#moduleSettings');
@@ -66,8 +67,7 @@
   const searchInput = $('#searchInput');
   const searchResultsLabel = $('#searchResultsLabel');
   const searchResults = $('#searchResults');
-  const commandList = $('#commandList');
-  const commandLabel = $('#commandLabel');
+  const searchEmpty = $('#searchEmpty');
   const modulePageTitle = $('#modulePageTitle');
   const moduleNote = $('#moduleNote');
   const moduleFilter = $('#moduleFilter');
@@ -504,7 +504,6 @@
     }
     updateNavActive();
     appScroll.scrollTop = 0;
-    closeModuleMenu();
     if (page === 'search') {
       setTimeout(() => searchInput.focus(), 120);
     }
@@ -534,6 +533,7 @@
 
   function refreshHomeHeader() {
     const mod = currentModule();
+    if (myModuleName) myModuleName.textContent = mod ? mod.name : '无模块';
     if (!mod) {
       homeNote.textContent = '所有主页模块已关闭 · 在「主页模块」中启用';
       return;
@@ -541,45 +541,50 @@
     homeNote.textContent = `${mod.name}模块占位 · 单列 · 下拉刷新 / 触底加载`;
   }
 
-  function renderModuleMenu() {
-    moduleMenu.innerHTML = '';
+  function selectModule(moduleId) {
+    state.moduleId = moduleId;
+    refreshHomeHeader();
+    save();
+    closeSheet();
+    showPage('home');
+    appScroll.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function openModuleSheet() {
     const enabled = state.modules.filter((mod) => mod.on);
-    if (!enabled.length) {
-      const empty = document.createElement('div');
-      empty.className = 'mm-empty';
-      empty.textContent = '没有启用的主页模块。到「我的 → 主页模块」里选择。';
-      moduleMenu.appendChild(empty);
-      return;
-    }
-    enabled.forEach((mod) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = mod.id === state.moduleId ? 'on' : '';
-      button.innerHTML = `<span>${escapeHTML(mod.name)}</span><span class="mm-check">✓</span>`;
-      button.addEventListener('click', () => {
-        state.moduleId = mod.id;
-        refreshHomeHeader();
-        renderModuleMenu();
-        closeModuleMenu();
-        appScroll.scrollTo({ top: 0, behavior: 'smooth' });
-        save();
+    openSheet('首页模块', '选择首页当前模块', (body) => {
+      if (!enabled.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.style.padding = '28px 12px';
+        empty.innerHTML = '<span class="empty-ico">◫</span><b>没有启用的主页模块</b><p>到「主页模块」里打开至少一个。</p>';
+        body.appendChild(empty);
+        const go = document.createElement('button');
+        go.type = 'button';
+        go.className = 'pill-btn';
+        go.textContent = '去主页模块设置';
+        go.addEventListener('click', () => {
+          closeSheet();
+          showPage('modules', 'my');
+        });
+        body.appendChild(go);
+        return;
+      }
+      enabled.forEach((mod) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `opt${mod.id === state.moduleId ? ' on' : ''}`;
+        button.innerHTML = `
+          <span class="opt-copy">
+            <span>${escapeHTML(mod.name)}</span>
+            <small>${escapeHTML(mod.desc)}</small>
+          </span>
+          <span class="opt-dot"></span>`;
+        button.addEventListener('click', () => selectModule(mod.id));
+        body.appendChild(button);
       });
-      moduleMenu.appendChild(button);
     });
-  }
-
-  function openModuleMenu() {
-    renderModuleMenu();
-    moduleMenu.hidden = false;
-  }
-
-  function closeModuleMenu() {
-    moduleMenu.hidden = true;
-  }
-
-  function toggleModuleMenu() {
-    if (moduleMenu.hidden) openModuleMenu();
-    else closeModuleMenu();
+    psheet.dataset.kind = 'module';
   }
 
   function renderModuleSettings() {
@@ -612,7 +617,6 @@
             state.moduleId = state.modules.find((item) => item.on)?.id || null;
           }
           renderModuleSettings();
-          renderModuleMenu();
           refreshHomeHeader();
           save();
         });
@@ -1855,64 +1859,14 @@
     return definitions[id] || null;
   }
 
-  /* ---------- search / commands ---------- */
-  const COMMANDS = [
-    { icon: '☰', label: '播放列表', meta: '队列', run: openQueueSheet },
-    { icon: '◫', label: '主页模块', meta: '自定义', run: () => showPage('modules', 'my') },
-    { icon: '⚙', label: '设置', meta: '全部', run: () => showPage('settings', 'my') },
-    { icon: '▤', label: '底部导航', meta: '自选 5 个', run: () => showPage('nav', 'my') },
-    { icon: '◉', label: '登录 / 账户', meta: '扫码', run: () => showPage('login') },
-    { icon: '⌄', label: '切换首页模块', meta: '快速切换', run: () => { showPage('home'); openModuleMenu(); } },
-    { icon: '◉', label: '打开播放器', meta: '横屏', run: openPlayer },
-    { icon: '⌕', label: '搜索占位', meta: '输入', run: openSearch },
-    { icon: '◈', label: '收藏', meta: '收藏夹', run: () => openModulePage('收藏') },
-    { icon: '↺', label: '历史', meta: '继续观看', run: () => openModulePage('历史') },
-    { icon: '▤', label: '番剧', meta: '每日放送', run: () => openModulePage('番剧') },
-    { icon: '▶', label: '直播', meta: '推荐 / 分区', run: () => openModulePage('直播') },
-    { icon: '▦', label: '分区', meta: '20 个一级分区', run: () => openModulePage('分区') },
-    { icon: '◌', label: '养鱼 · AI 看片', meta: '实验', run: () => openModulePage('养鱼') },
-    { icon: '◍', label: '动态', meta: '关注', run: () => showPage('dynamic') },
-    { icon: '✉', label: '消息', meta: '回复 / @ / 赞', run: () => showPage('messages') },
-  ];
-
-  function renderCommands(query) {
-    const keyword = query.trim().toLowerCase();
-    const matches = keyword
-      ? COMMANDS.filter((command) => `${command.label} ${command.meta}`.toLowerCase().includes(keyword))
-      : COMMANDS;
-    commandLabel.textContent = keyword ? `命令 · ${matches.length} 项` : '快速命令';
-    commandList.innerHTML = '';
-    if (!matches.length) {
-      const empty = document.createElement('div');
-      empty.className = 'command-empty';
-      empty.textContent = '没有匹配的命令 · 直接输入会得到占位搜索结果';
-      commandList.appendChild(empty);
-      return;
-    }
-    matches.forEach((command) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'command-row';
-      button.innerHTML = `<span class="cmd-ico">${command.icon}</span><span>${escapeHTML(command.label)}</span><span class="cmd-meta">${escapeHTML(command.meta)}</span>`;
-      button.addEventListener('click', (event) => {
-        event.stopPropagation();
-        closeModuleMenu();
-        command.run();
-      });
-      commandList.appendChild(button);
-    });
-  }
-
+  /* ---------- search ---------- */
   function updateSearch() {
     const query = searchInput.value.trim();
-    renderCommands(query);
     const hasQuery = query.length > 0;
     searchClear.hidden = !hasQuery;
-    searchResultsLabel.hidden = !hasQuery;
-    searchResults.hidden = !hasQuery;
-    if (hasQuery) {
-      searchResultsLabel.textContent = `“${query}” 的结果（占位）`;
-    }
+    searchResultsLabel.textContent = hasQuery ? `“${query}”的视频（占位）` : '热门视频';
+    searchResults.hidden = false;
+    searchEmpty.hidden = true;
   }
 
   /* ---------- prototype drawer ---------- */
@@ -2019,13 +1973,7 @@
       else if (kind.startsWith('settings-')) openSettingsSheet(kind);
       return;
     }
-
-    if (!event.target.closest('#moduleMenu')) {
-      closeModuleMenu();
-    }
   });
-
-  moduleMenu.addEventListener('click', (event) => event.stopPropagation());
 
   $('#searchCancel').addEventListener('click', closeSearch);
   searchClear.addEventListener('click', () => {
@@ -2057,6 +2005,7 @@
   });
 
   $('#accountCard').addEventListener('click', () => showPage('login'));
+  myModuleRow.addEventListener('click', openModuleSheet);
   $('#loginRefresh').addEventListener('click', () => {
     loginStatus.textContent = '二维码已刷新 · 占位';
   });
@@ -2197,7 +2146,6 @@
       if (state.playerOpen) { minimizePlayer(); return; }
       if (state.page === 'search') { closeSearch(); return; }
       if (state.page === 'detail') { showPage(state.detailReturn || 'home', state.detailReturnNav || undefined); return; }
-      if (!moduleMenu.hidden) { closeModuleMenu(); return; }
     }
     if (!state.playerOpen || state.locked) return;
     if (event.code === 'Space') {
@@ -2259,11 +2207,9 @@
     button.classList.toggle('on', button.dataset.platform === state.platform);
   });
   refreshHomeHeader();
-  renderModuleMenu();
   renderModuleSettings();
   renderNav();
   renderNavSettings();
-  renderCommands('');
   updatePlayerLabels();
   updateSearch();
   syncLandscape();

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=15">
+  <link rel="stylesheet" href="./styles.css?v=17">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -13,7 +13,6 @@
     <div class="app" id="app" data-page="home">
       <div class="statusbar"><span>9:41</span><span class="status-icons">5G ▮▮▮ ▰</span></div>
       <div class="top-glass" aria-hidden="true"></div>
-      <div class="module-menu" id="moduleMenu" hidden></div>
 
       <div class="app-scroll" id="appScroll">
         <!-- 首页：单列，每行一个视频 -->
@@ -59,26 +58,21 @@
           <div class="list-note" id="homeNote">推荐模块占位 · 单列 · 下拉刷新 / 触底加载</div>
         </section>
 
-        <!-- 搜索 / 快速命令：内容全屏；输入条在底部 dock -->
+        <!-- 搜索：视频结果，无命令列表 -->
         <section class="page" data-page="search">
           <div class="search-title">
-            <b>搜索</b>
-            <span>命令 / 视频 / UP</span>
+            <b>搜索视频</b>
+            <span>视频 / UP / 番剧</span>
           </div>
-          <div class="section-label" id="commandLabel">快速命令</div>
-          <div class="command-list" id="commandList">
-            <button class="command-row" data-queue><span class="cmd-ico">☰</span><span>播放列表</span><span class="cmd-meta">队列</span></button>
-            <button class="command-row" data-goto="modules"><span class="cmd-ico">◫</span><span>主页模块</span><span class="cmd-meta">设置</span></button>
-            <button class="command-row" data-goto="settings"><span class="cmd-ico">⚙</span><span>设置</span><span class="cmd-meta">全部</span></button>
-            <button class="command-row" data-command="switch-module"><span class="cmd-ico">⌄</span><span>切换模块</span><span class="cmd-meta">首页</span></button>
-            <button class="command-row" data-command="focus-search"><span class="cmd-ico">⌕</span><span>搜索占位</span><span class="cmd-meta">输入</span></button>
-          </div>
-          <div class="section-label" id="searchResultsLabel">搜索结果（占位）</div>
+          <div class="section-label" id="searchResultsLabel">热门视频</div>
           <div class="feed" id="searchResults">
             <button class="video-row" data-open-detail><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w60"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w18"></i></span></span></button>
             <button class="video-row" data-open-detail><span class="row-thumb alt"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w80"></i><i class="ph-line w50"></i></span><span class="row-meta"><i class="ph-line w35"></i><i class="ph-line w18"></i></span></span></button>
             <button class="video-row" data-open-detail><span class="row-thumb alt2"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w85"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w20"></i></span></span></button>
+            <button class="video-row" data-open-detail><span class="row-thumb alt3"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w22"></i></span></span></button>
+            <button class="video-row" data-open-detail><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w75"></i><i class="ph-line w45"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w20"></i></span></span></button>
           </div>
+          <div class="search-empty" id="searchEmpty" hidden>没有找到视频 · 换个关键词试试</div>
         </section>
 
         <!-- 详情 -->
@@ -169,6 +163,7 @@
             <button class="my-row" data-module="养鱼"><span>养鱼 · AI 看片</span><span class="my-meta">实验</span></button>
             <button class="my-row" data-module="下载"><span>离线缓存</span><span class="my-meta">占位</span></button>
             <button class="my-row" data-module="会员"><span>大会员</span><span class="my-meta">占位</span></button>
+            <button class="my-row" id="myModuleRow"><span>当前模块</span><span class="my-meta" id="myModuleName">推荐</span></button>
             <button class="my-row" data-goto="modules"><span>主页模块</span><span class="my-meta">自定义</span></button>
             <button class="my-row" data-goto="settings"><span>设置</span><span class="my-meta">›</span></button>
           </div>
@@ -298,7 +293,7 @@
         <div class="search-dock" id="searchDock">
           <label class="search-field" id="searchField">
             <span>⌕</span>
-            <input id="searchInput" placeholder="搜索视频 / UP / 命令" autocomplete="off">
+            <input id="searchInput" placeholder="搜索视频 / UP / 番剧" autocomplete="off">
             <button class="search-clear" id="searchClear" type="button" aria-label="清空搜索" hidden>×</button>
           </label>
           <button class="text-btn search-cancel" id="searchCancel" type="button">取消</button>
@@ -455,6 +450,6 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./app.js?v=15"></script>
+  <script src="./app.js?v=17"></script>
 </body>
 </html>
