@@ -1311,7 +1311,7 @@
     lastMediaTime: null,
     lastFrameAt: 0,
   };
-  const debugFrame = { start: 0, count: 0, videoStart: 0, videoCount: 0, decodeTotal: null, decodeAt: 0, decodeFps: 0 };
+  const debugFrame = { start: 0, count: 0, videoStart: 0, videoCount: 0, decodeTotal: null, decodeAt: 0, decodeFps: 0, rvfcCount: 0 };
   let debugNetBytes = null;
   let debugNetAt = 0;
   let debugTimer = null;
@@ -1447,7 +1447,12 @@
         debugFrame.count = 0;
         debugFrame.videoStart = now;
         debugFrame.videoCount = 0;
+        debugFrame.decodeFps = 0;
         sampleVideoQuality();
+        if (!debugFrame.decodeFps && debugFrame.rvfcCount > 0) {
+          debugFrame.decodeFps = debugFrame.rvfcCount;
+        }
+        debugFrame.rvfcCount = 0;
         updateDebugHud();
       }
       requestAnimationFrame(frame);
@@ -1457,6 +1462,7 @@
     const onFrame = (now, metadata) => {
       debugState.lastMediaTime = Number(metadata && metadata.mediaTime);
       debugState.lastFrameAt = now;
+      debugFrame.rvfcCount += 1;
       if (metadata && Number.isFinite(debugState.lastMediaTime)) {
         debugState.avGap = Math.max(0, (realVideo.currentTime - debugState.lastMediaTime) * 1000);
       }
