@@ -183,7 +183,9 @@ i{font-style:normal}
 }
 .app.sidebar-dragging .app-main,
 .app.sidebar-dragging .sidebar,
-.app.sidebar-dragging .sidebar-backdrop{transition:none!important}
+.app.sidebar-dragging .sidebar-backdrop,
+.app.sidebar-dragging .playlist-dock{transition:none!important}
+.app.sidebar-dragging .playlist-dock{animation:none!important}
 body.flat-bg .app-main::before,
 body.flat-bg .app-main::after{display:none}
 body.flat-bg .app-main{background:var(--paper)}
@@ -510,7 +512,7 @@ body.search-mode .proto-fab{opacity:0;pointer-events:none}
 /* ---------- persistent playlist bottom bar ---------- */
 .playlist-dock{
   position:absolute;left:50%;bottom:var(--kb,0px);
-  z-index:55;width:100%;height:calc(104px + env(safe-area-inset-bottom));
+  z-index:76;width:100%;height:calc(104px + env(safe-area-inset-bottom));
   display:flex;flex-direction:column;align-items:stretch;
   padding:0 0 env(safe-area-inset-bottom);
   border:0;border-top:1px solid rgba(255,255,255,.55);border-radius:26px 26px 0 0;

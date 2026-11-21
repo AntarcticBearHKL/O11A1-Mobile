@@ -601,6 +601,7 @@
     sidebarBackdrop.classList.add('show');
     sidebar.setAttribute('aria-hidden', 'false');
     app.classList.add('sidebar-open');
+    playlistDock.classList.remove('receiving', 'absorbing');
     updatePlaylistDock();
   }
 
@@ -1155,12 +1156,17 @@
     const item = state.playlist[state.currentIndex];
     renderDockPlaylist();
     const dockVisible = state.loggedIn && !state.playerOpen;
-    const show = dockVisible && !app.classList.contains('sidebar-open');
+    const sidebarMoving = app.classList.contains('sidebar-dragging');
+    const show = dockVisible && (!app.classList.contains('sidebar-open') || sidebarMoving);
     playlistDock.classList.toggle('show', show);
     playlistDock.setAttribute('aria-hidden', show ? 'false' : 'true');
     playlistDock.setAttribute('aria-label', `播放列表，${count} 项`);
     playlistDock.inert = !show;
     app.classList.toggle('has-playlist', dockVisible);
+    if (!sidebarMoving) {
+      playlistDock.style.opacity = '';
+      playlistDock.style.transform = '';
+    }
     if (!item) {
       pdThumb.innerHTML = '<span class="ph-label">封面</span>';
       pdTitle.textContent = '播放列表';
@@ -1680,6 +1686,7 @@
     app.classList.add('sidebar-open', 'sidebar-dragging');
     sidebar.classList.add('open');
     sidebarBackdrop.classList.add('show');
+    playlistDock.classList.remove('receiving', 'absorbing');
     updatePlaylistDock();
     return true;
   }
@@ -1690,6 +1697,10 @@
     appMain.style.borderRadius = `${(p * 24).toFixed(1)}px`;
     sidebar.style.transform = `translate3d(${((p - 1) * 100).toFixed(2)}%,0,0)`;
     sidebarBackdrop.style.opacity = String(p);
+    if (playlistDock.classList.contains('show')) {
+      playlistDock.style.opacity = String(1 - p);
+      playlistDock.style.transform = `translate(-50%, ${(p * 28).toFixed(1)}px) scale(${(1 - p * 0.035).toFixed(3)})`;
+    }
   }
 
   function finishSidebarDrag() {
