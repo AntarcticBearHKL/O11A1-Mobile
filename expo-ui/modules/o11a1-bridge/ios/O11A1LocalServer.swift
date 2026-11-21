@@ -385,7 +385,7 @@ final class O11A1LocalServer {
   }
 
   private func send(
-    connection: NWConnection,
+    _ connection: NWConnection,
     status: Int,
     headers: [String: String],
     body: Data,
