@@ -1579,18 +1579,19 @@
   }
 
   function sidebarSelectRows() {
-    return $$('.sidebar-item', sidebar);
+    return $$('.sidebar-nav .sidebar-item', sidebar);
   }
 
   function sidebarSelectStep(count) {
-    const travel = Math.min(420, Math.max(240, window.innerHeight * 0.42));
+    const travel = Math.min(320, Math.max(180, window.innerHeight * 0.28));
     return travel / Math.max(1, count - 1);
   }
 
   function beginSidebarSelect(gesture) {
     const rows = sidebarSelectRows();
     if (!rows.length) return;
-    const active = rows.find((row) => row.dataset.nav === state.navActive) || rows[0];
+    const active = rows.find((row) => row.dataset.nav === state.navActive)
+      || (state.navActive === 'my' ? rows[rows.length - 1] : rows[0]);
     gesture.sidebarRows = rows;
     gesture.sidebarIndex = Math.max(0, rows.indexOf(active));
     gesture.sidebarAnchorY = gesture.sidebarLastY;
@@ -1606,7 +1607,8 @@
     if (steps === gesture.sidebarSteps) return;
     const delta = steps - gesture.sidebarSteps;
     gesture.sidebarSteps = steps;
-    gesture.sidebarIndex = Math.max(0, Math.min(rows.length - 1, gesture.sidebarIndex + delta));
+    const count = rows.length;
+    gesture.sidebarIndex = ((gesture.sidebarIndex + delta) % count + count) % count;
     setSidebarPicked(rows[gesture.sidebarIndex]);
   }
 
@@ -4366,11 +4368,11 @@
       window.dispatchEvent(pointerEvent('pointermove', sideStartX + (160 * step) / 6, sideStartY, 1));
     }
     await sleep(320);
-    const sideItems = $$('.sidebar-item', sidebar);
+    const sideItems = $$('.sidebar-nav .sidebar-item', sidebar);
     const homeRow = sideItems.find((row) => row.dataset.nav === 'home');
     const pickVisible = Boolean($('.sidebar-item.picked'));
     const initialPick = pickVisible ? $('.sidebar-item.picked').dataset.nav : '';
-    const sideStep = Math.min(420, Math.max(240, window.innerHeight * 0.42)) / Math.max(1, sideItems.length - 1);
+    const sideStep = Math.min(320, Math.max(180, window.innerHeight * 0.28)) / Math.max(1, sideItems.length - 1);
     const sideTravel = Math.round(sideStep * 4 + 4);
     window.dispatchEvent(pointerEvent('pointermove', sideStartX + 160, sideStartY + sideTravel, 1));
     await sleep(80);
