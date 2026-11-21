@@ -418,8 +418,7 @@
       row.innerHTML = `
         <span class="sidebar-ico">${item.icon}</span>
         <span class="sidebar-label">${escapeHTML(item.label)}</span>
-        ${item.type === 'queue' ? '<span class="sidebar-count" data-queue-count></span>' : ''}
-        <span class="sidebar-chev">›</span>`;
+        ${item.type === 'queue' ? '<span class="sidebar-count" data-queue-count></span>' : ''}`;
       row.addEventListener('click', () => {
         closeSidebar();
         handleNav(item, row);

@@ -1075,7 +1075,6 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
   border-radius:999px;background:rgba(47,124,246,.12);color:var(--blue);
   font-size:9.5px;font-weight:700;line-height:1;
 }
-.sidebar-chev{flex:none;color:var(--faint);font-size:14px}
 
 /* search dock is no longer part of a bottom toolbar */
 .search-dock{
