@@ -458,7 +458,8 @@ final class O11A1LocalServer {
       data = client.qrPoll(key: query["key"] ?? "")
     case "brightness":
       var percent = 100
-      DispatchQueue.main.sync { percent = Int(round(UIScreen.main.brightness * 100)) }
+      let read = { percent = Int(round(UIScreen.main.brightness * 100)) }
+      if Thread.isMainThread { read() } else { DispatchQueue.main.sync(execute: read) }
       data = o11a1Data(["ok": true, "v": percent])
     case "setBrightness":
       let value = Double(query["v"] ?? "50") ?? 50
