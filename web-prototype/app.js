@@ -331,7 +331,9 @@
   let lastVolume = state.volume || 80;
   let toolbarDrag = null;
   let mockFeedLoading = false;
+  let mockFeedLoadedAt = 0;
 
+  const FEED_PREFETCH = 900;
   const ROW_ACTION_TOTAL = 160;
   const ROW_ACTION_FIRST = 114;
   const ROW_ACTION_SECOND = 160;
@@ -863,18 +865,21 @@
   }
 
   function maybeAppendMockFeed() {
-    if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
+    const now = Date.now();
+    if (now - (window.__o11a1ScrollAdjust || 0) < 160) return;
     if (document.body.classList.contains('native-app') || mockFeedLoading) return;
+    if (now - mockFeedLoadedAt < 600) return;
     const feed = activeFeed();
     if (!feed) return;
     const max = appScroll.scrollHeight - appScroll.clientHeight;
-    if (max <= 0 || appScroll.scrollTop < max - 260) return;
+    if (max <= 0 || appScroll.scrollTop < max - FEED_PREFETCH) return;
     mockFeedLoading = true;
     const key = state.page;
     setTimeout(() => {
       mockFeedLoading = false;
       if (state.page !== key) return;
       appendMockFeedChunk(feed);
+      mockFeedLoadedAt = Date.now();
     }, 160);
   }
 

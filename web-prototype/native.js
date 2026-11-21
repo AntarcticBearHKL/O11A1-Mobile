@@ -30,11 +30,12 @@
   };
   const pages = { dynamic: 1, messages: 1 };
   const windows = {
-    home: { page: 0, cursor: '', hasMore: true, loading: false, token: 0, query: '' },
-    search: { page: 0, cursor: '', hasMore: true, loading: false, token: 0, query: '' },
-    module: { page: 0, cursor: '', hasMore: true, loading: false, token: 0, name: '' },
-    up: { page: 0, cursor: '', hasMore: true, loading: false, token: 0, name: '' },
+    home: { page: 0, cursor: '', hasMore: true, loading: false, lastLoadAt: 0, token: 0, query: '' },
+    search: { page: 0, cursor: '', hasMore: true, loading: false, lastLoadAt: 0, token: 0, query: '' },
+    module: { page: 0, cursor: '', hasMore: true, loading: false, lastLoadAt: 0, token: 0, name: '' },
+    up: { page: 0, cursor: '', hasMore: true, loading: false, lastLoadAt: 0, token: 0, name: '' },
   };
+  const FEED_PREFETCH = 900;
   const more = { dynamic: true, messages: true };
   const dynamicFilterNames = ['全部', '视频', '图文'];
   const messageFilterNames = ['回复', '@我', '收到的赞', '私信'];
@@ -920,10 +921,13 @@
     const feed = feeds[key];
     if (!win || !feed) return;
     if (!force && (win.loading || !win.hasMore)) return;
+    const now = Date.now();
+    if (!force && now - (win.lastLoadAt || 0) < 800) return;
     if (!feed.querySelector('.real-row')) return;
     if (win.page < 1) return;
     const next = win.page + 1;
     const token = win.token;
+    win.lastLoadAt = now;
     win.loading = true;
     setTail(feed, 'loading', '正在加载下一段…');
     setTimeout(() => {
@@ -2721,7 +2725,7 @@
   const appScroll = $('#appScroll');
   if (appScroll) appScroll.addEventListener('scroll', () => {
     if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
-    if (appScroll.scrollTop + appScroll.clientHeight < appScroll.scrollHeight - 260) return;
+    if (appScroll.scrollTop + appScroll.clientHeight < appScroll.scrollHeight - FEED_PREFETCH) return;
     if (state.page === 'home' || state.page === 'search' || state.page === 'module') {
       requestFeedPage(state.page);
     }
@@ -2741,7 +2745,7 @@
   if (upScroller) upScroller.addEventListener('scroll', () => {
     if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
     if (state.page !== 'up') return;
-    if (upScroller.scrollTop + upScroller.clientHeight < upScroller.scrollHeight - 260) return;
+    if (upScroller.scrollTop + upScroller.clientHeight < upScroller.scrollHeight - FEED_PREFETCH) return;
     requestFeedPage('up');
   });
 
