@@ -616,6 +616,7 @@
 
   function logout() {
     state.loggedIn = false;
+    restoreNativeBrightness();
     if (window.O11A1Native && typeof window.O11A1Native.logout === 'function') {
       try { window.O11A1Native.logout(); } catch (_) {}
     }
@@ -1611,6 +1612,7 @@
     if (!state.playerOpen) return;
     state.playerOpen = false;
     state.locked = false;
+    restoreNativeBrightness();
     clearTimeout(hideTimer);
     player.classList.remove('dragging');
     player.style.animation = 'none';
@@ -1659,6 +1661,7 @@
     state.playing = false;
     state.progress = 0;
     state.locked = false;
+    restoreNativeBrightness();
     clearTimeout(hideTimer);
     hideMiniPlayer();
     if (player.contains(document.activeElement)) document.activeElement.blur();
@@ -1859,15 +1862,22 @@
     return Math.max(0, Math.min(100, Math.round(value)));
   }
 
-  function applyBrightness(value, persist) {
+  function applyBrightness(value, persist, nativeApply = false) {
     state.brightness = clampPercent(value);
     brightnessValue.textContent = `${state.brightness}%`;
     brightnessFill.style.height = `${state.brightness}%`;
     playerVideo.style.setProperty('--dim', String((100 - state.brightness) / 100 * 0.82));
-    if (window.O11A1Native && typeof window.O11A1Native.setBrightness === 'function') {
+    if (nativeApply && state.playerOpen && window.O11A1Native
+      && typeof window.O11A1Native.setBrightness === 'function') {
       window.O11A1Native.setBrightness(state.brightness);
     }
     if (persist) save();
+  }
+
+  function restoreNativeBrightness() {
+    if (window.O11A1Native && typeof window.O11A1Native.restoreBrightness === 'function') {
+      try { window.O11A1Native.restoreBrightness(); } catch (_) {}
+    }
   }
 
   function applyVolume(value, persist) {
@@ -2133,7 +2143,7 @@
     } else if (gesture.mode === 'level') {
       const rect = playerStage.getBoundingClientRect();
       const delta = (-dy / Math.max(1, rect.height)) * 140;
-      if (gesture.zone === 'left') applyBrightness(gesture.startBrightness + delta);
+      if (gesture.zone === 'left') applyBrightness(gesture.startBrightness + delta, false, true);
       else applyVolume(gesture.startVolume + delta);
     } else if (gesture.mode === 'horizontal') {
       gesture.horizontal = dx;
@@ -2444,6 +2454,10 @@
     }
   }
   window.addEventListener('keydown', handlePlayerKey);
+  window.addEventListener('pagehide', restoreNativeBrightness);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) restoreNativeBrightness();
+  });
 
   function openPlayerMoreSheet() {
     openSheet('播放器', '所有改动即时生效 · 无弹窗提示', (body) => {

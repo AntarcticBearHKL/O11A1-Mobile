@@ -24,7 +24,7 @@
   - Android APK：`https://github.com/AntarcticBearHKL/O11A1-Mobile/releases/download/android-debug/app-debug.apk`
 - **安装**：未签名 IPA 需要自己签名（Sideloadly / AltStore / eSign / 自有开发者证书）；模拟器 zip 解压后用 `xcrun simctl install booted O11A1.app`，需要 macOS。
 - **CI 验证**：`ios-unsigned` 在 macOS runner 上启动 iOS Simulator，已实际跑通登录 gate + 真实二维码 → 模拟登录 → 真实热门流 → 首个视频 720P 播放 + 弹幕。Release 里的 `ios-simulator.png` 是登录 gate，`ios-simulator-player.png` 是真实播放画面。真机仍需你自己签名后测试。
-- **iOS 限制**：HTML5 `<video>` 在 iOS 上不允许程序改音量，音量滑杆只改变 UI 与静音状态，实际音量请用实体音量键；亮度会调整系统亮度。
+- **iOS 限制**：HTML5 `<video>` 在 iOS 上不允许程序改音量，音量滑杆只改变 UI 与静音状态，实际音量请用实体音量键；亮度只在播放器左侧亮度手势时修改系统亮度，退出播放器/切后台会恢复原亮度，App 启动和进入播放器都不会再强制调到最高。
 
 ## Android V2 实装（当前 APK）
 

@@ -14,6 +14,7 @@ final class O11A1LocalServer {
   private var active: [ObjectIdentifier: NWConnection] = [:]
   private var mediaBytes: Int64 = 0
   private var mediaRequests: Int64 = 0
+  private var savedBrightness: CGFloat?
 
   private(set) var port: Int = 0
 
@@ -420,8 +421,17 @@ final class O11A1LocalServer {
       data = client.qrPoll(key: query["key"] ?? "")
     case "setBrightness":
       let value = Double(query["v"] ?? "50") ?? 50
-      DispatchQueue.main.async {
+      DispatchQueue.main.async { [weak self] in
+        guard let self = self else { return }
+        if self.savedBrightness == nil { self.savedBrightness = UIScreen.main.brightness }
         UIScreen.main.brightness = CGFloat(max(0.02, min(1.0, value / 100.0)))
+      }
+      data = o11a1Data(["ok": true])
+    case "restoreBrightness":
+      DispatchQueue.main.async { [weak self] in
+        guard let self = self, let value = self.savedBrightness else { return }
+        UIScreen.main.brightness = value
+        self.savedBrightness = nil
       }
       data = o11a1Data(["ok": true])
     case "setOrientation":

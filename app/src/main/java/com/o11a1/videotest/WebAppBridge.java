@@ -388,6 +388,19 @@ final class WebAppBridge {
     }
 
     @JavascriptInterface
+    public void restoreBrightness() {
+        activity.runOnUiThread(() -> {
+            try {
+                android.view.WindowManager.LayoutParams lp = activity.getWindow().getAttributes();
+                lp.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+                activity.getWindow().setAttributes(lp);
+            } catch (Throwable error) {
+                Log.w(TAG, "brightness restore failed", error);
+            }
+        });
+    }
+
+    @JavascriptInterface
     public void setOrientation(String mode) {
         activity.runOnUiThread(() -> {
             if ("landscape-left".equals(mode)) activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
