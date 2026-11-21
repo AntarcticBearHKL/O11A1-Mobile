@@ -973,6 +973,11 @@
     return map[value] || 64;
   }
 
+  function qualityLabelFromQn(qn) {
+    const map = { 120: '4K', 116: '1080P60', 112: '1080P+', 80: '1080P', 74: '720P60', 64: '720P', 32: '480P', 16: '360P' };
+    return map[Number(qn)] || '';
+  }
+
   function loadLive(item, autoplay) {
     destroyHls();
     stopPostProcess();
@@ -1097,22 +1102,31 @@
     let lastError = 'DASH 地址不可用';
     for (const url of urls.filter(Boolean)) {
       try {
-        const response = await fetch(url, { cache: 'no-store' });
-        if (!response.ok || !response.body) throw new Error('HTTP ' + response.status);
-        const reader = response.body.getReader();
-        state.readers.push(reader);
+        let offset = 0;
+        let total = 0;
         let appended = 0;
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done || state.aborted) break;
-          if (!value || !value.length) continue;
+        while (!state.aborted) {
+          const response = await fetch(url, {
+            cache: 'no-store',
+            headers: { Range: `bytes=${offset}-` }
+          });
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          const contentRange = response.headers.get('Content-Range') || '';
+          const totalMatch = contentRange.match(/\/(\d+)$/);
+          if (totalMatch) total = Number(totalMatch[1]);
+          const value = new Uint8Array(await response.arrayBuffer());
+          if (!value.length) break;
           await appendDashChunk(buffer, value, state);
           appended += value.length;
+          offset += value.length;
           if (!state.started && type === 'video' && appended > 350 * 1024) {
             state.started = true;
             startDashPlayback(autoplay);
           }
           await waitDashRoom(buffer, state);
+          if (response.status === 200 && !total) break;
+          if (total > 0 && offset >= total) break;
+          if (value.length < 64 * 1024) break;
         }
         if (!state.aborted && type === 'video') startDashPlayback(autoplay);
         if (!state.aborted) log('dash ' + type + ' stream ended bytes=' + appended);
@@ -1142,16 +1156,34 @@
     destroyDash();
     destroyHls();
     const target = qualityQn(state.settings.quality);
-    const videoTrack = chooseDashTrack(dash.video, target);
-    const audioTrack = dash.audio.slice().sort((a, b) => Number(b.bandwidth || 0) - Number(a.bandwidth || 0))[0];
-    if (!window.MediaSource || !videoTrack || !audioTrack) {
+    const MediaSourceCtor = window.MediaSource || window.ManagedMediaSource;
+    if (!MediaSourceCtor) {
       mediaItem = null;
       loadVideo(item, autoplay, false);
       return;
     }
-    const videoMime = `${videoTrack.mime || 'video/mp4'}; codecs="${videoTrack.codecs || 'avc1.640033'}"`;
-    const audioMime = `${audioTrack.mime || 'audio/mp4'}; codecs="${audioTrack.codecs || 'mp4a.40.2'}"`;
-    if (!MediaSource.isTypeSupported(videoMime) || !MediaSource.isTypeSupported(audioMime)) {
+    const supportsMime = (mime) => {
+      try {
+        if (typeof MediaSourceCtor.isTypeSupported === 'function') return MediaSourceCtor.isTypeSupported(mime);
+        if (window.MediaSource && typeof window.MediaSource.isTypeSupported === 'function') return window.MediaSource.isTypeSupported(mime);
+      } catch (_) {}
+      return true;
+    };
+    const trackMime = (track, audio) => `${track.mime || (audio ? 'audio/mp4' : 'video/mp4')}; codecs="${track.codecs || (audio ? 'mp4a.40.2' : 'avc1.640033')}"`;
+    const videoCandidates = dash.video.filter((track) => supportsMime(trackMime(track, false)));
+    const audioCandidates = dash.audio.filter((track) => supportsMime(trackMime(track, true)));
+    const videoTrack = chooseDashTrack(videoCandidates.length ? videoCandidates : dash.video, target);
+    const audioTrack = (audioCandidates.length ? audioCandidates : dash.audio)
+      .slice()
+      .sort((a, b) => Number(b.bandwidth || 0) - Number(a.bandwidth || 0))[0];
+    if (!videoTrack || !audioTrack) {
+      mediaItem = null;
+      loadVideo(item, autoplay, false);
+      return;
+    }
+    const videoMime = trackMime(videoTrack, false);
+    const audioMime = trackMime(audioTrack, true);
+    if (!supportsMime(videoMime) || !supportsMime(audioMime)) {
       mediaItem = null;
       loadVideo(item, autoplay, false);
       return;
@@ -1160,8 +1192,12 @@
     mediaLive = false;
     mediaBackup = '';
     loadDanmaku(item.cid);
-    const mediaSource = new MediaSource();
+    const mediaSource = new MediaSourceCtor();
     const url = URL.createObjectURL(mediaSource);
+    const managed = !window.MediaSource && Boolean(window.ManagedMediaSource);
+    if (managed) {
+      try { video.disableRemotePlayback = true; } catch (_) {}
+    }
     const session = {
       aborted: false,
       started: false,
@@ -1176,7 +1212,8 @@
     playerVideo.classList.add('has-video', 'video-loading');
     setStatus('DASH 缓冲中…', 'loading');
     if (dash.qualityLabel) {
-      window.O11A1Host.state.settings.quality = dash.qualityLabel;
+      const actual = qualityLabelFromQn(videoTrack.qn) || dash.qualityLabel;
+      window.O11A1Host.state.settings.quality = actual;
       host.updatePlayerLabels();
     }
     mediaSource.addEventListener('sourceopen', () => {
@@ -1256,9 +1293,14 @@
       return;
     }
     const highQuality = ['4K', '1080P60', '1080P', '1080P+'].includes(state.settings.quality);
-    if (allowDash && highQuality && item.bvid && item.cid && typeof bridge.dash === 'function') {
-      const dash = call('dash', item.bvid, item.cid, qualityQn(state.settings.quality));
+    if (allowDash && highQuality && item.bvid && typeof bridge.dash === 'function') {
+      const dash = call('dash', item.bvid, item.cid || 0, qualityQn(state.settings.quality));
       if (dash.ok && Array.isArray(dash.video) && Array.isArray(dash.audio) && dash.video.length && dash.audio.length) {
+        if (dash.cid) {
+          item.cid = dash.cid;
+          const entry = currentItem();
+          if (entry) entry.cid = dash.cid;
+        }
         loadDash(item, dash, autoplay);
         return;
       }

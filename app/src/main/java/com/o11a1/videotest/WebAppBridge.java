@@ -191,6 +191,16 @@ final class WebAppBridge {
     }
 
     @JavascriptInterface
+    public int displayHz() {
+        try {
+            android.view.Display display = activity.getWindowManager().getDefaultDisplay();
+            return Math.round(display.getRefreshRate());
+        } catch (Throwable error) {
+            return 60;
+        }
+    }
+
+    @JavascriptInterface
     public String openWebLogin() {
         JSONObject out = new JSONObject();
         try {

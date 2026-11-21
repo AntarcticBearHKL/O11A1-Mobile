@@ -1339,6 +1339,7 @@
   /* ---------- debug HUD ---------- */
   const debugState = {
     displayHz: 0,
+    nativeHz: 0,
     feedFps: 0,
     videoFps: 0,
     decodeFps: 0,
@@ -1370,9 +1371,9 @@
   function targetFps() {
     const interp = state.settings.interp;
     if (interp === '60' || interp === '90' || interp === '120') {
-      return Math.min(Number(interp) || 60, debugState.displayHz || Number(interp) || 60);
+      return Math.min(Number(interp) || 60, debugState.nativeHz || debugState.displayHz || Number(interp) || 60);
     }
-    return debugState.displayHz || 60;
+    return debugState.nativeHz || debugState.displayHz || 60;
   }
 
   function sampleVideoQuality() {
@@ -1440,7 +1441,7 @@
     const playerVisible = state.settings.debugHud !== false && state.playerOpen;
     videoDebug.hidden = !playerVisible;
     if (!feedVisible && !playerVisible) return;
-    const hz = debugState.displayHz;
+    const hz = debugState.nativeHz || debugState.displayHz;
     const target = Math.round(targetFps());
     const render = Math.round(debugState.videoFps);
     feedDebugHz.textContent = `${hz ? hz.toFixed(1) : '—'} Hz`;
@@ -1461,6 +1462,12 @@
   }
 
   function initDebugHud() {
+    try {
+      if (window.O11A1Native && typeof window.O11A1Native.displayHz === 'function') {
+        const hz = Number(window.O11A1Native.displayHz());
+        if (Number.isFinite(hz) && hz > 0) debugState.nativeHz = hz;
+      }
+    } catch (_) {}
     let last = performance.now();
     const samples = [];
     function frame(now) {

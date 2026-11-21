@@ -845,10 +845,11 @@ final class BiliExtras {
     JSONObject dash(String bvid, long cid, int qn) {
         JSONObject out = new JSONObject();
         try {
+            if (cid <= 0) cid = api.resolveCid(bvid);
             if (cid <= 0) throw new IllegalStateException("cid not found");
             if (qn <= 0) qn = 120;
             String url = "https://api.bilibili.com/x/player/playurl?bvid=" + bvid + "&cid=" + cid
-                + "&qn=" + qn + "&fnval=16&fourk=1";
+                + "&qn=" + qn + "&fnval=4048&fourk=1";
             JSONObject json = fetch(url);
             int code = json.optInt("code", -1);
             JSONObject data = json.optJSONObject("data");
@@ -862,7 +863,7 @@ final class BiliExtras {
             if (videos != null) {
                 for (int i = 0; i < videos.length(); i += 1) {
                     JSONObject track = videos.optJSONObject(i);
-                    if (track == null || track.optInt("codecid", 0) != 7) continue;
+                    if (track == null || (track.optInt("codecid", 0) != 7 && track.optInt("codecid", 0) != 12 && track.optInt("codecid", 0) != 13)) continue;
                     JSONObject row = dashTrack(track);
                     if (row != null) videoRows.put(row);
                 }
@@ -897,6 +898,7 @@ final class BiliExtras {
             if (base.isEmpty()) return null;
             JSONObject row = new JSONObject();
             row.put("qn", track.optInt("id", 0));
+            row.put("codecid", track.optInt("codecid", 0));
             row.put("bandwidth", track.optLong("bandwidth", 0));
             row.put("mime", track.optString("mimeType", "video/mp4"));
             row.put("codecs", track.optString("codecs", ""));

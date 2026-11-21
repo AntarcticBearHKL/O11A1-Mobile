@@ -1526,7 +1526,84 @@ final class O11A1BiliClient {
   }
 
   func dash(bvid: String, cid: Int64, qn: Int) -> Data {
-    return o11a1Data(["ok": false, "error": "iOS 使用渐进播放"])
+    guard !bvid.isEmpty else { return o11a1Error("bvid missing") }
+    guard port > 0 else { return o11a1Error("server not ready") }
+    ensureBuvid()
+    var resolvedCid = cid
+    if resolvedCid <= 0 { resolvedCid = firstCid(bvid) }
+    guard resolvedCid > 0 else { return o11a1Error("cid not found") }
+    var selected: [String: Any]?
+    var seen = Set<Int>()
+    let candidates = [qn, 120, 116, 112, 80, 64, 32, 16]
+    for candidate in candidates {
+      if candidate <= 0 || seen.contains(candidate) { continue }
+      seen.insert(candidate)
+      guard let payload = json(
+        base: Self.apiBase,
+        path: "/x/player/playurl",
+        query: [
+          "bvid": bvid, "cid": "\(resolvedCid)", "qn": "\(candidate)",
+          "fnval": "4048", "fourk": "1"
+        ]
+      ) else { continue }
+      let code = o11a1Int(payload["code"])
+      guard code == 0, let data = payload["data"] as? [String: Any],
+            data["dash"] is [String: Any] else { continue }
+      selected = data
+      break
+    }
+    guard let data = selected,
+          let dash = data["dash"] as? [String: Any] else {
+      return o11a1Error("当前账号没有可用的 DASH 清晰度")
+    }
+    let videos = dash["video"] as? [[String: Any]] ?? []
+    let audios = dash["audio"] as? [[String: Any]] ?? []
+    let videoRows: [[String: Any]] = videos.compactMap { track in
+      let codecid = o11a1Int(track["codecid"])
+      if codecid != 7 && codecid != 12 && codecid != 13 { return nil }
+      return dashRow(track, audio: false)
+    }
+    var audioRows: [[String: Any]] = []
+    for track in audios {
+      if let row = dashRow(track, audio: true) { audioRows.append(row) }
+    }
+    guard !videoRows.isEmpty, !audioRows.isEmpty else {
+      return o11a1Error("当前清晰度没有可播放的 DASH 轨道")
+    }
+    let quality = o11a1Int(data["quality"])
+    var output: [String: Any] = [
+      "ok": true,
+      "cid": resolvedCid,
+      "quality": quality,
+      "qualityLabel": o11a1QualityLabel(quality),
+      "video": videoRows,
+      "audio": audioRows
+    ]
+    if let accept = data["accept_quality"] { output["acceptQuality"] = accept }
+    return o11a1Data(output)
+  }
+
+  private func dashRow(_ track: [String: Any], audio: Bool) -> [String: Any]? {
+    let base = o11a1String(track["baseUrl"]).isEmpty
+      ? o11a1String(track["base_url"])
+      : o11a1String(track["baseUrl"])
+    guard !base.isEmpty else { return nil }
+    var row: [String: Any] = [
+      "qn": o11a1Int(track["id"]),
+      "codecid": o11a1Int(track["codecid"]),
+      "bandwidth": o11a1Int64(track["bandwidth"]),
+      "mime": o11a1String(track["mimeType"]).isEmpty ? (audio ? "audio/mp4" : "video/mp4") : o11a1String(track["mimeType"]),
+      "codecs": o11a1String(track["codecs"]),
+      "width": o11a1Int(track["width"]),
+      "height": o11a1Int(track["height"]),
+      "url": "http://127.0.0.1:\(port)/media?u=\(token(for: [base]))"
+    ]
+    if let backups = track["backupUrl"] as? [String], let backup = backups.first, !backup.isEmpty {
+      row["backup"] = "http://127.0.0.1:\(port)/media?u=\(token(for: [backup]))"
+    } else if let backups = track["backup_url"] as? [String], let backup = backups.first, !backup.isEmpty {
+      row["backup"] = "http://127.0.0.1:\(port)/media?u=\(token(for: [backup]))"
+    }
+    return row
   }
 
   func proxyInfo() -> Data {

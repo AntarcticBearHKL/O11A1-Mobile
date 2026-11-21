@@ -89,6 +89,11 @@ final class BiliApi {
         return playWithQns(bvid, cid, qns);
     }
 
+    long resolveCid(String bvid) {
+        long cid = firstCid(bvid);
+        return cid;
+    }
+
     JSONObject playRemote(String bvid, long cid, int qn) {
         JSONObject out = new JSONObject();
         try {
