@@ -335,9 +335,9 @@
   let toolbarDrag = null;
   let mockFeedLoading = false;
 
-  const ROW_ACTION_TOTAL = 228;
+  const ROW_ACTION_TOTAL = 160;
   const ROW_ACTION_FIRST = 114;
-  const ROW_ACTION_SECOND = 228;
+  const ROW_ACTION_SECOND = 160;
 
   const MODULE_NOTES = {
     收藏: '真实收藏夹 · 第一页 20 条',
