@@ -3,6 +3,7 @@
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 
   const app = $('#app');
+  const appMain = $('.app-main');
   const appScroll = $('#appScroll');
   const homeFeed = $('#homeFeed');
   const moduleFeed = $('#moduleFeed');
@@ -318,6 +319,7 @@
   let commentsGesture = null;
   let commentsCloseTimer = null;
   let rowSwipe = null;
+  let sidebarPicked = null;
   let menuSwipeStart = null;
   let lastFeedScrollTop = 0;
   let searchDrag = null;
@@ -1452,6 +1454,98 @@
     if (action === 'queue') addFeedRowToPlaylist(row);
     else if (action === 'up') openUpPageForRow(row);
     setTimeout(() => resetRowSwipe(wrapper), 200);
+  }
+
+  /* ---------- live sidebar drag ---------- */
+  function clearSidebarPicked() {
+    sidebarPicked = null;
+    $$('.sidebar-item.picked', sidebar).forEach((row) => row.classList.remove('picked'));
+  }
+
+  function setSidebarPicked(row) {
+    if (!row || row === sidebarPicked) return;
+    sidebarPicked = row;
+    $$('.sidebar-item.picked', sidebar).forEach((item) => item.classList.remove('picked'));
+    row.classList.add('picked');
+    if (navigator.vibrate) navigator.vibrate(6);
+  }
+
+  function sidebarItemAt(clientX, clientY) {
+    const hit = document.elementFromPoint(clientX, clientY);
+    const direct = hit && hit.closest ? hit.closest('.sidebar-item') : null;
+    if (direct && sidebar.contains(direct)) return direct;
+    let best = null;
+    let bestDist = Infinity;
+    $$('.sidebar-item', sidebar).forEach((row) => {
+      const rect = row.getBoundingClientRect();
+      const dist = Math.abs(clientY - (rect.top + rect.height / 2));
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = row;
+      }
+    });
+    return best;
+  }
+
+  function beginSidebarDrag() {
+    if (!state.loggedIn) return false;
+    renderSidebar();
+    updateMiniPlayer();
+    clearSidebarPicked();
+    sidebar.classList.remove('selecting');
+    sidebar.inert = false;
+    sidebar.setAttribute('aria-hidden', 'false');
+    app.classList.add('sidebar-open', 'sidebar-dragging');
+    sidebar.classList.add('open');
+    sidebarBackdrop.classList.add('show');
+    updatePlaylistDock();
+    return true;
+  }
+
+  function applySidebarDrag(progress) {
+    const p = Math.max(0, Math.min(1, progress));
+    appMain.style.transform = `translate3d(${(p * 10).toFixed(2)}%,0,0) scale(${(1 - p * 0.1).toFixed(4)}) rotateY(${(p * 5).toFixed(2)}deg)`;
+    appMain.style.borderRadius = `${(p * 24).toFixed(1)}px`;
+    sidebar.style.transform = '';
+    sidebar.style.clipPath = `inset(0 ${((1 - p) * 100).toFixed(2)}% 0 0)`;
+    sidebar.style.webkitClipPath = sidebar.style.clipPath;
+    sidebarBackdrop.style.opacity = String(p);
+  }
+
+  function finishSidebarDrag() {
+    app.classList.remove('sidebar-dragging');
+    sidebar.classList.remove('selecting');
+    clearSidebarPicked();
+    appMain.style.transform = '';
+    appMain.style.borderRadius = '';
+    sidebar.style.transform = '';
+    sidebar.style.clipPath = '';
+    sidebar.style.webkitClipPath = '';
+    sidebarBackdrop.style.opacity = '';
+  }
+
+  function endSidebarDrag(start, event) {
+    if (!start) return;
+    clearTimeout(start.sidebarHoldTimer);
+    start.sidebarHoldTimer = null;
+    const progress = start.sidebarProgress || 0;
+    const selecting = start.sidebarSelecting === true;
+    const picked = sidebarPicked;
+    const cancelled = event && event.type === 'pointercancel';
+    finishSidebarDrag();
+    suppressFeedClickUntil = Date.now() + 420;
+    suppressSidebarClickUntil = Date.now() + 420;
+    if (selecting && picked && !cancelled) {
+      const item = NAV_ITEMS.find((entry) => entry.id === picked.dataset.nav);
+      closeSidebar();
+      if (item) handleNav(item, picked);
+      return;
+    }
+    if (!cancelled && progress >= 0.22) {
+      updatePlaylistDock();
+      return;
+    }
+    closeSidebar();
   }
 
   /* ---------- player ---------- */
@@ -3325,7 +3419,10 @@
   });
   window.addEventListener('pointercancel', () => { toolbarDrag = null; });
 
-  sidebarBackdrop.addEventListener('click', closeSidebar);
+  sidebarBackdrop.addEventListener('click', () => {
+    if (Date.now() < suppressSidebarClickUntil) return;
+    closeSidebar();
+  });
   playlistBack.addEventListener('click', closePlaylistPage);
   playlistPage.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -3455,6 +3552,12 @@
       wrapper: row ? row.closest('.feed-item') : null,
       offset: 0,
       direction: null,
+      sidebarActive: false,
+      sidebarProgress: 0,
+      sidebarSelecting: false,
+      sidebarHoldTimer: null,
+      sidebarLastX: event.clientX,
+      sidebarLastY: event.clientY,
     };
   });
   window.addEventListener('pointermove', (event) => {
@@ -3468,7 +3571,19 @@
         return;
       }
       if (dx > 8) {
+        if (!beginSidebarDrag()) {
+          rowSwipe.direction = 'vertical';
+          return;
+        }
         rowSwipe.direction = 'right';
+        rowSwipe.sidebarActive = true;
+        applySidebarDrag(0);
+        rowSwipe.sidebarHoldTimer = setTimeout(() => {
+          if (!rowSwipe || rowSwipe.direction !== 'right' || rowSwipe.sidebarProgress < 0.18) return;
+          rowSwipe.sidebarSelecting = true;
+          sidebar.classList.add('selecting');
+          setSidebarPicked(sidebarItemAt(rowSwipe.sidebarLastX, rowSwipe.sidebarLastY));
+        }, 240);
         return;
       }
       if (dx < -8) {
@@ -3480,6 +3595,17 @@
         rowSwipe.wrapper.classList.add('swiping');
       }
     }
+    if (rowSwipe.direction === 'right') {
+      if (event.cancelable) event.preventDefault();
+      const width = app.clientWidth || window.innerWidth;
+      const progress = Math.min(1, Math.max(0, dx / (width * 0.62)));
+      rowSwipe.sidebarProgress = progress;
+      rowSwipe.sidebarLastX = event.clientX;
+      rowSwipe.sidebarLastY = event.clientY;
+      applySidebarDrag(progress);
+      if (rowSwipe.sidebarSelecting) setSidebarPicked(sidebarItemAt(event.clientX, event.clientY));
+      return;
+    }
     if (rowSwipe.direction !== 'left') return;
     if (event.cancelable) event.preventDefault();
     const offset = Math.min(ROW_ACTION_TOTAL, Math.max(0, -dx));
@@ -3490,13 +3616,8 @@
     if (!rowSwipe || event.pointerId !== rowSwipe.id) return;
     const start = rowSwipe;
     rowSwipe = null;
-    const dx = event.clientX - start.x;
-    const dy = event.clientY - start.y;
     if (start.direction === 'right') {
-      if (dx > 64 && Math.abs(dx) > Math.abs(dy) * 1.4) {
-        suppressFeedClickUntil = Date.now() + 420;
-        openSidebar();
-      }
+      endSidebarDrag(start, event);
       return;
     }
     if (start.direction !== 'left') return;
@@ -3509,8 +3630,11 @@
     resetRowSwipe(start.wrapper);
   });
   window.addEventListener('pointercancel', () => {
-    if (rowSwipe) resetRowSwipe(rowSwipe.wrapper);
+    const start = rowSwipe;
     rowSwipe = null;
+    if (!start) return;
+    if (start.direction === 'right') endSidebarDrag(start, { type: 'pointercancel' });
+    else if (start.direction === 'left') resetRowSwipe(start.wrapper);
   });
 
   appScroll.addEventListener('scroll', maybeAppendMockFeed);
@@ -4003,6 +4127,27 @@
     await sleep(900);
     const chunksNext = Array.from(new Set($$('#homeFeed [data-chunk]').map((row) => row.dataset.chunk)));
     results.push(`feedSlide=${chunksNext.length === 2 && !chunksNext.includes(chunksBefore[0] || '1')}`);
+
+    const sideStartX = appScroll.getBoundingClientRect().left + 60;
+    const sideStartY = appScroll.getBoundingClientRect().top + appScroll.getBoundingClientRect().height * 0.5;
+    appScroll.dispatchEvent(pointerEvent('pointerdown', sideStartX, sideStartY, 1));
+    for (let step = 1; step <= 6; step += 1) {
+      window.dispatchEvent(pointerEvent('pointermove', sideStartX + (160 * step) / 6, sideStartY, 1));
+    }
+    await sleep(320);
+    const pickVisible = Boolean($('.sidebar-item.picked'));
+    const sideItems = $$('.sidebar-item', sidebar);
+    const sideTarget = sideItems[Math.min(2, sideItems.length - 1)];
+    if (sideTarget) {
+      const sideTargetRect = sideTarget.getBoundingClientRect();
+      window.dispatchEvent(pointerEvent('pointermove', sideStartX + 160, sideTargetRect.top + sideTargetRect.height / 2, 1));
+      await sleep(60);
+    }
+    const sideTargetPicked = Boolean(sideTarget && sideTarget.classList.contains('picked'));
+    window.dispatchEvent(pointerEvent('pointerup', sideStartX + 160, sideStartY, 0));
+    await sleep(460);
+    results.push(`sidebarPick=${pickVisible}`);
+    results.push(`sidebarSelect=${sideTargetPicked && !sidebar.classList.contains('open') && state.page !== 'home'}`);
 
     document.title = `SELFTEST ${results.join(' ')}`;
   }
