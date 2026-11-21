@@ -76,7 +76,6 @@
   const playlistDock = $('#playlistDock');
   const pdTitle = $('#pdTitle');
   const pdMeta = $('#pdMeta');
-  const pdCount = $('#pdCount');
   const pdProgress = $('#pdProgress');
   const playlistPageList = $('#playlistPageList');
   const playlistPageCount = $('#playlistPageCount');
@@ -929,13 +928,11 @@
     if (!item) {
       pdTitle.textContent = '播放列表';
       pdMeta.textContent = `${count} 项`;
-      pdCount.textContent = '0';
       pdProgress.style.width = '0%';
       return;
     }
     pdTitle.textContent = item.title;
     pdMeta.textContent = `播放列表 · ${count} 项 · ${state.playing ? '正在播放' : state.progress > 0 ? '已暂停' : '待播放'}`;
-    pdCount.textContent = String(count);
     pdProgress.style.width = `${state.progress}%`;
   }
 

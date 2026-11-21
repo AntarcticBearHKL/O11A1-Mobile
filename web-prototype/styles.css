@@ -425,12 +425,6 @@ body.search-mode .playlist-dock{bottom:calc(80px + var(--kb,0px) + env(safe-area
 .pd-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 .pd-copy b{font-size:12.5px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pd-copy small{font-size:9.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pd-count{
-  min-width:20px;height:20px;padding:0 6px;flex:none;display:grid;place-items:center;
-  border-radius:999px;background:rgba(47,124,246,.12);color:var(--blue);
-  font-size:9.5px;font-weight:700;line-height:1;
-}
-.pd-grip{width:18px;flex:none;text-align:center;color:var(--muted);font-size:14px;line-height:1}
 .pd-progress{position:absolute;left:14px;right:14px;bottom:0;height:2px;border-radius:2px;background:rgba(30,30,34,.08);overflow:hidden}
 .pd-progress i{display:block;height:100%;width:0;border-radius:2px;background:var(--blue);transition:width .18s}
 
