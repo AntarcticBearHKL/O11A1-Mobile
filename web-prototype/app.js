@@ -780,8 +780,6 @@
       const row = holder.firstElementChild;
       if (!row) continue;
       row.dataset.chunk = String(next);
-      row.classList.add('feed-row-enter');
-      row.style.animationDelay = `${Math.min(i, 7) * 18}ms`;
       fragment.appendChild(row);
     }
     feed.appendChild(fragment);
@@ -795,11 +793,15 @@
         ? lastOld.getBoundingClientRect().bottom - firstOld.getBoundingClientRect().top
         : 0;
       oldRows.forEach((row) => row.remove());
-      if (oldHeight > 0) appScroll.scrollTop = Math.max(0, appScroll.scrollTop - oldHeight);
+      if (oldHeight > 0) {
+        window.__o11a1ScrollAdjust = Date.now();
+        appScroll.scrollTop = Math.max(0, appScroll.scrollTop - oldHeight);
+      }
     }
   }
 
   function maybeAppendMockFeed() {
+    if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
     if (document.body.classList.contains('native-app') || mockFeedLoading) return;
     const feed = activeFeed();
     if (!feed) return;
@@ -3383,6 +3385,10 @@
 
   appScroll.addEventListener('scroll', maybeAppendMockFeed);
   appScroll.addEventListener('scroll', () => {
+    if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) {
+      lastFeedScrollTop = appScroll.scrollTop;
+      return;
+    }
     if (state.page !== 'home') {
       hideFeedSearch();
       lastFeedScrollTop = appScroll.scrollTop;

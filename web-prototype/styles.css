@@ -253,8 +253,6 @@ body.search-mode .app.has-playlist .page[data-page="search"]{padding-bottom:calc
 }
 .feed-tail.error .feed-tail-retry{display:inline-flex}
 @keyframes feedTailSpin{to{transform:rotate(360deg)}}
-@keyframes feedRowIn{from{opacity:.25;transform:translateY(9px)}to{opacity:1;transform:none}}
-.feed-row-enter{animation:feedRowIn .34s cubic-bezier(.16,1,.3,1) both}
 .page[data-page="home"]{padding-top:12px}
 
 .icon-btn{

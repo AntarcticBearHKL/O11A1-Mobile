@@ -223,10 +223,7 @@
     feed.__chunkItems[chunk] = items.slice();
     const fragment = document.createDocumentFragment();
     items.forEach((item, index) => {
-      const row = buildRow(item, label, chunk, index);
-      row.classList.add('feed-row-enter');
-      row.style.animationDelay = `${Math.min(index, 7) * 18}ms`;
-      fragment.appendChild(row);
+      fragment.appendChild(buildRow(item, label, chunk, index));
     });
     feed.appendChild(fragment);
     while (feed.__chunkPages.length > 2) {
@@ -244,6 +241,7 @@
         || (feed === feeds.search && state.page === 'search')
         || (feed === feeds.module && state.page === 'module');
       if (scroll && oldHeight > 0 && isActive) {
+        window.__o11a1ScrollAdjust = Date.now();
         scroll.scrollTop = Math.max(0, scroll.scrollTop - oldHeight);
       }
     }
@@ -2646,6 +2644,7 @@
 
   const appScroll = $('#appScroll');
   if (appScroll) appScroll.addEventListener('scroll', () => {
+    if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
     if (appScroll.scrollTop + appScroll.clientHeight < appScroll.scrollHeight - 260) return;
     if (state.page === 'home' || state.page === 'search' || state.page === 'module' || state.page === 'up') {
       requestFeedPage(state.page);
