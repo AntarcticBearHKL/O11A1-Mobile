@@ -1476,21 +1476,36 @@
     if (navigator.vibrate) navigator.vibrate(6);
   }
 
-  function sidebarItemAt(clientX, clientY) {
-    const hit = document.elementFromPoint(clientX, clientY);
-    const direct = hit && hit.closest ? hit.closest('.sidebar-item') : null;
-    if (direct && sidebar.contains(direct)) return direct;
-    let best = null;
-    let bestDist = Infinity;
-    $$('.sidebar-item', sidebar).forEach((row) => {
-      const rect = row.getBoundingClientRect();
-      const dist = Math.abs(clientY - (rect.top + rect.height / 2));
-      if (dist < bestDist) {
-        bestDist = dist;
-        best = row;
-      }
-    });
-    return best;
+  function sidebarSelectRows() {
+    return $$('.sidebar-item', sidebar);
+  }
+
+  function sidebarSelectStep(count) {
+    const travel = Math.min(420, Math.max(240, window.innerHeight * 0.42));
+    return travel / Math.max(1, count - 1);
+  }
+
+  function beginSidebarSelect(gesture) {
+    const rows = sidebarSelectRows();
+    if (!rows.length) return;
+    const active = rows.find((row) => row.dataset.nav === state.navActive) || rows[0];
+    gesture.sidebarRows = rows;
+    gesture.sidebarIndex = Math.max(0, rows.indexOf(active));
+    gesture.sidebarAnchorY = gesture.sidebarLastY;
+    gesture.sidebarStep = sidebarSelectStep(rows.length);
+    gesture.sidebarSteps = 0;
+    setSidebarPicked(active);
+  }
+
+  function moveSidebarSelect(gesture, clientY) {
+    const rows = gesture.sidebarRows;
+    if (!rows || !rows.length || !gesture.sidebarStep) return;
+    const steps = Math.trunc((clientY - gesture.sidebarAnchorY) / gesture.sidebarStep);
+    if (steps === gesture.sidebarSteps) return;
+    const delta = steps - gesture.sidebarSteps;
+    gesture.sidebarSteps = steps;
+    gesture.sidebarIndex = Math.max(0, Math.min(rows.length - 1, gesture.sidebarIndex + delta));
+    setSidebarPicked(rows[gesture.sidebarIndex]);
   }
 
   function beginSidebarDrag() {
@@ -1512,9 +1527,7 @@
     const p = Math.max(0, Math.min(1, progress));
     appMain.style.transform = `translate3d(${(p * 10).toFixed(2)}%,0,0) scale(${(1 - p * 0.1).toFixed(4)}) rotateY(${(p * 5).toFixed(2)}deg)`;
     appMain.style.borderRadius = `${(p * 24).toFixed(1)}px`;
-    sidebar.style.transform = '';
-    sidebar.style.clipPath = `inset(0 ${((1 - p) * 100).toFixed(2)}% 0 0)`;
-    sidebar.style.webkitClipPath = sidebar.style.clipPath;
+    sidebar.style.transform = `translate3d(calc(${((p - 1) * 100).toFixed(2)}% - ${((1 - p) * 24).toFixed(1)}px),0,0)`;
     sidebarBackdrop.style.opacity = String(p);
   }
 
@@ -1525,8 +1538,6 @@
     appMain.style.transform = '';
     appMain.style.borderRadius = '';
     sidebar.style.transform = '';
-    sidebar.style.clipPath = '';
-    sidebar.style.webkitClipPath = '';
     sidebarBackdrop.style.opacity = '';
   }
 
@@ -3610,8 +3621,10 @@
         rowSwipe.sidebarHoldTimer = setTimeout(() => {
           if (!rowSwipe || rowSwipe.direction !== 'right' || rowSwipe.sidebarProgress < 0.18) return;
           rowSwipe.sidebarSelecting = true;
+          rowSwipe.sidebarProgress = 1;
           sidebar.classList.add('selecting');
-          setSidebarPicked(sidebarItemAt(rowSwipe.sidebarLastX, rowSwipe.sidebarLastY));
+          applySidebarDrag(1);
+          beginSidebarSelect(rowSwipe);
         }, 240);
         return;
       }
@@ -3626,13 +3639,18 @@
     }
     if (rowSwipe.direction === 'right') {
       if (event.cancelable) event.preventDefault();
-      const width = app.clientWidth || window.innerWidth;
-      const progress = Math.min(1, Math.max(0, dx / (width * 0.62)));
-      rowSwipe.sidebarProgress = progress;
       rowSwipe.sidebarLastX = event.clientX;
       rowSwipe.sidebarLastY = event.clientY;
-      applySidebarDrag(progress);
-      if (rowSwipe.sidebarSelecting) setSidebarPicked(sidebarItemAt(event.clientX, event.clientY));
+      if (rowSwipe.sidebarSelecting) {
+        rowSwipe.sidebarProgress = 1;
+        applySidebarDrag(1);
+        moveSidebarSelect(rowSwipe, event.clientY);
+      } else {
+        const width = app.clientWidth || window.innerWidth;
+        const progress = Math.min(1, Math.max(0, dx / (width * 0.62)));
+        rowSwipe.sidebarProgress = progress;
+        applySidebarDrag(progress);
+      }
       return;
     }
     if (rowSwipe.direction !== 'left') return;
@@ -4147,18 +4165,19 @@
       window.dispatchEvent(pointerEvent('pointermove', sideStartX + (160 * step) / 6, sideStartY, 1));
     }
     await sleep(320);
-    const pickVisible = Boolean($('.sidebar-item.picked'));
     const sideItems = $$('.sidebar-item', sidebar);
-    const sideTarget = sideItems[Math.min(2, sideItems.length - 1)];
-    if (sideTarget) {
-      const sideTargetRect = sideTarget.getBoundingClientRect();
-      window.dispatchEvent(pointerEvent('pointermove', sideStartX + 160, sideTargetRect.top + sideTargetRect.height / 2, 1));
-      await sleep(60);
-    }
-    const sideTargetPicked = Boolean(sideTarget && sideTarget.classList.contains('picked'));
-    window.dispatchEvent(pointerEvent('pointerup', sideStartX + 160, sideStartY, 0));
+    const homeRow = sideItems.find((row) => row.dataset.nav === 'home');
+    const pickVisible = Boolean($('.sidebar-item.picked'));
+    const initialPick = pickVisible ? $('.sidebar-item.picked').dataset.nav : '';
+    const sideStep = Math.min(420, Math.max(240, window.innerHeight * 0.42)) / Math.max(1, sideItems.length - 1);
+    const sideTravel = Math.round(sideStep * 4 + 4);
+    window.dispatchEvent(pointerEvent('pointermove', sideStartX + 160, sideStartY + sideTravel, 1));
+    await sleep(80);
+    const sidePickedRow = $('.sidebar-item.picked');
+    const sideTargetPicked = Boolean(sidePickedRow && sidePickedRow !== homeRow);
+    window.dispatchEvent(pointerEvent('pointerup', sideStartX + 160, sideStartY + sideTravel, 0));
     await sleep(460);
-    results.push(`sidebarPick=${pickVisible}`);
+    results.push(`sidebarPick=${pickVisible && initialPick === 'home'}`);
     results.push(`sidebarSelect=${sideTargetPicked && !sidebar.classList.contains('open') && state.page !== 'home'}`);
 
     document.title = `SELFTEST ${results.join(' ')}`;
