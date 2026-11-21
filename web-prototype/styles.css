@@ -1010,21 +1010,6 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
 
 /* ---------- left sidebar navigation (no bottom toolbar) ---------- */
 .app-scroll{touch-action:pan-y}
-.sidebar-handle{
-  position:absolute;left:0;top:50%;transform:translateY(-50%);z-index:55;
-  width:18px;height:64px;display:grid;place-items:center;
-  border:1px solid var(--glass-border);border-left:0;border-radius:0 14px 14px 0;
-  background:var(--glass-bg);color:var(--muted);
-  box-shadow:var(--glass-shadow);backdrop-filter:var(--glass-blur);
-  -webkit-backdrop-filter:var(--glass-blur);
-  font-size:12px;cursor:pointer;transition:opacity .18s,transform .18s;
-}
-.sidebar-handle:hover{color:var(--ink);transform:translateY(-50%) translateX(2px)}
-.sidebar-handle.playing::after{
-  content:"";position:absolute;top:10px;right:5px;width:5px;height:5px;border-radius:50%;
-  background:var(--blue);box-shadow:0 0 0 3px rgba(47,124,246,.16);
-}
-.app.sidebar-open .sidebar-handle{opacity:0;pointer-events:none}
 .sidebar-backdrop{
   position:absolute;inset:0;z-index:70;background:rgba(20,20,26,.28);
   opacity:0;pointer-events:none;transition:opacity .2s ease;

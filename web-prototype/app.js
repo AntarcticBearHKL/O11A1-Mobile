@@ -58,7 +58,6 @@
   const sidebarBackdrop = $('#sidebarBackdrop');
   const sidebarNav = $('#sidebarNav');
   const sidebarClose = $('#sidebarClose');
-  const sidebarHandle = $('#sidebarHandle');
   const sidebarPlayback = $('#sidebarPlayback');
   const sidebarOpenPlayer = $('#sidebarOpenPlayer');
   const sidebarTitle = $('#sidebarTitle');
@@ -825,7 +824,6 @@
     }
     sidebarPlay.textContent = state.playing ? 'Ⅱ' : '▶';
     sidebarProgress.style.width = `${state.progress}%`;
-    sidebarHandle.classList.toggle('playing', state.playing && state.miniVisible);
   }
 
   function showMiniPlayer() {
@@ -2055,7 +2053,6 @@
     closeSidebar();
     openModuleSheet();
   });
-  sidebarHandle.addEventListener('click', openSidebar);
   sidebarClose.addEventListener('click', closeSidebar);
   sidebarBackdrop.addEventListener('click', closeSidebar);
 
