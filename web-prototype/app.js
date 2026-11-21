@@ -1569,7 +1569,7 @@
     const p = Math.max(0, Math.min(1, progress));
     appMain.style.transform = `translate3d(${(p * 10).toFixed(2)}%,0,0) scale(${(1 - p * 0.1).toFixed(4)}) rotateY(${(p * 5).toFixed(2)}deg)`;
     appMain.style.borderRadius = `${(p * 24).toFixed(1)}px`;
-    sidebar.style.transform = `translate3d(calc(${((p - 1) * 100).toFixed(2)}% - ${((1 - p) * 24).toFixed(1)}px),0,0)`;
+    sidebar.style.transform = `translate3d(${((p - 1) * 100).toFixed(2)}%,0,0)`;
     sidebarBackdrop.style.opacity = String(p);
   }
 
@@ -1577,6 +1577,17 @@
     app.classList.remove('sidebar-dragging');
     sidebar.classList.remove('selecting');
     clearSidebarPicked();
+    appMain.style.transform = '';
+    appMain.style.borderRadius = '';
+    sidebar.style.transform = '';
+    sidebarBackdrop.style.opacity = '';
+  }
+
+  function closeSidebarFromDrag() {
+    app.classList.remove('sidebar-dragging');
+    sidebar.classList.remove('selecting');
+    clearSidebarPicked();
+    closeSidebar();
     appMain.style.transform = '';
     appMain.style.borderRadius = '';
     sidebar.style.transform = '';
@@ -1591,20 +1602,24 @@
     const selecting = start.sidebarSelecting === true;
     const picked = sidebarPicked;
     const cancelled = event && event.type === 'pointercancel';
-    finishSidebarDrag();
     suppressFeedClickUntil = Date.now() + 420;
     suppressSidebarClickUntil = Date.now() + 420;
     if (selecting && picked && !cancelled) {
+      if (progress < 0.12) {
+        closeSidebarFromDrag();
+        return;
+      }
       const item = NAV_ITEMS.find((entry) => entry.id === picked.dataset.nav);
-      closeSidebar();
+      closeSidebarFromDrag();
       if (item) handleNav(item, picked);
       return;
     }
     if (!cancelled && progress >= 0.22) {
+      finishSidebarDrag();
       updatePlaylistDock();
       return;
     }
-    closeSidebar();
+    closeSidebarFromDrag();
   }
 
   /* ---------- player ---------- */
@@ -3669,9 +3684,7 @@
         rowSwipe.sidebarHoldTimer = setTimeout(() => {
           if (!rowSwipe || rowSwipe.direction !== 'right' || rowSwipe.sidebarProgress < 0.18) return;
           rowSwipe.sidebarSelecting = true;
-          rowSwipe.sidebarProgress = 1;
           sidebar.classList.add('selecting');
-          applySidebarDrag(1);
           beginSidebarSelect(rowSwipe);
         }, 240);
         return;
@@ -3689,16 +3702,11 @@
       if (event.cancelable) event.preventDefault();
       rowSwipe.sidebarLastX = event.clientX;
       rowSwipe.sidebarLastY = event.clientY;
-      if (rowSwipe.sidebarSelecting) {
-        rowSwipe.sidebarProgress = 1;
-        applySidebarDrag(1);
-        moveSidebarSelect(rowSwipe, event.clientY);
-      } else {
-        const width = app.clientWidth || window.innerWidth;
-        const progress = Math.min(1, Math.max(0, dx / (width * 0.62)));
-        rowSwipe.sidebarProgress = progress;
-        applySidebarDrag(progress);
-      }
+      const width = app.clientWidth || window.innerWidth;
+      const progress = Math.min(1, Math.max(0, dx / (width * 0.5)));
+      rowSwipe.sidebarProgress = progress;
+      applySidebarDrag(progress);
+      if (rowSwipe.sidebarSelecting) moveSidebarSelect(rowSwipe, event.clientY);
       return;
     }
     if (rowSwipe.direction !== 'left') return;
@@ -3786,18 +3794,82 @@
     });
   }
 
+  function sidebarCloseGesture(event) {
+    if (sidebarSwipeStart && sidebarSwipeStart.id === event.pointerId) return sidebarSwipeStart;
+    if (menuSwipeStart && menuSwipeStart.id === event.pointerId) return menuSwipeStart;
+    return null;
+  }
+
+  function moveSidebarCloseDrag(start, event) {
+    if (!start) return;
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    if (!start.active) {
+      if (start.vertical) return;
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      if (dx >= 0 || Math.abs(dy) > Math.abs(dx) * 1.15) {
+        start.vertical = true;
+        return;
+      }
+      start.active = true;
+      app.classList.add('sidebar-dragging');
+      sidebar.classList.remove('selecting');
+    }
+    if (event.cancelable) event.preventDefault();
+    const width = app.clientWidth || window.innerWidth;
+    const progress = Math.max(0, Math.min(1, 1 + dx / (width * 0.5)));
+    start.progress = progress;
+    applySidebarDrag(progress);
+  }
+
+  function endSidebarCloseDrag(start) {
+    if (!start) return;
+    suppressSidebarClickUntil = Date.now() + 360;
+    if (start.progress < 0.78) closeSidebarFromDrag();
+    else finishSidebarDrag();
+  }
+
   sidebar.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
-    sidebarSwipeStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    sidebarSwipeStart = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      progress: 1,
+      active: false,
+      vertical: false,
+    };
   });
+  sidebarBackdrop.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    menuSwipeStart = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      progress: 1,
+      active: false,
+      vertical: false,
+    };
+  });
+  window.addEventListener('pointermove', (event) => {
+    const start = sidebarCloseGesture(event);
+    if (start) moveSidebarCloseDrag(start, event);
+  }, { passive: false });
   window.addEventListener('pointerup', (event) => {
-    if (!sidebarSwipeStart || event.pointerId !== sidebarSwipeStart.id) return;
-    const dx = event.clientX - sidebarSwipeStart.x;
-    const dy = event.clientY - sidebarSwipeStart.y;
-    sidebarSwipeStart = null;
+    const start = sidebarCloseGesture(event);
+    if (!start) return;
+    if (start === sidebarSwipeStart) sidebarSwipeStart = null;
+    if (start === menuSwipeStart) menuSwipeStart = null;
+    if (start.active) {
+      suppressFeedClickUntil = Date.now() + 420;
+      endSidebarCloseDrag(start);
+      return;
+    }
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
     if (dx < -56 && Math.abs(dx) > Math.abs(dy) * 1.4) {
       suppressSidebarClickUntil = Date.now() + 360;
-      closeSidebar();
+      closeSidebarFromDrag();
     }
   });
   sidebar.addEventListener('click', (event) => {
@@ -3806,22 +3878,12 @@
       event.stopPropagation();
     }
   }, true);
-  sidebarBackdrop.addEventListener('pointerdown', (event) => {
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    menuSwipeStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
-  });
-  window.addEventListener('pointerup', (event) => {
-    if (!menuSwipeStart || event.pointerId !== menuSwipeStart.id) return;
-    const dx = event.clientX - menuSwipeStart.x;
-    const dy = event.clientY - menuSwipeStart.y;
-    menuSwipeStart = null;
-    if (dx < -48 && Math.abs(dx) > Math.abs(dy) * 1.3) {
-      suppressSidebarClickUntil = Date.now() + 360;
-      closeSidebar();
-    }
-  });
-  window.addEventListener('pointercancel', () => {
-    menuSwipeStart = null;
+  window.addEventListener('pointercancel', (event) => {
+    const start = sidebarCloseGesture(event);
+    if (!start) return;
+    if (start === sidebarSwipeStart) sidebarSwipeStart = null;
+    if (start === menuSwipeStart) menuSwipeStart = null;
+    if (start.active) finishSidebarDrag();
   });
 
   playerStage.addEventListener('pointerdown', startStageGesture);
