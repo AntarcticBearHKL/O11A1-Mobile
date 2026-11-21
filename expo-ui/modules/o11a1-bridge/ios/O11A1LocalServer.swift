@@ -269,6 +269,7 @@ final class O11A1LocalServer {
       }
       guard let slider = self.volumeSlider(in: self.volumeView) else { return }
       slider.value = Float(max(0, min(100, percent))) / 100
+      slider.sendActions(for: .valueChanged)
       slider.sendActions(for: .touchUpInside)
     }
   }
