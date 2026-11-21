@@ -365,14 +365,8 @@ export default function App() {
   useEffect(() => {
     if (NativeBridge) return;
     Brightness.getBrightnessAsync()
-      .then((value) => {
-        savedMockBrightness.current = value;
-        setMockBrightness(value);
-      })
-      .catch(() => {
-        savedMockBrightness.current = 1;
-        setMockBrightness(1);
-      });
+      .then((value) => setMockBrightness(value))
+      .catch(() => setMockBrightness(1));
   }, []);
 
   const handleMockMessage = async (event: any) => {
