@@ -311,7 +311,6 @@ function buildMockHtml(files: Record<string, string>): string {
 }
 
 const MOCK_HTML = NativeBridge ? null : buildMockHtml(WEBAPP_FILES);
-const MOCK_BUILD_LABEL = WEBAPP_BUILD.slice(-6);
 
 export default function App() {
 
@@ -368,9 +367,6 @@ export default function App() {
           scrollEnabled={false}
           setSupportMultipleWindows={false}
         />
-        <View style={styles.mockBadge} pointerEvents="none">
-          <Text style={styles.mockBadgeText}>UI MOCK {MOCK_BUILD_LABEL} · 无视频 / 无账号</Text>
-        </View>
       </View>
     );
   }
@@ -432,22 +428,6 @@ const styles = StyleSheet.create({
   web: {
     flex: 1,
     backgroundColor: '#F4EFE5',
-  },
-  mockBadge: {
-    position: 'absolute',
-    top: 46,
-    left: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 7,
-    backgroundColor: 'rgba(12,14,19,.72)',
-    zIndex: 20,
-  },
-  mockBadgeText: {
-    color: '#9FB3CC',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.4,
   },
   center: {
     flex: 1,
