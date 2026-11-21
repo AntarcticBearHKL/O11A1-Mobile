@@ -6,7 +6,24 @@
 仓库里有两套东西：
 
 - `expo-ui/`：Expo 应用。iOS 原生构建已包含 VideoToolbox + Metal 播放器（本地 Expo 模块 `modules/o11a1-video`）；Expo Go 里仍只能预览 UI。
-- 根目录：Android Studio 原生测试工程（MediaCodec → SurfaceTexture → GLES3）。
+- 根目录：Android V2 应用（`com.o11a1.videotest`）。全屏 WebView 承载 V2 设计 + 原生 Bilibili 桥 + 本地视频代理；旧 MediaCodec / GLES3 测试类保留在工程里。
+
+## Android V2 实装（当前 APK）
+
+- **架构**：`web-prototype/` 是唯一 UI 源；Gradle 构建时复制到 `assets/web`，`MainActivity` 用全屏 WebView 加载。
+- **原生桥**：`WebAppBridge` / `BiliApi` / `CookieStore` / `StreamProxy` 提供热门、搜索、分集 cid、playurl、评论、弹幕、真实二维码登录、Cookie、亮度与屏幕方向。
+- **真实数据**：首页热门流、搜索、模块页（按模块关键词搜索）、封面 / 标题 / UP / 播放量 / 时长。
+- **真实播放**：Bridge 取 B 站 progressive MP4（优先 720P，失败回退），本地代理补齐 Referer/UA 并转发 Range；HTML5 `<video>` 播放。
+- **真实登录**：B 站 passport 二维码生成 + 轮询；扫码成功保存 Cookie；「模拟登录」保留用于无扫码测试；未登录所有路由回到 gate。
+- **播放器**：播放/暂停、进度、音量、倍速、循环、画质重取、全屏方向、三区手势、收起进浮动播放列表、真实评论、真实弹幕滚动。
+- **列表**：视频行左滑加入播放列表（封面飞入浮动框）；浮动框上滑展开播放器、点击进播放列表页；下拉/触底刷新都请求下一批真实数据并回顶。
+- **构建**：
+  ```bash
+  ./gradlew :app:assembleDebug
+  adb install -r app/build/outputs/apk/debug/app-debug.apk
+  ```
+- **模拟器验证**：`Medium_Phone_API_37.0`，480×800 / 160dpi + `-gpu swiftshader_indirect`。已验证登录 gate / 真实二维码、热门 20 条、搜索“原神”20 条、720P 播放、弹幕 113 条、评论 3453 条、下拉刷新、触底刷新、模块页真实结果、侧边栏手势。模拟器长时间 720P 软解会不稳定，真机为准。
+- **仍属占位**：动态 / 消息 / 收藏 / 历史等社交账户页仍为设计壳；直播 / 番剧没有单独接直播/PGC 接口；插帧 / CAS / 增强 / 截图仍是播放器 UI 开关；弹幕发送只在本地显示；4K/1080P+ 需要登录大会员 Cookie。
 
 ## 移动端 V2 规划（当前）
 
@@ -24,8 +41,7 @@
 - 无 Toast、无旧版灰色提示条；所有反馈内联。
 - 桌面端功能逐项保留；完整对照见 [MOBILE_FEATURES.md](MOBILE_FEATURES.md)。
 
-> 当前先做 Web 布局原型定手感：全占位、空视频、横屏播放器。真实接口和原生播放器随后接入。
-
+> Android APK 已接入真实热门/搜索/播放/二维码登录/评论/弹幕；Web 原型继续作为布局与手势基准。产品与播放器设计：[MOBILE_DESIGN.md](MOBILE_DESIGN.md)（V2）。
 > 产品与播放器设计：[MOBILE_DESIGN.md](MOBILE_DESIGN.md)（V2）。
 > 功能与交互规范：[MOBILE_INTERACTION.md](MOBILE_INTERACTION.md)（V2）。
 > 桌面功能完整对照：[MOBILE_FEATURES.md](MOBILE_FEATURES.md)。
@@ -120,23 +136,24 @@ adb logcat -s O11A1VideoTest
 
 已覆盖：
 
-- Android：MediaCodec 硬解、SurfaceTexture 零拷贝、GLES3 双帧 blend、CAS-like。
+- Android V2：WebView UI + 真实热门/搜索/模块数据、B 站二维码登录、progressive 720P 播放、评论、弹幕、播放列表、下拉/触底刷新。
+- Android 旧测试管线：MediaCodec 硬解、SurfaceTexture 零拷贝、GLES3 双帧 blend、CAS-like。
 - iOS：VideoToolbox 硬解、Metal 双帧 blend、CAS-like、60/120 目标、运行统计。
 - 两端统一使用 BV1NS4t6oEXQ 测试片段。
 - GitHub Actions 每次 push 自动构建 Android APK 和 unsigned iOS 包。
 
 还没覆盖：
 
-- 音频与 A/V 同步（测试片无音轨）。
+- DASH 分轨 / 4K / 60fps / 1080P+（需要大会员 Cookie 和 DASH 合流）。
 - Anime4K Restore-CNN-S（多 pass，下一步单独压测）。
-- B 站 DASH / 登录 / 弹幕 / 播放器 UI。
-- 4K / 60fps 源（需要 B 站登录）。
+- 动态 / 消息 / 收藏 / 历史等账户页仍是设计壳；直播 / PGC 没有接独立接口。
+- 插帧 / CAS / 增强 / 截图目前是 Android V2 播放器的 UI 开关，原生管线仍在 iOS 模块里。
 - Android 端的 Expo 本地模块（当前仍是独立原生工程）。
 - iOS 签名 / TestFlight。
 
 ## 4. 推荐下一步
 
 1. 用自己签名的 IPA 在 iPhone 上跑，重点看 `HW`、render/decode fps、发热降频。
-2. 接 B 站 DASH，把 BV1NS4t6oEXQ 的 4K/60 视频轨直接拉进播放器。
-3. 加 Anime4K 单 pass/多 pass 对比，确定机型白名单。
-4. 把 Android 播放器也包成 Expo 本地模块，统一成一个 App。
+2. 接 B 站 DASH，把播放器接到 1080P/4K 分轨视频 + 音频，补 AV 同步。
+3. 给 Android 播放器接入原生插帧 / CAS / 截图，逐步与 iOS 模块对齐。
+4. 接动态 / 消息 / 收藏 / 历史接口，或把 Android V2 包成 Expo 本地模块统一工程。

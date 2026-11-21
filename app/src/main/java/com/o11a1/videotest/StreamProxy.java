@@ -1,0 +1,190 @@
+package com.o11a1.videotest;
+
+import android.content.Context;
+import android.util.Base64;
+import android.util.Log;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.URL;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/** Tiny localhost media proxy: adds Bilibili headers and forwards Range requests. */
+final class StreamProxy {
+    private static final String TAG = "O11A1Proxy";
+    private static final String UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36";
+    private final CookieStore cookies;
+    private final ServerSocket server;
+    private final ExecutorService pool = Executors.newCachedThreadPool();
+    private volatile boolean running = true;
+
+    StreamProxy(CookieStore cookies) throws IOException {
+        this.cookies = cookies;
+        server = new ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"));
+        Thread acceptThread = new Thread(this::acceptLoop, "o11a1-proxy-accept");
+        acceptThread.setDaemon(true);
+        acceptThread.start();
+        Log.i(TAG, "listening on " + server.getLocalPort());
+    }
+
+    int port() {
+        return server.getLocalPort();
+    }
+
+    String localUrl(String remote) {
+        String token = Base64.encodeToString(remote.getBytes(StandardCharsets.UTF_8),
+            Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
+        return "http://127.0.0.1:" + port() + "/s?u=" + token;
+    }
+
+    void stop() {
+        running = false;
+        try { server.close(); } catch (IOException ignored) {}
+        pool.shutdownNow();
+    }
+
+    private void acceptLoop() {
+        while (running) {
+            try {
+                Socket socket = server.accept();
+                pool.execute(() -> handle(socket));
+            } catch (IOException e) {
+                if (running) Log.w(TAG, "accept failed", e);
+            }
+        }
+    }
+
+    private void handle(Socket socket) {
+        try (Socket s = socket) {
+            s.setSoTimeout(15000);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.ISO_8859_1));
+            String requestLine = reader.readLine();
+            if (requestLine == null) return;
+            String[] parts = requestLine.split(" ");
+            if (parts.length < 2) return;
+            String method = parts[0].toUpperCase(Locale.US);
+            String path = parts[1];
+            Map<String, String> headers = new HashMap<>();
+            String line;
+            while ((line = reader.readLine()) != null && !line.isEmpty()) {
+                int colon = line.indexOf(':');
+                if (colon > 0) headers.put(line.substring(0, colon).trim().toLowerCase(Locale.US), line.substring(colon + 1).trim());
+            }
+            if (!path.startsWith("/s?")) {
+                writeText(s.getOutputStream(), 404, "not found");
+                return;
+            }
+            String query = path.substring(3);
+            String encoded = null;
+            for (String pair : query.split("&")) {
+                int eq = pair.indexOf('=');
+                if (eq > 0 && pair.substring(0, eq).equals("u")) {
+                    encoded = URLDecoder.decode(pair.substring(eq + 1), "UTF-8");
+                }
+            }
+            if (encoded == null || encoded.isEmpty()) {
+                writeText(s.getOutputStream(), 400, "missing u");
+                return;
+            }
+            String remote = new String(Base64.decode(encoded, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING), StandardCharsets.UTF_8);
+            if (!remote.startsWith("https://") && !remote.startsWith("http://")) {
+                writeText(s.getOutputStream(), 400, "bad url");
+                return;
+            }
+            Log.i(TAG, "request " + method + " range=" + headers.get("range") + " url=" + remote.substring(0, Math.min(90, remote.length())));
+            stream(s, method, remote, headers);
+        } catch (Throwable error) {
+            Log.w(TAG, "proxy request failed", error);
+        }
+    }
+
+    private void stream(Socket socket, String method, String remote, Map<String, String> clientHeaders) throws IOException {
+        HttpURLConnection connection = null;
+        try {
+            String range = clientHeaders.get("range");
+            int code = -1;
+            String contentType = null;
+            String contentRange = null;
+            String contentLength = null;
+            for (int attempt = 0; attempt < 3; attempt += 1) {
+                if (connection != null) connection.disconnect();
+                connection = (HttpURLConnection) new URL(remote).openConnection();
+                connection.setInstanceFollowRedirects(true);
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(30000);
+                connection.setRequestMethod("HEAD".equals(method) ? "HEAD" : "GET");
+                connection.setRequestProperty("User-Agent", UA);
+                connection.setRequestProperty("Referer", "https://www.bilibili.com/");
+                connection.setRequestProperty("Accept", "*/*");
+                connection.setRequestProperty("Cache-Control", "no-cache");
+                if (range != null) connection.setRequestProperty("Range", range);
+                try {
+                    code = connection.getResponseCode();
+                } catch (IOException error) {
+                    if (attempt < 2) {
+                        try { Thread.sleep(320L * (attempt + 1)); } catch (InterruptedException ignored) {}
+                        continue;
+                    }
+                    throw error;
+                }
+                contentType = connection.getContentType();
+                contentRange = connection.getHeaderField("Content-Range");
+                contentLength = connection.getHeaderField("Content-Length");
+                Log.i(TAG, "remote -> " + code + " type=" + contentType + " len=" + contentLength + " range=" + contentRange + " attempt=" + attempt);
+                if (code >= 500 && attempt < 2) {
+                    try { Thread.sleep(320L * (attempt + 1)); } catch (InterruptedException ignored) {}
+                    continue;
+                }
+                break;
+            }
+            OutputStream out = socket.getOutputStream();
+            StringBuilder head = new StringBuilder();
+            head.append("HTTP/1.1 ").append(code).append(" ").append(connection.getResponseMessage() == null ? "OK" : connection.getResponseMessage()).append("\r\n");
+            head.append("Access-Control-Allow-Origin: *\r\n");
+            head.append("Accept-Ranges: bytes\r\n");
+            if (contentType != null) head.append("Content-Type: ").append(contentType).append("\r\n");
+            if (contentLength != null) head.append("Content-Length: ").append(contentLength).append("\r\n");
+            if (contentRange != null) head.append("Content-Range: ").append(contentRange).append("\r\n");
+            head.append("Cache-Control: no-store\r\nConnection: close\r\n\r\n");
+            out.write(head.toString().getBytes(StandardCharsets.ISO_8859_1));
+            if (!"HEAD".equals(method)) {
+                InputStream in = code >= 400 ? connection.getErrorStream() : connection.getInputStream();
+                if (in != null) {
+                    try (InputStream input = new BufferedInputStream(in)) {
+                        byte[] buffer = new byte[32 * 1024];
+                        int read;
+                        while ((read = input.read(buffer)) >= 0) out.write(buffer, 0, read);
+                    }
+                }
+            }
+            out.flush();
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
+
+    private static void writeText(OutputStream out, int code, String text) throws IOException {
+        byte[] body = text.getBytes(StandardCharsets.UTF_8);
+        String head = "HTTP/1.1 " + code + " " + (code == 200 ? "OK" : "Error") + "\r\n"
+            + "Content-Type: text/plain; charset=utf-8\r\n"
+            + "Content-Length: " + body.length + "\r\nConnection: close\r\n\r\n";
+        out.write(head.getBytes(StandardCharsets.ISO_8859_1));
+        out.write(body);
+        out.flush();
+    }
+}

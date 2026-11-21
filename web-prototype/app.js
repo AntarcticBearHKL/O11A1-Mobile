@@ -220,6 +220,7 @@
     playing: false,
     locked: false,
     progress: 0,
+    duration: 0,
     brightness: Number.isFinite(loaded?.brightness) ? Math.max(0, Math.min(100, loaded.brightness)) : 100,
     volume: Number.isFinite(loaded?.volume) ? Math.max(0, Math.min(100, loaded.volume)) : 80,
     rotation: 'right',
@@ -326,6 +327,9 @@
         state.settings.quality = value;
         updatePlayerLabels();
         save();
+        if (window.O11A1Media && typeof window.O11A1Media.onQualityChange === 'function') {
+          window.O11A1Media.onQualityChange(value);
+        }
       },
     },
     speed: {
@@ -687,13 +691,16 @@
     const feed = activeFeed();
     if (!feed || pullBusy) return;
     const key = state.page;
+    const nativeHandled = !!(window.O11A1NativeData
+      && typeof window.O11A1NativeData.refresh === 'function'
+      && window.O11A1NativeData.refresh(key));
     const count = feed.children.length || (key === 'home' ? 9 : key === 'search' ? 5 : 4);
     feedRefreshCounts[key] = (feedRefreshCounts[key] || 0) + 1;
     pullBusy = true;
     pullRefresh.classList.add('show', 'refreshing');
     pullRefresh.classList.remove('ready', 'done');
     pullRefreshLabel.textContent = '刷新中';
-    renderFeedRows(feed, count, feedRefreshCounts[key]);
+    if (!nativeHandled) renderFeedRows(feed, count, feedRefreshCounts[key]);
     feed.classList.remove('is-refreshing');
     void feed.offsetWidth;
     feed.classList.add('is-refreshing');
@@ -904,7 +911,7 @@
   function playlistItemMarkup(item, index, current, removable) {
     return `
       <span class="pl-index">${String(index + 1).padStart(2, '0')}</span>
-      <span class="pl-thumb"><span class="ph-label">封面</span></span>
+      <span class="pl-thumb">${item.pic ? `<img src="${escapeHTML(item.pic)}" alt="">` : '<span class="ph-label">封面</span>'}</span>
       <span class="pl-copy">
         <span class="pl-title">${escapeHTML(item.title)}${current ? '<span class="pl-badge">当前</span>' : ''}</span>
         <span class="pl-meta">${escapeHTML(item.meta)}</span>
@@ -928,11 +935,15 @@
     playlistDock.inert = !show;
     app.classList.toggle('has-playlist', feedVisible);
     if (!item) {
+      pdThumb.innerHTML = '<span class="ph-label">封面</span>';
       pdTitle.textContent = '播放列表';
       pdMeta.textContent = `${count} 项`;
       pdProgress.style.width = '0%';
       return;
     }
+    pdThumb.innerHTML = item.pic
+      ? `<img src="${escapeHTML(item.pic)}" alt="">`
+      : '<span class="ph-label">封面</span>';
     pdTitle.textContent = item.title;
     pdMeta.textContent = `播放列表 · ${count} 项 · ${state.playing ? '正在播放' : state.progress > 0 ? '已暂停' : '待播放'}`;
     pdProgress.style.width = `${state.progress}%`;
@@ -1032,19 +1043,20 @@
     refreshPlaylistPage();
   }
 
-  function addToPlaylist(title, meta, key) {
+  function addToPlaylist(title, meta, key, extra) {
     const existing = key ? state.playlist.findIndex((item) => item.key === key) : -1;
     if (existing >= 0) {
       setCurrent(existing);
       return { added: false, count: state.playlist.length };
     }
     const index = state.playlist.length + 1;
-    state.playlist.push({
+    const item = Object.assign({
       id: `q${Date.now()}`,
       key: key || '',
       title: title || `视频占位 ${String(index).padStart(2, '0')}`,
       meta: meta || `UP 占位 ${String(index).padStart(2, '0')} · 00:00`,
-    });
+    }, extra || {});
+    state.playlist.push(item);
     if (state.playlist.length === 1) state.currentIndex = 0;
     updatePlayerLabels();
     updatePlaylistCounts();
@@ -1183,7 +1195,12 @@
 
   function addFeedRowToPlaylist(row) {
     if (!row || !state.loggedIn) return;
-    addToPlaylist(feedRowTitle(row), 'UP 占位 · 左滑加入', feedRowKey(row));
+    const item = row.__nativeItem;
+    if (item) {
+      addToPlaylist(item.title, item.meta, `bvid:${item.bvid}`, item);
+    } else {
+      addToPlaylist(feedRowTitle(row), 'UP 占位 · 左滑加入', feedRowKey(row));
+    }
     row.classList.remove('row-queued');
     void row.offsetWidth;
     row.classList.add('row-queued');
@@ -1195,7 +1212,8 @@
   function updatePlayerLabels() {
     const item = state.playlist[state.currentIndex];
     playerTitle.textContent = item ? item.title : '暂无播放项';
-    playerSub.textContent = `${item ? item.meta : '占位'} · ${state.settings.quality} · 占位`;
+    const nativeSuffix = window.O11A1Native ? '' : ' · 占位';
+    playerSub.textContent = `${item ? item.meta : '占位'} · ${state.settings.quality}${nativeSuffix}`;
     pcQuality.textContent = state.settings.quality;
     pcSpeed.textContent = state.settings.speed || '1.0×';
     pcInterp.textContent = `插帧 ${state.settings.interp}`;
@@ -1207,6 +1225,9 @@
     pcMute.classList.toggle('on', state.volume === 0);
     setProgress(state.progress);
     updatePlaylistDock();
+    if (window.O11A1Media && typeof window.O11A1Media.onSettings === 'function') {
+      window.O11A1Media.onSettings();
+    }
   }
 
   function updateMiniPlayer() {
@@ -1224,13 +1245,17 @@
     updateMiniPlayer();
   }
 
-  function setProgress(percent) {
+  function setProgress(percent, seek) {
     state.progress = Math.min(100, Math.max(0, percent));
     progressPlayed.style.width = `${state.progress}%`;
     progressThumb.style.left = `${state.progress}%`;
     pdProgress.style.width = `${state.progress}%`;
-    const current = TOTAL_SECONDS * state.progress / 100;
-    pcTime.textContent = `${formatTime(current)} / ${formatTime(TOTAL_SECONDS)}`;
+    const total = state.duration > 0 ? state.duration : TOTAL_SECONDS;
+    const current = total * state.progress / 100;
+    pcTime.textContent = `${formatTime(current)} / ${formatTime(total)}`;
+    if (seek && window.O11A1Media && typeof window.O11A1Media.seek === 'function') {
+      window.O11A1Media.seek(state.progress);
+    }
   }
 
   function showControls() {
@@ -1290,6 +1315,9 @@
     rotateHud.classList.remove('show');
     showControls();
     lockPlayerOrientation();
+    if (window.O11A1Media && typeof window.O11A1Media.onOpen === 'function') {
+      window.O11A1Media.onOpen();
+    }
   }
 
   function minimizePlayer() {
@@ -1322,6 +1350,9 @@
     releasePlayerOrientation();
     pcFullscreen.classList.remove('on');
     pcFullscreen.title = '全屏';
+    if (window.O11A1Media && typeof window.O11A1Media.onMinimize === 'function') {
+      window.O11A1Media.onMinimize();
+    }
     setTimeout(() => {
       if (state.playerOpen) return;
       player.classList.remove('open', 'ui-hidden', 'collapsing');
@@ -1367,6 +1398,9 @@
     releasePlayerOrientation();
     pcFullscreen.classList.remove('on');
     pcFullscreen.title = '全屏';
+    if (window.O11A1Media && typeof window.O11A1Media.onStop === 'function') {
+      window.O11A1Media.onStop();
+    }
     updatePlayerLabels();
   }
 
@@ -1390,6 +1424,11 @@
   }
 
   function togglePlay() {
+    if (window.O11A1Media && typeof window.O11A1Media.togglePlay === 'function'
+      && window.O11A1Media.togglePlay()) {
+      if (state.playerOpen) showControls();
+      return;
+    }
     state.playing = !state.playing;
     pcPlay.textContent = state.playing ? 'Ⅱ' : '▶';
     updateMiniPlayer();
@@ -1404,6 +1443,9 @@
     updatePlayerLabels();
     save();
     showControls();
+    if (window.O11A1Media && typeof window.O11A1Media.onTrackChange === 'function') {
+      window.O11A1Media.onTrackChange();
+    }
   }
 
   function cycleLoop() {
@@ -1418,6 +1460,9 @@
     const text = pcDanmakuInput.value.trim();
     if (!text) return;
     pcDanmakuInput.value = '';
+    if (window.O11A1Media && typeof window.O11A1Media.onDanmakuSend === 'function') {
+      window.O11A1Media.onDanmakuSend(text);
+    }
     pcDanmakuSend.textContent = '已发送';
     pcDanmakuSend.classList.add('done');
     setTimeout(() => {
@@ -1482,8 +1527,9 @@
   }
 
   function seekBy(seconds) {
-    const delta = seconds / TOTAL_SECONDS * 100;
-    setProgress(state.progress + delta);
+    const total = state.duration > 0 ? state.duration : TOTAL_SECONDS;
+    const delta = seconds / total * 100;
+    setProgress(state.progress + delta, true);
     showRipple(seconds > 0 ? `+${seconds}s` : `${seconds}s`, seconds > 0 ? 72 : 28);
     showControls();
   }
@@ -1513,6 +1559,9 @@
     brightnessValue.textContent = `${state.brightness}%`;
     brightnessFill.style.height = `${state.brightness}%`;
     playerVideo.style.setProperty('--dim', String((100 - state.brightness) / 100 * 0.82));
+    if (window.O11A1Native && typeof window.O11A1Native.setBrightness === 'function') {
+      window.O11A1Native.setBrightness(state.brightness);
+    }
     if (persist) save();
   }
 
@@ -1524,6 +1573,9 @@
     pcVolume.value = String(state.volume);
     pcMute.textContent = state.volume === 0 ? '静' : '音';
     pcMute.classList.toggle('on', state.volume === 0);
+    if (window.O11A1Media && typeof window.O11A1Media.onVolume === 'function') {
+      window.O11A1Media.onVolume(state.volume);
+    }
     if (persist) save();
   }
 
@@ -1554,6 +1606,9 @@
     rateValue.textContent = direction === 'left' ? '0.5×' : '2.0×';
     rateLabel.textContent = `${direction === 'left' ? '慢放' : '快放'}中 · 松开恢复 ${restore}`;
     rateHud.classList.add('show');
+    if (window.O11A1Media && typeof window.O11A1Media.onRateHold === 'function') {
+      window.O11A1Media.onRateHold(direction === 'left' ? 0.5 : 2.0);
+    }
   }
 
   function hideRateHud(delay = 0) {
@@ -1578,6 +1633,10 @@
   }
 
   function lockPlayerOrientation() {
+    if (window.O11A1Native && typeof window.O11A1Native.setOrientation === 'function') {
+      window.O11A1Native.setOrientation(state.rotation === 'left' ? 'landscape-left' : 'landscape-right');
+      return;
+    }
     if (!screen.orientation || !screen.orientation.lock) return;
     const target = state.rotation === 'left' ? 'landscape-primary' : 'landscape-secondary';
     screen.orientation.lock(target).catch(() => {
@@ -1586,6 +1645,10 @@
   }
 
   function releasePlayerOrientation() {
+    if (window.O11A1Native && typeof window.O11A1Native.setOrientation === 'function') {
+      window.O11A1Native.setOrientation('sensor');
+      return;
+    }
     if (screen.orientation && screen.orientation.unlock) {
       try { screen.orientation.unlock(); } catch (_) {}
     }
@@ -1623,6 +1686,9 @@
     player.classList.add('comments-open');
     swipeHint.classList.remove('show');
     commentsBody.scrollTop = 0;
+    if (window.O11A1NativeData && typeof window.O11A1NativeData.onComments === 'function') {
+      window.O11A1NativeData.onComments();
+    }
     clearTimeout(hideTimer);
     playerControls.classList.add('hidden');
     player.classList.add('ui-hidden');
@@ -1828,6 +1894,9 @@
     const cancelled = event && event.type === 'pointercancel';
 
     if (gesture.longPressFired) {
+      if (window.O11A1Media && typeof window.O11A1Media.onRateHoldEnd === 'function') {
+        window.O11A1Media.onRateHoldEnd();
+      }
       hideRateHud(220);
       showControls();
       return;
@@ -2753,7 +2822,7 @@
   progressBar.addEventListener('click', (event) => {
     const rect = progressBar.getBoundingClientRect();
     const percent = (event.clientX - rect.left) / rect.width * 100;
-    setProgress(percent);
+    setProgress(percent, true);
     showControls();
   });
 
@@ -2834,6 +2903,49 @@
     document.body.classList.add('reduce-motion');
     $('#motionBtn').classList.add('on');
   }
+
+  /* ---------- native host bridge (Android WebView) ---------- */
+  window.O11A1Host = {
+    state,
+    app,
+    showPage,
+    openPlayer,
+    minimizePlayer,
+    stopPlayback,
+    updatePlayerLabels,
+    updatePlaylistDock,
+    updatePlaylistCounts,
+    addToPlaylist,
+    setCurrent,
+    save,
+    setProgress,
+    togglePlay,
+    stepTrack,
+    applyVolume,
+    activeFeed,
+    refreshPlaylistPage,
+    isFeedClickSuppressed: () => Date.now() < suppressFeedClickUntil,
+    openComments,
+    playerVideo,
+    playerTitle,
+    playerSub,
+    pcPlay,
+    pcTime,
+    pcVolume,
+    pdTitle,
+    pdMeta,
+    pdProgress,
+    homeFeed,
+    searchResults,
+    searchResultsLabel,
+    searchEmpty,
+    searchInput,
+    moduleFeed,
+    commentsBody,
+    commentsCount,
+    loginStatus,
+    playlistDock,
+  };
 
   /* init */
   document.body.dataset.platform = state.platform;
