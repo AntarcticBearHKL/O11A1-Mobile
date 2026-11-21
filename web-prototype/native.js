@@ -993,6 +993,7 @@
       if (typeof detail.faved === 'boolean') state.fav = detail.faved;
       if (typeof detail.coined !== 'undefined') state.coin = Number(detail.coined) > 0;
       if (typeof detail.followed === 'boolean') state.followed = detail.followed;
+      if (typeof detail.liked === 'boolean') state.liked = detail.liked;
       host.save();
     }
     host.openSheet('信息', detail.ok ? '真实视频信息 · B 站接口' : '视频信息加载失败', (body) => {
@@ -1057,6 +1058,17 @@
     state.fav = next;
     host.save();
     return next ? '已收藏' : '已取消';
+  }
+
+  function likeCurrent() {
+    const item = currentItem();
+    if (!item || !item.aid || typeof bridge.like !== 'function') return '无视频';
+    const next = !state.liked;
+    const result = call('like', item.aid, next);
+    if (!result.ok) return result.needLogin ? '请先登录' : (result.error || '点赞失败');
+    state.liked = next;
+    host.save();
+    return next ? '已点赞' : '已取消';
   }
 
   function coinCurrent() {
@@ -1312,6 +1324,7 @@
     onComments: (sort) => loadComments(sort),
     sendComment,
     favorite: favoriteCurrent,
+    like: likeCurrent,
     coin: coinCurrent,
     follow: followCurrent,
     copyLink: copyCurrentLink,

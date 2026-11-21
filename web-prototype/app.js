@@ -228,6 +228,7 @@
     fav: false,
     coin: false,
     followed: false,
+    liked: false,
     cached: false,
     shot: false,
     copied: false,
@@ -1040,6 +1041,7 @@
     state.fav = false;
     state.coin = false;
     state.followed = false;
+    state.liked = false;
     state.cached = false;
     state.shot = false;
     state.copied = false;
@@ -2104,6 +2106,13 @@
         }
         state.shot = true;
         return '已保存';
+      });
+      actionRow(body, '点赞', state.liked ? '已点赞' : '', () => {
+        if (window.O11A1NativeData && typeof window.O11A1NativeData.like === 'function') {
+          return window.O11A1NativeData.like();
+        }
+        state.liked = !state.liked;
+        return state.liked ? '已点赞' : '已取消';
       });
       actionRow(body, state.fav ? '已收藏' : '收藏', state.fav ? '已加入' : '', () => {
         if (window.O11A1NativeData && typeof window.O11A1NativeData.favorite === 'function') {
