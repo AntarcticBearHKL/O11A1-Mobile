@@ -3226,11 +3226,20 @@
 
   function syncKeyboardOffset() {
     const vv = window.visualViewport;
-    const focused = document.activeElement === searchInput;
-    const offset = focused && vv
+    const active = document.activeElement;
+    const focused = Boolean(active && (
+      active === searchInput
+      || active === pdSearchInput
+      || active.tagName === 'INPUT'
+      || active.tagName === 'TEXTAREA'
+      || active.isContentEditable
+    ));
+    const raw = focused && vv
       ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
       : 0;
+    const offset = raw > 24 ? Math.round(raw) : 0;
     document.documentElement.style.setProperty('--kb', `${offset}px`);
+    document.body.classList.toggle('kb-open', offset > 0);
   }
 
   if (window.visualViewport) {
@@ -3302,6 +3311,10 @@
   searchInput.addEventListener('input', updateSearch);
   searchInput.addEventListener('focus', syncKeyboardOffset);
   searchInput.addEventListener('blur', syncKeyboardOffset);
+  if (pdSearchInput) {
+    pdSearchInput.addEventListener('focus', syncKeyboardOffset);
+    pdSearchInput.addEventListener('blur', syncKeyboardOffset);
+  }
   searchInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();

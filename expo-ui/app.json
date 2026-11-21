@@ -26,6 +26,7 @@
     },
     "android": {
       "package": "com.o11a1.videotest",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#F4EFE5",
         "foregroundImage": "./assets/android-icon-foreground.png",
