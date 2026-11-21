@@ -146,9 +146,9 @@ const MOCK_BRIDGE = `
         owner: 'O11A1 UI',
         duration: '12:34',
         durationSec: 754,
-        pubdate: 1760000000 + base + i,
+        pubdate: Math.floor(Date.now() / 1000) - (base + i + 1) * 5400,
         play: 12000 + (base + i) * 317,
-        playText: '1.2 万',
+        playText: (1.2 + (base + i) * 0.37).toFixed(1) + ' 万',
         desc: '这是 UI 调试模式的占位简介。',
         meta: 'O11A1 UI · 1.2 万 播放'
       });

@@ -78,6 +78,10 @@
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   }
 
+  function feedTime(value) {
+    return timeAgo(value).replace(/\s+(分钟前|小时前|天前)$/, '$1');
+  }
+
   function setNote(text) {
     const note = $('#homeNote');
     if (note) note.textContent = text;
@@ -128,6 +132,32 @@
     if (button && action) button.addEventListener('click', action);
   }
 
+  function metaMarkup(item, label) {
+    const owner = item.owner || '';
+    const time = item.pubdate ? feedTime(item.pubdate) : '';
+    const playText = item.playText || (item.play > 0 ? countText(item.play) : '');
+    const hot = playText || (item.online > 0 ? `${countText(item.online)} 人气` : '');
+    const hotText = hot.replace(/\s+/g, '');
+    const extra = !hot && item.meta
+      ? (owner && item.meta.startsWith(owner)
+        ? item.meta.slice(owner.length).replace(/^\s*·\s*/, '')
+        : item.meta)
+      : '';
+    const lead = [];
+    if (owner) {
+      const chip = !item.live && !item.seasonId ? '<i class="up-chip">UP</i>' : '';
+      lead.push(`<span class="meta-owner">${chip}<span class="meta-owner-name">${esc(owner)}</span></span>`);
+    }
+    if (time) lead.push(`<span class="meta-time">${esc(time)}</span>`);
+    let markup = lead.join('<span class="meta-dot"></span>');
+    if (hot) {
+      markup += `<span class="meta-hot"><i>${item.live ? '●' : '▶'}</i>${esc(hotText)}</span>`;
+    } else if (extra) {
+      markup += `<span class="meta-hot neutral">${esc(extra)}</span>`;
+    }
+    return markup ? `<span class="real-meta">${markup}</span>` : '';
+  }
+
   function buildRow(item, label, page, index) {
     const row = document.createElement('button');
     row.type = 'button';
@@ -148,7 +178,7 @@
       </span>
       <span class="row-copy">
         <span class="real-title">${esc(item.title || '视频')}</span>
-        <span class="real-meta">${esc(item.meta || item.owner || label || '')}</span>
+        ${metaMarkup(item, label)}
       </span>`;
     const image = $('img', row);
     if (image) image.addEventListener('error', () => image.remove());
