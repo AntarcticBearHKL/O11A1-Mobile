@@ -49,12 +49,7 @@
   const rotateHud = $('#rotateHud');
   const swipeHint = $('#swipeHint');
   const commentsPanel = $('#commentsPanel');
-  const commentsBack = $('#commentsBack');
-  const commentsTabs = $('#commentsTabs');
   const commentsBody = $('#commentsBody');
-  const commentsCount = $('#commentsCount');
-  const commentInput = $('#commentInput');
-  const commentSend = $('#commentSend');
   const playerVideo = $('#playerVideo');
   const realVideo = $('#realVideo');
   const feedDebug = $('#feedDebug');
@@ -309,7 +304,6 @@
 
   let commentsGesture = null;
   let commentsCloseTimer = null;
-  let commentTotal = 128;
   let rowSwipe = null;
   let menuSwipeStart = null;
   let lastFeedScrollTop = 0;
@@ -2368,7 +2362,7 @@
   function startCommentsGesture(event) {
     if (!commentsPanel.classList.contains('open')) return;
     if (event.button !== undefined && event.button !== 0) return;
-    if (event.target.closest('input, button, .comments-input')) return;
+    if (event.target.closest('button')) return;
     commentsGesture = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -3497,72 +3491,6 @@
   window.addEventListener('pointerup', endStageGesture);
   window.addEventListener('pointercancel', endStageGesture);
 
-  commentsBack.addEventListener('click', () => closeComments());
-  commentsTabs.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-comment-tab]');
-    if (!button) return;
-    $$('[data-comment-tab]', commentsTabs).forEach((item) => item.classList.toggle('on', item === button));
-    commentsBody.style.opacity = '0.3';
-    const sort = button.dataset.commentTab === 'new' ? 0 : 2;
-    if (window.O11A1NativeData && typeof window.O11A1NativeData.onComments === 'function') {
-      window.O11A1NativeData.onComments(sort);
-    }
-    setTimeout(() => { commentsBody.style.opacity = ''; }, 160);
-  });
-
-  commentInput.addEventListener('input', () => {
-    commentSend.disabled = !commentInput.value.trim();
-  });
-  commentInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      commentSend.click();
-    }
-  });
-  commentSend.addEventListener('click', () => {
-    const text = commentInput.value.trim();
-    if (!text) return;
-    if (window.O11A1NativeData && typeof window.O11A1NativeData.sendComment === 'function') {
-      const ok = window.O11A1NativeData.sendComment(text);
-      if (ok) {
-        commentInput.value = '';
-        commentSend.disabled = true;
-        commentSend.classList.add('done');
-        commentSend.textContent = '已发送';
-        setTimeout(() => {
-          commentSend.classList.remove('done');
-          commentSend.textContent = '发送';
-        }, 1200);
-      } else {
-        commentSend.classList.remove('done');
-        commentSend.textContent = '发送失败';
-        setTimeout(() => { commentSend.textContent = '发送'; }, 1500);
-      }
-      return;
-    }
-    const row = document.createElement('div');
-    row.className = 'comment-row';
-    row.innerHTML = `
-      <span class="avatar-ph sm"></span>
-      <div class="comment-text">
-        <b>我</b>
-        <p>${escapeHTML(text)}</p>
-        <small>刚刚 · 占位</small>
-      </div>`;
-    commentsBody.prepend(row);
-    commentInput.value = '';
-    commentSend.disabled = true;
-    commentTotal += 1;
-    commentsCount.textContent = `${commentTotal} 条`;
-    commentSend.classList.add('done');
-    commentSend.textContent = '已发送';
-    setTimeout(() => {
-      commentSend.classList.remove('done');
-      commentSend.textContent = '发送';
-    }, 1200);
-    commentsBody.scrollTop = 0;
-  });
-
   commentsPanel.addEventListener('pointerdown', startCommentsGesture);
   window.addEventListener('pointermove', moveCommentsGesture);
   window.addEventListener('pointerup', endCommentsGesture);
@@ -3694,7 +3622,6 @@
     searchInput,
     moduleFeed,
     commentsBody,
-    commentsCount,
     loginStatus,
     playlistDock,
   };
@@ -3798,12 +3725,7 @@
     await sleep(360);
     dispatchSwipe('middle', -240, 0);
     results.push(`comments=${commentsPanel.classList.contains('open')}`);
-
-    commentInput.value = '测试评论';
-    commentInput.dispatchEvent(new Event('input', { bubbles: true }));
-    const sendEnabled = !commentSend.disabled;
-    commentSend.click();
-    results.push(`send=${sendEnabled && commentTotal === 129 && commentsBody.firstElementChild.textContent.includes('测试评论')}`);
+    results.push(`commentsClean=${!commentsPanel.querySelector('.comments-top, .comments-input')}`);
 
     closeComments();
     await sleep(380);

@@ -2080,10 +2080,15 @@
 
   /* ---------- comments ---------- */
   let commentSort = 2;
-  let commentPage = 1;
-  let commentHasMore = false;
+  let commentAid = 0;
+  let commentChunks = [];
+  let commentHasMoreDown = false;
   let commentLoading = false;
-  let commentItems = [];
+  let commentGeneration = 0;
+  let commentPrefetchTimer = null;
+  let commentScrollRaf = 0;
+  let commentScrollLockUntil = 0;
+  let commentLastScrollTop = 0;
 
   function commentRow(row, depth = 0) {
     const rpid = Number(row.rpid || 0);
@@ -2111,83 +2116,181 @@
       </div>`;
   }
 
-  function renderComments(items, append, total) {
-    if (!append) {
-      host.commentsBody.innerHTML = '';
-      commentItems = [];
+  function commentChunkMarkup(items, page, note) {
+    return `<div class="comment-chunk" data-comment-page="${page}">${note ? `<div class="comment-inline-note">${note}</div>` : ''}${items.map(commentThread).join('')}</div>`;
+  }
+
+  function commentMinPage() {
+    return commentChunks.length ? commentChunks[0].page : 0;
+  }
+
+  function commentMaxPage() {
+    return commentChunks.length ? commentChunks[commentChunks.length - 1].page : 0;
+  }
+
+  function commentHasPage(page) {
+    return commentChunks.some((chunk) => chunk.page === page);
+  }
+
+  function appendCommentChunk(items, page, note, hasMore) {
+    host.commentsBody.insertAdjacentHTML('beforeend', commentChunkMarkup(items, page, note));
+    const el = host.commentsBody.lastElementChild;
+    commentChunks.push({ page, el, hasMore: hasMore === true });
+    return el;
+  }
+
+  function prependCommentChunk(items, page, note, hasMore) {
+    host.commentsBody.insertAdjacentHTML('afterbegin', commentChunkMarkup(items, page, note));
+    const el = host.commentsBody.firstElementChild;
+    commentChunks.unshift({ page, el, hasMore: hasMore === true });
+    host.commentsBody.scrollTop += el.offsetHeight;
+    commentLastScrollTop = host.commentsBody.scrollTop;
+    return el;
+  }
+
+  function trimCommentChunks(direction) {
+    while (commentChunks.length > 3) {
+      if (direction === 'down') {
+        const first = commentChunks[0];
+        const height = first.el.offsetHeight;
+        if (host.commentsBody.scrollTop < height) break;
+        commentChunks.shift();
+        first.el.remove();
+        host.commentsBody.scrollTop -= height;
+        commentLastScrollTop = host.commentsBody.scrollTop;
+      } else {
+        commentChunks.pop().el.remove();
+      }
     }
-    const html = items.map(commentThread).join('');
-    host.commentsBody.insertAdjacentHTML('beforeend', html);
-    commentItems = commentItems.concat(items);
-    let footer = $('#commentFooter');
-    if (!footer) {
-      host.commentsBody.insertAdjacentHTML('beforeend', '<div class="comment-footer" id="commentFooter"></div>');
-      footer = $('#commentFooter');
+    commentHasMoreDown = commentChunks.length
+      ? commentChunks[commentChunks.length - 1].hasMore
+      : false;
+  }
+
+  function loadCommentPage(page, direction, note) {
+    if (commentLoading || !commentAid || !page || page < 1 || commentHasPage(page)) return false;
+    const generation = commentGeneration;
+    commentLoading = true;
+    let result;
+    try {
+      result = typeof bridge.comments === 'function'
+        ? call('comments', commentAid, page, commentSort)
+        : { ok: false, error: '不支持评论' };
+    } finally {
+      commentLoading = false;
     }
-    const shown = commentItems.length;
-    const count = Number(total || shown || 0);
-    if (commentHasMore || shown < count) {
-      footer.innerHTML = `<button class="comment-more" type="button" id="commentMore">加载更多评论 · 已显示 ${shown} / ${count || '—'}</button>`;
+    if (generation !== commentGeneration) return false;
+    if (!result || !result.ok || !Array.isArray(result.items)) {
+      if (direction === 'down') commentHasMoreDown = false;
+      return false;
+    }
+    if (!result.items.length) {
+      if (direction === 'down') commentHasMoreDown = false;
+      return false;
+    }
+    if (direction === 'down') {
+      appendCommentChunk(result.items, page, note || '', result.hasMore);
     } else {
-      footer.innerHTML = `<span>已显示全部 ${shown} 条评论</span>`;
+      prependCommentChunk(result.items, page, note || '', result.hasMore);
     }
-    if (total) host.commentsCount.textContent = `${total} 条`;
+    trimCommentChunks(direction);
+    commentScrollLockUntil = Date.now() + 280;
+    return true;
+  }
+
+  function scheduleCommentPrefetch(generation) {
+    clearTimeout(commentPrefetchTimer);
+    commentPrefetchTimer = setTimeout(() => {
+      commentPrefetchTimer = null;
+      if (generation !== commentGeneration) return;
+      if (commentLoading || commentChunks.length >= 3 || !commentHasMoreDown) return;
+      const next = commentMaxPage() + 1;
+      if (loadCommentPage(next, 'down')) scheduleCommentPrefetch(generation);
+    }, 160);
   }
 
   function loadComments(sort) {
     if (typeof sort === 'number') commentSort = sort;
-    commentPage = 1;
-    commentHasMore = false;
+    commentGeneration += 1;
+    const generation = commentGeneration;
+    clearTimeout(commentPrefetchTimer);
+    commentPrefetchTimer = null;
+    commentScrollLockUntil = 0;
+    commentChunks = [];
+    commentHasMoreDown = false;
     commentLoading = false;
+    commentLastScrollTop = 0;
     const item = currentItem();
-    const aid = item && item.aid ? Number(item.aid) : 0;
-    if (!aid) {
+    commentAid = item && item.aid ? Number(item.aid) : 0;
+    host.commentsBody.scrollTop = 0;
+    if (!commentAid) {
       host.commentsBody.innerHTML = '<div class="native-empty">当前视频没有评论 ID</div>';
       return;
     }
-    const result = typeof bridge.comments === 'function'
-      ? call('comments', aid, 1, commentSort)
-      : { ok: false, error: '不支持评论' };
+    host.commentsBody.innerHTML = '<div class="comment-inline-note">正在加载评论…</div>';
+    let result;
+    try {
+      result = typeof bridge.comments === 'function'
+        ? call('comments', commentAid, 1, commentSort)
+        : { ok: false, error: '不支持评论' };
+    } catch (error) {
+      result = { ok: false, error: String(error) };
+    }
+    if (generation !== commentGeneration) return;
     if (!result.ok || !Array.isArray(result.items)) {
       host.commentsBody.innerHTML = `<div class="native-empty">评论加载失败<br>${esc(result.error || '')}</div>`;
-      host.commentsCount.textContent = '';
       return;
     }
+    let note = '';
     if (commentSort === 0 && result.items.length === 0 && !result.count) {
-      const fallback = call('comments', aid, 1, 2);
-      if (fallback.ok && Array.isArray(fallback.items) && fallback.items.length) {
-        commentHasMore = fallback.hasMore === true;
-        renderComments(fallback.items, false, fallback.count);
-        host.commentsBody.insertAdjacentHTML('afterbegin', '<div class="comment-inline-note">最新评论需要登录后查看，当前显示最热评论</div>');
-        return;
+      const fallback = typeof bridge.comments === 'function'
+        ? call('comments', commentAid, 1, 2)
+        : null;
+      if (generation !== commentGeneration) return;
+      if (fallback && fallback.ok && Array.isArray(fallback.items) && fallback.items.length) {
+        commentSort = 2;
+        result = fallback;
+        note = '最新评论需要登录后查看，当前显示最热评论';
       }
     }
-    commentHasMore = result.hasMore === true;
-    renderComments(result.items, false, result.count);
-  }
-
-  function loadMoreComments() {
-    if (commentLoading) return;
-    const item = currentItem();
-    const aid = item && item.aid ? Number(item.aid) : 0;
-    if (!aid) return;
-    commentLoading = true;
-    const footer = $('#commentFooter');
-    if (footer) footer.innerHTML = '<span>正在加载…</span>';
-    const nextPage = commentPage + 1;
-    const result = typeof bridge.comments === 'function'
-      ? call('comments', aid, nextPage, commentSort)
-      : { ok: false, error: '不支持评论' };
-    commentLoading = false;
-    if (!result.ok || !Array.isArray(result.items) || result.items.length === 0) {
-      commentHasMore = false;
-      if (footer) footer.innerHTML = `<span>${result.needLogin ? '更多评论需要登录后查看' : '没有更多评论了'}</span>`;
+    host.commentsBody.innerHTML = '';
+    if (!result.items.length) {
+      host.commentsBody.innerHTML = '<div class="native-empty">还没有评论</div>';
       return;
     }
-    commentPage = nextPage;
-    commentHasMore = result.hasMore === true;
-    renderComments(result.items, true, result.count);
+    commentHasMoreDown = result.hasMore === true;
+    appendCommentChunk(result.items, 1, note, result.hasMore);
+    host.commentsBody.scrollTop = 0;
+    scheduleCommentPrefetch(generation);
   }
+
+  function maybeLoadComments(delta) {
+    if (commentLoading || !commentAid || !commentChunks.length || !delta) return;
+    const body = host.commentsBody;
+    if (delta > 0) {
+      if (!commentHasMoreDown) return;
+      if (body.scrollTop + body.clientHeight < body.scrollHeight - 260) return;
+      const next = commentMaxPage() + 1;
+      if (!commentHasPage(next)) loadCommentPage(next, 'down');
+      return;
+    }
+    if (commentMinPage() <= 1) return;
+    if (body.scrollTop > 360) return;
+    const prev = commentMinPage() - 1;
+    if (!commentHasPage(prev)) loadCommentPage(prev, 'up');
+  }
+
+  host.commentsBody.addEventListener('scroll', () => {
+    if (commentScrollRaf) return;
+    commentScrollRaf = requestAnimationFrame(() => {
+      commentScrollRaf = 0;
+      if (Date.now() < commentScrollLockUntil) return;
+      const top = host.commentsBody.scrollTop;
+      const delta = top - commentLastScrollTop;
+      commentLastScrollTop = top;
+      maybeLoadComments(delta);
+    });
+  }, { passive: true });
 
   function toggleReplies(button) {
     const root = Number(button.dataset.replyRoot || 0);
@@ -2199,7 +2302,7 @@
       return;
     }
     box.hidden = false;
-    button.textContent = `收起回复 ⌃`;
+    button.textContent = '收起回复 ⌃';
     if (box.dataset.loaded === '1') return;
     const item = currentItem();
     const aid = item && item.aid ? Number(item.aid) : 0;
@@ -2217,41 +2320,10 @@
 
   host.commentsBody.addEventListener('click', (event) => {
     const button = event.target.closest('[data-reply-root]');
-    if (button) {
-      event.preventDefault();
-      toggleReplies(button);
-      return;
-    }
-    if (event.target.closest('#commentMore')) {
-      event.preventDefault();
-      loadMoreComments();
-    }
+    if (!button) return;
+    event.preventDefault();
+    toggleReplies(button);
   });
-
-  function sendComment(text) {
-    const item = currentItem();
-    const aid = item && item.aid ? Number(item.aid) : 0;
-    if (!aid || !text || typeof bridge.sendComment !== 'function') return false;
-    const result = call('sendComment', aid, text);
-    if (!result.ok) {
-      log('comment send failed ' + (result.error || ''));
-      return false;
-    }
-    const row = {
-      user: accountInfo && accountInfo.name ? accountInfo.name : '我',
-      avatar: accountInfo && accountInfo.face ? accountInfo.face : '',
-      message: text,
-      like: 0,
-      time: Math.floor(Date.now() / 1000),
-    };
-    const firstThread = host.commentsBody.querySelector('.comment-thread');
-    if (firstThread) firstThread.insertAdjacentHTML('beforebegin', commentThread(row));
-    else host.commentsBody.insertAdjacentHTML('afterbegin', commentThread(row));
-    commentItems.unshift(row);
-    const current = parseInt(host.commentsCount.textContent, 10) || 0;
-    host.commentsCount.textContent = `${current + 1} 条`;
-    return true;
-  }
 
   /* ---------- account ---------- */
   function renderAccount() {
@@ -2705,7 +2777,6 @@
     search: (query) => loadSearch(query, 1),
     openUpPage,
     onComments: (sort) => loadComments(sort),
-    sendComment,
     favorite: favoriteCurrent,
     like: likeCurrent,
     coin: coinCurrent,

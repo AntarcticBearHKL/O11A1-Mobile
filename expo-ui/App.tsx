@@ -217,14 +217,16 @@ const MOCK_BRIDGE = `
     }
     return rows;
   }
-  function comments() {
+  function comments(page) {
+    page = page || 1;
     var out = [];
     for (var i = 0; i < 6; i += 1) {
+      var n = (page - 1) * 6 + i;
       out.push({
-        rpid: 32000 + i, root: 0, rcount: i === 0 ? 5 : 0,
-        user: '评论用户 ' + (i + 1), avatar: cover('评论' + i),
-        message: '这是 UI 调试评论 ' + (i + 1) + '，用来检查最热/最新、楼中楼和分页布局。',
-        like: 20 - i, time: 1760000000 - i * 600
+        rpid: 32000 + n, root: 0, rcount: n === 0 ? 5 : 0,
+        user: '评论用户 ' + (n + 1), avatar: cover('评论' + n),
+        message: '这是 UI 调试评论 ' + (n + 1) + '，用来检查全屏评论、无限列表和楼中楼布局。',
+        like: Math.max(0, 20 - n), time: 1760000000 - n * 600
       });
     }
     return out;
@@ -275,7 +277,7 @@ const MOCK_BRIDGE = `
     playPgc: function () { return JSON.stringify({ ok: false, error: 'UI 调试模式不加载视频' }); },
     dash: function () { return JSON.stringify({ ok: false, error: 'UI 调试模式不加载 DASH' }); },
     danmaku: function () { return JSON.stringify({ ok: true, items: danmaku }); },
-    comments: function (aid, page, sort) { return JSON.stringify({ ok: true, items: comments(), count: 128, page: page || 1, hasMore: true }); },
+    comments: function (aid, page, sort) { page = page || 1; return JSON.stringify({ ok: true, items: comments(page), count: 48, page: page, hasMore: page < 8 }); },
     commentsReplies: function () { return JSON.stringify({ ok: true, items: replies(), count: 5, page: 1 }); },
     videoInfo: function (bvid) { return JSON.stringify({ ok: true, bvid: bvid || 'BVmock', aid: 9000, cid: 8000, mid: 10001, owner: 'O11A1 UI', ownerFace: cover('UP'), title: 'UI 调试视频信息', desc: '这是 UI 调试模式的视频简介。', pic: cover('信息'), duration: '12:34', durationSec: 754, stat: { view: 12000, danmaku: 123, reply: 45, favorite: 67, coin: 89, share: 10, like: 100 }, pages: [{ cid: 8000, page: 1, title: 'P1', duration: 754 }] }); },
     like: function () { return JSON.stringify({ ok: false, needLogin: true, error: 'UI 调试模式不写入账号' }); },
