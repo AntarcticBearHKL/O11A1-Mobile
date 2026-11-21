@@ -1474,7 +1474,7 @@ body.native-app .proto-backdrop{display:none!important}
 
 /* ---------- debug HUD ---------- */
 .feed-debug{
-  position:absolute;top:34px;right:14px;z-index:24;
+  position:absolute;top:calc(33.333% - 11px);right:14px;z-index:24;
   display:none;align-items:center;gap:6px;height:22px;padding:0 8px;
   border-radius:7px;border:1px solid rgba(47,124,246,.22);
   background:rgba(12,14,19,.72);color:#D7E3F5;
@@ -1483,7 +1483,6 @@ body.native-app .proto-backdrop{display:none!important}
   pointer-events:none;white-space:nowrap;
 }
 .feed-debug.show{display:flex}
-body.feed-debug-on .app-scroll{top:52px}
 .fd-dot{width:5px;height:5px;border-radius:50%;background:#4ADE80;box-shadow:0 0 6px #4ADE80}
 .fd-k{color:#7FA8E8;font-size:7.5px;letter-spacing:.12em}
 .feed-debug b{font-weight:700;color:#fff}
