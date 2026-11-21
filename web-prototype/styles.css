@@ -725,7 +725,10 @@ body.search-mode .proto-fab{opacity:0;pointer-events:none}
   border:0;border-bottom:1px solid var(--line);background:none;text-align:left;cursor:pointer;
 }
 .nav-setting:hover{background:rgba(30,30,34,.03)}
-.nav-setting-ico{width:24px;flex:none;text-align:center;font-size:15px;color:var(--muted)}
+.nav-setting-ico{width:24px;flex:none;display:grid;place-items:center;color:var(--muted)}
+.nav-setting-ico .nav-svg{width:18px;height:18px;display:block}
+.nav-chip-ico{display:grid;place-items:center}
+.nav-chip-ico .nav-svg{width:13px;height:13px;display:block}
 .nav-setting .mt-name{display:block;font-size:14px;font-weight:600}
 .nav-setting .mt-desc{display:block;font-size:10px;color:var(--muted);margin-top:2px}
 .nav-setting.on .switch{background:var(--blue)}
@@ -1289,7 +1292,7 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
 .sidebar{
   position:absolute;top:0;left:0;bottom:0;z-index:80;
   width:80%;display:flex;flex-direction:column;overflow:hidden;
-  padding:16px 10px calc(20px + env(safe-area-inset-bottom));
+  padding:16px 10px calc(8px + env(safe-area-inset-bottom));
   background:linear-gradient(180deg,rgba(255,252,246,.96),rgba(243,239,231,.99));
   border:1px solid var(--glass-border);border-left:0;border-radius:0 26px 26px 0;
   box-shadow:22px 0 54px rgba(24,24,32,.18),inset 0 1px 0 rgba(255,255,255,.7);
@@ -1310,6 +1313,8 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
 }
 .sidebar-inner::-webkit-scrollbar{display:none}
 .sidebar-nav{flex:none;display:flex;flex-direction:column;margin:auto 0;padding:0;overflow:visible}
+.sidebar-foot{flex:none;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.sidebar-foot:empty{display:none}
 .sidebar-search{
   position:absolute;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));
   height:50px;display:flex;align-items:center;gap:10px;
@@ -1337,7 +1342,8 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
 }
 .sidebar-item:hover{background:rgba(30,30,34,.04)}
 .sidebar-item.on{background:var(--blue-soft);color:var(--blue);font-weight:700}
-.sidebar-ico{width:22px;flex:none;text-align:center;font-size:18px;line-height:1;color:var(--muted)}
+.sidebar-ico{width:22px;flex:none;display:grid;place-items:center;color:var(--muted)}
+.sidebar-ico .nav-svg{width:19px;height:19px;display:block}
 .sidebar-item.on .sidebar-ico{color:var(--blue)}
 .sidebar-label{flex:1;min-width:0}
 .sidebar-count{

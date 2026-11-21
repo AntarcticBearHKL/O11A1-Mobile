@@ -80,6 +80,7 @@
   const sidebar = $('#sidebar');
   const sidebarBackdrop = $('#sidebarBackdrop');
   const sidebarNav = $('#sidebarNav');
+  const sidebarFoot = $('#sidebarFoot');
   const feedSearchBar = $('#feedSearchBar');
   const searchClose = $('#searchClose');
   const searchBack = $('#searchBack');
@@ -144,16 +145,34 @@
   ];
 
   const NAV_ITEMS = [
-    { id: 'home', label: '首页', icon: '⌂', type: 'page', target: 'home', group: '桌面端' },
-    { id: 'favorite', label: '收藏', icon: '◈', type: 'module', target: '收藏', group: '桌面端' },
-    { id: 'fish', label: '养鱼', icon: '◌', type: 'module', target: '养鱼', group: '桌面端' },
-    { id: 'live', label: '直播', icon: '▶', type: 'module', target: '直播', group: '桌面端' },
-    { id: 'follow', label: '关注', icon: '◍', type: 'module', target: '关注', group: '桌面端' },
-    { id: 'dynamic', label: '动态', icon: '◉', type: 'page', target: 'dynamic', group: '桌面端' },
-    { id: 'messages', label: '消息', icon: '✉', type: 'page', target: 'messages', group: '桌面端' },
-    { id: 'history', label: '历史', icon: '↺', type: 'module', target: '历史', group: '桌面端' },
-    { id: 'my', label: '我的', icon: '◌', type: 'page', target: 'my', group: '移动端' },
+    { id: 'home', label: '首页', icon: 'home', type: 'page', target: 'home', group: '桌面端' },
+    { id: 'favorite', label: '收藏', icon: 'favorite', type: 'module', target: '收藏', group: '桌面端' },
+    { id: 'fish', label: '养鱼', icon: 'fish', type: 'module', target: '养鱼', group: '桌面端' },
+    { id: 'live', label: '直播', icon: 'live', type: 'module', target: '直播', group: '桌面端' },
+    { id: 'follow', label: '关注', icon: 'follow', type: 'module', target: '关注', group: '桌面端' },
+    { id: 'dynamic', label: '动态', icon: 'dynamic', type: 'page', target: 'dynamic', group: '桌面端' },
+    { id: 'messages', label: '消息', icon: 'messages', type: 'page', target: 'messages', group: '桌面端' },
+    { id: 'history', label: '历史', icon: 'history', type: 'module', target: '历史', group: '桌面端' },
+    { id: 'my', label: '我的', icon: 'my', type: 'page', target: 'my', group: '移动端' },
   ];
+
+  const NAV_ICONS = {
+    home: '<path d="M3.5 10.7 12 3.5l8.5 7.2V20a1 1 0 0 1-1 1h-5v-6h-5v6h-5a1 1 0 0 1-1-1z"/>',
+    favorite: '<path d="M6.5 3.5h11a1 1 0 0 1 1 1v16l-6.5-4-6.5 4v-16a1 1 0 0 1 1-1z"/>',
+    fish: '<path d="M3.5 12c2.4-3.1 5.5-4.6 9.1-4.6 3.1 0 5.7 1.5 7.9 4.6-2.2 3.1-4.8 4.6-7.9 4.6-3.6 0-6.7-1.5-9.1-4.6z"/><path d="M3.5 12 1.5 8.7v6.6L3.5 12z"/><circle cx="15.8" cy="10.5" r="0.8" fill="currentColor" stroke="none"/>',
+    live: '<rect x="3" y="4.5" width="18" height="12.5" rx="2"/><path d="m10 8 5 2.75L10 13.5z"/><path d="M8.5 21h7M12 17v4"/>',
+    follow: '<circle cx="9" cy="8" r="3.8"/><path d="M2.5 21v-1.4A5.6 5.6 0 0 1 8.1 14h1.8a5.6 5.6 0 0 1 5.6 5.6V21"/><path d="M19 8.5v5M16.5 11h5"/>',
+    dynamic: '<path d="M3 12h3.4l2.4-5.8 4.4 11.6 2.4-5.8H21"/>',
+    messages: '<path d="M4 4.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4v-4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M8 9h8M8 12.5h5"/>',
+    history: '<path d="M3.2 12a8.8 8.8 0 1 0 2.7-6.3"/><path d="M3 4.2v4.4h4.4"/><path d="M12 7.4V12l3.1 1.9"/>',
+    my: '<circle cx="12" cy="8" r="3.8"/><path d="M4.5 21v-1.5A5.5 5.5 0 0 1 10 14h4a5.5 5.5 0 0 1 5.5 5.5V21"/>',
+  };
+
+  function navIcon(name) {
+    const body = NAV_ICONS[name];
+    if (!body) return '';
+    return `<svg class="nav-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+  }
 
   const DEFAULT_NAV_SELECTED = ['home', 'favorite', 'dynamic', 'messages', 'my'];
   const PAGE_NAV = { home: 'home', search: 'search', dynamic: 'dynamic', messages: 'messages', my: 'my' };
@@ -526,19 +545,28 @@
   function renderSidebar() {
     const items = visibleNavItems().filter((item) => item.type !== 'search');
     sidebarNav.innerHTML = '';
-    items.forEach((item) => {
+    sidebarFoot.innerHTML = '';
+
+    const createRow = (item) => {
       const row = document.createElement('button');
       row.type = 'button';
       row.className = 'sidebar-item';
       row.dataset.nav = item.id;
       row.innerHTML = `
-        <span class="sidebar-ico">${item.icon}</span>
+        <span class="sidebar-ico">${navIcon(item.icon)}</span>
         <span class="sidebar-label">${escapeHTML(item.label)}</span>`;
       row.addEventListener('click', () => {
         closeSidebar();
         handleNav(item, row);
       });
-      sidebarNav.appendChild(row);
+      return row;
+    };
+
+    items.filter((item) => item.id !== 'my').forEach((item) => {
+      sidebarNav.appendChild(createRow(item));
+    });
+    items.filter((item) => item.id === 'my').forEach((item) => {
+      sidebarFoot.appendChild(createRow(item));
     });
 
     updateNavActive();
@@ -546,7 +574,7 @@
   }
 
   function updateNavActive() {
-    $$('.sidebar-item', sidebarNav).forEach((row) => {
+    $$('.sidebar-item', sidebar).forEach((row) => {
       row.classList.toggle('on', row.dataset.nav === state.navActive);
     });
   }
@@ -953,7 +981,7 @@
       if (!item) return;
       const chip = document.createElement('span');
       chip.className = 'nav-chip on';
-      chip.innerHTML = `<span>${item.icon}</span><span>${escapeHTML(item.label)}</span>`;
+      chip.innerHTML = `<span class="nav-chip-ico">${navIcon(item.icon)}</span><span>${escapeHTML(item.label)}</span>`;
       navSelectedPreview.appendChild(chip);
     });
 
@@ -970,7 +998,7 @@
         row.type = 'button';
         row.className = `nav-setting${on ? ' on' : ''}`;
         row.innerHTML = `
-          <span class="nav-setting-ico">${item.icon}</span>
+          <span class="nav-setting-ico">${navIcon(item.icon)}</span>
           <span class="mt-copy">
             <span class="mt-name">${escapeHTML(item.label)}</span>
             <span class="mt-desc">${item.type === 'search' ? '动作 · 打开视频搜索' : item.type === 'queue' ? '动作 · 打开播放列表' : item.type === 'module' ? `页面 · ${escapeHTML(item.target)}` : '页面'}</span>
