@@ -37,7 +37,7 @@ final class O11A1WebLogin: NSObject, WKNavigationDelegate {
     close.setTitle("关闭", for: .normal)
     close.setTitleColor(UIColor(red: 0.624, green: 0.702, blue: 0.800, alpha: 1), for: .normal)
     close.titleLabel?.font = .systemFont(ofSize: 14, weight: .medium)
-    close.addTarget(self, action: #selector(close), for: .touchUpInside)
+    close.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
 
     webView.translatesAutoresizingMaskIntoConstraints = false
     webView.navigationDelegate = self
@@ -145,7 +145,7 @@ final class O11A1WebLogin: NSObject, WKNavigationDelegate {
     controller.dismiss(animated: true)
   }
 
-  @objc private func close() {
+  @objc private func closeTapped() {
     finished = true
     timer?.invalidate()
     timer = nil
