@@ -325,6 +325,7 @@
   let suppressFeedClickUntil = 0;
   let suppressSidebarClickUntil = 0;
   let suppressSearchBarClickUntil = 0;
+  let suppressPlaylistClickUntil = 0;
   let searchBarSwipe = null;
   let suppressDockClickUntil = 0;
   let dockDrag = null;
@@ -335,9 +336,8 @@
   let mockFeedLoading = false;
 
   const ROW_ACTION_TOTAL = 152;
-  const ROW_ACTION_OPEN = 28;
-  const ROW_ACTION_FIRST = 44;
-  const ROW_ACTION_SECOND = 116;
+  const ROW_ACTION_FIRST = 76;
+  const ROW_ACTION_SECOND = 152;
 
   const MODULE_NOTES = {
     收藏: '真实收藏夹 · 第一页 20 条',
@@ -1330,13 +1330,21 @@
       closePlaylistPage();
       return;
     }
-    playlistPage.style.transition = 'transform .26s cubic-bezier(.4,0,1,1),opacity .2s ease';
-    playlistPage.style.transform = 'translateY(105%)';
+    playlistPage.style.transition = 'transform .36s cubic-bezier(.16,1,.3,1),opacity .28s ease';
+    playlistPage.style.transform = 'translateY(105%) scale(.98)';
     playlistPage.style.opacity = '0';
     setTimeout(() => {
-      resetPlaylistPageDrag();
       closePlaylistPage();
-    }, 240);
+      resetPlaylistPageDrag();
+    }, 380);
+  }
+
+  function applyPlaylistDrag(dy) {
+    if (!playlistPage) return;
+    const drag = Math.min(360, Math.max(0, dy));
+    const progress = Math.min(1, drag / 280);
+    playlistPage.style.transform = `translateY(${drag}px) scale(${1 - progress * 0.025})`;
+    playlistPage.style.opacity = String(1 - progress * 0.35);
   }
 
   function feedRowKey(row) {
@@ -1384,22 +1392,39 @@
     if (!wrapper) return;
     const row = wrapper.querySelector('.video-row');
     if (!row) return;
+    if (wrapper.classList.contains('swiping')) row.style.transition = 'none';
     row.style.transform = offset > 0 ? `translate3d(${-offset}px,0,0)` : '';
     const action = rowActionForOffset(offset);
+    const queueProgress = Math.min(1, Math.max(0, offset / ROW_ACTION_FIRST));
+    const upProgress = Math.min(1, Math.max(0, (offset - ROW_ACTION_FIRST) / (ROW_ACTION_SECOND - ROW_ACTION_FIRST)));
+    if (action && action !== wrapper.__rowAction && navigator.vibrate) navigator.vibrate(6);
+    wrapper.__rowAction = action;
     $$('.row-action', wrapper).forEach((button) => {
+      const progress = button.dataset.rowAction === 'queue' ? queueProgress : upProgress;
+      button.style.opacity = String(0.18 + progress * 0.82);
+      button.style.transform = `translateX(${((1 - progress) * 18).toFixed(1)}px) scale(${(0.94 + progress * 0.06).toFixed(3)})`;
       button.classList.toggle('on', button.dataset.rowAction === action);
+      button.classList.toggle('pressed', button.dataset.rowAction === action);
     });
   }
 
   function resetRowSwipe(wrapper) {
     if (!wrapper) return;
     const row = wrapper.querySelector('.video-row');
-    if (row) {
-      row.style.transition = '';
-      row.style.transform = '';
-    }
     wrapper.classList.remove('swiping');
-    $$('.row-action', wrapper).forEach((button) => button.classList.remove('on', 'pressed'));
+    wrapper.__rowAction = '';
+    if (row) {
+      row.style.transition = 'transform .34s cubic-bezier(.16,1,.3,1)';
+      row.style.transform = '';
+      setTimeout(() => {
+        if (row.style.transform === '') row.style.transition = '';
+      }, 360);
+    }
+    $$('.row-action', wrapper).forEach((button) => {
+      button.classList.remove('on', 'pressed');
+      button.style.opacity = '';
+      button.style.transform = '';
+    });
   }
 
   function openUpPageForRow(row) {
@@ -1420,10 +1445,13 @@
     if (!row) return;
     suppressFeedClickUntil = Date.now() + 420;
     const button = wrapper.querySelector(`[data-row-action="${action}"]`);
-    if (button) button.classList.add('pressed');
+    if (button) {
+      button.classList.add('pressed');
+      button.style.transform = 'translateX(0) scale(.92)';
+    }
     if (action === 'queue') addFeedRowToPlaylist(row);
     else if (action === 'up') openUpPageForRow(row);
-    setTimeout(() => resetRowSwipe(wrapper), 160);
+    setTimeout(() => resetRowSwipe(wrapper), 200);
   }
 
   /* ---------- player ---------- */
@@ -3284,38 +3312,72 @@
 
   sidebarBackdrop.addEventListener('click', closeSidebar);
   playlistBack.addEventListener('click', closePlaylistPage);
-  const playlistGrab = $('#playlistGrab');
-  if (playlistGrab) {
-    playlistGrab.addEventListener('pointerdown', (event) => {
-      if (event.pointerType === 'mouse' && event.button !== 0) return;
-      if (!playlistPage) return;
-      playlistDrag = { id: event.pointerId, y: event.clientY, dy: 0 };
+  playlistPage.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (!playlistPage.classList.contains('active')) return;
+    if (event.target.closest('button, .pl-remove')) return;
+    const header = event.target.closest('.playlist-grab, .playlist-page-top');
+    if (!header && appScroll.scrollTop > 0) return;
+    playlistDrag = {
+      id: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      dy: 0,
+      active: false,
+      header: Boolean(header),
+      lastY: event.clientY,
+      lastT: performance.now(),
+      velocity: 0,
+    };
+  });
+  window.addEventListener('pointermove', (event) => {
+    if (!playlistDrag || event.pointerId !== playlistDrag.id) return;
+    const dx = event.clientX - playlistDrag.startX;
+    const dy = event.clientY - playlistDrag.startY;
+    if (!playlistDrag.active) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      if (dy < -8 || Math.abs(dx) > Math.abs(dy) * 1.15) {
+        playlistDrag = null;
+        return;
+      }
+      if (dy <= 8) return;
+      if (!playlistDrag.header && appScroll.scrollTop > 0) {
+        playlistDrag = null;
+        return;
+      }
+      playlistDrag.active = true;
+      suppressPlaylistClickUntil = Date.now() + 420;
       playlistPage.classList.add('dragging');
       playlistPage.style.transition = 'none';
+    }
+    if (event.cancelable) event.preventDefault();
+    const now = performance.now();
+    const elapsed = Math.max(1, now - playlistDrag.lastT);
+    playlistDrag.velocity = (event.clientY - playlistDrag.lastY) / elapsed;
+    playlistDrag.lastY = event.clientY;
+    playlistDrag.lastT = now;
+    playlistDrag.dy = Math.max(0, dy);
+    applyPlaylistDrag(playlistDrag.dy);
+  }, { passive: false });
+  window.addEventListener('pointerup', (event) => {
+    if (!playlistDrag || event.pointerId !== playlistDrag.id) return;
+    const drag = playlistDrag;
+    playlistDrag = null;
+    if (!drag.active) return;
+    if (drag.dy > 90 || drag.velocity > 0.55) closePlaylistWithDrag();
+    else resetPlaylistPageDrag();
+  });
+  window.addEventListener('pointercancel', () => {
+    if (!playlistDrag) return;
+    playlistDrag = null;
+    resetPlaylistPageDrag();
+  });
+  playlistPage.addEventListener('click', (event) => {
+    if (Date.now() < suppressPlaylistClickUntil) {
       event.preventDefault();
-    });
-    window.addEventListener('pointermove', (event) => {
-      if (!playlistDrag || event.pointerId !== playlistDrag.id) return;
-      const dy = Math.max(0, event.clientY - playlistDrag.y);
-      playlistDrag.dy = dy;
-      const progress = Math.min(1, dy / 280);
-      playlistPage.style.transform = `translateY(${dy}px) scale(${1 - progress * 0.02})`;
-      playlistPage.style.opacity = String(1 - progress * 0.35);
-      if (event.cancelable) event.preventDefault();
-    }, { passive: false });
-    window.addEventListener('pointerup', (event) => {
-      if (!playlistDrag || event.pointerId !== playlistDrag.id) return;
-      const dy = playlistDrag.dy;
-      playlistDrag = null;
-      if (dy > 90) closePlaylistWithDrag();
-      else resetPlaylistPageDrag();
-    });
-    window.addEventListener('pointercancel', () => {
-      if (!playlistDrag) return;
-      playlistDrag = null;
-      resetPlaylistPageDrag();
-    });
-  }
+      event.stopPropagation();
+    }
+  }, true);
 
   playlistDock.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -3424,12 +3486,10 @@
     }
     if (start.direction !== 'left') return;
     suppressFeedClickUntil = Date.now() + 420;
-    if (start.offset >= ROW_ACTION_OPEN) {
-      const action = rowActionForOffset(start.offset);
-      if (action) {
-        triggerRowAction(start.wrapper, action);
-        return;
-      }
+    const action = rowActionForOffset(start.offset);
+    if (action) {
+      triggerRowAction(start.wrapper, action);
+      return;
     }
     resetRowSwipe(start.wrapper);
   });
@@ -3837,6 +3897,21 @@
     minimizePlayer();
     await sleep(420);
     results.push(`dock=${playlistDock.classList.contains('show')}`);
+    playlistDock.click();
+    await sleep(280);
+    const playlistOpened = state.page === 'playlist';
+    const grab = $('#playlistGrab');
+    const grabRect = grab.getBoundingClientRect();
+    const grabX = grabRect.left + grabRect.width / 2;
+    const grabY = grabRect.top + grabRect.height / 2;
+    grab.dispatchEvent(pointerEvent('pointerdown', grabX, grabY, 1));
+    for (let step = 1; step <= 6; step += 1) {
+      window.dispatchEvent(pointerEvent('pointermove', grabX, grabY + (140 * step) / 6, 1));
+    }
+    window.dispatchEvent(pointerEvent('pointerup', grabX, grabY + 140, 0));
+    await sleep(520);
+    results.push(`playlistSwipe=${playlistOpened && state.page !== 'playlist'}`);
+
     const rect = appScroll.getBoundingClientRect();
     const startX = rect.left + rect.width * 0.5;
     const startY = rect.top + rect.height * 0.5;
@@ -3847,7 +3922,17 @@
     window.dispatchEvent(pointerEvent('pointerup', startX + 120, startY, 0));
     await sleep(80);
     results.push(`sidebar=${sidebar.classList.contains('open')}`);
-    closeSidebar();
+    const sideRect = sidebar.getBoundingClientRect();
+    const sideX = sideRect.left + sideRect.width * 0.5;
+    const sideY = sideRect.top + sideRect.height * 0.5;
+    sidebar.dispatchEvent(pointerEvent('pointerdown', sideX, sideY, 1));
+    for (let step = 1; step <= 6; step += 1) {
+      window.dispatchEvent(pointerEvent('pointermove', sideX - (120 * step) / 6, sideY, 1));
+    }
+    window.dispatchEvent(pointerEvent('pointerup', sideX - 120, sideY, 0));
+    await sleep(120);
+    results.push(`sidebarClose=${!sidebar.classList.contains('open')}`);
+    if (sidebar.classList.contains('open')) closeSidebar();
 
     const row = $('#homeFeed .video-row');
     const countBefore = state.playlist.length;
@@ -3856,9 +3941,9 @@
     const rowX = rowRect.left + rowRect.width / 2;
     row.dispatchEvent(pointerEvent('pointerdown', rowX, rowY, 1));
     for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', rowX - (60 * step) / 6, rowY, 1));
+      window.dispatchEvent(pointerEvent('pointermove', rowX - (100 * step) / 6, rowY, 1));
     }
-    window.dispatchEvent(pointerEvent('pointerup', rowX - 60, rowY, 0));
+    window.dispatchEvent(pointerEvent('pointerup', rowX - 100, rowY, 0));
     await sleep(200);
     results.push(`rowQueue=${state.playlist.length > countBefore}`);
     if (state.playlist.length > countBefore) {
@@ -3875,9 +3960,9 @@
     const upX = upRect.left + upRect.width / 2;
     upRow.dispatchEvent(pointerEvent('pointerdown', upX, upY, 1));
     for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', upX - (132 * step) / 6, upY, 1));
+      window.dispatchEvent(pointerEvent('pointermove', upX - (170 * step) / 6, upY, 1));
     }
-    window.dispatchEvent(pointerEvent('pointerup', upX - 132, upY, 0));
+    window.dispatchEvent(pointerEvent('pointerup', upX - 170, upY, 0));
     await sleep(500);
     results.push(`rowUp=${state.page === 'up' && $$('#upFeed .real-row').length > 0}`);
     const upBackButton = $('#upBack');

@@ -312,6 +312,7 @@ body.search-mode .app.has-playlist .page[data-page="search"]{padding-bottom:calc
 .row-action .ra-ico{font-size:18px;line-height:1;font-weight:400}
 .row-action.on{filter:brightness(1.16);box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}
 .row-action.pressed{transform:scale(.94);filter:brightness(1.22)}
+.feed-item.swiping .row-action{transition:none}
 .row-thumb{
   position:relative;width:clamp(150px,46%,210px);height:100%;flex:none;border-radius:0;
   overflow:hidden;display:flex;align-items:center;justify-content:center;
