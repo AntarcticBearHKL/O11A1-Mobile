@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { requireOptionalNativeModule } from 'expo-modules-core';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { WebView } from 'react-native-webview';
 import { WEBAPP_BUILD, WEBAPP_FILES } from './src/webapp.generated';
 
@@ -337,6 +338,10 @@ export default function App() {
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
   }, []);
 
   useEffect(() => {

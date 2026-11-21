@@ -445,7 +445,7 @@ final class O11A1LocalServer {
       }
       data = o11a1Data(["ok": true, "opened": true])
     case "setOrientation":
-      let mode = query["mode"] ?? "sensor"
+      let mode = query["mode"] ?? "portrait"
       DispatchQueue.main.async {
         O11A1Orientation.apply(mode)
       }

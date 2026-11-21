@@ -3,7 +3,7 @@
     "name": "O11A1",
     "slug": "o11a1-video-lab",
     "version": "0.2.0",
-    "orientation": "default",
+    "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F4EFE5",

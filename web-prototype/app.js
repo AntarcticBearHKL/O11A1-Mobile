@@ -46,8 +46,6 @@
   const rateValue = $('#rateValue');
   const rateLabel = $('#rateLabel');
   const rotateHud = $('#rotateHud');
-  const rotateArrow = $('#rotateArrow');
-  const rotateLabel = $('#rotateLabel');
   const swipeHint = $('#swipeHint');
   const commentsPanel = $('#commentsPanel');
   const commentsBack = $('#commentsBack');
@@ -188,7 +186,6 @@
     longPress2x: true,
     swipeBrightness: true,
     doubleFullscreen: true,
-    doubleRotate: true,
     longPressRate: true,
     swipeLevel: true,
     middleCollapse: true,
@@ -241,7 +238,6 @@
     duration: 0,
     brightness: Number.isFinite(loaded?.brightness) ? Math.max(0, Math.min(100, loaded.brightness)) : 100,
     volume: Number.isFinite(loaded?.volume) ? Math.max(0, Math.min(100, loaded.volume)) : 80,
-    rotation: 'right',
     landscapeHome: loaded?.landscapeHome === true,
     fav: false,
     coin: false,
@@ -290,7 +286,7 @@
   let lastStageTap = { time: 0, zone: '' };
   let levelHudTimer = null;
   let rateHudTimer = null;
-  let rotateHudTimer = null;
+
   let commentsGesture = null;
   let commentsCloseTimer = null;
   let commentTotal = 128;
@@ -1714,7 +1710,6 @@
     hideRateHud(0);
     rotateHud.classList.remove('show');
     showControls();
-    lockPlayerOrientation();
     if (window.O11A1Media && typeof window.O11A1Media.onOpen === 'function') {
       window.O11A1Media.onOpen();
     }
@@ -1748,7 +1743,6 @@
     if (document.fullscreenElement && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
     }
-    releasePlayerOrientation();
     pcFullscreen.classList.remove('on');
     pcFullscreen.title = '全屏';
     if (window.O11A1Media && typeof window.O11A1Media.onMinimize === 'function') {
@@ -1797,7 +1791,6 @@
     if (document.fullscreenElement && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
     }
-    releasePlayerOrientation();
     pcFullscreen.classList.remove('on');
     pcFullscreen.title = '全屏';
     if (window.O11A1Media && typeof window.O11A1Media.onStop === 'function') {
@@ -2046,45 +2039,9 @@
     }, delay);
   }
 
-  function rotatePlayer(direction) {
-    if (!state.playerOpen || state.locked) return;
-    state.rotation = direction;
-    rotateArrow.textContent = direction === 'right' ? '↻' : '↺';
-    rotateLabel.textContent = direction === 'right' ? '横屏 · 右' : '横屏 · 左';
-    rotateHud.classList.remove('turn-left', 'turn-right', 'show');
-    void rotateHud.offsetWidth;
-    rotateHud.classList.add(direction === 'right' ? 'turn-right' : 'turn-left', 'show');
-    clearTimeout(rotateHudTimer);
-    rotateHudTimer = setTimeout(() => rotateHud.classList.remove('show'), 1200);
-    lockPlayerOrientation();
-  }
-
-  function lockPlayerOrientation() {
-    if (window.O11A1Native && typeof window.O11A1Native.setOrientation === 'function') {
-      window.O11A1Native.setOrientation(state.rotation === 'left' ? 'landscape-left' : 'landscape-right');
-      return;
-    }
-    if (!screen.orientation || !screen.orientation.lock) return;
-    const target = state.rotation === 'left' ? 'landscape-primary' : 'landscape-secondary';
-    screen.orientation.lock(target).catch(() => {
-      screen.orientation.lock('landscape').catch(() => {});
-    });
-  }
-
-  function releasePlayerOrientation() {
-    if (window.O11A1Native && typeof window.O11A1Native.setOrientation === 'function') {
-      window.O11A1Native.setOrientation('sensor');
-      return;
-    }
-    if (screen.orientation && screen.orientation.unlock) {
-      try { screen.orientation.unlock(); } catch (_) {}
-    }
-  }
-
   /* ---------- main page landscape ---------- */
   function syncLandscape() {
-    const auto = window.innerWidth > window.innerHeight && window.innerWidth <= 960;
-    const landscape = state.landscapeHome || auto;
+    const landscape = state.landscapeHome;
     app.classList.toggle('landscape', landscape);
     document.body.classList.toggle('landscape', landscape);
     if (homeLandscapeBtn) {
@@ -2280,13 +2237,8 @@
       lastStageTap = { time: 0, zone: '' };
       clearTimeout(stageTapTimer);
       stageTapTimer = null;
-      if (zone === 'middle') {
-        togglePlay();
-      } else if (state.settings.doubleRotate) {
-        rotatePlayer(zone);
-      } else {
-        toggleStageControls();
-      }
+      if (zone === 'middle') togglePlay();
+      else toggleStageControls();
       return;
     }
     lastStageTap = { time: now, zone };
@@ -2476,7 +2428,6 @@
     ['L', '锁定 / 解锁'],
     ['[ / ]', '减速 / 加速'],
     ['1–6', '画质 4K → 480P'],
-    ['R', '横屏左 / 右'],
     ['P', '截图'],
     ['N / B', '下一个 / 上一个'],
     ['Esc', '关闭面板 / 解锁 / 收起'],
@@ -2551,7 +2502,6 @@
     if (lower === 'l') { event.preventDefault(); state.locked ? unlockPlayer() : lockPlayer(); return; }
     if (key === '[') { event.preventDefault(); changeSpeed(-1); return; }
     if (key === ']') { event.preventDefault(); changeSpeed(1); return; }
-    if (lower === 'r') { event.preventDefault(); rotatePlayer(state.rotation === 'right' ? 'left' : 'right'); return; }
     if (lower === 'p') { event.preventDefault(); pcShot.click(); return; }
     if (lower === 'n') { event.preventDefault(); stepTrack(1); return; }
     if (lower === 'b') { event.preventDefault(); stepTrack(-1); return; }
@@ -2801,12 +2751,11 @@
       },
       'settings-gesture': {
         title: '手势',
-        sub: '三区分工：中间收起/工具栏，左右亮度/音量，双击左右旋转，长按左右减速/加速',
+        sub: '三区分工：中间收起/工具栏，左右亮度/音量，双击中间播放/暂停，长按左右减速/加速',
         rows: [
           { type: 'switch', label: '中间上滑 工具栏 / 下滑 收起', key: 'middleCollapse' },
           { type: 'switch', label: '左右上下滑 亮度 / 音量', key: 'swipeLevel' },
           { type: 'switch', label: '左滑 全屏评论', key: 'swipeComments' },
-          { type: 'switch', label: '双击左 / 右 旋转屏幕', key: 'doubleRotate' },
           { type: 'switch', label: '长按左 / 右 减速 / 加速', key: 'longPressRate' },
           { type: 'static', label: '进度条', value: '横向拖动 seek' },
         ],
@@ -3625,8 +3574,6 @@
     save();
     closeDrawer();
   });
-  window.addEventListener('resize', syncLandscape);
-  window.addEventListener('orientationchange', syncLandscape);
   $('#resetBtn').addEventListener('click', resetPrototype);
   $$('#platformSwitch button').forEach((button) => {
     button.addEventListener('click', () => setPlatform(button.dataset.platform));
@@ -3757,12 +3704,6 @@
     window.dispatchEvent(pointerEvent('pointerup', start.x + dx, start.y + dy, 0));
   }
 
-  function dispatchTap(zone) {
-    const point = stagePoint(zone);
-    playerStage.dispatchEvent(pointerEvent('pointerdown', point.x, point.y, 1));
-    window.dispatchEvent(pointerEvent('pointerup', point.x, point.y, 0));
-  }
-
   function pressStage(zone) {
     const point = stagePoint(zone);
     playerStage.dispatchEvent(pointerEvent('pointerdown', point.x, point.y, 1));
@@ -3815,11 +3756,6 @@
 
     closeComments();
     await sleep(380);
-    dispatchTap('left');
-    await sleep(80);
-    dispatchTap('left');
-    await sleep(80);
-    results.push(`rotate=${rotateHud.classList.contains('show') && state.rotation === 'left'}`);
 
     const hold = pressStage('right');
     await sleep(430);
@@ -3939,7 +3875,7 @@
       const row = $('#homeFeed .video-row');
       if (row) addFeedRowToPlaylist(row);
     }, 700);
-  } else if (demo === 'brightness' || demo === 'volume' || demo === 'rate' || demo === 'rotate') {
+  } else if (demo === 'brightness' || demo === 'volume' || demo === 'rate') {
     openPlayer();
     setTimeout(() => {
       if (demo === 'brightness') {
@@ -3954,10 +3890,6 @@
         applyBrightness(74);
         showRateHud('right');
         hideRateHud(9000);
-      } else {
-        rotatePlayer('left');
-        clearTimeout(rotateHudTimer);
-        rotateHudTimer = setTimeout(() => rotateHud.classList.remove('show'), 9000);
       }
     }, 220);
   }
