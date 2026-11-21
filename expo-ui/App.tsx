@@ -255,6 +255,7 @@ const MOCK_BRIDGE = `
     favorites: function (page) { page = page || 1; return JSON.stringify({ ok: true, items: items('收藏', 20, page), page: page, count: 20, title: '收藏夹', hasMore: true }); },
     history: function (page) { page = page || 1; return JSON.stringify({ ok: true, items: items('历史', 20, page), page: page, next: '', title: '历史', hasMore: true }); },
     following: function (page) { page = page || 1; return JSON.stringify({ ok: true, items: items('关注', 20, page), page: page, hasMore: true }); },
+    space: function (mid, page, ps) { page = page || 1; return JSON.stringify({ ok: true, mid: mid, items: items('UP', ps || 20, page), page: page, hasMore: true }); },
     dynamicFeed: function (page, filter) { return JSON.stringify({ ok: true, items: dynamicFeed(filter), page: page || 1 }); },
     messages: function (page, filter) { return JSON.stringify({ ok: true, items: [0,1,2,3,4,5].map(function (i) { return { user: '消息用户 ' + (i + 1), avatar: cover('消息' + i), text: '这是一条 UI 调试消息 ' + (i + 1), kind: filter || 'reply', unread: i % 2 === 0, time: 1760000000 - i * 600 }; }), page: page || 1 }); },
     account: function () { return JSON.stringify({ ok: true, loggedIn: false, hasSession: false, name: '', face: '', mid: 0, level: 0, vip: false, vipLabel: '', coins: 0, sign: '' }); },

@@ -26,12 +26,14 @@
     home: host.homeFeed,
     search: host.searchResults,
     module: host.moduleFeed,
+    up: $('#upFeed'),
   };
   const pages = { dynamic: 1, messages: 1 };
   const windows = {
     home: { page: 0, cursor: '', hasMore: true, loading: false, token: 0, query: '' },
     search: { page: 0, cursor: '', hasMore: true, loading: false, token: 0, query: '' },
     module: { page: 0, cursor: '', hasMore: true, loading: false, token: 0, name: '' },
+    up: { page: 0, cursor: '', hasMore: true, loading: false, token: 0, name: '' },
   };
   const more = { dynamic: true, messages: true };
   const dynamicFilterNames = ['全部', '视频', '图文'];
@@ -164,7 +166,6 @@
     row.className = `video-row real-row${item.live ? ' live-row' : ''}${item.seasonId ? ' season-row' : ''}`;
     row.__nativeItem = item;
     row.dataset.nativeIndex = String(index);
-    row.dataset.chunk = String(page);
     const pic = item.pic || '';
     const progress = item.durationSec > 0 && item.progress > 0
       ? Math.min(100, Math.round(item.progress / item.durationSec * 100))
@@ -190,7 +191,17 @@
       else if (item.seasonId && !item.epId) playSeason(item);
       else playItem(item);
     });
-    return row;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'feed-item';
+    wrapper.dataset.chunk = String(page);
+    wrapper.__nativeItem = item;
+    wrapper.innerHTML = `
+      <div class="row-actions">
+        <button class="row-action up" type="button" data-row-action="up"><span class="ra-ico">◉</span><b>UP主</b></button>
+        <button class="row-action queue" type="button" data-row-action="queue"><span class="ra-ico">＋</span><b>播放列表</b></button>
+      </div>`;
+    wrapper.appendChild(row);
+    return wrapper;
   }
 
   function renderRows(feed, items, label, page) {
@@ -246,6 +257,7 @@
   function feedKey(feed) {
     if (feed === feeds.home) return 'home';
     if (feed === feeds.search) return 'search';
+    if (feed === feeds.up) return 'up';
     return 'module';
   }
 
@@ -423,6 +435,95 @@
     }
     win.loading = false;
     return result.ok;
+  }
+
+  function loadUp(page, append) {
+    const feed = feeds.up;
+    const win = windows.up;
+    if (!feed) return false;
+    const appendPage = Boolean(append) && win.page > 0;
+    if (!appendPage) {
+      win.token += 1;
+      win.page = 0;
+      win.hasMore = true;
+      win.loading = false;
+    }
+    const pageNo = appendPage ? (page || 1) : 1;
+    if (typeof bridge.space !== 'function') {
+      if (!appendPage) {
+        renderEmpty(feed, 'UP 主视频接口未接入', '当前版本只显示 UP 主资料；视频列表需要原生 space 接口。');
+      }
+      win.hasMore = false;
+      win.loading = false;
+      setTail(feed, 'idle');
+      const note = $('#upNote');
+      if (note) note.textContent = 'UP 主视频 · 接口未接入';
+      return false;
+    }
+    const mid = Number(state.upItem && state.upItem.mid ? state.upItem.mid : 0);
+    const result = call('space', mid, pageNo, 20);
+    if (!result.ok) {
+      if (!appendPage) {
+        renderEmpty(feed, 'UP 主视频加载失败', result.error || '网络错误', '重试', () => loadUp(1, false));
+      } else {
+        setTail(feed, 'error', '加载失败 · 点击重试', () => requestFeedPage('up', true));
+      }
+      win.loading = false;
+      return false;
+    }
+    const items = Array.isArray(result.items) ? result.items : [];
+    if (!items.length) {
+      if (!appendPage) renderEmpty(feed, '这个 UP 主还没有视频', '');
+      else setTail(feed, 'end', '已经到底了');
+      win.hasMore = false;
+      win.loading = false;
+      return true;
+    }
+    if (appendPage) appendRows(feed, items, state.upName || 'UP 主', pageNo);
+    else renderRows(feed, items, state.upName || 'UP 主', pageNo);
+    win.page = pageNo;
+    win.hasMore = result.hasMore !== false;
+    win.loading = false;
+    setTail(feed, win.hasMore ? 'idle' : 'end', win.hasMore ? '' : '已经到底了');
+    const note = $('#upNote');
+    if (note) note.textContent = `${state.upName || 'UP 主'} · 触底加载`;
+    return true;
+  }
+
+  function openUpPage(item) {
+    if (!item) return;
+    if (state.page !== 'up') {
+      state.upReturn = state.page || 'home';
+      state.upReturnNav = state.navActive;
+    }
+    state.upItem = item;
+    state.upName = item.owner || 'UP 主';
+    const name = state.upName;
+    const mid = Number(item.mid || 0);
+    const avatar = $('#upAvatar');
+    if (avatar) {
+      avatar.style.backgroundImage = item.ownerFace ? `url("${item.ownerFace}")` : '';
+      avatar.textContent = item.ownerFace ? '' : name.slice(0, 1);
+    }
+    const nameEl = $('#upName');
+    if (nameEl) nameEl.textContent = name;
+    const midEl = $('#upMid');
+    if (midEl) midEl.textContent = mid ? `UID ${mid}` : 'UID —';
+    const follow = $('#upFollow');
+    if (follow) {
+      follow.textContent = '关注';
+      follow.disabled = !mid;
+    }
+    const note = $('#upNote');
+    if (note) note.textContent = `${name} · UP 主视频`;
+    host.showPage('up');
+    windows.up.token += 1;
+    windows.up.page = 0;
+    windows.up.cursor = '';
+    windows.up.hasMore = true;
+    windows.up.loading = false;
+    windows.up.name = name;
+    loadUp(1, false);
   }
 
   /* ---------- offline downloads ---------- */
@@ -811,6 +912,7 @@
       }
       if (key === 'home') loadHome(next, true);
       else if (key === 'search') loadSearch(host.searchInput.value.trim(), next, true);
+      else if (key === 'up') loadUp(next, true);
       else loadModule(next, true);
     }, 220);
   }
@@ -2545,7 +2647,7 @@
   const appScroll = $('#appScroll');
   if (appScroll) appScroll.addEventListener('scroll', () => {
     if (appScroll.scrollTop + appScroll.clientHeight < appScroll.scrollHeight - 260) return;
-    if (state.page === 'home' || state.page === 'search' || state.page === 'module') {
+    if (state.page === 'home' || state.page === 'search' || state.page === 'module' || state.page === 'up') {
       requestFeedPage(state.page);
     }
     if (state.page === 'dynamic' && more.dynamic) {
@@ -2589,7 +2691,24 @@
     }).observe(moduleLabel, { childList: true, characterData: true, subtree: true });
   }
 
+  const upBack = $('#upBack');
+  if (upBack) upBack.addEventListener('click', () => host.showPage(state.upReturn || 'home', state.upReturnNav || undefined));
+  const upFollow = $('#upFollow');
+  if (upFollow) upFollow.addEventListener('click', () => {
+    const mid = Number(state.upItem && state.upItem.mid ? state.upItem.mid : 0);
+    if (!mid) return;
+    const result = call('follow', mid, true);
+    if (result.ok) {
+      upFollow.textContent = '已关注';
+      upFollow.classList.add('on');
+    } else {
+      upFollow.textContent = result.needLogin ? '需登录' : '失败';
+    }
+  });
+
   window.O11A1NativeData = {
+    search: (query) => loadSearch(query, 1),
+    openUpPage,
     onComments: (sort) => loadComments(sort),
     sendComment,
     favorite: favoriteCurrent,

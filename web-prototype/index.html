@@ -21,6 +21,11 @@
         <b id="feedDebugHz">60.0 Hz</b>
         <span id="feedDebugFps">59.9 fps</span>
       </div>
+      <button class="feed-search" id="feedSearchBar" type="button" aria-hidden="true">
+        <span class="fs-ico">⌕</span>
+        <span class="fs-ph">搜索视频 / UP / 番剧</span>
+        <span class="fs-hot">热搜</span>
+      </button>
       <div class="app-scroll" id="appScroll">
         <!-- 首页：单列，每行一个视频 -->
         <section class="page active" data-page="home">
@@ -65,9 +70,33 @@
           <div class="list-note" id="homeNote">推荐模块占位 · 单列 · 触底加载 · 保留最近两段</div>
         </section>
 
-        <!-- 搜索：视频结果，无命令列表 -->
-        <section class="page" data-page="search">
-          <div class="section-label" id="searchResultsLabel">热门视频</div>
+        <!-- 搜索入口：热门搜索 / 联想 -->
+        <section class="page search-home" data-page="search-home">
+          <div class="search-home-head">
+            <button class="back" id="searchClose" type="button" title="返回">‹</button>
+            <label class="search-field" id="searchField">
+              <span>⌕</span>
+              <input id="searchInput" placeholder="搜索视频 / UP / 番剧" autocomplete="off">
+              <button class="search-clear" id="searchClear" type="button" aria-label="清空搜索" hidden>×</button>
+            </label>
+          </div>
+          <div class="search-section" id="searchHotSection">
+            <div class="section-label">热门搜索</div>
+            <div class="search-chips" id="hotSearchList"></div>
+          </div>
+          <div class="search-section" id="searchSuggestSection" hidden>
+            <div class="section-label">搜索建议</div>
+            <div class="search-suggest-list" id="searchSuggestList"></div>
+          </div>
+        </section>
+
+        <!-- 搜索结果 -->
+        <section class="page search-results-page" data-page="search">
+          <div class="page-top search-results-top">
+            <button class="back" id="searchBack" type="button" title="返回">‹</button>
+            <b id="searchResultsLabel">热门视频</b>
+            <span class="search-results-note">搜索结果</span>
+          </div>
           <div class="feed" id="searchResults">
             <button class="video-row" data-open-player><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w60"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w18"></i></span></span></button>
             <button class="video-row" data-open-player><span class="row-thumb alt"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w80"></i><i class="ph-line w50"></i></span><span class="row-meta"><i class="ph-line w35"></i><i class="ph-line w18"></i></span></span></button>
@@ -146,6 +175,21 @@
           </div>
         </section>
 
+        <!-- UP 主主页 -->
+        <section class="page up-page" data-page="up">
+          <div class="up-head">
+            <button class="back" id="upBack" type="button" title="返回">‹</button>
+            <span class="up-avatar" id="upAvatar"></span>
+            <div class="up-copy">
+              <b id="upName">UP 主</b>
+              <small id="upMid">UID —</small>
+            </div>
+            <button class="pill-btn up-follow" id="upFollow" type="button">关注</button>
+          </div>
+          <div class="feed" id="upFeed"></div>
+          <div class="list-note" id="upNote">UP 主视频</div>
+        </section>
+
         <!-- 主页模块设置 -->
         <section class="page" data-page="modules">
           <p class="page-desc">选择可以出现在首页的模块；在「我的 → 当前模块」里切换。长按拖动排序可后续接入。</p>
@@ -197,6 +241,7 @@
 
         <!-- 播放列表：从底部浮动播放列表进入 -->
         <section class="page playlist-page" data-page="playlist">
+          <div class="playlist-grab" id="playlistGrab" aria-hidden="true"></div>
           <div class="playlist-page-top">
             <button class="back" id="playlistBack" type="button" title="返回">‹</button>
             <span class="playlist-page-count" id="playlistPageCount">0 项</span>
@@ -229,20 +274,7 @@
         <div class="sidebar-inner">
           <nav class="sidebar-nav" id="sidebarNav" aria-label="主导航"></nav>
         </div>
-        <button class="sidebar-search" id="sidebarSearch" type="button">
-          <span class="sidebar-search-ico">⌕</span>
-          <span class="sidebar-search-copy"><b>搜索</b></span>
-        </button>
       </aside>
-
-      <div class="search-dock" id="searchDock">
-        <label class="search-field" id="searchField">
-          <span>⌕</span>
-          <input id="searchInput" placeholder="搜索视频 / UP / 番剧" autocomplete="off">
-          <button class="search-clear" id="searchClear" type="button" aria-label="清空搜索" hidden>×</button>
-        </label>
-        <button class="text-btn search-cancel" id="searchCancel" type="button">取消</button>
-      </div>
 
       <button class="playlist-dock" id="playlistDock" type="button" aria-hidden="true" inert>
         <span class="pd-thumb" id="pdThumb"><span class="ph-label">封面</span></span>
@@ -279,7 +311,6 @@
     <div class="drawer-label">PAGES</div>
     <div class="drawer-pages">
       <button data-goto="home">首页</button>
-      <button data-goto="search">搜索</button>
       <button data-queue>播放列表</button>
       <button data-goto="dynamic">动态</button>
       <button data-goto="messages">消息</button>
