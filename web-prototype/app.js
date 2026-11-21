@@ -1339,8 +1339,13 @@
   function sampleVideoQuality() {
     let total = null;
     let dropped = 0;
+    if (typeof realVideo.webkitDecodedFrameCount === 'number') {
+      total = Number(realVideo.webkitDecodedFrameCount || 0);
+      dropped = Number(realVideo.webkitDroppedFrameCount || 0);
+      if (total <= 0) total = null;
+    }
     try {
-      if (typeof realVideo.getVideoPlaybackQuality === 'function') {
+      if (total === null && typeof realVideo.getVideoPlaybackQuality === 'function') {
         const quality = realVideo.getVideoPlaybackQuality();
         total = Number(quality.totalVideoFrames || 0);
         dropped = Number(quality.droppedVideoFrames || 0);
