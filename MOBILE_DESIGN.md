@@ -347,6 +347,7 @@
 - 长按 360ms 触发临时倍速；长按后移动不再触发亮度/音量/收起。
 - 双击左/右不再 seek ±10s；seek 交给进度条和键盘 ←/→（外接键盘仍为 ±5s）。
 - 左侧亮度通过画面暗层模拟（0% 最暗，100% 原亮度）；右侧音量只改播放器音量，不影响系统音量。
+- 原生：亮度用 iOS `UIScreen.main.brightness` / Android `WindowManager.LayoutParams.screenBrightness`（退出播放器恢复原值）；音量用 `AVPlayer.volume` / `ExoPlayer.volume`，不碰系统音量。
 - 触感：双击 light；长按/锁定 medium；切档 selection。
 
 ### 5.4.1 全屏评论（左滑）
