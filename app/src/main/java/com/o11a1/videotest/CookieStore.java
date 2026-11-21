@@ -122,6 +122,10 @@ final class CookieStore {
     }
 
     String request(String url, Map<String, String> extraHeaders, String method) throws Exception {
+        return request(url, extraHeaders, method, null);
+    }
+
+    String request(String url, Map<String, String> extraHeaders, String method, String formBody) throws Exception {
         ensureBuvid();
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.setConnectTimeout(12000);
@@ -136,6 +140,15 @@ final class CookieStore {
         if (!cookie.isEmpty()) connection.setRequestProperty("Cookie", cookie);
         if (extraHeaders != null) {
             for (Map.Entry<String, String> e : extraHeaders.entrySet()) connection.setRequestProperty(e.getKey(), e.getValue());
+        }
+        if (formBody != null) {
+            byte[] payload = formBody.getBytes(StandardCharsets.UTF_8);
+            connection.setDoOutput(true);
+            connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+            connection.setFixedLengthStreamingMode(payload.length);
+            try (java.io.OutputStream output = connection.getOutputStream()) {
+                output.write(payload);
+            }
         }
         int code = connection.getResponseCode();
         InputStream in = code >= 400 ? connection.getErrorStream() : connection.getInputStream();

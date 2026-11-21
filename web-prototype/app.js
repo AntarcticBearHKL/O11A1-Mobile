@@ -227,6 +227,7 @@
     landscapeHome: loaded?.landscapeHome === true,
     fav: false,
     coin: false,
+    followed: false,
     cached: false,
     shot: false,
     copied: false,
@@ -294,16 +295,16 @@
   const PULL_MAX = 112;
 
   const MODULE_NOTES = {
-    收藏: '收藏夹推荐 · 全部收藏夹 · 占位',
-    历史: '继续观看 · 分页 / 每页条数 · 占位',
-    关注: '关注的 UP 主投稿 · 占位',
-    养鱼: '看片 / 试验台 / 设置 · 占位',
-    下载: '离线任务 · 下载进度 · 占位',
-    会员: '大会员权益 / 任务 / 特权目录 · 占位',
-    番剧: '每日放送 / 番剧索引 / 排行榜 · 占位',
-    影视: '电影 / 电视剧 / 纪录片 / 综艺 · 占位',
-    直播: '直播推荐 / 分区 / 房间 · 占位',
-    分区: '20 个一级分区 · 占位',
+    收藏: '真实收藏夹 · 第一页 20 条',
+    历史: '真实观看历史 · 触底翻页',
+    关注: '关注的 UP 主动态',
+    养鱼: '入口默认隐藏',
+    下载: '离线下载暂未接入',
+    会员: '账号大会员状态',
+    番剧: '番剧 / 国创 / 电影',
+    影视: '电影 / 纪录片 / 电视剧',
+    直播: '直播推荐 · HLS',
+    分区: '分区最新投稿',
   };
 
   const DYNAMIC_FILTERS = ['全部', '视频', '图文'];
@@ -574,7 +575,7 @@
     }
     if (page === 'login') {
       state.navActive = '';
-      loginStatus.textContent = state.loggedIn ? '已登录 · 可重新扫码（占位）' : '扫码登录 · 占位';
+      loginStatus.textContent = state.loggedIn ? '已登录 · 可重新扫码' : '扫码登录';
     } else if (navId !== undefined && navId !== null) {
       state.navActive = navId;
     } else if (PAGE_NAV[page]) {
@@ -732,7 +733,7 @@
       homeNote.textContent = '所有主页模块已关闭 · 在「主页模块」中启用';
       return;
     }
-    homeNote.textContent = `${mod.name}模块占位 · 单列 · 下拉刷新 / 触底刷新`;
+    homeNote.textContent = `${mod.name} · 下拉刷新 / 触底刷新`;
   }
 
   function selectModule(moduleId) {
@@ -1029,9 +1030,19 @@
   function setCurrent(index) {
     if (index < 0 || index >= state.playlist.length) return;
     state.currentIndex = index;
+    resetInteractionState();
     updatePlayerLabels();
     updatePlaylistCounts();
     save();
+  }
+
+  function resetInteractionState() {
+    state.fav = false;
+    state.coin = false;
+    state.followed = false;
+    state.cached = false;
+    state.shot = false;
+    state.copied = false;
   }
 
   function removeFromPlaylist(index) {
@@ -1443,6 +1454,7 @@
     state.currentIndex = (state.currentIndex + delta + state.playlist.length) % state.playlist.length;
     state.progress = 0;
     state.playing = true;
+    resetInteractionState();
     updatePlayerLabels();
     save();
     showControls();
@@ -1462,10 +1474,19 @@
   function sendDanmaku() {
     const text = pcDanmakuInput.value.trim();
     if (!text) return;
-    pcDanmakuInput.value = '';
-    if (window.O11A1Media && typeof window.O11A1Media.onDanmakuSend === 'function') {
-      window.O11A1Media.onDanmakuSend(text);
+    const media = window.O11A1Media;
+    if (media && typeof media.onDanmakuSend === 'function') {
+      const ok = media.onDanmakuSend(text);
+      if (ok) pcDanmakuInput.value = '';
+      pcDanmakuSend.textContent = ok ? '已发送' : '请先登录';
+      pcDanmakuSend.classList.toggle('done', ok);
+      setTimeout(() => {
+        pcDanmakuSend.textContent = '发送';
+        pcDanmakuSend.classList.remove('done');
+      }, 1200);
+      return;
     }
+    pcDanmakuInput.value = '';
     pcDanmakuSend.textContent = '已发送';
     pcDanmakuSend.classList.add('done');
     setTimeout(() => {
@@ -1475,6 +1496,10 @@
   }
 
   function openPlayerInfoSheet() {
+    if (window.O11A1NativeData && typeof window.O11A1NativeData.playerInfo === 'function') {
+      window.O11A1NativeData.playerInfo();
+      return;
+    }
     openSheet('信息', '占位内容 · 不请求真实接口', (body) => {
       [['标题', '当前播放占位'], ['UP 主', 'UP 占位'], ['播放 / 弹幕', '0 / 0'], ['BV / av', 'BV 占位'], ['简介', '简介占位']].forEach(([label, value]) => {
         const row = document.createElement('div');
@@ -1486,6 +1511,10 @@
   }
 
   function openPlayerPerfSheet() {
+    if (window.O11A1NativeData && typeof window.O11A1NativeData.playerPerf === 'function') {
+      window.O11A1NativeData.playerPerf();
+      return;
+    }
     openSheet('性能', '占位指标 · 不请求真实接口', (body) => {
       [['解码', '硬解占位'], ['渲染', '120 Hz 占位'], ['缓存', '0.0 s'], ['总码率', '0 kbps'], ['AV gap', '0 ms'], ['丢帧', '0']].forEach(([label, value]) => {
         const row = document.createElement('div');
@@ -2068,26 +2097,46 @@
         lockPlayer();
       });
       actionRow(body, '截图', state.shot ? '已保存' : '保存画面', () => {
+        if (window.O11A1NativeData && typeof window.O11A1NativeData.screenshot === 'function') {
+          const result = window.O11A1NativeData.screenshot();
+          state.shot = result === '已保存';
+          return result;
+        }
         state.shot = true;
         return '已保存';
       });
       actionRow(body, state.fav ? '已收藏' : '收藏', state.fav ? '已加入' : '', () => {
+        if (window.O11A1NativeData && typeof window.O11A1NativeData.favorite === 'function') {
+          return window.O11A1NativeData.favorite();
+        }
         state.fav = !state.fav;
         return state.fav ? '已加入' : '已取消';
       });
       actionRow(body, '投币', state.coin ? '已投币' : '2 币', () => {
+        if (window.O11A1NativeData && typeof window.O11A1NativeData.coin === 'function') {
+          return window.O11A1NativeData.coin();
+        }
         state.coin = true;
         return '已投币';
       });
-      actionRow(body, '复制链接', state.copied ? '已复制' : 'BV 占位', () => {
+      actionRow(body, '关注 UP', state.followed ? '已关注' : '', () => {
+        if (window.O11A1NativeData && typeof window.O11A1NativeData.follow === 'function') {
+          return window.O11A1NativeData.follow();
+        }
+        state.followed = !state.followed;
+        return state.followed ? '已关注' : '已取消';
+      });
+      actionRow(body, '复制链接', state.copied ? '已复制' : 'BV 链接', () => {
+        if (window.O11A1NativeData && typeof window.O11A1NativeData.copyLink === 'function') {
+          const result = window.O11A1NativeData.copyLink();
+          state.copied = result === '已复制';
+          return result;
+        }
         state.copied = true;
         return '已复制';
       });
-      actionRow(body, '缓存', state.cached ? '已加入下载' : '离线下载', () => {
-        state.cached = true;
-        return '已加入下载';
-      });
-      actionRow(body, '举报', '', () => '已提交（占位）');
+      actionRow(body, '缓存', '当前版本暂未接入', () => '暂未接入');
+      actionRow(body, '举报', '', () => '暂未接入');
       actionRow(body, '关闭播放', '停止并清空进度', () => {
         stopPlayback();
       });
@@ -2189,6 +2238,7 @@
   }
 
   function settingsDefinition(id) {
+    const nativeAccount = (window.O11A1NativeData && window.O11A1NativeData.accountInfo) || {};
     const definitions = {
       'settings-playback': {
         title: '播放',
@@ -2200,7 +2250,7 @@
           { type: 'choice', label: '画质增强', key: 'enhance', options: ['关', 'CAS', 'Anime4K'], onChange: updatePlayerLabels },
           { type: 'switch', label: '原始分辨率解码（4K）', key: 'native4k' },
           { type: 'switch', label: '仅音频', key: 'audioOnly' },
-          { type: 'static', label: '解码策略', value: '硬件优先 · 占位' },
+          { type: 'static', label: '解码策略', value: 'WebView 媒体层 · 系统决定' },
         ],
       },
       'settings-danmaku': {
@@ -2213,18 +2263,18 @@
           { type: 'slider', label: '速度', key: 'danmakuSpeed', min: 50, max: 200, step: 10, format: (v) => `${(v / 100).toFixed(1)}×` },
           { type: 'choice', label: '显示区域', key: 'danmakuArea', options: ['全屏', '1/2 屏', '1/3 屏'] },
           { type: 'switch', label: '分布密度', key: 'danmakuDensity' },
-          { type: 'static', label: '弹幕节拍', value: '跟随屏幕刷新率 · 占位' },
+          { type: 'static', label: '弹幕节拍', value: 'CSS 动画 · 跟随显示刷新' },
         ],
       },
       'settings-download': {
         title: '离线下载',
-        sub: 'DASH 视频 + 音频 → FFmpeg 合流 MP4；同时最多 2 个任务',
+        sub: '当前版本支持边下边播；离线任务与合流暂未接入',
         rows: [
           { type: 'static', label: '同时任务', value: '2 个' },
           { type: 'switch', label: '仅 Wi-Fi 预加载', key: 'wifiPreload' },
-          { type: 'static', label: '队列', value: '0 个任务' },
-          { type: 'action', label: '打开下载目录', value: '占位', run: () => '已打开（占位）' },
-          { type: 'action', label: '清理已完成', value: '0 个', run: () => '已清理 0 个' },
+          { type: 'static', label: '离线任务', value: '暂未接入' },
+          { type: 'action', label: '打开下载目录', value: '暂未接入', run: () => '暂未接入' },
+          { type: 'action', label: '清理已完成', value: '0 个', run: () => '没有已完成任务' },
         ],
       },
       'settings-appearance': {
@@ -2247,7 +2297,7 @@
           { type: 'switch', label: '左滑 全屏评论', key: 'swipeComments' },
           { type: 'switch', label: '双击左 / 右 旋转屏幕', key: 'doubleRotate' },
           { type: 'switch', label: '长按左 / 右 减速 / 加速', key: 'longPressRate' },
-          { type: 'static', label: '进度条', value: '横向拖动 seek · 占位' },
+          { type: 'static', label: '进度条', value: '横向拖动 seek' },
         ],
       },
       'settings-distraction': {
@@ -2265,12 +2315,19 @@
         title: '账户',
         sub: '二维码登录 · 头像 / 昵称 / UID / 等级',
         rows: [
-          { type: 'static', label: '昵称', value: '占位账号' },
-          { type: 'static', label: 'UID', value: '100000000' },
-          { type: 'static', label: '等级', value: 'Lv6 · 占位' },
-          { type: 'static', label: '大会员', value: '未开通' },
-          { type: 'action', label: '扫码登录', value: state.loggedIn ? '已登录' : '未登录 / 占位', run: () => { closeSheet(); showPage('login'); return '打开登录'; } },
-          { type: 'action', label: '打开账户页', value: '账户 / 经验 / 权益', run: () => '账户页（占位）' },
+          { type: 'static', label: '昵称', value: nativeAccount.name || '未登录' },
+          { type: 'static', label: 'UID', value: nativeAccount.mid ? String(nativeAccount.mid) : '—' },
+          { type: 'static', label: '等级', value: nativeAccount.loggedIn ? `Lv${nativeAccount.level || 0}` : '—' },
+          { type: 'static', label: '大会员', value: nativeAccount.vip ? (nativeAccount.vipLabel || '大会员') : '未开通' },
+          { type: 'action', label: '扫码登录', value: state.loggedIn ? '已登录' : '未登录', run: () => { closeSheet(); showPage('login'); return '打开登录'; } },
+          { type: 'action', label: '打开账户页', value: '账户 / 经验 / 权益', run: () => {
+            if (window.O11A1NativeData && typeof window.O11A1NativeData.openAccount === 'function') {
+              closeSheet();
+              window.O11A1NativeData.openAccount();
+              return '已打开';
+            }
+            return '账户页';
+          } },
           { type: 'action', label: '退出登录', value: '', run: () => { logout(); return '已退出'; } },
         ],
       },
@@ -2283,7 +2340,7 @@
           { type: 'static', label: '快退 / 快进', value: '← / →' },
           { type: 'static', label: '音量', value: '↑ / ↓' },
           { type: 'static', label: '静音', value: 'M' },
-          { type: 'action', label: '全部 11 项映射', value: '打开', run: () => '快捷键面板（占位）' },
+          { type: 'action', label: '全部 11 项映射', value: '打开', run: () => '当前版本未接入外接键盘映射' },
           { type: 'action', label: '恢复默认', value: '', run: () => '已恢复默认' },
         ],
       },
@@ -2294,17 +2351,17 @@
           { type: 'switch', label: '开机自启', key: 'autostart' },
           { type: 'switch', label: '关闭到托盘', key: 'closeToTray' },
           { type: 'switch', label: '自动检查更新', key: 'autoUpdate' },
-          { type: 'action', label: '检查更新', value: 'v2.0.0-prototype', run: () => '已是最新（占位）' },
+          { type: 'action', label: '版本', value: '0.2.0 · native', run: () => '当前为测试版' },
         ],
       },
       'settings-block': {
         title: '屏蔽',
         sub: '关键词 / 正则 / 用户；弹幕与评论共用规则',
         rows: [
-          { type: 'static', label: '关键词', value: '占位词 01、02' },
+          { type: 'static', label: '关键词', value: '未设置' },
           { type: 'static', label: '正则', value: '无' },
-          { type: 'static', label: '用户', value: 'UP 占位 01' },
-          { type: 'action', label: '添加规则', value: '', run: () => '已添加（占位）' },
+          { type: 'static', label: '用户', value: '未设置' },
+          { type: 'action', label: '添加规则', value: '', run: () => '当前版本暂未接入' },
           { type: 'action', label: '清空规则', value: '', run: () => '已清空' },
         ],
       },
@@ -2314,17 +2371,17 @@
         rows: [
           { type: 'switch', label: '智能云屏蔽', key: 'cloudBlock' },
           { type: 'slider', label: 'AI 等级', key: 'cloudLevel', min: 0, max: 10 },
-          { type: 'action', label: '立即同步', value: '', run: () => '已同步（占位）' },
+          { type: 'action', label: '立即同步', value: '', run: () => '已保存本地设置' },
         ],
       },
       'settings-storage': {
         title: '存储',
         sub: '缓存、离线任务与本地文件',
         rows: [
-          { type: 'static', label: '页面缓存', value: '0 MB' },
-          { type: 'static', label: '离线任务', value: '0 个' },
-          { type: 'action', label: '清理缓存', value: '', run: () => '已清理 0 MB' },
-          { type: 'action', label: '打开下载目录', value: '', run: () => '已打开（占位）' },
+          { type: 'static', label: '页面缓存', value: '由系统 WebView 管理' },
+          { type: 'static', label: '离线任务', value: '暂未接入' },
+          { type: 'action', label: '清理缓存', value: '', run: () => '暂未接入' },
+          { type: 'action', label: '打开下载目录', value: '', run: () => '暂未接入' },
         ],
       },
       'settings-optimize': {
@@ -2334,12 +2391,12 @@
           { type: 'switch', label: '后台预加载', key: 'preloadNext' },
           { type: 'switch', label: '缓存下一批推荐', key: 'warmPages' },
           { type: 'static', label: '硬件解码', value: '强制开启' },
-          { type: 'static', label: '插帧管线', value: 'GPU · 占位' },
+          { type: 'static', label: '插帧管线', value: 'WebView 媒体层' },
         ],
       },
       'settings-about': {
         title: '关于 O11A1',
-        sub: '移动端 V2 布局原型',
+        sub: '移动端 V2 原生桥接版',
         rows: [
           { type: 'static', label: '版本', value: '2.0.0 · Web 原型' },
           { type: 'static', label: '构建', value: '2026-11-21' },
@@ -2540,9 +2597,13 @@
   pcSide.addEventListener('click', openPlayerSideSheet);
   pcSettings.addEventListener('click', openPlayerMoreSheet);
   pcShot.addEventListener('click', () => {
-    state.shot = true;
-    pcShot.textContent = '✓';
-    pcShot.classList.add('done');
+    let ok = false;
+    if (window.O11A1NativeData && typeof window.O11A1NativeData.screenshot === 'function') {
+      ok = window.O11A1NativeData.screenshot() === '已保存';
+    }
+    state.shot = ok;
+    pcShot.textContent = ok ? '✓' : '⤓';
+    pcShot.classList.toggle('done', ok);
     setTimeout(() => {
       pcShot.textContent = '⤓';
       pcShot.classList.remove('done');
@@ -2779,6 +2840,10 @@
     if (!button) return;
     $$('[data-comment-tab]', commentsTabs).forEach((item) => item.classList.toggle('on', item === button));
     commentsBody.style.opacity = '0.3';
+    const sort = button.dataset.commentTab === 'new' ? 0 : 2;
+    if (window.O11A1NativeData && typeof window.O11A1NativeData.onComments === 'function') {
+      window.O11A1NativeData.onComments(sort);
+    }
     setTimeout(() => { commentsBody.style.opacity = ''; }, 160);
   });
 
@@ -2794,6 +2859,24 @@
   commentSend.addEventListener('click', () => {
     const text = commentInput.value.trim();
     if (!text) return;
+    if (window.O11A1NativeData && typeof window.O11A1NativeData.sendComment === 'function') {
+      const ok = window.O11A1NativeData.sendComment(text);
+      if (ok) {
+        commentInput.value = '';
+        commentSend.disabled = true;
+        commentSend.classList.add('done');
+        commentSend.textContent = '已发送';
+        setTimeout(() => {
+          commentSend.classList.remove('done');
+          commentSend.textContent = '发送';
+        }, 1200);
+      } else {
+        commentSend.classList.remove('done');
+        commentSend.textContent = '发送失败';
+        setTimeout(() => { commentSend.textContent = '发送'; }, 1500);
+      }
+      return;
+    }
     const row = document.createElement('div');
     row.className = 'comment-row';
     row.innerHTML = `
@@ -2925,6 +3008,11 @@
     togglePlay,
     stepTrack,
     applyVolume,
+    resetInteractionState,
+    openSheet,
+    actionRow,
+    closeSheet,
+    openSettingsSheet,
     activeFeed,
     refreshPlaylistPage,
     isFeedClickSuppressed: () => Date.now() < suppressFeedClickUntil,

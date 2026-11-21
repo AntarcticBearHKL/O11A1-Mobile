@@ -78,6 +78,16 @@ func o11a1Duration(_ seconds: Int) -> String {
   return String(format: "%02d:%02d", minutes, remainder)
 }
 
+func o11a1DurationSeconds(_ text: String) -> Int {
+  if text.isEmpty { return 0 }
+  var total = 0
+  for part in text.split(separator: ":") {
+    guard let value = Int(part.trimmingCharacters(in: .whitespaces)) else { return 0 }
+    total = total * 60 + value
+  }
+  return total
+}
+
 func o11a1Count(_ value: Int64) -> String {
   if value >= 100_000_000 { return String(format: "%.1f 亿", Double(value) / 100_000_000) }
   if value >= 10_000 { return String(format: "%.1f 万", Double(value) / 10_000) }

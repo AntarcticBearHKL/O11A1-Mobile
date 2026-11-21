@@ -19,7 +19,9 @@
         },
         "NSLocalNetworkUsageDescription": "O11A1 使用本机回环地址连接 B 站接口并播放视频。",
         "UIStatusBarHidden": true,
-        "UIViewControllerBasedStatusBarAppearance": false
+        "UIViewControllerBasedStatusBarAppearance": false,
+        "UIFileSharingEnabled": true,
+        "LSSupportsOpeningDocumentsInPlace": true
       }
     },
     "android": {

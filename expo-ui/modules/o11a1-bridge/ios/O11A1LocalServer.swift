@@ -269,10 +269,99 @@ final class O11A1LocalServer {
     case "comments":
       data = client.comments(
         aid: o11a1Int64(query["aid"] ?? "0"),
-        page: max(1, o11a1Int(query["page"] ?? "1"))
+        page: max(1, o11a1Int(query["page"] ?? "1")),
+        sort: o11a1Int(query["sort"] ?? "2")
       )
     case "danmaku":
       data = client.danmaku(cid: o11a1Int64(query["cid"] ?? "0"))
+    case "account":
+      data = client.account()
+    case "favorites":
+      data = client.favorites(page: max(1, o11a1Int(query["page"] ?? "1")))
+    case "history":
+      data = client.history(
+        page: max(1, o11a1Int(query["page"] ?? "1")),
+        cursor: query["cursor"] ?? ""
+      )
+    case "following":
+      data = client.following(page: max(1, o11a1Int(query["page"] ?? "1")))
+    case "dynamicFeed":
+      data = client.dynamicFeed(
+        page: max(1, o11a1Int(query["page"] ?? "1")),
+        filter: query["filter"] ?? "all"
+      )
+    case "messages":
+      data = client.messages(
+        page: max(1, o11a1Int(query["page"] ?? "1")),
+        filter: query["filter"] ?? "reply"
+      )
+    case "ranking":
+      data = client.ranking(page: max(1, o11a1Int(query["page"] ?? "1")))
+    case "bangumi":
+      data = client.bangumi(
+        page: max(1, o11a1Int(query["page"] ?? "1")),
+        seasonType: o11a1Int(query["type"] ?? "1")
+      )
+    case "season":
+      data = client.season(seasonId: o11a1Int64(query["seasonId"] ?? "0"))
+    case "playPgc":
+      data = client.playPgc(
+        epId: o11a1Int64(query["epId"] ?? "0"),
+        bvid: query["bvid"] ?? "",
+        cid: o11a1Int64(query["cid"] ?? "0"),
+        qn: o11a1Int(query["qn"] ?? "64")
+      )
+    case "live":
+      data = client.live(page: max(1, o11a1Int(query["page"] ?? "1")))
+    case "liveRoom":
+      data = client.liveRoom(roomId: o11a1Int64(query["roomId"] ?? "0"))
+    case "zone":
+      data = client.zone(
+        rid: o11a1Int(query["rid"] ?? "1"),
+        page: max(1, o11a1Int(query["page"] ?? "1"))
+      )
+    case "videoInfo":
+      data = client.videoInfo(bvid: query["bvid"] ?? "")
+    case "like":
+      data = client.like(
+        aid: o11a1Int64(query["aid"] ?? "0"),
+        on: (query["on"] ?? "0") == "1"
+      )
+    case "coin":
+      data = client.coin(
+        aid: o11a1Int64(query["aid"] ?? "0"),
+        count: o11a1Int(query["count"] ?? "2"),
+        likeAlso: (query["likeAlso"] ?? "0") == "1"
+      )
+    case "favorite":
+      data = client.favorite(
+        aid: o11a1Int64(query["aid"] ?? "0"),
+        on: (query["on"] ?? "0") == "1"
+      )
+    case "follow":
+      data = client.follow(
+        mid: o11a1Int64(query["mid"] ?? "0"),
+        on: (query["on"] ?? "0") == "1"
+      )
+    case "sendComment":
+      data = client.sendComment(
+        aid: o11a1Int64(query["aid"] ?? "0"),
+        message: query["message"] ?? ""
+      )
+    case "sendDanmaku":
+      data = client.sendDanmaku(
+        cid: o11a1Int64(query["cid"] ?? "0"),
+        message: query["message"] ?? "",
+        progressMs: o11a1Int64(query["progress"] ?? "0")
+      )
+    case "copy":
+      let text = query["text"] ?? ""
+      DispatchQueue.main.async {
+        UIPasteboard.general.string = text
+      }
+      data = o11a1Data(["ok": true])
+    case "screenshot":
+      data = captureScreenshot()
     case "session":
       data = client.session()
     case "logout":
@@ -373,6 +462,35 @@ final class O11A1LocalServer {
   }
 
   /* ---------- response helpers ---------- */
+
+  private func captureScreenshot() -> Data {
+    var output: [String: Any] = ["ok": false]
+    let capture = {
+      guard let scene = UIApplication.shared.connectedScenes
+        .compactMap({ $0 as? UIWindowScene })
+        .first,
+        let window = scene.windows.first(where: { $0.isKeyWindow }) else { return }
+      let renderer = UIGraphicsImageRenderer(bounds: window.bounds)
+      let image = renderer.image { _ in
+        window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+      }
+      guard let png = image.pngData() else { return }
+      let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+      let url = directory.appendingPathComponent("O11A1-\(Int(Date().timeIntervalSince1970)).png")
+      do {
+        try png.write(to: url)
+        output = ["ok": true, "path": url.path]
+      } catch {
+        print("[O11A1] screenshot failed \(error)")
+      }
+    }
+    if Thread.isMainThread {
+      capture()
+    } else {
+      DispatchQueue.main.sync(execute: capture)
+    }
+    return o11a1Data(output)
+  }
 
   private func sendText(_ connection: NWConnection, status: Int, text: String) {
     send(

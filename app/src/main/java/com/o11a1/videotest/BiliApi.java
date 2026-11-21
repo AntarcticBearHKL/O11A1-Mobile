@@ -82,7 +82,11 @@ final class BiliApi {
     JSONObject playQuality(String bvid, long cid, int qn) {
         if (qn <= 0) qn = 32;
         if (qn == 16) return playWithQns(bvid, cid, new int[]{16});
-        return playWithQns(bvid, cid, new int[]{qn, 32, 16});
+        return playWithQns(bvid, cid, new int[]{qn, 64, 32, 16});
+    }
+
+    JSONObject playQns(String bvid, long cid, int[] qns) {
+        return playWithQns(bvid, cid, qns);
     }
 
     private JSONObject playWithQns(String bvid, long cid, int[] qns) {
