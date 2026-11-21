@@ -78,12 +78,12 @@ jobs:
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
-            -configuration Debug \
+            -configuration Release \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$PWD/build-sim" \
             build 2>&1 | tee artifacts/xcodebuild-sim.log
-          APP="$(find build-sim/Build/Products/Debug-iphonesimulator -maxdepth 1 -name '*.app' | head -n 1)"
+          APP="$(find build-sim/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' | head -n 1)"
           test -n "$APP"
           ditto -c -k --sequesterRsrc --keepParent "$APP" artifacts/o11a1-ios-simulator.zip
 
