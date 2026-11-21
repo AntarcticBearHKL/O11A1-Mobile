@@ -149,7 +149,7 @@ body.flat-bg .app::before,
 body.flat-bg .app::after{display:none}
 body.flat-bg .app{background:var(--paper)}
 .statusbar{
-  position:relative;z-index:2;
+  position:relative;z-index:30;
   height:28px;flex:none;display:flex;align-items:center;justify-content:space-between;
   padding:0 20px;font-size:10px;font-weight:700;letter-spacing:.02em;color:var(--ink);
 }
@@ -197,38 +197,28 @@ body.flat-bg .app{background:var(--paper)}
 .list-note{font-size:10.5px;color:var(--faint);text-align:center;padding:24px 0 4px}
 
 /* ---------- app header ---------- */
-.home-top{
-  position:sticky;top:0;z-index:30;
-  display:flex;align-items:center;justify-content:space-between;gap:8px;
-  height:56px;margin:0 -18px;padding:0 14px 0 18px;
-  background:var(--topbar-bg);
-  border-bottom:1px solid var(--topbar-border);
-  box-shadow:var(--topbar-shadow);
-  backdrop-filter:var(--glass-blur);
-  -webkit-backdrop-filter:var(--glass-blur);
+/* ---------- top glass: status bar + gradient fade, no app bar ---------- */
+.top-glass{
+  position:absolute;top:0;left:0;right:0;z-index:20;height:calc(28px + 18px);
+  pointer-events:none;
+  background:linear-gradient(180deg,
+    rgba(255,252,246,.78) 0%,
+    rgba(255,252,246,.52) 46%,
+    rgba(255,252,246,.18) 78%,
+    rgba(255,252,246,0) 100%);
+  backdrop-filter:blur(22px) saturate(1.65);
+  -webkit-backdrop-filter:blur(22px) saturate(1.65);
+  -webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 46%,transparent 100%);
+  mask-image:linear-gradient(to bottom,#000 0%,#000 46%,transparent 100%);
 }
-.module-btn{
-  display:flex;align-items:center;gap:6px;border:0;background:none;
-  padding:6px 4px 6px 0;cursor:pointer;
-}
-.module-btn b{font-size:20px;font-weight:800;letter-spacing:-.01em}
-.module-btn .chev{font-size:12px;color:var(--muted);margin-top:2px;transition:transform .18s}
-.module-btn.open .chev{transform:rotate(180deg)}
-.icon-btn{
-  width:38px;height:38px;border:0;border-radius:12px;background:transparent;
-  color:var(--muted);font-size:20px;line-height:1;display:grid;place-items:center;
-  cursor:pointer;transition:background .15s,color .15s;
-}
-.icon-btn:hover{background:var(--surface-2);color:var(--ink)}
-.icon-btn.small{width:32px;height:32px;font-size:16px}
-.icon-btn.light{color:#fff;background:rgba(255,255,255,.08)}
-.icon-btn.light:hover{background:rgba(255,255,255,.16);color:#fff}
+.page[data-page="home"]{padding-top:12px}
 
 .module-menu{
-  position:absolute;top:56px;left:12px;z-index:40;
+  position:absolute;top:calc(28px + 14px);left:18px;z-index:45;
   min-width:220px;padding:7px;border-radius:18px;
   background:var(--glass-bg);border:1px solid var(--glass-border);
   box-shadow:var(--glass-shadow);backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
   animation:menuIn .18s cubic-bezier(.16,1,.3,1);
 }
 @keyframes menuIn{from{opacity:0;transform:translateY(-5px) scale(.98)}to{opacity:1;transform:none}}
@@ -242,6 +232,16 @@ body.flat-bg .app{background:var(--paper)}
 .module-menu .mm-check{font-size:11px;opacity:0}
 .module-menu button.on .mm-check{opacity:1}
 .module-menu .mm-empty{font-size:11.5px;color:var(--muted);padding:12px;line-height:1.6}
+
+.icon-btn{
+  width:38px;height:38px;border:0;border-radius:12px;background:transparent;
+  color:var(--muted);font-size:20px;line-height:1;display:grid;place-items:center;
+  cursor:pointer;transition:background .15s,color .15s;
+}
+.icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+.icon-btn.small{width:32px;height:32px;font-size:16px}
+.icon-btn.light{color:#fff;background:rgba(255,255,255,.08)}
+.icon-btn.light:hover{background:rgba(255,255,255,.16);color:#fff}
 
 /* ---------- feed rows ---------- */
 .feed{display:flex;flex-direction:column}
@@ -1001,7 +1001,10 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
   }
   .statusbar{display:none}
   .app-scroll{top:0}
-  .home-top{padding-top:env(safe-area-inset-top);height:calc(56px + env(safe-area-inset-top))}
+  .top-glass{height:calc(env(safe-area-inset-top) + 18px)}
+  .page[data-page="home"]{padding-top:calc(env(safe-area-inset-top) + 10px)}
+  .module-menu{top:calc(env(safe-area-inset-top) + 12px);left:14px}
+  .page-top{height:calc(56px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top)}
   .tabbar{bottom:calc(10px + env(safe-area-inset-bottom))}
   .page{padding-bottom:calc(104px + env(safe-area-inset-bottom))}
   .proto-fab{bottom:calc(86px + env(safe-area-inset-bottom));right:12px}
@@ -1023,22 +1026,20 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
 }
 .app.landscape .statusbar{display:none}
 .app.landscape .app-scroll{top:0}
+.app.landscape .top-glass{height:calc(env(safe-area-inset-top) + 16px)}
 .app.landscape .page{padding:0 26px calc(94px + env(safe-area-inset-bottom))}
+.app.landscape .page[data-page="home"]{padding-top:calc(env(safe-area-inset-top) + 8px)}
 .app.landscape .page[data-page="search"]{
   padding:calc(12px + env(safe-area-inset-top)) max(26px,env(safe-area-inset-right)) calc(94px + env(safe-area-inset-bottom)) max(26px,env(safe-area-inset-left));
 }
 .app.landscape .page[data-page="login"]{padding:0 max(24px,env(safe-area-inset-left)) 0 max(24px,env(safe-area-inset-right))}
 .app.landscape .page[data-page="detail"]{padding:0 0 40px}
-.app.landscape .home-top{
-  height:calc(56px + env(safe-area-inset-top));
-  margin:0 -26px;
-  padding:env(safe-area-inset-top) max(22px,env(safe-area-inset-right)) 0 max(22px,env(safe-area-inset-left));
-}
 .app.landscape .page-top{
   margin-left:-26px;margin-right:-26px;
   padding-left:max(22px,env(safe-area-inset-left));
   padding-right:max(22px,env(safe-area-inset-right));
 }
+.app.landscape .module-menu{top:calc(env(safe-area-inset-top) + 12px);left:max(22px,env(safe-area-inset-left))}
 .app.landscape .feed,
 .app.landscape .section-label,
 .app.landscape .list-note,
@@ -1086,10 +1087,6 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
   .app.landscape .page{
     padding-left:max(22px,env(safe-area-inset-left));
     padding-right:max(22px,env(safe-area-inset-right));
-  }
-  .app.landscape .home-top{
-    margin-left:calc(-1 * max(22px,env(safe-area-inset-left)));
-    margin-right:calc(-1 * max(22px,env(safe-area-inset-right)));
   }
   .app.landscape .page-top{
     margin-left:calc(-1 * max(22px,env(safe-area-inset-left)));

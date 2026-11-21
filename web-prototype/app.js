@@ -49,8 +49,6 @@
   const psheetSub = $('#psheetSub');
   const psheetBody = $('#psheetBody');
   const psheetClose = $('#psheetClose');
-  const moduleBtn = $('#moduleBtn');
-  const moduleTitle = $('#moduleTitle');
   const moduleMenu = $('#moduleMenu');
   const homeNote = $('#homeNote');
   const myPlaylistCount = $('#myPlaylistCount');
@@ -536,7 +534,6 @@
 
   function refreshHomeHeader() {
     const mod = currentModule();
-    moduleTitle.textContent = mod ? mod.name : '无模块';
     if (!mod) {
       homeNote.textContent = '所有主页模块已关闭 · 在「主页模块」中启用';
       return;
@@ -574,12 +571,10 @@
   function openModuleMenu() {
     renderModuleMenu();
     moduleMenu.hidden = false;
-    moduleBtn.classList.add('open');
   }
 
   function closeModuleMenu() {
     moduleMenu.hidden = true;
-    moduleBtn.classList.remove('open');
   }
 
   function toggleModuleMenu() {
@@ -1899,7 +1894,8 @@
       button.type = 'button';
       button.className = 'command-row';
       button.innerHTML = `<span class="cmd-ico">${command.icon}</span><span>${escapeHTML(command.label)}</span><span class="cmd-meta">${escapeHTML(command.meta)}</span>`;
-      button.addEventListener('click', () => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
         closeModuleMenu();
         command.run();
       });
@@ -2024,19 +2020,13 @@
       return;
     }
 
-    if (!event.target.closest('#moduleBtn') && !event.target.closest('#moduleMenu')) {
+    if (!event.target.closest('#moduleMenu')) {
       closeModuleMenu();
     }
   });
 
-  moduleBtn.addEventListener('click', (event) => {
-    event.stopPropagation();
-    toggleModuleMenu();
-  });
-
   moduleMenu.addEventListener('click', (event) => event.stopPropagation());
 
-  $('#searchBtn').addEventListener('click', openSearch);
   $('#searchCancel').addEventListener('click', closeSearch);
   searchClear.addEventListener('click', () => {
     searchInput.value = '';

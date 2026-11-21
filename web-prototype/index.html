@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=12">
+  <link rel="stylesheet" href="./styles.css?v=15">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -12,16 +12,12 @@
   <main class="stage">
     <div class="app" id="app" data-page="home">
       <div class="statusbar"><span>9:41</span><span class="status-icons">5G ▮▮▮ ▰</span></div>
+      <div class="top-glass" aria-hidden="true"></div>
+      <div class="module-menu" id="moduleMenu" hidden></div>
 
       <div class="app-scroll" id="appScroll">
         <!-- 首页：单列，每行一个视频 -->
         <section class="page active" data-page="home">
-          <header class="home-top">
-            <button class="module-btn" id="moduleBtn"><b id="moduleTitle">推荐</b><span class="chev">⌄</span></button>
-            <button class="icon-btn" id="searchBtn" title="搜索 / 命令">⌕</button>
-            <div class="module-menu" id="moduleMenu" hidden></div>
-          </header>
-
           <div class="feed" id="homeFeed">
             <button class="video-row" data-open-detail>
               <span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span>
@@ -459,6 +455,6 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./app.js?v=12"></script>
+  <script src="./app.js?v=15"></script>
 </body>
 </html>
