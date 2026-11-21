@@ -70,6 +70,22 @@ final class CookieStore {
         persist();
     }
 
+    synchronized void importHeader(String header) {
+        if (header == null || header.isEmpty()) return;
+        for (String part : header.split(";")) {
+            String[] pair = part.trim().split("=", 2);
+            if (pair.length == 2 && !pair[0].isEmpty()) {
+                cookies.put(pair[0].trim(), pair[1].trim());
+            }
+        }
+        persist();
+    }
+
+    synchronized void reload() {
+        cookies.clear();
+        load();
+    }
+
     synchronized void clear() {
         cookies.clear();
         prefs.edit().remove(KEY_COOKIES).remove(KEY_BUVID).apply();

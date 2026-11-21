@@ -614,6 +614,44 @@
     }, 600);
   }
 
+  let smsPollTimer = null;
+  function openSmsLogin() {
+    if (!window.O11A1Native || typeof window.O11A1Native.openWebLogin !== 'function') {
+      loginStatus.textContent = '当前版本不支持短信登录';
+      return;
+    }
+    let result;
+    try { result = JSON.parse(window.O11A1Native.openWebLogin()); } catch (_) { result = { ok: false }; }
+    if (!result || !result.ok) {
+      loginStatus.textContent = result && result.error ? result.error : '打开短信登录失败';
+      return;
+    }
+    loginStatus.textContent = '已打开 B 站短信登录页…';
+    clearInterval(smsPollTimer);
+    let attempts = 0;
+    smsPollTimer = setInterval(() => {
+      attempts += 1;
+      if (state.loggedIn) {
+        clearInterval(smsPollTimer);
+        smsPollTimer = null;
+        return;
+      }
+      let account = null;
+      try { account = JSON.parse(window.O11A1Native.account()); } catch (_) {}
+      if (account && account.ok && account.loggedIn) {
+        clearInterval(smsPollTimer);
+        smsPollTimer = null;
+        loginSucceeded();
+        return;
+      }
+      if (attempts > 120) {
+        clearInterval(smsPollTimer);
+        smsPollTimer = null;
+        loginStatus.textContent = '还没有检测到登录 · 可以重新打开短信登录';
+      }
+    }, 1500);
+  }
+
   function logout() {
     state.loggedIn = false;
     restoreNativeBrightness();
@@ -628,7 +666,7 @@
     save();
     updateNavActive();
     showPage('login');
-    loginStatus.textContent = '已退出登录 · 扫码登录';
+    loginStatus.textContent = '已退出登录 · 短信验证码登录';
   }
 
   function showPage(page, navId) {
@@ -649,7 +687,7 @@
     }
     if (page === 'login') {
       state.navActive = '';
-      loginStatus.textContent = state.loggedIn ? '已登录 · 可重新扫码' : '扫码登录';
+      loginStatus.textContent = state.loggedIn ? '已登录 · 可重新登录' : '短信验证码登录';
     } else if (navId !== undefined && navId !== null) {
       state.navActive = navId;
     } else if (PAGE_NAV[page]) {
@@ -2718,7 +2756,7 @@
           { type: 'static', label: 'UID', value: nativeAccount.mid ? String(nativeAccount.mid) : '—' },
           { type: 'static', label: '等级', value: nativeAccount.loggedIn ? `Lv${nativeAccount.level || 0}` : '—' },
           { type: 'static', label: '大会员', value: nativeAccount.vip ? (nativeAccount.vipLabel || '大会员') : '未开通' },
-          { type: 'action', label: '扫码登录', value: state.loggedIn ? '已登录' : '未登录', run: () => { closeSheet(); showPage('login'); return '打开登录'; } },
+          { type: 'action', label: '短信登录', value: state.loggedIn ? '已登录' : '未登录', run: () => { closeSheet(); showPage('login'); return '打开登录'; } },
           { type: 'action', label: '打开账户页', value: '账户 / 经验 / 权益', run: () => {
             if (window.O11A1NativeData && typeof window.O11A1NativeData.openAccount === 'function') {
               closeSheet();
@@ -2943,15 +2981,8 @@
 
   $('#accountCard').addEventListener('click', () => showPage('login'));
   myModuleRow.addEventListener('click', openModuleSheet);
-  $('#loginRefresh').addEventListener('click', () => {
-    loginStatus.textContent = '二维码已刷新 · 占位';
-  });
-  $('#loginQr').addEventListener('click', loginSucceeded);
-  $('#loginQr').addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    loginSucceeded();
-  });
+  const loginSms = $('#loginSms');
+  if (loginSms) loginSms.addEventListener('click', openSmsLogin);
   $('#loginCta').addEventListener('click', loginSucceeded);
 
   dynamicFilter.addEventListener('click', () => {

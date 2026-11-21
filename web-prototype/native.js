@@ -173,11 +173,11 @@
       return { ok: true, items: [], title: kind.label, needLogin: false };
     }
     if (kind.api === 'favorites' && !state.loggedIn) {
-      renderEmpty(feed, '登录后查看收藏', '扫码登录后同步收藏夹。', '去登录', () => host.showPage('login'));
+      renderEmpty(feed, '登录后查看收藏', '短信登录后同步收藏夹。', '去登录', () => host.showPage('login'));
       return { ok: true, items: [], title: kind.label, needLogin: true };
     }
     if ((kind.api === 'history' || kind.api === 'following') && !state.loggedIn) {
-      renderEmpty(feed, `登录后查看${kind.label}`, '扫码登录后同步 B 站账号。', '去登录', () => host.showPage('login'));
+      renderEmpty(feed, `登录后查看${kind.label}`, '短信登录后同步 B 站账号。', '去登录', () => host.showPage('login'));
       return { ok: true, items: [], title: kind.label, needLogin: true };
     }
     const args = kind.api === 'popular' ? [page || 1, 20]
@@ -192,7 +192,7 @@
     const result = feedResult(kind.api, args);
     if (!result.ok) {
       if (result.needLogin) {
-        renderEmpty(feed, `登录后查看${kind.label}`, '扫码登录后同步 B 站账号。', '去登录', () => host.showPage('login'));
+        renderEmpty(feed, `登录后查看${kind.label}`, '短信登录后同步 B 站账号。', '去登录', () => host.showPage('login'));
       } else {
         renderEmpty(feed, `${kind.label}加载失败`, result.error || '网络错误', '重试', () => loadFeed(name, feed, 1, ''));
       }
@@ -443,7 +443,7 @@
   function renderMember() {
     const feed = feeds.module;
     if (!state.loggedIn) {
-      renderEmpty(feed, '登录后查看会员任务', '扫码登录后同步大会员状态与每日经验。', '去登录', () => host.showPage('login'));
+      renderEmpty(feed, '登录后查看会员任务', '短信登录后同步大会员状态与每日经验。', '去登录', () => host.showPage('login'));
       return;
     }
     if (typeof bridge.memberCenter !== 'function') {
@@ -1899,7 +1899,7 @@
         <span class="avatar-ph lg"></span>
         <span class="account-copy">
           <span class="account-name">未登录</span>
-          <span class="account-meta">扫码登录 B 站账号，同步收藏 / 历史 / 动态</span>
+          <span class="account-meta">短信登录 B 站账号，同步收藏 / 历史 / 动态</span>
         </span>
         <span class="account-vip off">登录</span>`;
     }
@@ -1934,7 +1934,7 @@
 
   function openAccountSheet() {
     const info = accountInfo || {};
-    host.openSheet('账户', info.loggedIn ? 'B 站账号 · 实时信息' : '未登录 · 扫码后同步', (body) => {
+    host.openSheet('账户', info.loggedIn ? 'B 站账号 · 实时信息' : '未登录 · 短信登录后同步', (body) => {
       const rows = [
         ['昵称', info.name || '未登录'],
         ['UID', info.mid ? String(info.mid) : '—'],
@@ -1949,7 +1949,7 @@
         row.innerHTML = `<span class="sr-label">${esc(label)}</span><span class="sr-value">${esc(value)}</span>`;
         body.appendChild(row);
       });
-      host.actionRow(body, '扫码登录', info.loggedIn ? '已登录' : '去登录', () => {
+      host.actionRow(body, '短信登录', info.loggedIn ? '已登录' : '去登录', () => {
         host.closeSheet();
         host.showPage('login');
         return '打开登录';
@@ -2019,7 +2019,7 @@
 
   function loadDynamic(page, append) {
     if (!state.loggedIn) {
-      renderEmpty($('#dynamicFeed'), '登录后查看动态', '扫码登录后同步关注动态。', '去登录', () => host.showPage('login'));
+      renderEmpty($('#dynamicFeed'), '登录后查看动态', '短信登录后同步关注动态。', '去登录', () => host.showPage('login'));
       return true;
     }
     if (typeof bridge.dynamicFeed !== 'function') {
@@ -2029,7 +2029,7 @@
     const filter = ['all', 'video', 'image'][Math.max(0, Number(state.dynamicFilterIndex) || 0) % 3];
     const result = call('dynamicFeed', page || 1, filter);
     if (!result.ok) {
-      renderEmpty($('#dynamicFeed'), result.needLogin ? '登录后查看动态' : '动态加载失败', result.needLogin ? '扫码登录后同步关注动态。' : (result.error || ''), result.needLogin ? '去登录' : '重试', result.needLogin ? () => host.showPage('login') : () => loadDynamic(1, false));
+      renderEmpty($('#dynamicFeed'), result.needLogin ? '登录后查看动态' : '动态加载失败', result.needLogin ? '短信登录后同步关注动态。' : (result.error || ''), result.needLogin ? '去登录' : '重试', result.needLogin ? () => host.showPage('login') : () => loadDynamic(1, false));
       return true;
     }
     renderDynamic(result.items || [], Boolean(append));
@@ -2059,7 +2059,7 @@
 
   function loadMessages(page, append) {
     if (!state.loggedIn) {
-      renderEmpty($('#messageFeed'), '登录后查看消息', '扫码登录后同步回复、@ 和点赞。', '去登录', () => host.showPage('login'));
+      renderEmpty($('#messageFeed'), '登录后查看消息', '短信登录后同步回复、@ 和点赞。', '去登录', () => host.showPage('login'));
       return true;
     }
     const index = Math.max(0, Number(state.messageFilterIndex) || 0) % 4;
@@ -2074,7 +2074,7 @@
     const filter = ['reply', 'at', 'like'][index];
     const result = call('messages', page || 1, filter);
     if (!result.ok) {
-      renderEmpty($('#messageFeed'), result.needLogin ? '登录后查看消息' : '消息加载失败', result.needLogin ? '扫码登录后同步回复、@ 和点赞。' : (result.error || ''), result.needLogin ? '去登录' : '重试', result.needLogin ? () => host.showPage('login') : () => loadMessages(1, false));
+      renderEmpty($('#messageFeed'), result.needLogin ? '登录后查看消息' : '消息加载失败', result.needLogin ? '短信登录后同步回复、@ 和点赞。' : (result.error || ''), result.needLogin ? '去登录' : '重试', result.needLogin ? () => host.showPage('login') : () => loadMessages(1, false));
       return true;
     }
     renderMessages(result.items || [], Boolean(append));
@@ -2226,112 +2226,8 @@
     return '已保存';
   }
 
-  /* ---------- live QR login ---------- */
-  const qr = $('#loginQr');
-  const qrImage = $('#loginQrImage');
-  let qrKey = '';
-  let qrTimer = null;
-  let qrLoading = false;
-  let qrRetry = 0;
-  let qrRetryTimer = null;
-
-  function stopQr() {
-    clearInterval(qrTimer);
-    qrTimer = null;
-    clearTimeout(qrRetryTimer);
-    qrRetryTimer = null;
-    qrKey = '';
-  }
-
-  function startQr() {
-    if (qrLoading) return;
-    qrLoading = true;
-    host.loginStatus.textContent = '正在获取二维码…';
-    try {
-      const result = parse(bridge.qrGenerate());
-      if (!result.ok || !result.image) {
-        host.loginStatus.textContent = '二维码加载失败 · 正在重试';
-        qr.classList.remove('has-real-qr');
-        qrRetry += 1;
-        if (qrRetry <= 3 && state.page === 'login') {
-          clearTimeout(qrRetryTimer);
-          qrRetryTimer = setTimeout(startQr, 2500);
-        }
-        qrLoading = false;
-        return;
-      }
-      qrRetry = 0;
-      clearTimeout(qrRetryTimer);
-      qrRetryTimer = null;
-      qrKey = result.key || '';
-      qrImage.src = `data:image/png;base64,${result.image}`;
-      qr.classList.add('has-real-qr');
-      host.loginStatus.textContent = '打开 B 站 App 扫码登录';
-      clearInterval(qrTimer);
-      qrTimer = setInterval(pollQr, 2200);
-    } catch (error) {
-      host.loginStatus.textContent = '二维码加载失败 · 正在重试';
-      log('qr generate ' + error);
-      qrRetry += 1;
-      if (qrRetry <= 3 && state.page === 'login') {
-        clearTimeout(qrRetryTimer);
-        qrRetryTimer = setTimeout(startQr, 2500);
-      }
-    }
-    qrLoading = false;
-  }
-
-  function pollQr() {
-    if (!qrKey) return;
-    try {
-      const result = parse(bridge.qrPoll(qrKey));
-      if (!result.ok) return;
-      if (Number(result.code) === 0) {
-        stopQr();
-        state.loggedIn = true;
-        host.save();
-        host.showPage('home');
-        pages.home = 1;
-        loadAccount();
-        loadHome(1);
-        host.loginStatus.textContent = '已登录';
-      } else if (Number(result.code) === 86090) {
-        host.loginStatus.textContent = '已扫码 · 请在手机上确认';
-      } else if (Number(result.code) === 86101) {
-        host.loginStatus.textContent = '等待扫码…';
-      } else if (Number(result.code) === 86038) {
-        host.loginStatus.textContent = '二维码已过期 · 正在刷新';
-        stopQr();
-        startQr();
-      }
-    } catch (error) {
-      log('qr poll ' + error);
-    }
-  }
-
-  function maybeStartQr() {
-    if (state.page !== 'login' || qr.classList.contains('has-real-qr') || qrLoading) return;
-    startQr();
-  }
-
-  qr.addEventListener('click', (event) => {
-    if (qr.classList.contains('has-real-qr')) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      stopQr();
-      startQr();
-    }
-  }, true);
-  const refreshButton = $('#loginRefresh');
-  if (refreshButton) refreshButton.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    stopQr();
-    startQr();
-  }, true);
-
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>扫码登录，或使用「模拟登录」直接进入';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录，不再使用二维码';
 
   const accountCard = $('#accountCard');
   if (accountCard) accountCard.addEventListener('click', (event) => {
@@ -2380,7 +2276,6 @@
   });
 
   const pageObserver = new MutationObserver(() => {
-    if (state.page === 'login') maybeStartQr();
     if (state.page === 'home') {
       if (!feeds.home.querySelector('.real-row')) {
         pages.home = 1;
@@ -2458,7 +2353,6 @@
   /* ---------- first data load ---------- */
   setTimeout(() => {
     loadAccount();
-    if (state.page === 'login') maybeStartQr();
     if (state.page === 'search') loadSearch(host.searchInput.value.trim(), 1);
     if (state.page === 'module') loadModule(1);
     if (state.page === 'dynamic') loadDynamic(1, false);

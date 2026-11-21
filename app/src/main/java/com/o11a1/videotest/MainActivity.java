@@ -19,6 +19,7 @@ public final class MainActivity extends Activity {
     private static final String TAG = "O11A1App";
     private WebView webView;
     private StreamProxy proxy;
+    private CookieStore cookieStore;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -32,6 +33,7 @@ public final class MainActivity extends Activity {
         }
 
         CookieStore cookies = new CookieStore(this);
+        cookieStore = cookies;
         try {
             proxy = new StreamProxy(cookies, this);
         } catch (Throwable error) {
@@ -83,7 +85,7 @@ public final class MainActivity extends Activity {
         });
 
         setContentView(webView);
-        webView.loadUrl("file:///android_asset/web/index.html?v=92");
+        webView.loadUrl("file:///android_asset/web/index.html?v=93");
         Thread warm = new Thread(() -> cookies.ensureBuvid(), "o11a1-buvid");
         warm.setDaemon(true);
         warm.start();
@@ -118,6 +120,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (cookieStore != null) cookieStore.reload();
         hideSystemUi();
         if (webView != null) webView.onResume();
     }

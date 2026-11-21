@@ -531,6 +531,22 @@ body.search-mode .proto-fab{opacity:0;pointer-events:none}
 .login-status{font-size:13px;font-weight:700;margin-top:6px;text-align:center}
 .login-note{font-size:10px;line-height:1.6;color:var(--muted);text-align:center;max-width:250px}
 .login-gate .pill-btn{margin-top:6px}
+.login-sms-card{
+  width:100%;max-width:320px;display:flex;flex-direction:column;align-items:center;gap:10px;
+  padding:26px 22px 20px;border:1px solid var(--line);border-radius:24px;
+  background:var(--surface);box-shadow:0 16px 40px rgba(30,30,36,.08);
+}
+.login-sms-icon{
+  width:58px;height:58px;border-radius:50%;display:grid;place-items:center;
+  background:var(--blue-soft);color:var(--blue);border:1px solid rgba(47,124,246,.25);
+  font-size:24px;font-weight:700;
+}
+.login-sms-card b{font-size:20px;letter-spacing:-.01em}
+.login-sms-card p{margin:0;font-size:11.5px;line-height:1.7;color:var(--muted);text-align:center}
+.login-test{
+  margin-top:4px;border:0;background:transparent;color:var(--faint);
+  font-size:10px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;
+}
 .login-cta{background:var(--blue);border-color:var(--blue);color:#fff}
 .app.auth-gate .login-back{display:none}
 
@@ -1506,6 +1522,8 @@ body[data-theme="dark"] .pd-meta{color:var(--muted)}
 body[data-theme="dark"] .playlist-page .pl-row{background:var(--surface);border-color:var(--line)}
 body[data-theme="dark"] .playlist-page .pl-row.current{border-color:rgba(84,167,255,.55);background:var(--blue-soft)}
 body[data-theme="dark"] .login-qr{background:#fff}
+body[data-theme="dark"] .login-sms-card{background:var(--surface);border-color:var(--line)}
+body[data-theme="dark"] .login-sms-icon{background:var(--blue-soft);border-color:rgba(84,167,255,.3)}
 body[data-theme="dark"] .login-note{color:var(--muted)}
 body[data-theme="dark"] .real-video-status{background:rgba(6,8,12,.72)}
 body[data-theme="dark"] .native-empty{color:var(--muted)}

@@ -191,6 +191,19 @@ final class WebAppBridge {
     }
 
     @JavascriptInterface
+    public String openWebLogin() {
+        JSONObject out = new JSONObject();
+        try {
+            activity.startActivity(new android.content.Intent(activity, WebLoginActivity.class));
+            out.put("ok", true);
+            out.put("opened", true);
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out.toString();
+    }
+
+    @JavascriptInterface
     public String downloadStart(String bvid, long cid, String title, String pic, String quality) {
         return downloads.start(bvid, cid, title, pic, quality).toString();
     }

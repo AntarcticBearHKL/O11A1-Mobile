@@ -434,6 +434,14 @@ final class O11A1LocalServer {
         self.savedBrightness = nil
       }
       data = o11a1Data(["ok": true])
+    case "webLogin":
+      let client = self.client
+      DispatchQueue.main.async {
+        O11A1WebLogin.present { header in
+          client.importCookieHeader(header)
+        }
+      }
+      data = o11a1Data(["ok": true, "opened": true])
     case "setOrientation":
       let mode = query["mode"] ?? "sensor"
       DispatchQueue.main.async {

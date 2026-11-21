@@ -85,6 +85,7 @@ function bridgeShim(port: number, testFlow: string): string {
     logout: function () { return call('logout', {}); },
     qrGenerate: function () { return call('qrGenerate', {}); },
     qrPoll: function (key) { return call('qrPoll', { key: key }); },
+    openWebLogin: function () { return call('webLogin', {}); },
     setBrightness: function (value) { return call('setBrightness', { v: value }); },
     restoreBrightness: function () { return call('restoreBrightness', {}); },
     setOrientation: function (mode) { return call('setOrientation', { mode: mode }); },

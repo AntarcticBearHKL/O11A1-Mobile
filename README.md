@@ -13,7 +13,7 @@
 - **架构**：`expo-ui` 启动 `O11A1Bridge` 原生模块，在 `127.0.0.1` 随机端口起一个本地 HTTP 服务，把打包进 JS 的 `index.html / app.js / native.js / styles.css` 原样提供给 WKWebView。
 - **同步桥**：注入 `window.O11A1Native`，通过同步 XHR 调本地 `/api/*`，与 Android 的 `WebAppBridge` API 完全一致；`native.js` 不需要分叉。
 - **真实数据**：Swift `O11A1BiliClient` 直接请求 B 站热门、搜索、分页 cid、playurl、评论、弹幕、导航登录态、账户资料、收藏夹、历史、关注动态、动态、消息、排行榜、番剧/影视索引、番剧选集、直播推荐与直播地址、分区、视频详情；Cookie 持久化到 UserDefaults。
-- **真实登录**：B 站 passport 二维码生成 + 轮询；二维码由 CoreImage 生成 PNG，扫码成功保存 `SESSDATA` 等 Cookie。
+- **真实登录**：应用内打开 B 站官方短信验证码登录页；登录成功后读取 WebKit Cookie 并保存 `SESSDATA` 等 Cookie。
 - **真实播放**：progressive MP4 优先 720P，失败回退 480P / 360P；本地 `/media` 代理补 Referer/UA、转发 Range，按 8MB 分块返回 206；主 CDN 失败自动试备用 CDN；番剧通过 `pgc/player/web/playurl` 播放并一次加入整季选集；直播使用原生 HLS；1080P / 4K / 1080P+ 会先尝试 DASH，失败自动回退渐进播放。
 - **离线缓存**：`O11A1Downloads` 在 Documents/offline 保存 progressive MP4，支持进度、暂停、继续、断点续传、删除，完成后由本地 `/file` 路由播放。
 - **播放器**：与 Android 共用同一套 V2 播放器 UI、三区手势、评论、弹幕、播放列表、刷新和登录 gate；视频信息/性能面板、截图、复制链接、收藏/投币/关注/评论与弹幕发送会调用真实接口（未登录时内联提示）；外接键盘映射、深色主题、评论楼中楼/分页、会员任务、AI 养鱼、WebGL 插帧/CAS 全部共用 web 实现。
@@ -23,16 +23,16 @@
   - 模拟器包：`https://github.com/AntarcticBearHKL/O11A1-Mobile/releases/download/ios-unsigned/o11a1-ios-simulator.zip`
   - Android APK：`https://github.com/AntarcticBearHKL/O11A1-Mobile/releases/download/android-debug/app-debug.apk`
 - **安装**：未签名 IPA 需要自己签名（Sideloadly / AltStore / eSign / 自有开发者证书）；模拟器 zip 解压后用 `xcrun simctl install booted O11A1.app`，需要 macOS。
-- **CI 验证**：`ios-unsigned` 在 macOS runner 上启动 iOS Simulator，已实际跑通登录 gate + 真实二维码 → 模拟登录 → 真实热门流 → 首个视频 720P 播放 + 弹幕。Release 里的 `ios-simulator.png` 是登录 gate，`ios-simulator-player.png` 是真实播放画面。真机仍需你自己签名后测试。
+- **CI 验证**：`ios-unsigned` 在 macOS runner 上启动 iOS Simulator，已实际跑通登录 gate + 短信登录入口 → 本地测试进入 → 真实热门流 → 首个视频 720P 播放 + 弹幕。Release 里的 `ios-simulator.png` 是登录 gate，`ios-simulator-player.png` 是真实播放画面。真机仍需你自己签名后测试。
 - **iOS 限制**：HTML5 `<video>` 在 iOS 上不允许程序改音量，音量滑杆只改变 UI 与静音状态，实际音量请用实体音量键；亮度只在播放器左侧亮度手势时修改系统亮度，退出播放器/切后台会恢复原亮度，App 启动和进入播放器都不会再强制调到最高。
 
 ## Android V2 实装（当前 APK）
 
 - **架构**：`web-prototype/` 是唯一 UI 源；Gradle 构建时复制到 `assets/web`，`MainActivity` 用全屏 WebView 加载。
-- **原生桥**：`WebAppBridge` / `BiliApi` / `BiliExtras` / `DownloadManager` / `CookieStore` / `StreamProxy` 提供热门、搜索、分集 cid、playurl、DASH、评论与楼中楼、弹幕、真实二维码登录、Cookie、账户、收藏、历史、关注、动态、消息、排行榜、番剧/影视、直播、分区、视频详情、互动写入、会员中心、AI 接口、离线下载、亮度、方向、剪贴板和截图。
+- **原生桥**：`WebAppBridge` / `BiliApi` / `BiliExtras` / `DownloadManager` / `CookieStore` / `StreamProxy` 提供热门、搜索、分集 cid、playurl、DASH、评论与楼中楼、弹幕、短信登录入口登录、Cookie、账户、收藏、历史、关注、动态、消息、排行榜、番剧/影视、直播、分区、视频详情、互动写入、会员中心、AI 接口、离线下载、亮度、方向、剪贴板和截图。
 - **真实数据**：首页热门 / 排行 / 番剧 / 影视 / 直播 / 分区 / 收藏 / 历史 / 关注；搜索；模块页；账户卡；动态 / 消息；视频信息；会员中心每日任务与经验记录。未登录的账户页会显示登录 CTA。
 - **真实播放**：Bridge 取 B 站 progressive MP4；1080P / 1080P60 / 1080P+ / 4K 先请求 DASH，用 MediaSource 分流视频/音频，失败自动回退渐进播放。本地代理补齐 Referer/UA 并转发 Range；番剧按集播放并加入播放列表；直播 HLS 使用 hls.js；HTML5 `<video>` 播放。
-- **真实登录**：B 站 passport 二维码生成 + 轮询；扫码成功保存 Cookie；「模拟登录」保留用于无扫码测试；未登录所有路由回到 gate。收藏/投币/关注/点赞/评论/弹幕等写入接口在无 Cookie 时返回“请先登录”，不会伪造成功。
+- **真实登录**：应用内打开 B 站官方短信验证码登录页；登录成功后保存 Cookie；「本地测试进入」保留用于无账号测试；未登录所有路由回到 gate。收藏/投币/关注/点赞/评论/弹幕等写入接口在无 Cookie 时返回“请先登录”，不会伪造成功。
 - **播放器**：播放/暂停、进度、音量、倍速、循环、画质重取、全屏方向、三区手势、收起进浮动播放列表、真实评论（最热/最新 + 楼中楼 + 分页）、真实弹幕滚动、信息/性能面板、截图保存到相册、复制 BV 链接、收藏/投币/关注/点赞、评论与弹幕发送、外接键盘映射、深色主题与外观滑杆、会员任务、AI 养鱼、WebGL 插帧 / CAS / Anime4K。
 - **调试信息**：视频流右上角实时显示 FEED 刷新率与 FPS；播放器右上角五条 HUD：DSP 显示刷新率、TGT/RND 目标/渲染帧率、DEC 解码帧率与分辨率、DRP/AV 丢帧与音画间隔、NET 实时码率。
 - **离线缓存**：`DownloadManager` 支持两种任务：渐进 MP4 直接缓存；DASH 音视频分轨下载后用 `MediaMuxer` 交错合流成 MP4（FFmpeg 合流的原生等价实现）。支持队列、进度、暂停、继续、断点续传、删除和本地播放。
@@ -42,13 +42,13 @@
   ./gradlew :app:assembleDebug
   adb install -r app/build/outputs/apk/debug/app-debug.apk
   ```
-- **模拟器验证**：`Medium_Phone_API_37.0`，480×800 / 160dpi。已验证登录 gate / 真实二维码、热门 20 条、搜索“原神”20 条、排行/番剧/影视/分区真实列表、番剧第一集 360P 播放（整季 11 集入队）、真实评论（8709 条）、最新评论未登录回退最热、楼中楼展开 12 条、下拉/触底刷新、侧边栏、左滑播放列表、播放列表页/移除、视频信息/性能面板、截图（MediaStore）、复制链接、画质切换、倍速/循环、设置账户卡、视频流刷新率、五条播放 HUD、深色/浅色主题、渐进 MP4 离线下载 141.5MB、DASH 分轨下载 + MediaMuxer 合流 11.6MB（360P，音频解码计数 >0）并从本地播放、DASH 720P 在线播放、WebGL 插帧/CAS。直播列表 20 条和直播地址 HLS 已验证；模拟器长时间 720P/直播软解会让模拟器不稳定，真机为准。
+- **模拟器验证**：`Medium_Phone_API_37.0`，480×800 / 160dpi。已验证登录 gate / 短信登录入口、热门 20 条、搜索“原神”20 条、排行/番剧/影视/分区真实列表、番剧第一集 360P 播放（整季 11 集入队）、真实评论（8709 条）、最新评论未登录回退最热、楼中楼展开 12 条、下拉/触底刷新、侧边栏、左滑播放列表、播放列表页/移除、视频信息/性能面板、截图（MediaStore）、复制链接、画质切换、倍速/循环、设置账户卡、视频流刷新率、五条播放 HUD、深色/浅色主题、渐进 MP4 离线下载 141.5MB、DASH 分轨下载 + MediaMuxer 合流 11.6MB（360P，音频解码计数 >0）并从本地播放、DASH 720P 在线播放、WebGL 插帧/CAS。直播列表 20 条和直播地址 HLS 已验证；模拟器长时间 720P/直播软解会让模拟器不稳定，真机为准。
 - **未验证 / 需要账号**：真实登录后的收藏/历史/关注/动态/消息/会员任务、4K/1080P+（需要大会员）、点赞/投币/收藏/关注/评论/弹幕发送、直播弹幕（B 站匿名接口 -352，需登录 Cookie）、AI 养鱼（需要用户提供 DeepSeek/OpenAI 兼容 Key）。这些入口在条件不满足时会内联提示，不会伪造成功。
 
 ## 移动端 V2 规划（当前）
 
 - **不要底部工具栏**：视频流占满整个窗口；在屏幕上向右滑，从左边展开侧边栏。
-- **强制登录**：未登录冷启动直接停在登录 gate，首页、侧边栏、搜索、播放器、播放列表全部不可达；点二维码 /「模拟登录」进首页，登录态本地保存；设置 → 账户可退出。
+- **强制登录**：未登录冷启动直接停在登录 gate，首页、侧边栏、搜索、播放器、播放列表全部不可达；点「打开短信登录」/「本地测试进入」进首页，登录态本地保存；设置 → 账户可退出。
 - 侧边栏列出了全部导航入口：首页 / 收藏 / 直播 / 关注 / 动态 / 消息 / 历史 / 我的；底部有独立的搜索动作按钮；不占 5 个槽位。
 - 养鱼（AI 看片）入口默认隐藏；设置 → 防干扰 → 隐藏养鱼入口 可恢复。
 - 首页/搜索/模块视频流支持下拉刷新和触底自动刷新：刷新后直接重建 list、回到顶部。
@@ -61,7 +61,7 @@
 - 无 Toast、无旧版灰色提示条；所有反馈内联。
 - 桌面端功能逐项保留；完整对照见 [MOBILE_FEATURES.md](MOBILE_FEATURES.md)。
 
-> Android APK 已接入真实热门/搜索/播放/二维码登录/评论/弹幕；Web 原型继续作为布局与手势基准。产品与播放器设计：[MOBILE_DESIGN.md](MOBILE_DESIGN.md)（V2）。
+> Android APK 已接入真实热门/搜索/播放/短信登录/评论/弹幕；Web 原型继续作为布局与手势基准。产品与播放器设计：[MOBILE_DESIGN.md](MOBILE_DESIGN.md)（V2）。
 > 产品与播放器设计：[MOBILE_DESIGN.md](MOBILE_DESIGN.md)（V2）。
 > 功能与交互规范：[MOBILE_INTERACTION.md](MOBILE_INTERACTION.md)（V2）。
 > 桌面功能完整对照：[MOBILE_FEATURES.md](MOBILE_FEATURES.md)。
@@ -156,9 +156,9 @@ adb logcat -s O11A1VideoTest
 
 已覆盖：
 
-- Android V2：WebView UI + 真实热门/搜索/模块数据、B 站二维码登录、progressive 720P 播放、评论、弹幕、播放列表、下拉/触底刷新。
+- Android V2：WebView UI + 真实热门/搜索/模块数据、B 站短信验证码登录、progressive 720P 播放、评论、弹幕、播放列表、下拉/触底刷新。
 - Android 旧测试管线：MediaCodec 硬解、SurfaceTexture 零拷贝、GLES3 双帧 blend、CAS-like。
-- iOS V2：Expo + WKWebView + 本地回环桥；CI 的 iOS Simulator 已跑通登录 gate/真实二维码、真实热门流、首个视频 720P 播放、真实弹幕，截图随 Release 发布。
+- iOS V2：Expo + WKWebView + 本地回环桥；CI 的 iOS Simulator 已跑通登录 gate/短信登录入口、真实热门流、首个视频 720P 播放、真实弹幕，截图随 Release 发布。
 - iOS 旧测试管线：VideoToolbox 硬解、Metal 双帧 blend、CAS-like、60/120 目标、运行统计。
 - 两端统一使用 BV1NS4t6oEXQ 测试片段。
 - GitHub Actions 每次 push 自动构建 Android APK 和 unsigned iOS 包，并把 IPA/APK 发布到 Releases。

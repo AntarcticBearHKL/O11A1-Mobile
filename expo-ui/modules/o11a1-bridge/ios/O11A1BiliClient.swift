@@ -434,6 +434,17 @@ final class O11A1BiliClient {
     return cookies.header()
   }
 
+  func importCookieHeader(_ header: String) {
+    for piece in header.split(separator: ";") {
+      let parts = piece.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+      if parts.count == 2 {
+        let name = String(parts[0]).trimmingCharacters(in: .whitespaces)
+        let value = String(parts[1]).trimmingCharacters(in: .whitespaces)
+        if !name.isEmpty { cookies.set(name, value) }
+      }
+    }
+  }
+
   private func token(for urls: [String]) -> String {
     if let data = try? JSONSerialization.data(withJSONObject: urls, options: []) {
       return o11a1Base64URLEncode(data)
