@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=43">
+  <link rel="stylesheet" href="./styles.css?v=48">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -106,7 +106,6 @@
             <span class="vip-ph">VIP 占位</span>
           </button>
           <div class="my-list">
-            <button class="my-row" data-queue><span>播放列表</span><span class="my-meta" id="myPlaylistCount">0 项</span></button>
             <button class="my-row" data-module="收藏"><span>收藏</span><span class="my-meta">收藏夹 / 推荐</span></button>
             <button class="my-row" data-module="历史"><span>历史</span><span class="my-meta">继续观看</span></button>
             <button class="my-row" data-module="关注"><span>关注</span><span class="my-meta">UP 动态</span></button>
@@ -192,6 +191,15 @@
           </div>
         </section>
 
+        <!-- 播放列表：从底部浮动播放列表进入 -->
+        <section class="page playlist-page" data-page="playlist">
+          <div class="playlist-page-top">
+            <button class="back" id="playlistBack" type="button" title="返回">‹</button>
+            <span class="playlist-page-count" id="playlistPageCount">0 项</span>
+          </div>
+          <div class="playlist-page-list" id="playlistPageList"></div>
+        </section>
+
         <!-- 底部导航：全量预览 / 自选 5 个 -->
         <section class="page" data-page="nav">
           <div class="page-top">
@@ -231,6 +239,17 @@
         <button class="text-btn search-cancel" id="searchCancel" type="button">取消</button>
       </div>
 
+      <button class="playlist-dock" id="playlistDock" type="button" aria-hidden="true" inert>
+        <span class="pd-thumb"><span class="ph-label">封面</span></span>
+        <span class="pd-copy">
+          <b id="pdTitle">播放列表</b>
+          <small id="pdMeta">0 项</small>
+        </span>
+        <span class="pd-count" id="pdCount">0</span>
+        <span class="pd-grip" aria-hidden="true">⌃</span>
+        <span class="pd-progress" aria-hidden="true"><i id="pdProgress"></i></span>
+      </button>
+
       <div class="grid-overlay" aria-hidden="true"></div>
     </div>
   </main>
@@ -258,7 +277,7 @@
     <div class="drawer-pages">
       <button data-goto="home">首页</button>
       <button data-goto="search">搜索</button>
-      <button data-queue>队列</button>
+      <button data-queue>播放列表</button>
       <button data-goto="dynamic">动态</button>
       <button data-goto="messages">消息</button>
       <button data-goto="my">我的</button>
@@ -398,6 +417,6 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./app.js?v=43"></script>
+  <script src="./app.js?v=48"></script>
 </body>
 </html>
