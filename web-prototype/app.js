@@ -2324,6 +2324,8 @@
         if (dy > 0 && !state.settings.middleCollapse) return;
       } else if (state.settings.swipeLevel) {
         gesture.mode = 'level';
+        if (gesture.zone === 'left') syncNativeBrightness();
+        else syncNativeVolume();
         gesture.startBrightness = state.brightness;
         gesture.startVolume = state.volume;
         showLevelHud(gesture.zone === 'left' ? brightnessHud : volumeHud);
@@ -2650,8 +2652,21 @@
   }
   window.addEventListener('keydown', handlePlayerKey);
   window.addEventListener('pagehide', restoreNativeBrightness);
+  window.addEventListener('pageshow', () => {
+    syncNativeBrightness();
+    syncNativeVolume();
+  });
+  window.addEventListener('focus', () => {
+    syncNativeBrightness();
+    syncNativeVolume();
+  });
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) restoreNativeBrightness();
+    if (document.hidden) {
+      restoreNativeBrightness();
+    } else {
+      syncNativeBrightness();
+      syncNativeVolume();
+    }
   });
 
   function openPlayerMoreSheet() {
@@ -3846,7 +3861,11 @@
     }
     results.push(`gate=${gate}`);
 
+    window.__O11A1_BRIGHTNESS = 63;
     openPlayer();
+    await sleep(80);
+    results.push(`brightnessSync=${state.brightness === 63}`);
+    window.__O11A1_BRIGHTNESS = 50;
     applyBrightness(50);
     applyVolume(40);
     await sleep(120);
@@ -3990,6 +4009,8 @@
 
   const reviewParams = new URLSearchParams(window.location.search);
   const demo = reviewParams.get('demo');
+  syncNativeBrightness();
+  syncNativeVolume();
   if (window.O11A1Native && typeof window.O11A1Native.setOrientation === 'function') {
     try { window.O11A1Native.setOrientation('portrait'); } catch (_) {}
   }

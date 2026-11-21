@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Brightness from 'expo-brightness';
 import { requireOptionalNativeModule } from 'expo-modules-core';
@@ -340,6 +340,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [mockBrightness, setMockBrightness] = useState<number | null>(null);
   const savedMockBrightness = useRef<number | null>(null);
+  const mockWebViewRef = useRef<any>(null);
 
   useEffect(() => {
     let active = true;
@@ -373,6 +374,30 @@ export default function App() {
     Brightness.getBrightnessAsync()
       .then((value) => setMockBrightness(value))
       .catch(() => setMockBrightness(1));
+  }, []);
+
+  useEffect(() => {
+    if (NativeBridge) return;
+    let active = true;
+    const sync = async () => {
+      if (AppState.currentState !== 'active') return;
+      try {
+        const value = await Brightness.getBrightnessAsync();
+        if (!active) return;
+        mockWebViewRef.current?.injectJavaScript(
+          `window.__O11A1_BRIGHTNESS=${Math.round(value * 100)};true;`
+        );
+      } catch (_) {}
+    };
+    const timer = setInterval(sync, 1000);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') sync();
+    });
+    return () => {
+      active = false;
+      clearInterval(timer);
+      subscription.remove();
+    };
   }, []);
 
   const handleMockMessage = async (event: any) => {
@@ -423,6 +448,7 @@ export default function App() {
         <StatusBar hidden />
         <WebView
           key={`mock-${WEBAPP_BUILD}`}
+          ref={mockWebViewRef}
           source={{ html: MOCK_HTML, baseUrl: 'https://o11a1.local/' }}
           style={styles.web}
           containerStyle={styles.web}
