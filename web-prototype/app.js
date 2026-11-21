@@ -74,7 +74,6 @@
   const moduleFilter = $('#moduleFilter');
   const dynamicFilter = $('#dynamicFilter');
   const messageFilter = $('#messageFilter');
-  const followBtn = $('#followBtn');
   const loginStatus = $('#loginStatus');
   const miniPlayer = $('#miniPlayer');
   const miniTitle = $('#miniTitle');
@@ -208,7 +207,6 @@
     volume: Number.isFinite(loaded?.volume) ? Math.max(0, Math.min(100, loaded.volume)) : 80,
     rotation: 'right',
     landscapeHome: loaded?.landscapeHome === true,
-    detailAdded: false,
     fav: false,
     coin: false,
     cached: false,
@@ -222,8 +220,6 @@
     navAllVisible: loaded && typeof loaded.navAllVisible === 'boolean' ? loaded.navAllVisible : true,
     navSelected: normalizeNavSelected(loaded?.navSelected),
     navActive: 'home',
-    detailReturn: 'home',
-    detailReturnNav: null,
     searchReturn: 'home',
     searchReturnNav: null,
   };
@@ -859,9 +855,10 @@
 
   function openPlayer(options = {}) {
     const resume = options.resume === true;
+    const autoplay = options.autoplay === true;
     if (!state.playlist.length) addToPlaylist();
     if (!resume) {
-      state.playing = false;
+      state.playing = autoplay;
       state.progress = 0;
     }
     state.playerOpen = true;
@@ -1548,34 +1545,6 @@
     body.appendChild(button);
   }
 
-  function openDetailSheet() {
-    openSheet('视频操作', '占位内容 · 不请求真实接口', (body) => {
-      actionRow(body, state.fav ? '已收藏' : '收藏', state.fav ? '已加入' : '', () => {
-        state.fav = !state.fav;
-        return state.fav ? '已加入' : '已取消';
-      });
-      actionRow(body, state.coin ? '已投币' : '投币', state.coin ? '2 币' : '', () => {
-        state.coin = true;
-        return '已投币';
-      });
-      actionRow(body, '分享', state.copied ? '已复制' : '复制链接', () => {
-        state.copied = true;
-        return '已复制';
-      });
-      actionRow(body, '缓存', state.cached ? '已加入下载' : '离线下载', () => {
-        state.cached = true;
-        return '已加入下载';
-      });
-      actionRow(body, state.detailAdded ? '已在播放列表' : '加入播放列表', state.detailAdded ? '队列 +1' : '', () => {
-        if (!state.detailAdded) {
-          addToPlaylist();
-          state.detailAdded = true;
-        }
-        return '已加入';
-      });
-    });
-  }
-
   function openPlayerMoreSheet() {
     openSheet('播放器', '所有改动即时生效 · 无弹窗提示', (body) => {
       actionRow(body, '播放设置', '画质 / 插帧 / 增强', () => {
@@ -1596,6 +1565,10 @@
         save();
         return state.settings.aspect;
       });
+      actionRow(body, '加入播放列表', '当前队列 +1', () => {
+        addToPlaylist();
+        return '已加入';
+      });
       actionRow(body, '锁定屏幕', '隐藏控件', () => {
         lockPlayer();
       });
@@ -1607,9 +1580,17 @@
         state.fav = !state.fav;
         return state.fav ? '已加入' : '已取消';
       });
+      actionRow(body, '投币', state.coin ? '已投币' : '2 币', () => {
+        state.coin = true;
+        return '已投币';
+      });
       actionRow(body, '复制链接', state.copied ? '已复制' : 'BV 占位', () => {
         state.copied = true;
         return '已复制';
+      });
+      actionRow(body, '缓存', state.cached ? '已加入下载' : '离线下载', () => {
+        state.cached = true;
+        return '已加入下载';
       });
       actionRow(body, '举报', '', () => '已提交（占位）');
       actionRow(body, '关闭播放', '停止并清空进度', () => {
@@ -1960,20 +1941,9 @@
       return;
     }
 
-    const detail = event.target.closest('[data-open-detail]');
-    if (detail) {
-      if (state.page !== 'detail') {
-        state.detailReturn = state.page;
-        state.detailReturnNav = state.navActive;
-      }
-      state.detailAdded = false;
-      showPage('detail');
-      return;
-    }
-
     const play = event.target.closest('[data-open-player]');
     if (play) {
-      openPlayer();
+      openPlayer({ autoplay: true });
       return;
     }
 
@@ -2008,11 +1978,6 @@
     }
   });
 
-  $('#detailMore').addEventListener('click', openDetailSheet);
-  $('#detailBack').addEventListener('click', () => {
-    showPage(state.detailReturn || 'home', state.detailReturnNav || undefined);
-  });
-
   navAllToggle.addEventListener('click', () => {
     state.navAllVisible = !state.navAllVisible;
     navNote.textContent = '';
@@ -2029,20 +1994,6 @@
   $('#loginQr').addEventListener('click', () => {
     loginStatus.textContent = '登录成功 · 正在进入首页…';
     setTimeout(() => showPage('home'), 700);
-  });
-
-  followBtn.addEventListener('click', () => {
-    const on = followBtn.classList.toggle('on');
-    followBtn.textContent = on ? '已关注' : '关注';
-  });
-
-  $$('.detail-tabs').forEach((group) => {
-    $$('button', group).forEach((button) => {
-      button.addEventListener('click', () => {
-        $$('button', group).forEach((item) => item.classList.remove('on'));
-        button.classList.add('on');
-      });
-    });
   });
 
   dynamicFilter.addEventListener('click', () => {
@@ -2162,7 +2113,6 @@
       if (protoDrawer.classList.contains('open')) { closeDrawer(); return; }
       if (state.playerOpen) { minimizePlayer(); return; }
       if (state.page === 'search') { closeSearch(); return; }
-      if (state.page === 'detail') { showPage(state.detailReturn || 'home', state.detailReturnNav || undefined); return; }
     }
     if (!state.playerOpen || state.locked) return;
     if (event.code === 'Space') {

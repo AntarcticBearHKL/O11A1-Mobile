@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=22">
+  <link rel="stylesheet" href="./styles.css?v=23">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -18,39 +18,39 @@
         <!-- 首页：单列，每行一个视频 -->
         <section class="page active" data-page="home">
           <div class="feed" id="homeFeed">
-            <button class="video-row" data-open-detail>
+            <button class="video-row" data-open-player>
               <span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span>
               <span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w60"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w18"></i></span></span>
             </button>
-            <button class="video-row" data-open-detail>
+            <button class="video-row" data-open-player>
               <span class="row-thumb alt"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span>
               <span class="row-copy"><span class="ph-title"><i class="ph-line w80"></i><i class="ph-line w50"></i></span><span class="row-meta"><i class="ph-line w35"></i><i class="ph-line w18"></i></span></span>
             </button>
-            <button class="video-row" data-open-detail>
+            <button class="video-row" data-open-player>
               <span class="row-thumb alt2"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span>
               <span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w20"></i></span></span>
             </button>
-            <button class="video-row" data-open-detail>
+            <button class="video-row" data-open-player>
               <span class="row-thumb alt3"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span>
               <span class="row-copy"><span class="ph-title"><i class="ph-line w85"></i><i class="ph-line w65"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w18"></i></span></span>
             </button>
-            <button class="video-row" data-open-detail>
+            <button class="video-row" data-open-player>
               <span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span>
               <span class="row-copy"><span class="ph-title"><i class="ph-line w75"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w22"></i></span></span>
             </button>
-            <button class="video-row" data-open-detail>
+            <button class="video-row" data-open-player>
               <span class="row-thumb alt"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span>
               <span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w60"></i></span><span class="row-meta"><i class="ph-line w35"></i><i class="ph-line w18"></i></span></span>
             </button>
-            <button class="video-row" data-open-detail>
+            <button class="video-row" data-open-player>
               <span class="row-thumb alt2"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span>
               <span class="row-copy"><span class="ph-title"><i class="ph-line w80"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w20"></i></span></span>
             </button>
-            <button class="video-row" data-open-detail>
+            <button class="video-row" data-open-player>
               <span class="row-thumb alt3"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span>
               <span class="row-copy"><span class="ph-title"><i class="ph-line w85"></i><i class="ph-line w60"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w18"></i></span></span>
             </button>
-            <button class="video-row" data-open-detail>
+            <button class="video-row" data-open-player>
               <span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span>
               <span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w50"></i></span><span class="row-meta"><i class="ph-line w35"></i><i class="ph-line w22"></i></span></span>
             </button>
@@ -66,56 +66,16 @@
           </div>
           <div class="section-label" id="searchResultsLabel">热门视频</div>
           <div class="feed" id="searchResults">
-            <button class="video-row" data-open-detail><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w60"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w18"></i></span></span></button>
-            <button class="video-row" data-open-detail><span class="row-thumb alt"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w80"></i><i class="ph-line w50"></i></span><span class="row-meta"><i class="ph-line w35"></i><i class="ph-line w18"></i></span></span></button>
-            <button class="video-row" data-open-detail><span class="row-thumb alt2"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w85"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w20"></i></span></span></button>
-            <button class="video-row" data-open-detail><span class="row-thumb alt3"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w22"></i></span></span></button>
-            <button class="video-row" data-open-detail><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w75"></i><i class="ph-line w45"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w20"></i></span></span></button>
+            <button class="video-row" data-open-player><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w60"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w18"></i></span></span></button>
+            <button class="video-row" data-open-player><span class="row-thumb alt"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w80"></i><i class="ph-line w50"></i></span><span class="row-meta"><i class="ph-line w35"></i><i class="ph-line w18"></i></span></span></button>
+            <button class="video-row" data-open-player><span class="row-thumb alt2"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w85"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w20"></i></span></span></button>
+            <button class="video-row" data-open-player><span class="row-thumb alt3"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w22"></i></span></span></button>
+            <button class="video-row" data-open-player><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w75"></i><i class="ph-line w45"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w20"></i></span></span></button>
           </div>
           <div class="search-empty" id="searchEmpty" hidden>没有找到视频 · 换个关键词试试</div>
         </section>
 
-        <!-- 详情 -->
-        <section class="page" data-page="detail">
-          <div class="page-top">
-            <button class="back" id="detailBack" title="返回">‹</button>
-            <b>视频</b>
-            <button class="icon-btn small" id="detailMore" title="更多操作">⋯</button>
-          </div>
-          <div class="detail-body">
-            <button class="detail-video" data-open-player>
-              <span class="ph-label">视频占位 · 无播放源</span>
-              <span class="play-big">▶</span>
-              <span class="video-hint">点击进入横屏播放器</span>
-            </button>
-            <div class="detail-copy">
-              <div class="ph-title big"><i class="ph-line w90"></i><i class="ph-line w65"></i></div>
-              <div class="ph-meta-row"><i class="ph-line w35"></i><i class="ph-line w25"></i><i class="ph-line w20"></i></div>
-            </div>
-            <div class="up-row">
-              <span class="avatar-ph"></span>
-              <div class="ph-title" style="flex:1"><i class="ph-line w30"></i><i class="ph-line w60"></i></div>
-              <button class="pill-btn" id="followBtn">关注</button>
-            </div>
-            <button class="primary-play" data-open-player><span>▶</span> 播放占位</button>
-            <div class="detail-tabs">
-              <button class="on">评论</button>
-              <button>简介</button>
-              <button>相关</button>
-            </div>
-            <div class="comment-list">
-              <div class="comment-row"><span class="avatar-ph sm"></span><div class="ph-title" style="flex:1"><i class="ph-line w25"></i><i class="ph-line w85"></i><i class="ph-line w55"></i></div></div>
-              <div class="comment-row"><span class="avatar-ph sm"></span><div class="ph-title" style="flex:1"><i class="ph-line w30"></i><i class="ph-line w75"></i><i class="ph-line w45"></i></div></div>
-              <div class="comment-row"><span class="avatar-ph sm"></span><div class="ph-title" style="flex:1"><i class="ph-line w25"></i><i class="ph-line w90"></i><i class="ph-line w60"></i></div></div>
-            </div>
-            <div class="section-label">相关推荐（占位）</div>
-            <div class="feed">
-              <button class="video-row" data-open-detail><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w85"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w30"></i></span></span></button>
-              <button class="video-row" data-open-detail><span class="row-thumb alt"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w75"></i><i class="ph-line w50"></i></span><span class="row-meta"><i class="ph-line w35"></i></span></span></button>
-            </div>
-          </div>
-        </section>
-
+        <!-- 视频流点击直接进播放器，没有中间详情页 -->
         <!-- 动态 -->
         <section class="page" data-page="dynamic">
           <div class="page-top">
@@ -189,10 +149,10 @@
           </div>
           <div class="module-note" id="moduleNote">模块占位 · 内容由真实接口接入</div>
           <div class="feed" id="moduleFeed">
-            <button class="video-row" data-open-detail><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w60"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w18"></i></span></span></button>
-            <button class="video-row" data-open-detail><span class="row-thumb alt"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w80"></i><i class="ph-line w50"></i></span><span class="row-meta"><i class="ph-line w35"></i><i class="ph-line w18"></i></span></span></button>
-            <button class="video-row" data-open-detail><span class="row-thumb alt2"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w85"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w20"></i></span></span></button>
-            <button class="video-row" data-open-detail><span class="row-thumb alt3"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w75"></i><i class="ph-line w65"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w18"></i></span></span></button>
+            <button class="video-row" data-open-player><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w60"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w18"></i></span></span></button>
+            <button class="video-row" data-open-player><span class="row-thumb alt"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w80"></i><i class="ph-line w50"></i></span><span class="row-meta"><i class="ph-line w35"></i><i class="ph-line w18"></i></span></span></button>
+            <button class="video-row" data-open-player><span class="row-thumb alt2"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w85"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w20"></i></span></span></button>
+            <button class="video-row" data-open-player><span class="row-thumb alt3"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w75"></i><i class="ph-line w65"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w18"></i></span></span></button>
           </div>
         </section>
 
@@ -327,7 +287,6 @@
     <div class="drawer-pages">
       <button data-goto="home">首页</button>
       <button data-goto="search">搜索</button>
-      <button data-goto="detail">详情</button>
       <button data-queue>队列</button>
       <button data-goto="dynamic">动态</button>
       <button data-goto="messages">消息</button>
@@ -450,6 +409,6 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./app.js?v=22"></script>
+  <script src="./app.js?v=23"></script>
 </body>
 </html>
