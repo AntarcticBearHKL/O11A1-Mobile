@@ -84,6 +84,36 @@
     return timeAgo(value).replace(/\s+(分钟前|小时前|天前)$/, '$1');
   }
 
+  function feedFreshness(value) {
+    const raw = Number(value || 0);
+    if (!raw) return '';
+    const seconds = raw > 100000000000 ? raw / 1000 : raw;
+    const age = Math.max(0, Date.now() / 1000 - seconds);
+    const hour = 3600;
+    const day = 86400;
+    if (age < hour) return '刚刚';
+    if (age < day) return `${Math.floor(age / hour)}小时前`;
+    if (age < day * 7) return `${Math.floor(age / day)}天前`;
+    if (age < day * 30) return `${Math.floor(age / (7 * day))}周前`;
+    if (age < day * 90) return `${Math.floor(age / (30 * day))}个月前`;
+    if (age < day * 365) return `${Math.floor(age / (90 * day))}季度前`;
+    return `${Math.floor(age / (365 * day))}年前`;
+  }
+
+  function feedFreshnessColor(value) {
+    const raw = Number(value || 0);
+    if (!raw) return '#8a909b';
+    const seconds = raw > 100000000000 ? raw / 1000 : raw;
+    const age = Math.max(0, Date.now() / 1000 - seconds);
+    const day = 86400;
+    if (age < day) return '#d97862';
+    if (age < day * 7) return '#c9984f';
+    if (age < day * 30) return '#4f9a83';
+    if (age < day * 90) return '#5c84c6';
+    if (age < day * 365) return '#8a78b8';
+    return '#8a909b';
+  }
+
   function setNote(text) {
     const note = $('#homeNote');
     if (note) note.textContent = text;
@@ -136,28 +166,17 @@
 
   function metaMarkup(item, label) {
     const owner = item.owner || '';
-    const time = item.pubdate ? feedTime(item.pubdate) : '';
-    const playText = item.playText || (item.play > 0 ? countText(item.play) : '');
-    const hot = playText || (item.online > 0 ? `${countText(item.online)} 人气` : '');
-    const hotText = hot.replace(/\s+/g, '');
-    const extra = !hot && item.meta
-      ? (owner && item.meta.startsWith(owner)
-        ? item.meta.slice(owner.length).replace(/^\s*·\s*/, '')
-        : item.meta)
+    const fresh = item.live ? '直播中' : feedFreshness(item.pubdate);
+    const color = item.live ? '#d97862' : feedFreshnessColor(item.pubdate);
+    const ownerMarkup = owner
+      ? `<span class="meta-owner"><span class="meta-owner-name">${esc(owner)}</span></span>`
       : '';
-    const lead = [];
-    if (owner) {
-      const chip = !item.live && !item.seasonId ? '<i class="up-chip">UP</i>' : '';
-      lead.push(`<span class="meta-owner">${chip}<span class="meta-owner-name">${esc(owner)}</span></span>`);
-    }
-    if (time) lead.push(`<span class="meta-time">${esc(time)}</span>`);
-    let markup = lead.join('<span class="meta-dot"></span>');
-    if (hot) {
-      markup += `<span class="meta-hot"><i>${item.live ? '●' : '▶'}</i>${esc(hotText)}</span>`;
-    } else if (extra) {
-      markup += `<span class="meta-hot neutral">${esc(extra)}</span>`;
-    }
-    return markup ? `<span class="real-meta">${markup}</span>` : '';
+    const freshMarkup = fresh
+      ? `<span class="meta-fresh" style="color:${color}">${esc(fresh)}</span>`
+      : '';
+    return (ownerMarkup || freshMarkup)
+      ? `<span class="real-meta">${ownerMarkup}${freshMarkup}</span>`
+      : '';
   }
 
   function buildRow(item, label, page, index) {
@@ -172,7 +191,7 @@
       : 0;
     row.innerHTML = `
       <span class="row-thumb real">
-        ${pic ? `<img src="${attr(pic)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
+        ${pic ? `<img src="${attr(pic)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : ''}
         ${item.live ? '<span class="live-badge">LIVE</span>' : ''}
         ${item.live ? '' : `<span class="dur-ph">${esc(item.duration || (item.seasonId ? '番剧' : '00:00'))}</span>`}
         ${progress ? `<span class="row-progress"><span style="width:${progress}%"></span></span>` : ''}
@@ -180,9 +199,18 @@
       <span class="row-copy">
         <span class="real-title">${esc(item.title || '视频')}</span>
         ${metaMarkup(item, label)}
+      </span>
+      <span class="row-swipe-mask" aria-hidden="true" data-action="queue">
+        <b class="rsm-label">加入播放列表</b>
+        <small class="rsm-hint">继续左滑</small>
       </span>`;
     const image = $('img', row);
-    if (image) image.addEventListener('error', () => image.remove());
+    if (image) {
+      const reveal = () => image.classList.add('loaded');
+      if (image.complete && image.naturalWidth) reveal();
+      else image.addEventListener('load', reveal, { once: true });
+      image.addEventListener('error', () => image.remove());
+    }
     row.addEventListener('click', (event) => {
       if (host.isFeedClickSuppressed && host.isFeedClickSuppressed()) return;
       event.preventDefault();
@@ -195,11 +223,6 @@
     wrapper.className = 'feed-item';
     wrapper.dataset.chunk = String(page);
     wrapper.__nativeItem = item;
-    wrapper.innerHTML = `
-      <div class="row-actions">
-        <button class="row-action up" type="button" data-row-action="up"><span class="ra-ico">◉</span><b>UP主</b></button>
-        <button class="row-action queue" type="button" data-row-action="queue"><span class="ra-ico">＋</span><b>播放列表</b></button>
-      </div>`;
     wrapper.appendChild(row);
     return wrapper;
   }
@@ -234,15 +257,16 @@
       const oldHeight = firstOld && lastOld
         ? lastOld.getBoundingClientRect().bottom - firstOld.getBoundingClientRect().top
         : 0;
-      oldRows.forEach((row) => row.remove());
-      delete feed.__chunkItems[oldPage];
       const scroll = $('#appScroll');
       const isActive = (feed === feeds.home && state.page === 'home')
         || (feed === feeds.search && state.page === 'search')
         || (feed === feeds.module && state.page === 'module');
+      const beforeScroll = scroll && oldHeight > 0 && isActive ? scroll.scrollTop : 0;
+      oldRows.forEach((row) => row.remove());
+      delete feed.__chunkItems[oldPage];
       if (scroll && oldHeight > 0 && isActive) {
         window.__o11a1ScrollAdjust = Date.now();
-        scroll.scrollTop = Math.max(0, scroll.scrollTop - oldHeight);
+        scroll.scrollTop = Math.max(0, beforeScroll - oldHeight);
       }
     }
     feed.__nativeItems = feed.__chunkPages.flatMap((pageNo) => feed.__chunkItems[pageNo] || []);

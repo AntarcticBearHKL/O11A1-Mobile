@@ -84,7 +84,6 @@
   const sidebarBackdrop = $('#sidebarBackdrop');
   const sidebarNav = $('#sidebarNav');
   const sidebarFoot = $('#sidebarFoot');
-  const feedSearchBar = $('#feedSearchBar');
   const searchClose = $('#searchClose');
   const searchBack = $('#searchBack');
   const searchHotSection = $('#searchHotSection');
@@ -98,6 +97,8 @@
   const pdTitle = $('#pdTitle');
   const pdMeta = $('#pdMeta');
   const pdProgress = $('#pdProgress');
+  const pdSearch = $('#pdSearch');
+  const pdSearchInput = $('#pdSearchInput');
   const playlistPageList = $('#playlistPageList');
   const playlistPageCount = $('#playlistPageCount');
   const playlistBack = $('#playlistBack');
@@ -321,14 +322,11 @@
   let rowSwipe = null;
   let sidebarPicked = null;
   let menuSwipeStart = null;
-  let lastFeedScrollTop = 0;
   let searchDrag = null;
   let sidebarSwipeStart = null;
   let suppressFeedClickUntil = 0;
   let suppressSidebarClickUntil = 0;
-  let suppressSearchBarClickUntil = 0;
   let suppressPlaylistClickUntil = 0;
-  let searchBarSwipe = null;
   let suppressDockClickUntil = 0;
   let dockDrag = null;
   let dockAbsorbTimer = null;
@@ -337,9 +335,9 @@
   let toolbarDrag = null;
   let mockFeedLoading = false;
 
-  const ROW_ACTION_TOTAL = 152;
-  const ROW_ACTION_FIRST = 76;
-  const ROW_ACTION_SECOND = 152;
+  const ROW_ACTION_TOTAL = 228;
+  const ROW_ACTION_FIRST = 114;
+  const ROW_ACTION_SECOND = 228;
 
   const MODULE_NOTES = {
     收藏: '真实收藏夹 · 第一页 20 条',
@@ -734,8 +732,6 @@
     if (page !== 'search-home' && document.activeElement === searchInput) {
       searchInput.blur();
     }
-    hideFeedSearch();
-    lastFeedScrollTop = 0;
     if (page === 'login') {
       state.navActive = '';
       loginStatus.textContent = state.loggedIn ? '已登录 · 可重新登录' : '短信验证码登录';
@@ -1060,14 +1056,13 @@
   function updatePlaylistDock() {
     const count = state.playlist.length;
     const item = state.playlist[state.currentIndex];
-    const feedPage = ['home', 'search', 'module', 'dynamic', 'up'].includes(state.page);
-    const feedVisible = state.loggedIn && count > 0 && feedPage && !state.playerOpen;
-    const show = feedVisible && !app.classList.contains('sidebar-open');
+    const dockVisible = state.loggedIn && !state.playerOpen;
+    const show = dockVisible && !app.classList.contains('sidebar-open');
     playlistDock.classList.toggle('show', show);
     playlistDock.setAttribute('aria-hidden', show ? 'false' : 'true');
     playlistDock.setAttribute('aria-label', `播放列表，${count} 项`);
     playlistDock.inert = !show;
-    app.classList.toggle('has-playlist', feedVisible);
+    app.classList.toggle('has-playlist', dockVisible);
     if (!item) {
       pdThumb.innerHTML = '<span class="ph-label">封面</span>';
       pdTitle.textContent = '播放列表';
@@ -1395,19 +1390,26 @@
     const row = wrapper.querySelector('.video-row');
     if (!row) return;
     if (wrapper.classList.contains('swiping')) row.style.transition = 'none';
-    row.style.transform = offset > 0 ? `translate3d(${-offset}px,0,0)` : '';
-    const action = rowActionForOffset(offset);
-    const queueProgress = Math.min(1, Math.max(0, offset / ROW_ACTION_FIRST));
-    const upProgress = Math.min(1, Math.max(0, (offset - ROW_ACTION_FIRST) / (ROW_ACTION_SECOND - ROW_ACTION_FIRST)));
-    if (action && action !== wrapper.__rowAction && navigator.vibrate) navigator.vibrate(6);
+    row.style.transform = '';
+    const mask = row.querySelector('.row-swipe-mask');
+    const armedQueue = offset >= ROW_ACTION_FIRST;
+    const armedUp = offset >= ROW_ACTION_SECOND;
+    const action = armedUp ? 'up' : 'queue';
+    const armed = armedUp ? 'up' : armedQueue ? 'queue' : '';
+    const opacity = Math.min(1, Math.max(0, offset / 108));
+    if (mask) {
+      mask.dataset.action = action;
+      mask.style.opacity = String(opacity);
+      const label = mask.querySelector('.rsm-label');
+      const hint = mask.querySelector('.rsm-hint');
+      if (label) label.textContent = armedUp ? '打开 UP 主' : '加入播放列表';
+      if (hint) hint.textContent = armedUp ? '松开执行' : armedQueue ? '松开执行 · 继续左滑切换 UP 主' : '继续左滑';
+      mask.classList.toggle('armed', Boolean(armed));
+      mask.classList.toggle('armed-up', armedUp);
+    }
+    if (armed && armed !== wrapper.__rowArmed && navigator.vibrate) navigator.vibrate(6);
+    wrapper.__rowArmed = armed;
     wrapper.__rowAction = action;
-    $$('.row-action', wrapper).forEach((button) => {
-      const progress = button.dataset.rowAction === 'queue' ? queueProgress : upProgress;
-      button.style.opacity = String(0.18 + progress * 0.82);
-      button.style.transform = `translateX(${((1 - progress) * 18).toFixed(1)}px) scale(${(0.94 + progress * 0.06).toFixed(3)})`;
-      button.classList.toggle('on', button.dataset.rowAction === action);
-      button.classList.toggle('pressed', button.dataset.rowAction === action);
-    });
   }
 
   function resetRowSwipe(wrapper) {
@@ -1415,18 +1417,21 @@
     const row = wrapper.querySelector('.video-row');
     wrapper.classList.remove('swiping');
     wrapper.__rowAction = '';
+    wrapper.__rowArmed = '';
     if (row) {
-      row.style.transition = 'transform .34s cubic-bezier(.16,1,.3,1)';
+      row.style.transition = '';
       row.style.transform = '';
-      setTimeout(() => {
-        if (row.style.transform === '') row.style.transition = '';
-      }, 360);
+      const mask = row.querySelector('.row-swipe-mask');
+      if (mask) {
+        mask.style.opacity = '';
+        mask.dataset.action = 'queue';
+        mask.classList.remove('armed', 'armed-up', 'fired');
+        const label = mask.querySelector('.rsm-label');
+        const hint = mask.querySelector('.rsm-hint');
+        if (label) label.textContent = '加入播放列表';
+        if (hint) hint.textContent = '继续左滑';
+      }
     }
-    $$('.row-action', wrapper).forEach((button) => {
-      button.classList.remove('on', 'pressed');
-      button.style.opacity = '';
-      button.style.transform = '';
-    });
   }
 
   function openUpPageForRow(row) {
@@ -1446,14 +1451,14 @@
     const row = wrapper.querySelector('.video-row');
     if (!row) return;
     suppressFeedClickUntil = Date.now() + 420;
-    const button = wrapper.querySelector(`[data-row-action="${action}"]`);
-    if (button) {
-      button.classList.add('pressed');
-      button.style.transform = 'translateX(0) scale(.92)';
+    const mask = row.querySelector('.row-swipe-mask');
+    if (mask) {
+      mask.classList.add('armed', 'fired');
+      mask.classList.toggle('armed-up', action === 'up');
     }
     if (action === 'queue') addFeedRowToPlaylist(row);
     else if (action === 'up') openUpPageForRow(row);
-    setTimeout(() => resetRowSwipe(wrapper), 200);
+    setTimeout(() => resetRowSwipe(wrapper), 220);
   }
 
   /* ---------- live sidebar drag ---------- */
@@ -3165,19 +3170,6 @@
     }
   }
 
-  function showFeedSearch() {
-    if (!feedSearchBar || state.page !== 'home') return;
-    feedSearchBar.classList.add('show');
-    feedSearchBar.setAttribute('aria-hidden', 'false');
-    app.classList.add('search-revealed');
-  }
-
-  function hideFeedSearch() {
-    if (!feedSearchBar) return;
-    feedSearchBar.classList.remove('show');
-    feedSearchBar.setAttribute('aria-hidden', 'true');
-    app.classList.remove('search-revealed');
-  }
 
   /* ---------- prototype drawer ---------- */
   function openDrawer() {
@@ -3291,28 +3283,6 @@
 
   if (searchClose) searchClose.addEventListener('click', closeSearch);
   if (searchBack) searchBack.addEventListener('click', closeSearch);
-  if (feedSearchBar) {
-    feedSearchBar.addEventListener('pointerdown', (event) => {
-      if (event.pointerType === 'mouse' && event.button !== 0) return;
-      searchBarSwipe = { id: event.pointerId, y: event.clientY };
-    });
-    window.addEventListener('pointerup', (event) => {
-      if (!searchBarSwipe || event.pointerId !== searchBarSwipe.id) return;
-      const dy = event.clientY - searchBarSwipe.y;
-      searchBarSwipe = null;
-      if (dy < -30) {
-        suppressSearchBarClickUntil = Date.now() + 400;
-        hideFeedSearch();
-      }
-    });
-    window.addEventListener('pointercancel', () => {
-      searchBarSwipe = null;
-    });
-    feedSearchBar.addEventListener('click', () => {
-      if (Date.now() < suppressSearchBarClickUntil) return;
-      openSearch();
-    });
-  }
   searchClear.addEventListener('click', () => {
     searchInput.value = '';
     updateSearch();
@@ -3491,8 +3461,27 @@
     }
   }, true);
 
+  function enterDockSearch() {
+    if (!pdSearchInput || !playlistDock.classList.contains('show')) return;
+    playlistDock.classList.add('searching');
+    pdSearchInput.value = '';
+    void pdSearchInput.offsetWidth;
+    try {
+      pdSearchInput.focus({ preventScroll: true });
+      pdSearchInput.setSelectionRange(0, 0);
+    } catch (_) {}
+  }
+
+  function exitDockSearch() {
+    if (!pdSearchInput) return;
+    playlistDock.classList.remove('searching');
+    pdSearchInput.blur();
+  }
+
   playlistDock.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (playlistDock.classList.contains('searching')) return;
+    if (event.target.closest('button, input, .pd-search, .pd-search-input')) return;
     dockDrag = { id: event.pointerId, x: event.clientX, y: event.clientY, dy: 0, moved: false };
     playlistDock.classList.add('dragging');
   });
@@ -3534,10 +3523,49 @@
     playlistDock.style.transform = '';
     playlistDock.style.opacity = '';
   });
-  playlistDock.addEventListener('click', () => {
+  playlistDock.addEventListener('click', (event) => {
+    if (playlistDock.classList.contains('searching')) return;
+    if (event.target.closest('.pd-search, .pd-search-input')) return;
     if (Date.now() < suppressDockClickUntil) return;
     openPlaylistPage();
   });
+  playlistDock.addEventListener('keydown', (event) => {
+    if (event.target !== playlistDock) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      if (playlistDock.classList.contains('searching')) return;
+      openPlaylistPage();
+    }
+  });
+  if (pdSearch) {
+    pdSearch.addEventListener('click', (event) => {
+      event.stopPropagation();
+      enterDockSearch();
+    });
+  }
+  if (pdSearchInput) {
+    pdSearchInput.addEventListener('click', (event) => event.stopPropagation());
+    pdSearchInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        exitDockSearch();
+        return;
+      }
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      const query = pdSearchInput.value.trim();
+      if (!query) return;
+      exitDockSearch();
+      performSearch(query);
+    });
+    pdSearchInput.addEventListener('blur', () => {
+      setTimeout(() => {
+        if (document.activeElement !== pdSearchInput) {
+          playlistDock.classList.remove('searching');
+        }
+      }, 120);
+    });
+  }
 
   appScroll.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -3638,23 +3666,6 @@
   });
 
   appScroll.addEventListener('scroll', maybeAppendMockFeed);
-  appScroll.addEventListener('scroll', () => {
-    if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) {
-      lastFeedScrollTop = appScroll.scrollTop;
-      return;
-    }
-    if (state.page !== 'home') {
-      hideFeedSearch();
-      lastFeedScrollTop = appScroll.scrollTop;
-      return;
-    }
-    const top = appScroll.scrollTop;
-    const delta = top - lastFeedScrollTop;
-    lastFeedScrollTop = top;
-    if (top < 16) hideFeedSearch();
-    else if (delta > 4) showFeedSearch();
-    else if (delta < -4) hideFeedSearch();
-  }, { passive: true });
 
   function resetSearchDrag() {
     if (!searchHomePage) return;
@@ -3795,7 +3806,7 @@
   document.addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
-      openSearch();
+      enterDockSearch();
       return;
     }
     if (event.key === 'Escape') {
@@ -4084,9 +4095,9 @@
     const rowX = rowRect.left + rowRect.width / 2;
     row.dispatchEvent(pointerEvent('pointerdown', rowX, rowY, 1));
     for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', rowX - (100 * step) / 6, rowY, 1));
+      window.dispatchEvent(pointerEvent('pointermove', rowX - (150 * step) / 6, rowY, 1));
     }
-    window.dispatchEvent(pointerEvent('pointerup', rowX - 100, rowY, 0));
+    window.dispatchEvent(pointerEvent('pointerup', rowX - 150, rowY, 0));
     await sleep(200);
     results.push(`rowQueue=${state.playlist.length > countBefore}`);
     if (state.playlist.length > countBefore) {
@@ -4103,9 +4114,9 @@
     const upX = upRect.left + upRect.width / 2;
     upRow.dispatchEvent(pointerEvent('pointerdown', upX, upY, 1));
     for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', upX - (170 * step) / 6, upY, 1));
+      window.dispatchEvent(pointerEvent('pointermove', upX - (260 * step) / 6, upY, 1));
     }
-    window.dispatchEvent(pointerEvent('pointerup', upX - 170, upY, 0));
+    window.dispatchEvent(pointerEvent('pointerup', upX - 260, upY, 0));
     await sleep(500);
     results.push(`rowUp=${state.page === 'up' && $$('#upFeed .real-row').length > 0}`);
     const upBackButton = $('#upBack');

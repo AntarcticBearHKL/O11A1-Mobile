@@ -21,11 +21,6 @@
         <b id="feedDebugHz">60.0 Hz</b>
         <span id="feedDebugFps">59.9 fps</span>
       </div>
-      <button class="feed-search" id="feedSearchBar" type="button" aria-hidden="true">
-        <span class="fs-ico">⌕</span>
-        <span class="fs-ph">搜索视频 / UP / 番剧</span>
-        <span class="fs-hot">热搜</span>
-      </button>
       <div class="app-scroll" id="appScroll">
         <!-- 首页：单列，每行一个视频 -->
         <section class="page active" data-page="home">
@@ -277,17 +272,18 @@
         </div>
       </aside>
 
-      <button class="playlist-dock" id="playlistDock" type="button" aria-hidden="true" inert>
+      <div class="playlist-dock" id="playlistDock" role="button" tabindex="0" aria-hidden="true" inert>
         <span class="pd-thumb" id="pdThumb"><span class="ph-label">封面</span></span>
         <span class="pd-copy">
           <b id="pdTitle">播放列表</b>
           <small id="pdMeta">0 项</small>
         </span>
-        <span class="pd-arrow" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="m6 14 6-6 6 6"/></svg>
-        </span>
+        <button class="pd-search" id="pdSearch" type="button" aria-label="搜索">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+        </button>
+        <input class="pd-search-input" id="pdSearchInput" type="text" placeholder="搜索视频 / UP / 关键词" autocomplete="off" enterkeyhint="search">
         <span class="pd-progress" aria-hidden="true"><i id="pdProgress"></i></span>
-      </button>
+      </div>
 
       <div class="grid-overlay" aria-hidden="true"></div>
     </div>
