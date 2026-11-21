@@ -830,26 +830,71 @@
   }
 
   function markMockChunk(feed, chunk) {
-    $$('.video-row', feed).forEach((row) => { row.dataset.chunk = String(chunk); });
+    $$('.video-row', feed).forEach((row) => {
+      if (row.closest('.feed-skeleton')) return;
+      row.dataset.chunk = String(chunk);
+    });
   }
 
-  function appendMockFeedChunk(feed) {
+  function clearMockFeedSkeleton(feed) {
+    if (!feed) return;
+    $$('.feed-skeleton', feed).forEach((node) => node.remove());
+  }
+
+  function showMockFeedSkeleton(feed, page, count) {
+    if (!feed) return;
+    clearMockFeedSkeleton(feed);
+    const total = Math.max(1, Number(count) || 9);
+    const fragment = document.createDocumentFragment();
+    for (let i = 0; i < total; i += 1) {
+      const row = document.createElement('div');
+      row.className = 'feed-item feed-skeleton';
+      row.dataset.skeletonPage = String(page);
+      row.setAttribute('aria-hidden', 'true');
+      row.innerHTML = `
+        <span class="video-row skel-row">
+          <span class="row-thumb skel-thumb"></span>
+          <span class="row-copy">
+            <span class="ph-line w80"></span>
+            <span class="ph-line w55"></span>
+            <span class="ph-line w30"></span>
+          </span>
+        </span>`;
+      fragment.appendChild(row);
+    }
+    feed.appendChild(fragment);
+  }
+
+  function appendMockFeedChunk(feed, page) {
     if (!feed || document.body.classList.contains('native-app')) return;
     if (!Array.isArray(feed.__chunkPages) || !feed.__chunkPages.length) {
       feed.__chunkPages = [1];
       markMockChunk(feed, 1);
     }
-    const next = Math.max(...feed.__chunkPages) + 1;
-    const fragment = document.createDocumentFragment();
+    const next = page || (Math.max(...feed.__chunkPages) + 1);
+    if (feed.__chunkPages.includes(next)) return;
+    const oldest = Math.min(...feed.__chunkPages);
+    if (oldest && next < oldest) return;
+    const skeletons = $$('.feed-skeleton', feed);
+    const realRows = [];
     for (let i = 0; i < 9; i += 1) {
       const holder = document.createElement('div');
       holder.innerHTML = feedRowMarkup(i + next * 3);
       const row = holder.firstElementChild;
       if (!row) continue;
       row.dataset.chunk = String(next);
-      fragment.appendChild(row);
+      realRows.push(row);
     }
-    feed.appendChild(fragment);
+    if (skeletons.length) {
+      realRows.forEach((row, index) => {
+        const skeleton = skeletons[index];
+        if (skeleton && skeleton.isConnected) skeleton.replaceWith(row);
+        else feed.appendChild(row);
+      });
+      skeletons.slice(realRows.length).forEach((skeleton) => skeleton.remove());
+    } else {
+      realRows.forEach((row) => feed.appendChild(row));
+    }
     feed.__chunkPages.push(next);
     while (feed.__chunkPages.length > 2) {
       const oldPage = feed.__chunkPages.shift();
@@ -877,12 +922,26 @@
     if (!feed) return;
     const max = appScroll.scrollHeight - appScroll.clientHeight;
     if (max <= 0 || appScroll.scrollTop < max - FEED_PREFETCH) return;
+    const current = Array.isArray(feed.__chunkPages) && feed.__chunkPages.length
+      ? Math.max(...feed.__chunkPages)
+      : 1;
+    const next = current + 1;
     mockFeedLoading = true;
     const key = state.page;
+    showMockFeedSkeleton(feed, next, 9);
     setTimeout(() => {
       mockFeedLoading = false;
-      if (state.page !== key) return;
-      appendMockFeedChunk(feed);
+      if (state.page !== key) {
+        clearMockFeedSkeleton(feed);
+        return;
+      }
+      const pages = Array.isArray(feed.__chunkPages) ? feed.__chunkPages : [];
+      const oldest = pages.length ? Math.min(...pages) : 0;
+      if ((pages.includes(next)) || (oldest && next < oldest)) {
+        clearMockFeedSkeleton(feed);
+        return;
+      }
+      appendMockFeedChunk(feed, next);
       mockFeedLoadedAt = Date.now();
     }, 160);
   }

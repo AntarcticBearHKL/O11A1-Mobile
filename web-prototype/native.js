@@ -150,6 +150,38 @@
     tail.__retry = retry || null;
   }
 
+  function clearFeedSkeletons(feed, page) {
+    if (!feed) return;
+    const rows = page
+      ? $$(`.feed-skeleton[data-skeleton-page="${page}"]`, feed)
+      : $$('.feed-skeleton', feed);
+    rows.forEach((row) => row.remove());
+  }
+
+  function showFeedSkeleton(feed, page, count) {
+    if (!feed) return;
+    clearFeedSkeletons(feed);
+    const total = Math.max(1, Number(count) || 20);
+    const fragment = document.createDocumentFragment();
+    for (let index = 0; index < total; index += 1) {
+      const row = document.createElement('div');
+      row.className = 'feed-item feed-skeleton';
+      row.dataset.skeletonPage = String(page);
+      row.setAttribute('aria-hidden', 'true');
+      row.innerHTML = `
+        <span class="video-row skel-row">
+          <span class="row-thumb skel-thumb"></span>
+          <span class="row-copy">
+            <span class="ph-line w80"></span>
+            <span class="ph-line w55"></span>
+            <span class="ph-line w30"></span>
+          </span>
+        </span>`;
+      fragment.appendChild(row);
+    }
+    feed.appendChild(fragment);
+  }
+
   function renderEmpty(feed, title, detail, actionLabel, action) {
     feed.__nativeItems = [];
     feed.__chunkPages = [];
@@ -245,11 +277,20 @@
     feed.__chunkItems = feed.__chunkItems || {};
     if (!feed.__chunkPages.includes(chunk)) feed.__chunkPages.push(chunk);
     feed.__chunkItems[chunk] = items.slice();
-    const fragment = document.createDocumentFragment();
-    items.forEach((item, index) => {
-      fragment.appendChild(buildRow(item, label, chunk, index));
-    });
-    feed.appendChild(fragment);
+    const realRows = items.map((item, index) => buildRow(item, label, chunk, index));
+    const skeletons = $$(`.feed-skeleton[data-skeleton-page="${chunk}"]`, feed);
+    if (skeletons.length) {
+      realRows.forEach((row, index) => {
+        const skeleton = skeletons[index];
+        if (skeleton && skeleton.isConnected) skeleton.replaceWith(row);
+        else feed.appendChild(row);
+      });
+      skeletons.slice(realRows.length).forEach((skeleton) => skeleton.remove());
+    } else {
+      const fragment = document.createDocumentFragment();
+      realRows.forEach((row) => fragment.appendChild(row));
+      feed.appendChild(fragment);
+    }
     while (feed.__chunkPages.length > 2) {
       const oldPage = feed.__chunkPages.shift();
       const oldRows = $$(`[data-chunk="${oldPage}"]`, feed);
@@ -359,7 +400,7 @@
     const items = Array.isArray(result.items) ? result.items : [];
     if (items.length === 0) {
       if (!append) renderEmpty(feed, result.note || `${kind.label}暂无内容`, result.hasMore === false ? '' : '稍后再试');
-      else setTail(feed, 'end', '已经到底了');
+      else setTail(feed, 'idle');
       return {
         ok: true,
         items: [],
@@ -372,7 +413,7 @@
     if (append) appendRows(feed, items, kind.label, pageNo);
     else renderRows(feed, items, kind.label, pageNo);
     const hasMore = result.hasMore !== false;
-    setTail(feed, hasMore ? 'idle' : 'end', hasMore ? '' : '已经到底了');
+    setTail(feed, 'idle');
     return {
       ok: true,
       items,
@@ -498,7 +539,7 @@
     const items = Array.isArray(result.items) ? result.items : [];
     if (!items.length) {
       if (!appendPage) renderEmpty(feed, '这个 UP 主还没有视频', '');
-      else setTail(feed, 'end', '已经到底了');
+      else setTail(feed, 'idle');
       win.hasMore = false;
       win.loading = false;
       return true;
@@ -508,7 +549,7 @@
     win.page = pageNo;
     win.hasMore = result.hasMore !== false;
     win.loading = false;
-    setTail(feed, win.hasMore ? 'idle' : 'end', win.hasMore ? '' : '已经到底了');
+    setTail(feed, 'idle');
     const note = $('#upNote');
     if (note) note.textContent = `${state.upName || 'UP 主'} · 触底加载`;
     return true;
@@ -896,7 +937,7 @@
         renderEmpty(feeds.search, query ? `“${query}”暂无结果` : '热门视频暂无内容',
           '', query ? '' : '重试', () => loadSearch(query, 1));
       } else {
-        setTail(feeds.search, 'end', '已经到底了');
+        setTail(feeds.search, 'idle');
       }
       host.searchResultsLabel.textContent = query ? `“${query}”的视频` : '热门视频';
       host.searchEmpty.hidden = true;
@@ -907,7 +948,7 @@
     if (appendPage) appendRows(feeds.search, items, query ? '搜索结果' : '热门', pageNo);
     else renderRows(feeds.search, items, query ? '搜索结果' : '热门', pageNo);
     const hasMore = result.hasMore !== false;
-    setTail(feeds.search, hasMore ? 'idle' : 'end', hasMore ? '' : '已经到底了');
+    setTail(feeds.search, 'idle');
     win.page = pageNo;
     win.hasMore = hasMore;
     win.loading = false;
@@ -929,18 +970,34 @@
     const token = win.token;
     win.lastLoadAt = now;
     win.loading = true;
-    setTail(feed, 'loading', '正在加载下一段…');
-    setTimeout(() => {
-      if (win.token !== token) return;
+    setTail(feed, 'idle');
+    showFeedSkeleton(feed, next, 20);
+    win.loadTimer = setTimeout(() => {
+      win.loadTimer = null;
+      if (win.token !== token) {
+        win.loading = false;
+        clearFeedSkeletons(feed, next);
+        return;
+      }
       if (state.page !== key) {
         win.loading = false;
-        setTail(feed, win.hasMore ? 'idle' : 'end', win.hasMore ? '' : '已经到底了');
+        clearFeedSkeletons(feed, next);
+        setTail(feed, 'idle');
+        return;
+      }
+      const pages = Array.isArray(feed.__chunkPages) ? feed.__chunkPages : [];
+      const oldest = pages.length ? Math.min(...pages) : 0;
+      if (win.page >= next || (oldest && next < oldest)) {
+        win.loading = false;
+        clearFeedSkeletons(feed, next);
+        setTail(feed, 'idle');
         return;
       }
       if (key === 'home') loadHome(next, true);
       else if (key === 'search') loadSearch(host.searchInput.value.trim(), next, true);
       else if (key === 'up') loadUp(next, true);
       else loadModule(next, true);
+      clearFeedSkeletons(feed, next);
     }, 220);
   }
 
