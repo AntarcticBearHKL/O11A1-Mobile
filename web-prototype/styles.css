@@ -1221,6 +1221,7 @@ body.grid .grid-overlay{display:block}
 .app[data-page="search"] .tabbar.many.search-mode{height:58px}
 
 /* ---------- landscape player ---------- */
+.app.player-open .app-main{visibility:hidden}
 .player{
   position:fixed;inset:0;z-index:300;display:none;flex-direction:column;
   background:#07090D;color:#fff;overflow:hidden;

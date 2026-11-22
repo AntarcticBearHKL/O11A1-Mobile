@@ -2951,6 +2951,9 @@
     player.setAttribute('aria-hidden', 'false');
     player.inert = false;
     player.classList.remove('ui-hidden');
+    setTimeout(() => {
+      if (state.playerOpen) app.classList.add('player-open');
+    }, 520);
     lockBadge.classList.remove('show');
     updatePlaylistDock();
     closeSheet();
@@ -3136,6 +3139,7 @@
     cancelPlayerCollapse();
     resetVideoDetail();
     state.playerOpen = false;
+    app.classList.remove('player-open');
     state.locked = false;
     hidePlayerBoot();
     stopGyro();
@@ -3272,6 +3276,7 @@
     hidePlayerDrop();
     resetVideoDetail();
     state.playerOpen = false;
+    app.classList.remove('player-open');
     state.miniVisible = false;
     state.playing = false;
     state.progress = 0;
