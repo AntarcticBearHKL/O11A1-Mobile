@@ -521,17 +521,17 @@ export default function App() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F4EFE5',
+    backgroundColor: '#FAFAFC',
   },
   web: {
     flex: 1,
-    backgroundColor: '#F4EFE5',
+    backgroundColor: '#FAFAFC',
   },
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F4EFE5',
+    backgroundColor: '#FAFAFC',
     gap: 18,
     padding: 32,
   },

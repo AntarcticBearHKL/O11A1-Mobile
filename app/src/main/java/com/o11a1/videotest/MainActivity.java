@@ -25,6 +25,8 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().setBackgroundDrawable(
+            new android.graphics.drawable.ColorDrawable(Color.rgb(250, 250, 252)));
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         hideSystemUi();
         if (Build.VERSION.SDK_INT >= 28) {
@@ -43,7 +45,7 @@ public final class MainActivity extends Activity {
         WebAppBridge bridge = new WebAppBridge(this, api, proxy, cookies);
 
         webView = new WebView(this);
-        webView.setBackgroundColor(Color.rgb(244, 239, 229));
+        webView.setBackgroundColor(Color.rgb(250, 250, 252));
         webView.setLongClickable(false);
         webView.setHapticFeedbackEnabled(false);
 

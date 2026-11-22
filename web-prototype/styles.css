@@ -559,7 +559,7 @@ body.search-mode .proto-fab{opacity:0;pointer-events:none}
 
 /* ---------- persistent playlist bottom bar ---------- */
 .playlist-dock{
-  position:absolute;left:50%;bottom:var(--kb,0px);
+  position:absolute;left:50%;bottom:0;
   z-index:76;width:100%;height:calc(88px + env(safe-area-inset-bottom));
   display:flex;flex-direction:column;align-items:stretch;
   padding:0 0 env(safe-area-inset-bottom);
@@ -673,15 +673,15 @@ body[data-theme="dark"] .playlist-dock::before{background:rgba(255,255,255,.28)}
 .pd-search-input:focus{border-bottom-color:var(--blue)}
 .pd-search-panel{
   display:none;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
-  padding:4px max(18px,env(safe-area-inset-left)) calc(14px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-right));
+  padding:4px max(18px,env(safe-area-inset-left)) calc(14px + env(safe-area-inset-bottom) + var(--kb,0px)) max(18px,env(safe-area-inset-right));
   touch-action:pan-y;scrollbar-width:none;
 }
 .pd-search-panel::-webkit-scrollbar{display:none}
 .pd-search-panel .search-section{margin-top:14px}
 .playlist-dock.searching{
-  height:calc(100dvh - var(--kb,0px));
+  height:100dvh;
   padding-bottom:0;border-radius:0;box-shadow:none;
-  transition:opacity .2s ease,border-radius .3s ease,box-shadow .3s ease,visibility 0s;
+  transition:height .46s cubic-bezier(.16,1,.3,1),opacity .2s ease,border-radius .4s ease,box-shadow .3s ease,visibility 0s;
 }
 .playlist-dock.searching .pd-head{
   height:calc(env(safe-area-inset-top) + 64px);gap:6px;
