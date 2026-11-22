@@ -2915,7 +2915,7 @@
       </div>
       <p class="vd-desc${longDesc ? '' : ' expanded'}" id="vdDesc">${esc(desc)}</p>
       ${longDesc ? '<button class="vd-desc-toggle" type="button" data-vd-desc-toggle>展开简介</button>' : ''}
-      <div class="vd-section"><b>相关推荐</b><span>${related.length} 个视频</span></div>
+      <div class="vd-section"><b>相关推荐</b><span>${related.length} 个视频 · 点击加入</span></div>
       <div class="feed detail-related" id="detailRelatedFeed"></div>`;
     const relatedFeed = document.getElementById('detailRelatedFeed');
     if (related.length) {

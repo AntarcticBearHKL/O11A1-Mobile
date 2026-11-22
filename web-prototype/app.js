@@ -1730,11 +1730,17 @@
     return `${label}视频占位 ${String(index).padStart(2, '0')}`;
   }
 
-  function addFeedRowToPlaylist(row) {
+  function addFeedRowToPlaylist(row, options = {}) {
     if (!row || !state.loggedIn) return;
     const item = row.__nativeItem;
     if (item) {
-      addToPlaylist(item.title, item.meta, `bvid:${item.bvid}`, item);
+      const key = item.bvid ? `bvid:${item.bvid}` : item.aid ? `aid:${item.aid}` : feedRowKey(row);
+      if (options.preserveCurrent && state.playlist.some((entry) => entry.key === key)) {
+        flyRowToPlaylist(row);
+        return;
+      }
+      const meta = item.meta || [item.owner, item.duration].filter(Boolean).join(' · ');
+      addToPlaylist(item.title, meta, key, item);
     } else {
       addToPlaylist(feedRowTitle(row), 'UP 占位 · 左滑加入', feedRowKey(row));
     }
@@ -4854,6 +4860,10 @@
         return;
       }
       if (dx < -8) {
+        if (rowSwipe.surface === 'detail') {
+          rowSwipe.direction = 'vertical';
+          return;
+        }
         if (!rowSwipe.wrapper) {
           rowSwipe.direction = 'vertical';
           return;
@@ -5115,8 +5125,16 @@
   if (videoDetailPanel) {
     videoDetailPanel.addEventListener('pointerdown', startVideoDetailSwipe);
     videoDetailPanel.addEventListener('click', (event) => {
+      const row = event.target.closest('.video-row');
+      if (!row) return;
+      if (row.closest('.detail-related')) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (Date.now() < suppressFeedClickUntil) return;
+        addFeedRowToPlaylist(row, { preserveCurrent: true });
+        return;
+      }
       if (Date.now() < suppressFeedClickUntil) return;
-      if (!event.target.closest('.video-row')) return;
       setTimeout(() => {
         if (videoDetailOpen) closeVideoDetail();
       }, 40);
