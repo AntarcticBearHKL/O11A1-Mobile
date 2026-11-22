@@ -311,6 +311,9 @@
   let playerSettingsOpen = false;
   let settingsDrawGesture = null;
   let settingsSuppressClick = false;
+  let sheetSwipe = null;
+  let sheetSwipeSuppressClickUntil = 0;
+  let sheetSwipeTimer = null;
   let precisionDrag = null;
   let rateHudTimer = null;
   let rotateHudTimer = null;
@@ -3774,13 +3777,21 @@
     if (psheet.parentElement !== host) host.appendChild(psheet);
   }
 
-  function openSheet(title, sub, build) {
+  function openSheet(title, sub, build, options = {}) {
+    const minimal = options.minimal === true;
     mountPlayerSheet();
+    sheetSwipe = null;
+    clearTimeout(sheetSwipeTimer);
+    sheetSwipeTimer = null;
     psheet.dataset.kind = '';
-    psheetTitle.textContent = title;
-    psheetSub.textContent = sub || '';
+    psheet.classList.toggle('minimal', minimal);
+    psheetTitle.textContent = minimal ? '' : title;
+    psheetSub.textContent = minimal ? '' : (sub || '');
     psheetBody.innerHTML = '';
     if (build) build(psheetBody);
+    psheet.style.transition = '';
+    psheet.style.transform = '';
+    psheetBackdrop.style.opacity = '';
     psheet.inert = false;
     psheet.classList.add('open');
     psheetBackdrop.classList.add('show');
@@ -3789,15 +3800,79 @@
 
   function closeSheet() {
     if (psheet.contains(document.activeElement)) document.activeElement.blur();
+    sheetSwipe = null;
+    clearTimeout(sheetSwipeTimer);
+    sheetSwipeTimer = null;
+    psheet.style.transition = '';
+    psheet.style.transform = '';
+    psheetBackdrop.style.opacity = '';
     psheet.classList.remove('open');
     psheetBackdrop.classList.remove('show');
     psheet.inert = true;
   }
 
-  function openOptionsSheet(kind) {
+  function startSheetSwipe(event) {
+    if (!psheet.classList.contains('open') || !psheet.classList.contains('minimal')) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (event.target.closest('input, textarea')) return;
+    sheetSwipe = {
+      id: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      dy: 0,
+      dragging: false,
+    };
+  }
+
+  function moveSheetSwipe(event) {
+    const gesture = sheetSwipe;
+    if (!gesture || event.pointerId !== gesture.id) return;
+    const dx = event.clientX - gesture.startX;
+    const dy = event.clientY - gesture.startY;
+    if (!gesture.dragging) {
+      if (dy < 10 || Math.abs(dy) < Math.abs(dx) * 1.1) return;
+      gesture.dragging = true;
+      sheetSwipeSuppressClickUntil = Date.now() + 320;
+      psheet.style.transition = 'none';
+    }
+    if (event.cancelable) event.preventDefault();
+    gesture.dy = Math.max(0, dy);
+    psheet.style.transform = `translate(-50%, ${gesture.dy}px)`;
+    psheetBackdrop.style.opacity = String(Math.max(0, 1 - gesture.dy / 420));
+  }
+
+  function endSheetSwipe(event) {
+    const gesture = sheetSwipe;
+    if (!gesture) return;
+    sheetSwipe = null;
+    if (event && event.pointerId !== undefined && event.pointerId !== gesture.id) return;
+    if (!gesture.dragging) return;
+    sheetSwipeSuppressClickUntil = Date.now() + 350;
+    clearTimeout(sheetSwipeTimer);
+    if (gesture.dy > 92) {
+      psheet.style.transition = 'transform .28s cubic-bezier(.4,0,.2,1)';
+      psheet.style.transform = 'translate(-50%, 110%)';
+      psheetBackdrop.style.opacity = '0';
+      sheetSwipeTimer = setTimeout(() => {
+        sheetSwipeTimer = null;
+        closeSheet();
+      }, 280);
+      return;
+    }
+    psheet.style.transition = 'transform .26s cubic-bezier(.16,1,.3,1)';
+    psheet.style.transform = '';
+    psheetBackdrop.style.opacity = '';
+    sheetSwipeTimer = setTimeout(() => {
+      sheetSwipeTimer = null;
+      if (!sheetSwipe) psheet.style.transition = '';
+    }, 280);
+  }
+
+  function openOptionsSheet(kind, options = {}) {
     const data = sheetData[kind];
     if (!data) return;
-    const sub = typeof data.sub === 'function' ? data.sub() : data.sub;
+    const minimal = options.minimal === true;
+    const sub = minimal ? '' : (typeof data.sub === 'function' ? data.sub() : data.sub);
     openSheet(data.title, sub, (body) => {
       data.options.forEach((option) => {
         const button = document.createElement('button');
@@ -3806,7 +3881,7 @@
         button.innerHTML = `
           <span class="opt-copy">
             <span>${escapeHTML(option.label)}</span>
-            ${option.meta ? `<small>${escapeHTML(option.meta)}</small>` : ''}
+            ${!minimal && option.meta ? `<small>${escapeHTML(option.meta)}</small>` : ''}
           </span>
           <span class="opt-dot"></span>`;
         button.addEventListener('click', () => {
@@ -3815,7 +3890,7 @@
         });
         body.appendChild(button);
       });
-    });
+    }, { minimal });
   }
 
   function actionRow(body, label, value, run) {
@@ -3894,7 +3969,11 @@
     const target = event.target;
     const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
     if (event.key === 'Escape') {
-      if (psheet.classList.contains('open')) { closeSheet(); event.preventDefault(); return; }
+      if (psheet.classList.contains('open')) {
+        event.preventDefault();
+        if (!psheet.classList.contains('minimal')) closeSheet();
+        return;
+      }
       if (commentsPanel.classList.contains('open')) { closeComments(); event.preventDefault(); return; }
       if (state.locked) { unlockPlayer(); event.preventDefault(); return; }
       if (state.playerOpen) { minimizePlayer(); event.preventDefault(); return; }
@@ -4022,12 +4101,15 @@
     });
   }
 
-  function openSettingsSheet(id) {
+  function openSettingsSheet(id, options = {}) {
     const def = settingsDefinition(id);
     if (!def) return;
+    const minimal = options.minimal === true;
     openSheet(def.title, def.sub, (body) => {
-      def.rows.forEach((row) => body.appendChild(buildSettingRow(row)));
-    });
+      def.rows
+        .filter((row) => !minimal || row.type !== 'static')
+        .forEach((row) => body.appendChild(buildSettingRow(row)));
+    }, { minimal });
   }
 
   function buildSettingRow(row) {
@@ -4505,8 +4587,9 @@
     const sheet = event.target.closest('[data-sheet]');
     if (sheet) {
       const kind = sheet.dataset.sheet;
-      if (sheetData[kind]) openOptionsSheet(kind);
-      else if (kind.startsWith('settings-')) openSettingsSheet(kind);
+      const fromPlayerSettings = Boolean(sheet.closest('#playerSettings'));
+      if (sheetData[kind]) openOptionsSheet(kind, { minimal: fromPlayerSettings });
+      else if (kind.startsWith('settings-')) openSettingsSheet(kind, { minimal: fromPlayerSettings });
       return;
     }
   });
@@ -4563,14 +4646,11 @@
 
   /* player */
   pcDanmaku.addEventListener('click', () => {
-    openSettingsSheet('settings-danmaku');
+    openSettingsSheet('settings-danmaku', { minimal: true });
   });
   pcLoop.addEventListener('click', cycleLoop);
   lockBadge.addEventListener('click', unlockPlayer);
 
-  if (playerSettingsScrim) {
-    playerSettingsScrim.addEventListener('click', () => closePlayerSettings());
-  }
   if (playerSettings) {
     playerSettings.addEventListener('pointerdown', startSettingsDraw);
   }
@@ -5220,8 +5300,20 @@
   window.addEventListener('pointerup', endCommentsGesture);
   window.addEventListener('pointercancel', endCommentsGesture);
 
-  psheetBackdrop.addEventListener('click', closeSheet);
+  psheetBackdrop.addEventListener('click', () => {
+    if (psheet.classList.contains('minimal')) return;
+    closeSheet();
+  });
   psheetClose.addEventListener('click', closeSheet);
+  psheet.addEventListener('pointerdown', startSheetSwipe);
+  window.addEventListener('pointermove', moveSheetSwipe, { passive: false });
+  window.addEventListener('pointerup', endSheetSwipe);
+  window.addEventListener('pointercancel', endSheetSwipe);
+  psheet.addEventListener('click', (event) => {
+    if (Date.now() >= sheetSwipeSuppressClickUntil) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
 
   /* keyboard */
   document.addEventListener('keydown', (event) => {
@@ -5233,7 +5325,11 @@
     if (event.key === 'Escape') {
       if (sidebar.classList.contains('open')) { closeSidebar(); return; }
       if (commentsPanel.classList.contains('open')) { closeComments(); return; }
-      if (psheet.classList.contains('open')) { closeSheet(); return; }
+      if (psheet.classList.contains('open')) {
+        event.preventDefault();
+        if (!psheet.classList.contains('minimal')) closeSheet();
+        return;
+      }
       if (protoDrawer.classList.contains('open')) { closeDrawer(); return; }
       if (state.playerOpen) { minimizePlayer(); return; }
       if (state.page === 'search' || state.page === 'search-home') { closeSearch(); return; }

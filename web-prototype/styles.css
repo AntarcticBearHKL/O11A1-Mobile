@@ -1718,6 +1718,16 @@ body[data-theme="dark"] .vd-skeleton-author{background:rgba(255,255,255,.055)}
 .psheet h3{margin:0 0 2px;font-size:16.5px;font-weight:800}
 .psheet-sub{font-size:10.5px;line-height:1.6;color:var(--muted);margin:5px 0 2px}
 .psheet-sub:empty{display:none}
+.psheet.minimal{padding-top:10px;touch-action:none}
+.psheet.minimal h3,
+.psheet.minimal .psheet-sub,
+.psheet.minimal .psheet-close{display:none}
+.psheet.minimal .psheet-grab{margin-bottom:9px}
+.psheet.minimal .psheet-body{margin-top:2px;gap:4px;overscroll-behavior:contain}
+.psheet.minimal .opt{min-height:42px;padding:8px 12px}
+.psheet.minimal .sheet-row,
+.psheet.minimal .sheet-slider{min-height:44px;padding-top:8px;padding-bottom:8px}
+.psheet.minimal .choice-row{padding-top:6px;padding-bottom:6px}
 .psheet-body{display:flex;flex-direction:column;gap:8px;margin-top:12px;overflow-y:auto;min-height:0}
 .psheet-close{
   flex:none;width:100%;height:44px;margin-top:12px;border:0;border-radius:12px;
