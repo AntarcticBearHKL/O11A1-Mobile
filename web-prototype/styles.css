@@ -1496,7 +1496,7 @@ body[data-theme="dark"] .comment-skeleton-copy i{background:rgba(255,255,255,.11
 .vd-section{display:flex;align-items:baseline;justify-content:space-between;margin:24px 0 5px;padding-top:16px;border-top:1px solid rgba(26,26,26,.06)}
 .vd-section b{font-size:16px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
 .vd-section span{font-size:10px;color:var(--muted)}
-.detail-related{--feed-row-h:88px;margin:0;gap:0;padding:0}
+.detail-related{--feed-row-h:88px;margin:0 -20px;gap:0;padding:0}
 .detail-related .feed-item{height:88px;background:transparent;overflow:hidden}
 .detail-related .video-row{
   height:88px;padding:10px 0;gap:12px;background:transparent;
