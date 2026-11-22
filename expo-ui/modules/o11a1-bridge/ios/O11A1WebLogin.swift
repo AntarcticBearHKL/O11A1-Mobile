@@ -118,13 +118,11 @@ final class O11A1WebLogin: NSObject, WKNavigationDelegate {
     let js = """
     (function(){
       var phone='\(phone)';
-      function inputFor(hint){
-        var all=document.querySelectorAll('input');
-        for(var i=0;i<all.length;i++){ if((all[i].placeholder||'').indexOf(hint)>=0) return all[i]; }
-        return null;
+      function phoneInput(){
+        return document.querySelector('.tab-sms input[maxlength="15"]') || document.querySelector('.tab-sms input');
       }
       function fillPhone(){
-        var input=inputFor('手机号');
+        var input=phoneInput();
         if(!input) return false;
         if(phone && input.value!==phone){
           var setter=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
@@ -138,37 +136,52 @@ final class O11A1WebLogin: NSObject, WKNavigationDelegate {
         var all=document.querySelectorAll('div,span,button,a,p');
         for(var i=0;i<all.length;i++){
           var t=(all[i].textContent||'').trim();
-          if(t==='短信登录'||t==='短信验证码登录'||t==='验证码登录'){ all[i].click(); return true; }
+          if(t==='短信登录'||t==='短信验证码登录'||t==='验证码登录'||t==='SMS Login'||t==='SMS login'){ all[i].click(); return true; }
+        }
+        return false;
+      }
+      function loginButton(){
+        return document.querySelector('.tab-sms .btn_primary') || document.querySelector('.btn_wp .btn_primary') || document.querySelector('.btn_primary');
+      }
+      function clickLogin(){
+        var btn=loginButton();
+        if(!btn || btn.classList.contains('disabled')) return false;
+        btn.click();
+        return true;
+      }
+      function clickGetCode(){
+        var box=document.querySelector('.tab-sms');
+        if(!box) return false;
+        var all=box.querySelectorAll('.clickable,div,span');
+        for(var i=0;i<all.length;i++){
+          var t=(all[i].textContent||'').trim();
+          if(t==='获取验证码'||t==='Get code'||t==='Get Code'){ all[i].click(); return true; }
         }
         return false;
       }
       function submitCode(e){
         var t=e.target;
-        if(!t || t.tagName!=='INPUT' || (t.placeholder||'').indexOf('验证码')<0) return;
+        if(!t || t.tagName!=='INPUT' || t.maxLength!==6 || !t.closest('.tab-sms')) return;
         var v=t.value||'';
         if(v.length<6){ t.dataset.o11a1=''; return; }
         if(v.length!==6 || t.dataset.o11a1==='1') return;
         t.dataset.o11a1='1';
-        setTimeout(function(){
-          var box=document.querySelector('.sns-bind-btn');
-          if(box){ (box.querySelector('button')||box).click(); }
-          else {
-            var all=document.querySelectorAll('button');
-            for(var i=0;i<all.length;i++){
-              var x=(all[i].textContent||'').trim();
-              if(x==='登录'||x==='验证登录'){ all[i].click(); break; }
-            }
-          }
-          setTimeout(function(){ t.dataset.o11a1=''; },2200);
-        },120);
+        var n=0;
+        var timer=setInterval(function(){
+          n++;
+          if(clickLogin() || n>12) clearInterval(timer);
+        },150);
+        setTimeout(function(){ t.dataset.o11a1=''; },3000);
       }
       document.addEventListener('input',submitCode,true);
       var tries=0;
+      var autoSent=false;
       var timer=setInterval(function(){
         tries++;
         var sms=clickSms();
-        if(sms) fillPhone();
-        if(tries>40 || (sms && (!phone || fillPhone()))) clearInterval(timer);
+        var filled=sms?fillPhone():false;
+        if(phone && filled && !autoSent) autoSent=clickGetCode();
+        if(tries>40 || autoSent) clearInterval(timer);
       },400);
     })();
     """
