@@ -359,6 +359,7 @@
   let dockLaunching = false;
   let dockLaunchTimer = null;
   let dockDrag = null;
+  let dockBodyTouch = null;
   let dockAbsorbTimer = null;
   let playlistDrag = null;
   let toolbarDrag = null;
@@ -5112,20 +5113,31 @@
   playlistDock.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (playlistDock.classList.contains('searching')) return;
-    if (event.target.closest('.pd-body')) return;
-    if (event.target.closest('button, input, .pd-search, .pd-search-input')) return;
+    const expanded = playlistDock.classList.contains('expanded');
+    const body = event.target.closest('.pd-body');
+    if (!expanded && body) return;
+    if (!expanded && event.target.closest('.pd-search, .pd-search-input')) return;
+    if (!expanded && event.target.closest('button, input')) return;
     dockDrag = {
       id: event.pointerId,
       x: event.clientX,
       y: event.clientY,
       dy: 0,
       moved: false,
-      expanded: playlistDock.classList.contains('expanded'),
+      expanded,
+      body,
     };
   });
   window.addEventListener('pointermove', (event) => {
     if (!dockDrag || event.pointerId !== dockDrag.id) return;
     const dy = event.clientY - dockDrag.y;
+    if (dockDrag.body) {
+      if (dy < -6 || dockDrag.body.scrollTop > 0) {
+        dockDrag = null;
+        return;
+      }
+      if (dy < 8) return;
+    }
     dockDrag.dy = dy;
     if (Math.abs(dy) > 6) dockDrag.moved = true;
     if (!dockDrag.moved) return;
@@ -5158,6 +5170,44 @@
     dockDrag = null;
     setDockExpanded(wasExpanded);
   });
+
+  function startDockBodyTouch(event) {
+    if (!playlistDock.classList.contains('expanded')) return;
+    if (playlistDock.classList.contains('searching')) return;
+    if (!dockPlaylistBody || dockPlaylistBody.scrollTop > 0) return;
+    if (event.touches.length !== 1) return;
+    dockBodyTouch = { y: event.touches[0].clientY, mode: null };
+  }
+
+  function moveDockBodyTouch(event) {
+    if (!dockBodyTouch) return;
+    if (event.touches.length !== 1) {
+      dockBodyTouch = null;
+      return;
+    }
+    const dy = event.touches[0].clientY - dockBodyTouch.y;
+    if (!dockBodyTouch.mode) {
+      if (dy < -6) {
+        dockBodyTouch = null;
+        return;
+      }
+      if (dy < 6) return;
+      dockBodyTouch.mode = 'dock';
+    }
+    if (event.cancelable) event.preventDefault();
+  }
+
+  function endDockBodyTouch() {
+    dockBodyTouch = null;
+  }
+
+  if (dockPlaylistBody) {
+    dockPlaylistBody.addEventListener('touchstart', startDockBodyTouch, { passive: true });
+    dockPlaylistBody.addEventListener('touchmove', moveDockBodyTouch, { passive: false });
+    dockPlaylistBody.addEventListener('touchend', endDockBodyTouch);
+    dockPlaylistBody.addEventListener('touchcancel', endDockBodyTouch);
+  }
+
   playlistDock.addEventListener('click', (event) => {
     if (playlistDock.classList.contains('searching')) return;
     if (playlistDock.classList.contains('expanded')) return;
@@ -5967,6 +6017,17 @@
     await sleep(480);
     const dockExpanded = playlistDock.classList.contains('expanded') && state.page !== 'playlist';
     results.push(`dockExpand=${dockExpanded}`);
+    if (dockPlaylistBody) dockPlaylistBody.scrollTop = 0;
+    const dockBodyRect = dockPlaylistBody.getBoundingClientRect();
+    const dockBodyX = dockBodyRect.left + dockBodyRect.width * 0.5;
+    const dockBodyY = dockBodyRect.top + Math.min(36, dockBodyRect.height * 0.5);
+    dockPlaylistBody.dispatchEvent(pointerEvent('pointerdown', dockBodyX, dockBodyY, 1));
+    for (let step = 1; step <= 6; step += 1) {
+      window.dispatchEvent(pointerEvent('pointermove', dockBodyX, dockBodyY + (90 * step) / 6, 1));
+    }
+    window.dispatchEvent(pointerEvent('pointerup', dockBodyX, dockBodyY + 90, 0));
+    await sleep(480);
+    results.push(`dockBodyClose=${!playlistDock.classList.contains('expanded') && playlistDock.classList.contains('show')}`);
     openPlaylistPage();
     await sleep(480);
     const playlistOpened = state.page === 'playlist';
