@@ -611,7 +611,6 @@ body[data-theme="dark"] .pd-body-head{border-top-color:rgba(255,255,255,.08)}
   transition:opacity .16s ease,transform .2s cubic-bezier(.16,1,.3,1);
 }
 .playlist-dock.dragging::before,
-.playlist-dock.launching::before,
 .playlist-dock.expanded::before{opacity:1;transform:translateX(-50%) scaleX(1)}
 .playlist-dock.searching::before{opacity:0}
 body[data-theme="dark"] .playlist-dock::before{background:rgba(255,255,255,.28)}
@@ -621,10 +620,6 @@ body[data-theme="dark"] .playlist-dock::before{background:rgba(255,255,255,.28)}
   transition:opacity .2s ease,transform .34s cubic-bezier(.16,1,.3,1),height .36s cubic-bezier(.16,1,.3,1),border-radius .36s cubic-bezier(.16,1,.3,1),box-shadow .3s ease,visibility 0s;
 }
 .playlist-dock.dragging{transition:none}
-.playlist-dock.launching{
-  opacity:0;transform:translate(-50%,0);
-  transition:height .26s cubic-bezier(.16,1,.3,1),opacity .18s ease,border-radius .26s ease,box-shadow .26s ease;
-}
 .playlist-dock.receiving{animation:dockReceive .46s cubic-bezier(.16,1,.3,1)}
 @keyframes dockReceive{
   0%{opacity:0;transform:translate(-50%,18px) scale(.94)}

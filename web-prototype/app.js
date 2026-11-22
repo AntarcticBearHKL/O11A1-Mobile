@@ -347,6 +347,8 @@
   let suppressSidebarClickUntil = 0;
   let suppressPlaylistClickUntil = 0;
   let suppressDockClickUntil = 0;
+  let dockLaunching = false;
+  let dockLaunchTimer = null;
   let dockDrag = null;
   let dockAbsorbTimer = null;
   let playlistDrag = null;
@@ -1259,12 +1261,26 @@
     if (next) renderDockPlaylist();
   }
 
-  function openPlaylistItem(index) {
+  function openPlaylistItem(index, sourceRow) {
     if (!Number.isInteger(index) || index < 0 || index >= state.playlist.length) return;
     if (index !== state.currentIndex) state.progress = 0;
     state.currentIndex = index;
     state.playing = true;
     save();
+    if (sourceRow) {
+      const thumb = sourceRow.querySelector('.pl-thumb');
+      if (thumb) {
+        const rect = thumb.getBoundingClientRect();
+        if (rect.width && rect.height) {
+          pendingPlayerOrigin = {
+            thumb,
+            rect,
+            radius: getComputedStyle(thumb).borderRadius || '0px',
+            time: Date.now(),
+          };
+        }
+      }
+    }
     setDockExpanded(false);
     openPlayer({ resume: true });
   }
@@ -1284,7 +1300,7 @@
       row.setAttribute('role', 'button');
       row.tabIndex = 0;
       row.innerHTML = playlistItemMarkup(item, index, index === state.currentIndex, true);
-      const open = () => openPlaylistItem(index);
+      const open = () => openPlaylistItem(index, row);
       row.addEventListener('click', (event) => {
         if (event.target.closest('.pl-remove')) return;
         open();
@@ -1313,7 +1329,7 @@
     const count = state.playlist.length;
     const item = state.playlist[state.currentIndex];
     renderDockPlaylist();
-    const dockVisible = state.loggedIn && !state.playerOpen;
+    const dockVisible = state.loggedIn && (!state.playerOpen || dockLaunching);
     const show = dockVisible;
     playlistDock.classList.toggle('show', show);
     playlistDock.setAttribute('aria-hidden', show ? 'false' : 'true');
@@ -1517,7 +1533,7 @@
       row.setAttribute('role', 'button');
       row.tabIndex = 0;
       row.innerHTML = playlistItemMarkup(item, index, index === state.currentIndex, true);
-      const openItem = () => openPlaylistItem(index);
+      const openItem = () => openPlaylistItem(index, row);
       row.addEventListener('click', (event) => {
         if (event.target.closest('.pl-remove')) return;
         openItem();
@@ -2480,7 +2496,7 @@
     updatePlaylistDock();
     let target = null;
     if (playlistDock.classList.contains('show')) {
-      playlistDock.classList.remove('receiving', 'absorbing', 'launching', 'dragging');
+      playlistDock.classList.remove('receiving', 'absorbing', 'dragging');
       playlistDock.style.transition = 'none';
       playlistDock.style.transform = 'translate(-50%, 0)';
       playlistDock.style.opacity = '1';
@@ -4336,20 +4352,31 @@
       setDockExpanded(true);
       return;
     }
-    if (playlistDock.classList.contains('expanded')) {
-      setDockExpanded(false);
+    suppressDockClickUntil = Date.now() + 600;
+    const rect = playlistDock.getBoundingClientRect();
+    const style = getComputedStyle(playlistDock);
+    if (!rect.width || !rect.height) {
       openPlayer({ resume: true });
       return;
     }
-    suppressDockClickUntil = Date.now() + 600;
-    void playlistDock.offsetWidth;
-    playlistDock.classList.add('launching');
-    playlistDock.style.height = 'calc(214px + env(safe-area-inset-bottom))';
-    setTimeout(() => {
-      openPlayer({ resume: true });
-      playlistDock.classList.remove('launching');
-      setDockExpanded(false);
-    }, 190);
+    const topLeft = style.borderTopLeftRadius || '0px';
+    const topRight = style.borderTopRightRadius || topLeft;
+    pendingPlayerOrigin = {
+      rect,
+      radius: `${topLeft} ${topRight} 0 0`,
+      time: Date.now(),
+    };
+    dockLaunching = true;
+    clearTimeout(dockLaunchTimer);
+    playlistDock.style.pointerEvents = 'none';
+    openPlayer({ resume: true });
+    dockLaunchTimer = setTimeout(() => {
+      dockLaunchTimer = null;
+      dockLaunching = false;
+      playlistDock.style.pointerEvents = '';
+      if (state.playerOpen) setDockExpanded(false);
+      updatePlaylistDock();
+    }, 460);
   }
 
   playlistDock.addEventListener('pointerdown', (event) => {
