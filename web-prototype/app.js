@@ -1090,6 +1090,7 @@
       section.classList.toggle('active', section.dataset.page === page);
     });
     app.dataset.page = page;
+    app.classList.toggle('module-live', page === 'module' && state.moduleName === '直播');
     document.body.classList.toggle('search-mode', page === 'search' || page === 'search-home');
     if (typeof updateDebugHud === 'function') updateDebugHud();
     if (page !== 'search-home' && document.activeElement === searchInput) {
