@@ -459,10 +459,10 @@
     const scroll = feed === feeds.up
       ? upScroll
       : feed === feeds.search
-        ? $('.page[data-page="search"]')
+        ? $('#searchPanel')
         : $('#appScroll');
     const isActive = (feed === feeds.home && state.page === 'home')
-      || (feed === feeds.search && state.page === 'search')
+      || (feed === feeds.search && state.searchOpen === true)
       || (feed === feeds.module && state.page === 'module')
       || (feed === feeds.up && state.page === 'up');
     return { scroll, isActive: Boolean(scroll && isActive) };
@@ -1302,7 +1302,7 @@
         clearFeedSkeletons(feed, next);
         return;
       }
-      if (state.page !== key) {
+      if (state.page !== key && !(key === 'search' && state.searchOpen)) {
         win.loading = false;
         clearFeedSkeletons(feed, next);
         setTail(feed, 'idle');
@@ -3498,10 +3498,10 @@
     requestFeedPage('up');
   });
 
-  const searchScroller = $('.page[data-page="search"]');
+  const searchScroller = $('#searchPanel');
   if (searchScroller) searchScroller.addEventListener('scroll', () => {
     if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
-    if (state.page !== 'search') return;
+    if (!state.searchOpen) return;
     scheduleTrim(feeds.search);
     if (searchScroller.scrollTop + searchScroller.clientHeight < searchScroller.scrollHeight - FEED_PREFETCH) return;
     requestFeedPage('search');

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=156">
+  <link rel="stylesheet" href="./styles.css?v=157">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -31,25 +31,7 @@
           <div class="list-note" id="homeNote">推荐模块占位 · 单列 · 触底加载 · 保留最近两段</div>
         </section>
 
-        <!-- 搜索入口：热门搜索 / 联想 -->
-        <section class="page search-home" data-page="search-home">
-          <div class="search-home-head">
-            <button class="back" id="searchClose" type="button" title="返回">‹</button>
-            <label class="search-field" id="searchField">
-              <span>⌕</span>
-              <input id="searchInput" placeholder="搜索视频 / UP / 番剧" autocomplete="off">
-              <button class="search-clear" id="searchClear" type="button" aria-label="清空搜索" hidden>×</button>
-            </label>
-          </div>
-          <div class="search-section" id="searchHotSection">
-            <div class="section-label">热门搜索</div>
-            <div class="search-chips" id="hotSearchList"></div>
-          </div>
-          <div class="search-section" id="searchSuggestSection" hidden>
-            <div class="section-label">搜索建议</div>
-            <div class="search-suggest-list" id="searchSuggestList"></div>
-          </div>
-        </section>
+        <!-- 搜索入口现在直接从右侧滑入搜索面板，不再使用页面内搜索页 -->
 
         <!-- 视频流点击直接进播放器，没有中间详情页 -->
         <!-- 动态 -->
@@ -200,20 +182,6 @@
         </section>
       </div>
 
-      <!-- 搜索结果：从右侧滑入的独立覆盖页 -->
-      <section class="page search-results-page" data-page="search">
-        <div class="page-top search-results-top">
-          <b id="searchResultsLabel">热门视频</b>
-        </div>
-        <div class="feed" id="searchResults">
-          <button class="video-row" data-open-player><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w60"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w18"></i></span></span></button>
-          <button class="video-row" data-open-player><span class="row-thumb alt"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w80"></i><i class="ph-line w50"></i></span><span class="row-meta"><i class="ph-line w35"></i><i class="ph-line w18"></i></span></span></button>
-          <button class="video-row" data-open-player><span class="row-thumb alt2"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w85"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w20"></i></span></span></button>
-          <button class="video-row" data-open-player><span class="row-thumb alt3"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w22"></i></span></span></button>
-          <button class="video-row" data-open-player><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w75"></i><i class="ph-line w45"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w20"></i></span></span></button>
-        </div>
-        <div class="search-empty" id="searchEmpty" hidden>没有找到视频 · 换个关键词试试</div>
-      </section>
       <div class="playlist-dock" id="playlistDock" role="button" tabindex="0" aria-hidden="true" inert>
         <div class="pd-head">
           <div class="pd-collapsed" id="pdCollapsed">
@@ -252,6 +220,37 @@
       </div>
 
       </div>
+
+      <!-- 搜索面板：主界面向后退，面板从右侧滑入并完全覆盖 -->
+      <section class="search-panel" id="searchPanel" role="dialog" aria-label="搜索" aria-hidden="true" inert>
+        <div class="search-panel-head">
+          <button class="back" id="searchClose" type="button" title="返回">‹</button>
+          <label class="search-field" id="searchField">
+            <span>⌕</span>
+            <input id="searchInput" placeholder="搜索视频 / UP / 番剧" autocomplete="off">
+            <button class="search-clear" id="searchClear" type="button" aria-label="清空搜索" hidden>×</button>
+          </label>
+        </div>
+        <div class="search-section" id="searchHotSection">
+          <div class="section-label">热门搜索</div>
+          <div class="search-chips" id="hotSearchList"></div>
+        </div>
+        <div class="search-section" id="searchSuggestSection" hidden>
+          <div class="section-label">搜索建议</div>
+          <div class="search-suggest-list" id="searchSuggestList"></div>
+        </div>
+        <div class="search-results-block" id="searchResultsBlock" hidden>
+          <div class="search-results-head"><b id="searchResultsLabel">热门视频</b></div>
+          <div class="feed" id="searchResults">
+            <button class="video-row" data-open-player><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w60"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w18"></i></span></span></button>
+            <button class="video-row" data-open-player><span class="row-thumb alt"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w80"></i><i class="ph-line w50"></i></span><span class="row-meta"><i class="ph-line w35"></i><i class="ph-line w18"></i></span></span></button>
+            <button class="video-row" data-open-player><span class="row-thumb alt2"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w85"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w20"></i></span></span></button>
+            <button class="video-row" data-open-player><span class="row-thumb alt3"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w22"></i></span></span></button>
+            <button class="video-row" data-open-player><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w75"></i><i class="ph-line w45"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w20"></i></span></span></button>
+          </div>
+          <div class="search-empty" id="searchEmpty" hidden>没有找到视频 · 换个关键词试试</div>
+        </div>
+      </section>
 
       <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
       <aside class="sidebar" id="sidebar" aria-hidden="true" inert>
@@ -466,8 +465,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=156"></script>
-  <script src="./app.js?v=156"></script>
-  <script src="./native.js?v=156"></script>
+  <script src="./vendor/hls.min.js?v=157"></script>
+  <script src="./app.js?v=157"></script>
+  <script src="./native.js?v=157"></script>
 </body>
 </html>
