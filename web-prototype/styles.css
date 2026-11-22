@@ -1487,7 +1487,7 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
   .statusbar{display:none}
   .app-scroll{top:0}
   .top-glass{height:calc(env(safe-area-inset-top) + 26px)}
-  .page[data-page="home"]{padding-top:env(safe-area-inset-top)}
+  .page[data-page="home"]{padding-top:calc(env(safe-area-inset-top) * .5)}
   .page[data-page="search"],
   .page[data-page="search-home"]{padding-top:calc(env(safe-area-inset-top) + 10px)}
   body.search-mode .search-dock{top:calc(env(safe-area-inset-top) + 10px)}
@@ -1513,7 +1513,7 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
 .app.landscape .app-scroll{top:0}
 .app.landscape .top-glass{height:calc(env(safe-area-inset-top) + 24px)}
 .app.landscape .page{padding:0 26px calc(94px + env(safe-area-inset-bottom))}
-.app.landscape .page[data-page="home"]{padding-top:calc(env(safe-area-inset-top) + 8px)}
+.app.landscape .page[data-page="home"]{padding-top:calc(env(safe-area-inset-top) * .5 + 4px)}
 .app.landscape .page[data-page="search"],
 .app.landscape .page[data-page="search-home"]{
   padding:calc(env(safe-area-inset-top) + 10px) max(26px,env(safe-area-inset-right)) 24px max(26px,env(safe-area-inset-left));
