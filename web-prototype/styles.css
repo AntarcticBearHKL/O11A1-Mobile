@@ -1028,9 +1028,24 @@ body.grid .grid-overlay{display:block}
 .app[data-page="search"] .tabbar.many.search-mode{height:58px}
 
 /* ---------- landscape player ---------- */
+.player-backdrop{
+  position:fixed;inset:0;z-index:299;background:rgba(6,8,13,.78);
+  backdrop-filter:blur(28px) saturate(1.2);-webkit-backdrop-filter:blur(28px) saturate(1.2);
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .24s ease,visibility 0s linear .24s;
+}
+.player-backdrop.show{
+  opacity:1;visibility:visible;pointer-events:auto;
+  transition:opacity .24s ease,visibility 0s;
+}
 .player{
-  position:fixed;inset:0;z-index:300;display:none;flex-direction:column;
+  position:fixed;
+  inset:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));
+  z-index:300;display:none;flex-direction:column;
   background:#07090D;color:#fff;overflow:hidden;
+  border-radius:28px;
+  box-shadow:0 32px 90px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.1);
+  transform-origin:50% 50%;
 }
 .player.open{display:flex;animation:playerIn .28s cubic-bezier(.16,1,.3,1)}
 @keyframes playerIn{from{opacity:0;transform:scale(.985)}to{opacity:1;transform:none}}
@@ -1042,9 +1057,9 @@ body.grid .grid-overlay{display:block}
 }
 .player-top{
   position:absolute;top:0;left:0;right:0;z-index:20;
-  height:calc(56px + env(safe-area-inset-top));
+  height:64px;
   display:flex;align-items:center;gap:8px;
-  padding:env(safe-area-inset-top) max(12px,env(safe-area-inset-left)) 0 max(12px,env(safe-area-inset-right));
+  padding:0 14px;
   background:linear-gradient(180deg,rgba(7,9,13,.88),rgba(7,9,13,0));
   transition:opacity .22s ease,transform .22s ease;
 }
@@ -1078,7 +1093,7 @@ body.grid .grid-overlay{display:block}
 .player-controls{
   position:absolute;left:0;right:0;bottom:0;z-index:6;
   width:100%;
-  padding:0 max(18px,env(safe-area-inset-left)) calc(12px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-right));
+  padding:0 18px 12px;
   display:flex;flex-direction:column;
   background:#07090D;
   border:0;border-radius:0;box-shadow:none;
@@ -1260,6 +1275,22 @@ body.grid .grid-overlay{display:block}
 }
 .swipe-hint.show{opacity:1}
 .player.gesture-active .player-controls{pointer-events:none}
+.player.to-playlist .player-top,
+.player.to-playlist .player-controls,
+.player.to-playlist .level-hud,
+.player.to-playlist .rate-hud,
+.player.to-playlist .rotate-hud,
+.player.to-playlist .lock-badge,
+.player.to-playlist .swipe-hint,
+.player.to-playlist .video-debug,
+.player.to-playlist .player-video > .ph-label,
+.player.to-playlist .player-video > .play-big,
+.player.to-playlist .player-video > .video-hint,
+.player.to-playlist .real-video-status,
+.player.to-playlist .live-dm-badge{
+  opacity:0!important;pointer-events:none;
+  transition:opacity .14s ease;
+}
 
 /* ---------- full-screen comments (frosted overlay) ---------- */
 .comments-panel{

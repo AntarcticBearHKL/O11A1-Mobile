@@ -8,6 +8,7 @@
   const homeFeed = $('#homeFeed');
   const moduleFeed = $('#moduleFeed');
   const player = $('#player');
+  const playerBackdrop = $('#playerBackdrop');
   const playerTop = $('.player-top');
   const playerStage = $('#playerStage');
   const playerControls = $('#playerControls');
@@ -325,6 +326,10 @@
 
   let commentsGesture = null;
   let commentsCloseTimer = null;
+  let playerCollapseAnim = null;
+  let playerCollapseTimer = null;
+  let playerCollapseToken = 0;
+  let playerDockForced = false;
   let rowSwipe = null;
   let sidebarPicked = null;
   let menuSwipeStart = null;
@@ -2239,6 +2244,7 @@
       showPage('login');
       return;
     }
+    cancelPlayerCollapse();
     const resume = options.resume === true;
     const autoplay = options.autoplay === true;
     if (!state.playlist.length) addToPlaylist();
@@ -2260,6 +2266,11 @@
     player.style.pointerEvents = '';
     player.classList.remove('dragging', 'collapsing');
     player.classList.add('open');
+    if (playerBackdrop) {
+      playerBackdrop.classList.add('show');
+      playerBackdrop.style.transition = '';
+      playerBackdrop.style.opacity = '';
+    }
     player.setAttribute('aria-hidden', 'false');
     player.inert = false;
     player.classList.remove('ui-hidden');
@@ -2280,20 +2291,41 @@
     }
   }
 
-  function minimizePlayer() {
+  function cancelPlayerCollapse() {
+    playerCollapseToken += 1;
+    clearTimeout(playerCollapseTimer);
+    playerCollapseTimer = null;
+    if (playerCollapseAnim) {
+      try { playerCollapseAnim.cancel(); } catch (_) {}
+      playerCollapseAnim = null;
+    }
+    if (playerDockForced) {
+      playlistDock.style.transition = '';
+      playlistDock.style.transform = '';
+      playlistDock.style.opacity = '';
+      playerDockForced = false;
+    }
+    player.classList.remove('to-playlist');
+  }
+
+  function minimizePlayer(fromY = 0, fromScale = 1) {
     if (!state.playerOpen) return;
+    cancelPlayerCollapse();
     state.playerOpen = false;
     state.locked = false;
     setPlayerOrientation(false, { silent: true });
     restoreNativeBrightness();
     clearTimeout(hideTimer);
+    const dragY = Number.isFinite(fromY) ? Math.max(0, fromY) : 0;
+    const dragScale = Number.isFinite(fromScale) ? Math.min(1, Math.max(0.8, fromScale)) : 1;
     player.classList.remove('dragging');
     player.style.animation = 'none';
-    player.style.transition = 'transform .3s cubic-bezier(.4,0,.2,1), opacity .28s ease';
-    player.style.transform = 'translateY(105%) scale(.96)';
-    player.style.opacity = '0';
+    player.style.transition = 'none';
+    player.style.transform = 'none';
+    player.style.opacity = '1';
     player.style.pointerEvents = 'none';
-    playerControls.classList.remove('hidden');
+    player.classList.add('to-playlist');
+    player.inert = true;
     lockBadge.classList.remove('show');
     resetComments();
     hideLevelHuds(0);
@@ -2303,9 +2335,93 @@
     if (player.contains(document.activeElement)) document.activeElement.blur();
     showMiniPlayer();
     updatePlaylistDock();
-    setTimeout(() => {
-      if (!state.playerOpen) pulsePlaylistDock();
-    }, 140);
+    if (playerBackdrop) {
+      playerBackdrop.style.transition = 'opacity .46s ease';
+      playerBackdrop.style.opacity = '0';
+    }
+    let target = null;
+    if (playlistDock.classList.contains('show')) {
+      playlistDock.classList.remove('receiving', 'absorbing', 'launching', 'dragging');
+      playlistDock.style.transition = 'none';
+      playlistDock.style.transform = 'translate(-50%, 0)';
+      playlistDock.style.opacity = '1';
+      playerDockForced = true;
+      target = pdThumb.getBoundingClientRect();
+    }
+    const base = player.getBoundingClientRect();
+    const targetScale = target && base.width
+      ? Math.max(0.06, Math.min(1, target.width / base.width))
+      : 0.08;
+    const endX = target && base.width
+      ? target.left + target.width / 2 - (base.left + base.width / 2)
+      : 0;
+    const endY = target && base.height
+      ? target.top + target.height / 2 - (base.top + base.height / 2)
+      : base.height * 0.55;
+    const token = ++playerCollapseToken;
+    let finished = false;
+    const complete = () => {
+      if (finished || token !== playerCollapseToken) return;
+      finished = true;
+      clearTimeout(playerCollapseTimer);
+      playerCollapseTimer = null;
+      if (playerCollapseAnim) {
+        try { playerCollapseAnim.cancel(); } catch (_) {}
+        playerCollapseAnim = null;
+      }
+      player.classList.remove('open', 'ui-hidden', 'collapsing', 'to-playlist', 'dragging');
+      player.setAttribute('aria-hidden', 'true');
+      player.inert = true;
+      player.style.animation = '';
+      player.style.transition = '';
+      player.style.transform = '';
+      player.style.opacity = '';
+      player.style.pointerEvents = '';
+      if (playerDockForced) {
+        playlistDock.style.transition = '';
+        playlistDock.style.transform = '';
+        playlistDock.style.opacity = '';
+        playerDockForced = false;
+      }
+      if (playerBackdrop) {
+        playerBackdrop.classList.remove('show');
+        playerBackdrop.style.transition = '';
+        playerBackdrop.style.opacity = '';
+      }
+      absorbPlaylistDock();
+    };
+    if (typeof player.animate === 'function' && target && target.width > 0) {
+      const midScale = dragScale + (targetScale - dragScale) * 0.9;
+      playerCollapseAnim = player.animate([
+        {
+          transform: `translate(0px, ${dragY}px) scale(${dragScale})`,
+          opacity: 1,
+          borderRadius: '28px',
+        },
+        {
+          transform: `translate(${endX * 0.9}px, ${endY * 0.9}px) scale(${midScale})`,
+          opacity: 1,
+          borderRadius: '20px',
+          offset: 0.86,
+        },
+        {
+          transform: `translate(${endX}px, ${endY}px) scale(${targetScale})`,
+          opacity: 0,
+          borderRadius: '16px',
+        },
+      ], { duration: 540, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'forwards' });
+      if (playerCollapseAnim.finished && playerCollapseAnim.finished.then) {
+        playerCollapseAnim.finished.then(complete).catch(() => {});
+      }
+      playerCollapseTimer = setTimeout(complete, 640);
+    } else {
+      player.style.transition = 'transform .42s cubic-bezier(.22,1,.36,1),opacity .24s ease .18s';
+      player.style.transform = target
+        ? `translate(${endX}px, ${endY}px) scale(${targetScale})`
+        : 'translateY(105%) scale(.94)';
+      player.style.opacity = '0';
+      playerCollapseTimer = setTimeout(complete, 560);
+    }
     if (document.fullscreenElement && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
     }
@@ -2314,20 +2430,15 @@
     if (window.O11A1Media && typeof window.O11A1Media.onMinimize === 'function') {
       window.O11A1Media.onMinimize();
     }
-    setTimeout(() => {
-      if (state.playerOpen) return;
-      player.classList.remove('open', 'ui-hidden', 'collapsing');
-      player.setAttribute('aria-hidden', 'true');
-      player.inert = true;
-      player.style.animation = '';
-      player.style.transition = '';
-      player.style.transform = '';
-      player.style.opacity = '';
-      player.style.pointerEvents = '';
-    }, 300);
   }
 
   function stopPlayback() {
+    cancelPlayerCollapse();
+    if (playerBackdrop) {
+      playerBackdrop.classList.remove('show');
+      playerBackdrop.style.transition = '';
+      playerBackdrop.style.opacity = '';
+    }
     state.playerOpen = false;
     state.miniVisible = false;
     state.playing = false;
@@ -2770,7 +2881,7 @@
       gesture.collapseY = dragY;
       const scale = 1 - Math.min(0.05, dragY / 3000);
       player.style.transform = `translateY(${dragY}px) scale(${scale})`;
-      player.style.opacity = String(1 - Math.min(0.35, dragY / 800));
+      player.style.opacity = '1';
     } else if (gesture.mode === 'rotate') {
       showControls();
       clearTimeout(hideTimer);
@@ -2853,7 +2964,7 @@
 
     if (gesture.mode === 'collapse') {
       if (gesture.collapseY > 110) {
-        minimizePlayer();
+        minimizePlayer(gesture.collapseY, 1 - Math.min(0.05, gesture.collapseY / 3000));
         return;
       }
       player.style.transition = 'transform .24s cubic-bezier(.16,1,.3,1), opacity .2s ease';
