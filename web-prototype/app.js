@@ -13,7 +13,6 @@
   const playerBody = $('.player-body');
   const playerControls = $('#playerControls');
   const pcPlay = $('#pcPlay');
-  const pcTime = $('#pcTime');
   const pcQuality = $('#pcQuality');
   const pcQualityValue = $('#pcQualityValue');
   const pcInterp = $('#pcInterp');
@@ -24,6 +23,7 @@
   const pcLoop = $('#pcLoop');
   const pcLoopValue = $('#pcLoopValue');
   const progressBar = $('#progressBar');
+  const gridProgress = $('#gridProgress');
   const wheelStrip = $('#wheelStrip');
   const seekBubble = $('#seekBubble');
   const playerSettings = $('#playerSettings');
@@ -317,6 +317,9 @@
   let sheetSwipeSuppressClickUntil = 0;
   let sheetSwipeTimer = null;
   let precisionDrag = null;
+  let gridDrag = null;
+  const GRID_CELLS = 36;
+  let gridCells = [];
   let rateHudTimer = null;
   let playerNoticeTimer = null;
   let gyroBound = false;
@@ -2538,16 +2541,107 @@
   function precisionContext() {
     const total = state.duration > 0 ? state.duration : TOTAL_SECONDS;
     const current = total * state.progress / 100;
-    const fps = Number(state.streamInfo && state.streamInfo.frameRate) || 0;
-    const totalFrames = fps > 0 ? Math.round(total * fps) : 0;
-    const currentFrame = fps > 0 ? Math.min(totalFrames, Math.round(current * fps)) : 0;
-    return { total, current, fps, totalFrames, currentFrame };
+    return { total, current };
   }
 
-  function updatePrecisionReadout(currentOverride) {
-    const context = precisionContext();
-    const current = Number.isFinite(currentOverride) ? currentOverride : context.current;
-    if (pcTime) pcTime.textContent = `${formatTimeMs(current)} / ${formatTime(context.total)}`;
+  const GRID_HEAT = ['#FF5A5F', '#FF8A4D', '#F2C24E', '#5BC8D8', '#3E8EF7'];
+
+  function initGridProgress() {
+    if (!gridProgress || gridCells.length) return;
+    const fragment = document.createDocumentFragment();
+    for (let index = 0; index < GRID_CELLS; index += 1) {
+      const cell = document.createElement('span');
+      cell.className = 'grid-cell';
+      cell.setAttribute('aria-hidden', 'true');
+      fragment.appendChild(cell);
+      gridCells.push(cell);
+    }
+    gridProgress.replaceChildren(fragment);
+  }
+
+  function renderGridProgress(percentOverride) {
+    if (!gridProgress || !gridCells.length) return;
+    const source = Number.isFinite(percentOverride) ? percentOverride : state.progress;
+    const percent = Math.max(0, Math.min(100, Number(source) || 0));
+    const filled = percent / 100 * GRID_CELLS;
+    gridProgress.setAttribute('aria-valuenow', percent.toFixed(1));
+    gridCells.forEach((cell, index) => {
+      const active = percent > 0 && index < Math.ceil(filled - 1e-6);
+      cell.classList.toggle('on', active);
+      if (!active) {
+        cell.style.removeProperty('--heat');
+        return;
+      }
+      const behind = Math.max(0, filled - (index + 1));
+      const heat = behind < 1 ? 0 : behind < 3 ? 1 : behind < 6 ? 2 : behind < 10 ? 3 : 4;
+      cell.style.setProperty('--heat', GRID_HEAT[heat]);
+    });
+  }
+
+  function gridLocalPoint(event) {
+    const width = gridProgress.clientWidth || gridProgress.getBoundingClientRect().width || 1;
+    const height = gridProgress.clientHeight || 14;
+    const rect = gridProgress.getBoundingClientRect();
+    if (!state.playerLandscape) {
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top, width };
+    }
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const dir = state.playerLandscapeDir;
+    return {
+      x: width / 2 + (event.clientY - centerY) * dir,
+      y: height / 2 + (event.clientX - centerX) * -dir,
+      width,
+    };
+  }
+
+  function startGridDrag(event) {
+    if (!state.playerOpen || state.locked || precisionDrag || gridDrag) return;
+    if (event.button !== undefined && event.button !== 0) return;
+    clearTimeout(hideTimer);
+    const point = gridLocalPoint(event);
+    const percent = Math.max(0, Math.min(100, point.x / point.width * 100));
+    gridDrag = {
+      pointerId: event.pointerId,
+      startX: point.x,
+      lastX: point.x,
+      startY: point.y,
+      preview: percent,
+      moved: false,
+    };
+    gridProgress.classList.add('dragging');
+    playerControls.classList.remove('hidden');
+    player.classList.remove('ui-hidden');
+    previewPrecisionTime(percent / 100 * precisionContext().total);
+    if (event.cancelable) event.preventDefault();
+  }
+
+  function moveGridDrag(event) {
+    const drag = gridDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const point = gridLocalPoint(event);
+    const dx = point.x - drag.lastX;
+    drag.lastX = point.x;
+    const lift = Math.max(0, drag.startY - point.y);
+    if (!drag.moved) {
+      if (Math.abs(point.x - drag.startX) < 2.5 && lift < 6) return;
+      drag.moved = true;
+    }
+    const damping = Math.pow(0.5, Math.max(0, lift - 6) / 80);
+    drag.preview = Math.max(0, Math.min(100, drag.preview + (dx / point.width) * 100 * damping));
+    previewPrecisionTime(drag.preview / 100 * precisionContext().total);
+    if (event.cancelable) event.preventDefault();
+  }
+
+  function endGridDrag(event) {
+    const drag = gridDrag;
+    if (!drag || (event && event.pointerId !== undefined && event.pointerId !== drag.pointerId)) return;
+    const percent = drag.preview;
+    gridDrag = null;
+    gridProgress.classList.remove('dragging');
+    seekBubble.classList.remove('show');
+    setProgress(percent, true);
+    showControls();
   }
 
   function precisionWheelScale(width) {
@@ -2584,7 +2678,7 @@
       tick.className = `wheel-tick${major ? ' major' : (index % 2 === 0 ? ' mid' : '')}${seconds <= center ? ' past' : ''}`;
       tick.style.left = `${x.toFixed(2)}px`;
       fragment.appendChild(tick);
-      if (major && Math.abs(x - centerX) > 19 && x > 24 && x < width - 24) {
+      if (major && x > 22 && x < width - 22) {
         const label = document.createElement('span');
         label.className = `wheel-tick-label${seconds <= center ? ' past' : ''}`;
         label.textContent = formatTime(seconds);
@@ -2593,14 +2687,14 @@
       }
     }
     wheelStrip.replaceChildren(fragment);
-    updatePrecisionReadout(center);
   }
 
   function setProgress(percent, seek) {
-    if (precisionDrag && !seek) return;
+    if ((precisionDrag || gridDrag) && !seek) return;
     state.progress = Math.min(100, Math.max(0, percent));
     pdProgress.style.width = `${state.progress}%`;
     renderPrecisionWheel();
+    renderGridProgress();
     if (seek && window.O11A1Media && typeof window.O11A1Media.seek === 'function') {
       window.O11A1Media.seek(state.progress);
     }
@@ -2612,6 +2706,7 @@
     seekBubble.textContent = formatTimeMs(value);
     seekBubble.classList.add('show');
     renderPrecisionWheel(value);
+    renderGridProgress(context.total > 0 ? value / context.total * 100 : 0);
   }
 
   function precisionLocalX(event, width) {
@@ -2626,7 +2721,7 @@
   }
 
   function startPrecisionDrag(event) {
-    if (!state.playerOpen) return;
+    if (!state.playerOpen || gridDrag) return;
     if (event.button !== undefined && event.button !== 0) return;
     clearTimeout(hideTimer);
     const context = precisionContext();
@@ -2799,6 +2894,10 @@
     player.classList.toggle('landscape', dir !== 0);
     player.classList.toggle('landscape-left', dir === -1);
     player.classList.toggle('landscape-right', dir === 1);
+    if (state.playerOpen) {
+      renderPrecisionWheel();
+      renderGridProgress();
+    }
   }
 
   function queueGyroOrientation(dir) {
@@ -4856,9 +4955,15 @@
     window.addEventListener('pointerup', endPrecisionDrag);
     window.addEventListener('pointercancel', endPrecisionDrag);
   }
+  if (gridProgress) {
+    gridProgress.addEventListener('pointerdown', startGridDrag);
+    window.addEventListener('pointermove', moveGridDrag);
+    window.addEventListener('pointerup', endGridDrag);
+    window.addEventListener('pointercancel', endGridDrag);
+  }
 
   playerControls.addEventListener('pointerdown', (event) => {
-    if (event.target.closest('button, input, .precision-wheel')) return;
+    if (event.target.closest('button, input, .precision-wheel, .grid-progress')) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     toolbarDrag = { id: event.pointerId, x: event.clientX, y: event.clientY };
   });
@@ -5616,7 +5721,6 @@
     playerVideo,
     pcPlay,
     setPlayIcon,
-    pcTime,
     pdTitle,
     pdMeta,
     pdProgress,
@@ -5639,6 +5743,7 @@
   });
   applyAppearance();
   applyHiddenEntries();
+  initGridProgress();
   updatePlayerLabels();
   renderHotSearches();
   updateSearch();
@@ -5799,6 +5904,55 @@
     await sleep(2300);
     results.push(`toolbarHide=${toolbarShown && playerControls.classList.contains('hidden')}`);
     showControls();
+    await sleep(40);
+    setProgress(20, false);
+    await sleep(30);
+    const gridTest = $('#gridProgress');
+    const wheelTest = $('#progressBar');
+    const gridTestRect = gridTest.getBoundingClientRect();
+    const gridTestX = gridTestRect.left + gridTestRect.width * 0.2;
+    const gridTestY = gridTestRect.top + gridTestRect.height / 2;
+    const gridStep = gridTestRect.width * 0.25;
+    gridTest.dispatchEvent(pointerEvent('pointerdown', gridTestX, gridTestY, 1));
+    for (let step = 1; step <= 5; step += 1) {
+      window.dispatchEvent(pointerEvent('pointermove', gridTestX + (gridStep * step) / 5, gridTestY, 1));
+    }
+    const gridFlat = Number(gridTest.getAttribute('aria-valuenow'));
+    window.dispatchEvent(pointerEvent('pointerup', gridTestX + gridStep, gridTestY, 0));
+    await sleep(60);
+    setProgress(20, false);
+    await sleep(30);
+    gridTest.dispatchEvent(pointerEvent('pointerdown', gridTestX, gridTestY, 1));
+    for (let step = 1; step <= 6; step += 1) {
+      window.dispatchEvent(pointerEvent('pointermove', gridTestX, gridTestY - (160 * step) / 6, 1));
+    }
+    for (let step = 1; step <= 5; step += 1) {
+      window.dispatchEvent(pointerEvent('pointermove', gridTestX + (gridStep * step) / 5, gridTestY - 160, 1));
+    }
+    const gridLifted = Number(gridTest.getAttribute('aria-valuenow'));
+    window.dispatchEvent(pointerEvent('pointerup', gridTestX + gridStep, gridTestY - 160, 0));
+    await sleep(60);
+    results.push(`grid=${gridTest.children.length === 36 && Math.abs(gridFlat - 45) < 1.2 && gridLifted > 20 && gridLifted - 20 < 12}`);
+    const wheelTestRect = wheelTest.getBoundingClientRect();
+    const needleTestRect = $('.wheel-needle').getBoundingClientRect();
+    const bandTestRect = $('.wheel-band').getBoundingClientRect();
+    results.push(`needle=${Math.abs(needleTestRect.height - wheelTestRect.height) < 1 && Math.abs(bandTestRect.height - wheelTestRect.height) < 1}`);
+    setProgress(41.6667, false);
+    await sleep(30);
+    const wheelCenter = wheelTestRect.left + wheelTestRect.width / 2;
+    const labelCenters = Array.from(wheelTest.querySelectorAll('.wheel-tick-label'))
+      .map((label) => {
+        const labelRect = label.getBoundingClientRect();
+        return labelRect.left + labelRect.width / 2;
+      })
+      .sort((left, right) => left - right);
+    let centerGap = Infinity;
+    for (let index = 1; index < labelCenters.length; index += 1) {
+      if (labelCenters[index - 1] <= wheelCenter && labelCenters[index] >= wheelCenter) {
+        centerGap = labelCenters[index] - labelCenters[index - 1];
+      }
+    }
+    results.push(`labels=${labelCenters.length >= 4 && centerGap < 90}`);
 
     minimizePlayer();
     await sleep(420);

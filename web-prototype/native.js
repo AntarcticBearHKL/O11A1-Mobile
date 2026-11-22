@@ -1833,7 +1833,6 @@
     setAmbientActive(false);
     playerVideo.classList.add('video-loading', 'has-video');
     if (player) player.classList.add('live-player');
-    if (host.pcTime) host.pcTime.textContent = 'LIVE';
     setStatus('连接直播…', 'loading');
     const source = item.liveUrl;
     if (!source) {
@@ -2211,17 +2210,13 @@
   video.addEventListener('loadedmetadata', () => {
     state.duration = Number.isFinite(video.duration) ? video.duration : 0;
     if (state.duration > 0 && !mediaLive) host.setProgress(video.currentTime / state.duration * 100);
-    if (mediaLive && host.pcTime) host.pcTime.textContent = 'LIVE';
     playerVideo.classList.remove('video-loading');
     post.newFrame = true;
     syncPostProcess();
     requestAmbientSync();
   });
   video.addEventListener('timeupdate', () => {
-    if (mediaLive) {
-      if (host.pcTime) host.pcTime.textContent = 'LIVE';
-      return;
-    }
+    if (mediaLive) return;
     if (!video.duration || !Number.isFinite(video.duration)) return;
     host.setProgress(video.currentTime / video.duration * 100);
     tickDanmaku(video.currentTime);

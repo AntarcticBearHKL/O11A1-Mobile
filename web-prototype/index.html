@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=124">
+  <link rel="stylesheet" href="./styles.css?v=125">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -343,9 +343,7 @@
           <span class="video-hint">空播放器</span>
 
           <div class="player-controls" id="playerControls">
-            <div class="wheel-head">
-              <span class="precision-time" id="pcTime">00:00.000 / 00:00</span>
-            </div>
+            <div class="grid-progress" id="gridProgress" role="slider" aria-label="进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
             <div class="precision-wheel" id="progressBar">
               <div class="wheel-strip" id="wheelStrip" aria-hidden="true"></div>
               <span class="wheel-band" aria-hidden="true"></span>
@@ -478,8 +476,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=124"></script>
-  <script src="./app.js?v=124"></script>
-  <script src="./native.js?v=124"></script>
+  <script src="./vendor/hls.min.js?v=125"></script>
+  <script src="./app.js?v=125"></script>
+  <script src="./native.js?v=125"></script>
 </body>
 </html>
