@@ -1349,7 +1349,7 @@ body[data-theme="light"] .grid-progress .grid-cell.on{background:var(--heat,#2F7
 .player-settings.open .player-settings-scrim{opacity:1}
 .player-settings-card{
   position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;
-  max-height:92%;padding:0 16px calc(14px + env(safe-area-inset-bottom));
+  height:66%;max-height:92%;padding:0 16px calc(14px + env(safe-area-inset-bottom));
   border:1px solid rgba(255,255,255,.16);border-radius:28px 28px 0 0;
   background:
     linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,.035) 24%,rgba(255,255,255,.015) 100%),
@@ -1362,17 +1362,17 @@ body[data-theme="light"] .grid-progress .grid-cell.on{background:var(--heat,#2F7
 .player-settings.open .player-settings-card{transform:none}
 .player-settings-card.dragging{transition:none}
 .player-settings-titlebar{
-  flex:none;height:46px;display:flex;align-items:center;justify-content:center;
-  border-bottom:1px solid rgba(255,255,255,.1);
+  flex:none;height:46px;display:flex;align-items:center;justify-content:flex-start;
+  padding:0 4px;border-bottom:1px solid rgba(255,255,255,.1);
 }
 .player-settings-titlebar b{
   font-size:15px;font-weight:750;line-height:1;letter-spacing:.08em;
   color:rgba(255,255,255,.92);
 }
 .player-settings-list{
-  display:flex;flex-direction:column;gap:0;min-height:0;
-  overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;
-  padding:2px 0;
+  display:flex;flex-direction:column;gap:0;flex:1 1 auto;min-height:0;
+  overflow-y:auto;overscroll-behavior:contain;overflow-anchor:none;scrollbar-width:none;
+  padding:2px 0;touch-action:pan-y;
 }
 .player-settings-list::-webkit-scrollbar{display:none}
 .player-settings .pc-row{
@@ -1430,7 +1430,7 @@ body[data-theme="light"] .grid-progress .grid-cell.on{background:var(--heat,#2F7
 .player-settings .pc-panel-controls .choice-btn.on{
   background:none;border:0;color:var(--blue);font-weight:700;box-shadow:none;
 }
-.player.landscape .player-settings-card{max-height:94%;padding-bottom:10px}
+.player.landscape .player-settings-card{height:74%;max-height:94%;padding-bottom:10px}
 .player.landscape .player-rotor > .psheet{max-height:76%}
 .seek-ripple{
   position:absolute;top:46%;left:50%;z-index:7;pointer-events:none;

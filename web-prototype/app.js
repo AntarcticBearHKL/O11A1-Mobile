@@ -312,6 +312,7 @@
   let lastStageTap = { time: 0, zone: '' };
   let playerSettingsOpen = false;
   let settingsDrawGesture = null;
+  let settingsListTouch = null;
   let settingsSuppressClick = false;
   let sheetSwipe = null;
   let sheetSwipeSuppressClickUntil = 0;
@@ -504,7 +505,7 @@
       data: null,
     },
   };
-  let pcOpenPanel = '';
+  const pcOpenPanels = new Set();
 
   function renderPcChoicePanel(panel, data) {
     if (!panel || !data) return;
@@ -531,24 +532,20 @@
   }
 
   function setPcPanel(name) {
-    const next = pcOpenPanel === name ? '' : name;
-    pcOpenPanel = next;
+    if (pcOpenPanels.has(name)) pcOpenPanels.delete(name);
+    else pcOpenPanels.add(name);
     Object.entries(pcPanels).forEach(([key, config]) => {
-      const open = key === next;
+      const open = pcOpenPanels.has(key);
       config.group.classList.toggle('open', open);
       config.row.setAttribute('aria-expanded', open ? 'true' : 'false');
       if (!open) return;
       if (key === 'danmaku') renderPcDanmakuPanel(config.panel);
       else renderPcChoicePanel(config.panel, config.data);
     });
-    if (next) {
-      const active = pcPanels[next];
-      setTimeout(() => active.group.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30);
-    }
   }
 
   function closePcPanels() {
-    pcOpenPanel = '';
+    pcOpenPanels.clear();
     Object.values(pcPanels).forEach((config) => {
       config.group.classList.remove('open');
       config.row.setAttribute('aria-expanded', 'false');
@@ -2812,6 +2809,8 @@
   function startSettingsDraw(event) {
     if (!playerSettingsOpen) return;
     if (event.button !== undefined && event.button !== 0) return;
+    const list = event.target.closest('.player-settings-list');
+    if (list && list.scrollTop > 0) return;
     settingsDrawGesture = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -4942,6 +4941,33 @@
   window.addEventListener('pointermove', moveSettingsDraw);
   window.addEventListener('pointerup', endSettingsDraw);
   window.addEventListener('pointercancel', endSettingsDraw);
+
+  const playerSettingsList = $('.player-settings-list');
+  function startSettingsListTouch(event) {
+    if (!playerSettingsOpen || event.touches.length !== 1) return;
+    settingsListTouch = { y: event.touches[0].clientY, list: event.currentTarget };
+  }
+  function moveSettingsListTouch(event) {
+    if (!settingsListTouch || event.touches.length !== 1) return;
+    const list = settingsListTouch.list;
+    const dy = event.touches[0].clientY - settingsListTouch.y;
+    if (list.scrollTop > 0 || dy < -6) {
+      settingsListTouch = null;
+      return;
+    }
+    if (dy < 6) return;
+    if (event.cancelable) event.preventDefault();
+  }
+  function endSettingsListTouch() {
+    settingsListTouch = null;
+  }
+  if (playerSettingsList) {
+    playerSettingsList.addEventListener('touchstart', startSettingsListTouch, { passive: true });
+    playerSettingsList.addEventListener('touchmove', moveSettingsListTouch, { passive: false });
+    playerSettingsList.addEventListener('touchend', endSettingsListTouch);
+    playerSettingsList.addEventListener('touchcancel', endSettingsListTouch);
+  }
+
   if (playerSettings) {
     playerSettings.addEventListener('click', (event) => {
       if (!settingsSuppressClick) return;
@@ -5888,6 +5914,18 @@
     results.push(`noRotate=${state.playerLandscape === false}`);
     const settingsOpened = playerSettingsOpen;
     const settingsRect = playerSettingsCard.getBoundingClientRect();
+    const settingsTitleLeft = $('.player-settings-titlebar b').getBoundingClientRect().left;
+    const qualityRow = $('#pcQuality');
+    const qualityTop = qualityRow.getBoundingClientRect().top;
+    qualityRow.click();
+    await sleep(160);
+    const settingsFixed = Math.abs(playerSettingsCard.getBoundingClientRect().height - settingsRect.height) < 1.5
+      && Math.abs(qualityRow.getBoundingClientRect().top - qualityTop) < 1.5
+      && $('#pcQualityGroup').classList.contains('open');
+    qualityRow.click();
+    await sleep(100);
+    results.push(`settingsFixed=${settingsFixed}`);
+    results.push(`settingsTitleLeft=${settingsTitleLeft < settingsRect.left + 80}`);
     const settingsX = settingsRect.left + settingsRect.width * 0.5;
     const settingsY = settingsRect.top + 30;
     playerSettingsCard.dispatchEvent(pointerEvent('pointerdown', settingsX, settingsY, 1));
