@@ -1118,64 +1118,74 @@ body.grid .grid-overlay{display:block}
 }
 .player.paused .player-video::after{opacity:1;transition-duration:.9s}
 
-/* floating precision seek bar */
+/* flat moving ruler (desktop precision wheel) */
 .player-controls{
-  position:absolute;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:6;
-  padding:9px 14px 8px;display:flex;flex-direction:column;
-  background:linear-gradient(180deg,rgba(20,24,33,.9),rgba(8,11,17,.95));
-  border:1px solid rgba(255,255,255,.13);border-radius:20px;
-  box-shadow:0 18px 48px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.08);
-  backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);
+  position:absolute;left:0;right:0;bottom:0;z-index:6;
+  width:100%;padding:8px 16px calc(8px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;gap:3px;
+  background:linear-gradient(0deg,rgba(4,6,10,.94) 0%,rgba(4,6,10,.66) 52%,rgba(4,6,10,0) 100%);
+  border:0;border-radius:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;
   transition:opacity .22s ease,transform .26s cubic-bezier(.16,1,.3,1);
   pointer-events:auto;touch-action:none;
 }
 .player-controls.hidden{opacity:0;transform:translateY(16px);pointer-events:none}
-.precision-head{display:flex;align-items:center;gap:9px;min-width:0}
+.wheel-head{display:flex;align-items:center;gap:9px;min-width:0;padding:0 1px}
 .precision-time{
-  font:500 10px/1.2 var(--font-mono);color:rgba(255,255,255,.78);
+  font:500 10px/1.2 var(--font-mono);color:rgba(255,255,255,.8);
   font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:.01em;
 }
 .precision-frames{
   margin-left:auto;font:500 9px/1.2 var(--font-mono);color:rgba(255,255,255,.46);
   font-variant-numeric:tabular-nums;white-space:nowrap;
 }
-.progress-ph{position:relative;height:22px;margin:5px 0 0;cursor:pointer;touch-action:none}
-.progress-ph::before{
-  content:"";position:absolute;left:0;right:0;top:9px;height:4px;border-radius:999px;
-  background:rgba(255,255,255,.15);
+.precision-wheel{
+  position:relative;height:46px;overflow:hidden;cursor:ew-resize;touch-action:none;
+  border-bottom:1px solid rgba(255,255,255,.13);
 }
-.progress-buffer{
-  position:absolute;left:0;top:9px;height:4px;width:0;border-radius:999px;
-  background:rgba(255,255,255,.3);transition:width .18s linear;
+.wheel-strip{position:absolute;inset:0;pointer-events:none}
+.wheel-tick{
+  position:absolute;bottom:7px;width:1px;height:7px;border-radius:1px;
+  background:rgba(255,255,255,.22);transform:translateX(-.5px);
 }
-.progress-played{
-  position:absolute;left:0;top:9px;height:4px;width:0;border-radius:999px;
-  background:#6EA8FF;box-shadow:0 0 10px rgba(110,168,255,.35);
+.wheel-tick.mid{height:11px;background:rgba(255,255,255,.34)}
+.wheel-tick.major{width:1.6px;height:17px;background:rgba(255,255,255,.42)}
+.wheel-tick.major.past{background:#6EA8FF}
+.wheel-tick.major.past::after{
+  content:"";position:absolute;left:50%;top:-3px;width:7px;height:1px;
+  border-radius:1px;background:#6EA8FF;transform:translateX(-50%);
 }
-.progress-thumb{
-  position:absolute;left:0;top:11px;width:10px;height:10px;margin:-5px 0 0 -5px;
-  border-radius:50%;background:#fff;border:0;
-  box-shadow:0 0 0 4px rgba(110,168,255,.16);
-  transition:transform .14s ease;
+.wheel-tick-label{
+  position:absolute;top:2px;transform:translateX(-50%);white-space:nowrap;
+  font:500 8px/1 var(--font-mono);color:rgba(255,255,255,.38);
+  letter-spacing:.01em;font-variant-numeric:tabular-nums;
 }
-.progress-ph:hover .progress-thumb,
-.progress-ph.dragging .progress-thumb{transform:scale(1.25)}
+.wheel-tick-label.past{color:rgba(140,188,255,.74)}
+.wheel-band{
+  position:absolute;left:50%;top:4px;bottom:4px;width:46px;margin-left:-23px;
+  border-radius:8px;background:rgba(110,168,255,.11);pointer-events:none;
+}
+.wheel-needle{
+  position:absolute;left:50%;top:1px;bottom:0;width:2px;margin-left:-1px;
+  border-radius:1px;background:#FF5A5F;box-shadow:0 0 8px rgba(255,90,95,.42);
+  pointer-events:none;
+}
+.precision-wheel.dragging .wheel-needle{box-shadow:0 0 12px rgba(255,90,95,.7)}
 .seek-bubble{
-  position:absolute;left:0;bottom:calc(100% + 3px);transform:translateX(-50%) translateY(4px);
+  position:absolute;left:50%;bottom:calc(100% + 4px);transform:translate(-50%,4px);
   padding:4px 8px;border-radius:7px;background:rgba(10,13,19,.94);
   border:1px solid rgba(255,255,255,.13);color:#fff;
   font:500 9px/1 var(--font-mono);white-space:nowrap;opacity:0;pointer-events:none;
   transition:opacity .12s ease,transform .12s ease;
 }
-.seek-bubble.show{opacity:1;transform:translateX(-50%)}
-.precision-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+.seek-bubble.show{opacity:1;transform:translate(-50%,0)}
+.wheel-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
 .precision-hint{
   min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:8.5px;color:rgba(255,255,255,.36);letter-spacing:.02em;
 }
 .precision-frame-btns{display:flex;gap:5px;flex:none}
 .precision-step{
-  height:22px;padding:0 7px;border:1px solid rgba(255,255,255,.1);border-radius:8px;
+  height:22px;padding:0 7px;border:1px solid rgba(255,255,255,.1);border-radius:7px;
   background:rgba(255,255,255,.05);color:rgba(255,255,255,.7);
   font:600 8.5px/1 var(--font-mono);cursor:pointer;white-space:nowrap;
 }
@@ -1183,7 +1193,8 @@ body.grid .grid-overlay{display:block}
 .precision-step:active{transform:scale(.95)}
 .precision-step:disabled{opacity:.32;pointer-events:none}
 @media (max-width:380px){
-  .player-controls{left:10px;right:10px;padding-left:12px;padding-right:12px}
+  .player-controls{padding-left:12px;padding-right:12px}
+  .precision-wheel{height:42px}
   .precision-hint{font-size:8px}
   .precision-step{padding:0 5px}
 }
@@ -1883,9 +1894,7 @@ body.native-app .proto-backdrop{display:none!important}
 .row-thumb .live-badge{display:block}
 .image-viewer{position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(8,9,12,.94);cursor:zoom-out}
 .image-viewer img{max-width:100%;max-height:100%;object-fit:contain;border-radius:12px}
-.player.live-player .progress-ph{opacity:.28;pointer-events:none}
-.player.live-player .progress-played{width:100%!important}
-.player.live-player .progress-thumb{display:none}
+.player.live-player .precision-wheel{opacity:.28;pointer-events:none}
 .player.live-player .precision-time{color:#FF7A84}
 
 /* ---------- debug HUD ---------- */

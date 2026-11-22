@@ -32,10 +32,8 @@
   const pcShot = $('#pcShot');
   const pcShotValue = $('#pcShotValue');
   const pcFullscreen = $('#pcFullscreen');
-  const progressBar = $('.progress-ph', playerControls);
-  const progressPlayed = $('.progress-played', playerControls);
-  const progressThumb = $('.progress-thumb', playerControls);
-  const progressBuffer = $('.progress-buffer', playerControls);
+  const progressBar = $('#progressBar');
+  const wheelStrip = $('#wheelStrip');
   const pcFrames = $('#pcFrames');
   const seekBubble = $('#seekBubble');
   const frameBack = $('#frameBack');
@@ -2434,31 +2432,118 @@
     if (frameForward) frameForward.disabled = context.fps <= 0;
   }
 
-  function syncPrecisionBuffer() {
-    if (!progressBuffer) return;
-    const total = state.duration > 0 ? state.duration : (Number(realVideo.duration) || 0);
-    if (!total || !realVideo.buffered || !realVideo.buffered.length) {
-      progressBuffer.style.width = '0%';
-      return;
+  function precisionWheelScale(width) {
+    const pxPerSecond = Math.max(4.5, Math.min(11, width / 72));
+    const steps = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
+    let minorStep = steps[steps.length - 1];
+    for (let index = 0; index < steps.length; index += 1) {
+      if (steps[index] * pxPerSecond >= 11) {
+        minorStep = steps[index];
+        break;
+      }
     }
-    let end = 0;
-    for (let index = 0; index < realVideo.buffered.length; index += 1) {
-      end = Math.max(end, realVideo.buffered.end(index));
+    return { pxPerSecond, minorStep };
+  }
+
+  function renderPrecisionWheel(centerOverride) {
+    if (!wheelStrip || !progressBar) return;
+    const context = precisionContext();
+    const width = progressBar.clientWidth || progressBar.getBoundingClientRect().width || 1;
+    const center = Math.max(0, Math.min(context.total, Number.isFinite(centerOverride) ? centerOverride : context.current));
+    const { pxPerSecond, minorStep } = precisionWheelScale(width);
+    const halfSpan = width / 2 / pxPerSecond;
+    const start = Math.max(0, center - halfSpan);
+    const end = Math.min(context.total, center + halfSpan);
+    const centerX = width / 2;
+    const fragment = document.createDocumentFragment();
+    const firstIndex = Math.ceil(start / minorStep);
+    const lastIndex = Math.floor(end / minorStep);
+    for (let index = firstIndex; index <= lastIndex; index += 1) {
+      const seconds = index * minorStep;
+      const x = centerX + (seconds - center) * pxPerSecond;
+      const major = index % 5 === 0;
+      const tick = document.createElement('span');
+      tick.className = `wheel-tick${major ? ' major' : (index % 2 === 0 ? ' mid' : '')}${seconds <= center ? ' past' : ''}`;
+      tick.style.left = `${x.toFixed(2)}px`;
+      fragment.appendChild(tick);
+      if (major && Math.abs(x - centerX) > 19 && x > 24 && x < width - 24) {
+        const label = document.createElement('span');
+        label.className = `wheel-tick-label${seconds <= center ? ' past' : ''}`;
+        label.textContent = formatTime(seconds);
+        label.style.left = `${x.toFixed(2)}px`;
+        fragment.appendChild(label);
+      }
     }
-    progressBuffer.style.width = `${Math.min(100, (end / total) * 100)}%`;
+    wheelStrip.replaceChildren(fragment);
+    updatePrecisionReadout(center);
   }
 
   function setProgress(percent, seek) {
     if (precisionDrag && !seek) return;
     state.progress = Math.min(100, Math.max(0, percent));
-    progressPlayed.style.width = `${state.progress}%`;
-    progressThumb.style.left = `${state.progress}%`;
     pdProgress.style.width = `${state.progress}%`;
-    updatePrecisionReadout();
-    syncPrecisionBuffer();
+    renderPrecisionWheel();
     if (seek && window.O11A1Media && typeof window.O11A1Media.seek === 'function') {
       window.O11A1Media.seek(state.progress);
     }
+  }
+
+  function previewPrecisionTime(seconds) {
+    const context = precisionContext();
+    const value = Math.max(0, Math.min(context.total, Number(seconds) || 0));
+    seekBubble.textContent = formatTimeMs(value);
+    seekBubble.classList.add('show');
+    renderPrecisionWheel(value);
+  }
+
+  function startPrecisionDrag(event) {
+    if (!state.playerOpen) return;
+    if (event.button !== undefined && event.button !== 0) return;
+    clearTimeout(hideTimer);
+    const context = precisionContext();
+    const rect = progressBar.getBoundingClientRect();
+    const { pxPerSecond } = precisionWheelScale(rect.width || 1);
+    const centerX = rect.left + rect.width / 2;
+    const tapTime = context.current + (event.clientX - centerX) / pxPerSecond;
+    precisionDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startTime: context.current,
+      preview: context.current,
+      tapTime,
+      moved: false,
+    };
+    progressBar.classList.add('dragging');
+    if (event.cancelable) event.preventDefault();
+  }
+
+  function movePrecisionDrag(event) {
+    const drag = precisionDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const dx = event.clientX - drag.startX;
+    if (!drag.moved) {
+      if (Math.abs(dx) < 3) return;
+      drag.moved = true;
+    }
+    const context = precisionContext();
+    const rect = progressBar.getBoundingClientRect();
+    const { pxPerSecond } = precisionWheelScale(rect.width || 1);
+    drag.preview = Math.max(0, Math.min(context.total, drag.startTime - dx / pxPerSecond));
+    previewPrecisionTime(drag.preview);
+    if (event.cancelable) event.preventDefault();
+  }
+
+  function endPrecisionDrag(event) {
+    const drag = precisionDrag;
+    if (!drag || (event && event.pointerId !== undefined && event.pointerId !== drag.pointerId)) return;
+    const context = precisionContext();
+    const target = drag.moved ? drag.preview : drag.tapTime;
+    precisionDrag = null;
+    progressBar.classList.remove('dragging');
+    seekBubble.classList.remove('show');
+    const clamped = Math.max(0, Math.min(context.total, Number(target) || 0));
+    setProgress(context.total > 0 ? clamped / context.total * 100 : 0, true);
+    showControls();
   }
 
   function openPlayerSettings() {
@@ -2557,55 +2642,12 @@
     showControls();
   }
 
-  function precisionPercentFor(event) {
-    const rect = progressBar.getBoundingClientRect();
-    return Math.min(100, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width) * 100));
-  }
-
-  function previewPrecision(percent) {
-    const total = state.duration > 0 ? state.duration : TOTAL_SECONDS;
-    const seconds = total * percent / 100;
-    progressPlayed.style.width = `${percent}%`;
-    progressThumb.style.left = `${percent}%`;
-    updatePrecisionReadout(seconds);
-    seekBubble.textContent = formatTimeMs(seconds);
-    seekBubble.style.left = `${percent}%`;
-    seekBubble.classList.add('show');
-    syncPrecisionBuffer();
-  }
-
-  function startPrecisionDrag(event) {
-    if (!state.playerOpen) return;
-    if (event.button !== undefined && event.button !== 0) return;
-    const percent = precisionPercentFor(event);
-    precisionDrag = { pointerId: event.pointerId, percent };
-    progressBar.classList.add('dragging');
-    previewPrecision(percent);
-    if (event.cancelable) event.preventDefault();
-  }
-
-  function movePrecisionDrag(event) {
-    if (!precisionDrag || event.pointerId !== precisionDrag.pointerId) return;
-    precisionDrag.percent = precisionPercentFor(event);
-    previewPrecision(precisionDrag.percent);
-    if (event.cancelable) event.preventDefault();
-  }
-
-  function endPrecisionDrag(event) {
-    if (!precisionDrag || (event && event.pointerId !== undefined && event.pointerId !== precisionDrag.pointerId)) return;
-    const percent = precisionDrag.percent;
-    precisionDrag = null;
-    progressBar.classList.remove('dragging');
-    seekBubble.classList.remove('show');
-    setProgress(percent, true);
-    showControls();
-  }
-
   function showControls() {
     clearTimeout(hideTimer);
     if (!state.playerOpen || state.locked) return;
     player.classList.remove('ui-hidden');
     playerControls.classList.remove('hidden');
+    renderPrecisionWheel();
     scheduleHide();
   }
 
@@ -4597,12 +4639,9 @@
   }
   if (frameBack) frameBack.addEventListener('click', () => seekFrames(-1));
   if (frameForward) frameForward.addEventListener('click', () => seekFrames(1));
-  realVideo.addEventListener('progress', syncPrecisionBuffer);
-  realVideo.addEventListener('loadedmetadata', syncPrecisionBuffer);
-  realVideo.addEventListener('durationchange', syncPrecisionBuffer);
 
   playerControls.addEventListener('pointerdown', (event) => {
-    if (event.target.closest('button, input, .progress-ph')) return;
+    if (event.target.closest('button, input, .precision-wheel')) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     toolbarDrag = { id: event.pointerId, x: event.clientX, y: event.clientY };
   });

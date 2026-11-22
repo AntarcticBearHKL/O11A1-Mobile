@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=101">
+  <link rel="stylesheet" href="./styles.css?v=102">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -332,25 +332,23 @@
           <span class="video-hint">空播放器</span>
 
           <div class="player-controls" id="playerControls">
-            <div class="precision-bar">
-              <div class="precision-head">
-                <span class="precision-time" id="pcTime">00:00.000 / 00:00</span>
-                <span class="precision-frames" id="pcFrames">帧 —</span>
-                <span class="player-orientation-badge" id="playerOrientationBadge" hidden>横屏</span>
-              </div>
-              <div class="progress-ph" id="progressBar">
-                <span class="progress-buffer"></span>
-                <span class="progress-played"></span>
-                <span class="progress-thumb"></span>
-                <span class="seek-bubble" id="seekBubble">00:00.000</span>
-              </div>
-              <div class="precision-foot">
-                <span class="precision-hint">拖动进度条精确定位 · 松手跳转</span>
-                <span class="precision-frame-btns">
-                  <button type="button" class="precision-step" id="frameBack" title="上一帧">−1 帧</button>
-                  <button type="button" class="precision-step" id="frameForward" title="下一帧">+1 帧</button>
-                </span>
-              </div>
+            <div class="wheel-head">
+              <span class="precision-time" id="pcTime">00:00.000 / 00:00</span>
+              <span class="precision-frames" id="pcFrames">帧 —</span>
+              <span class="player-orientation-badge" id="playerOrientationBadge" hidden>横屏</span>
+            </div>
+            <div class="precision-wheel" id="progressBar">
+              <div class="wheel-strip" id="wheelStrip" aria-hidden="true"></div>
+              <span class="wheel-band" aria-hidden="true"></span>
+              <span class="wheel-needle" aria-hidden="true"></span>
+              <span class="seek-bubble" id="seekBubble">00:00.000</span>
+            </div>
+            <div class="wheel-foot">
+              <span class="precision-hint">拖动刻度精确定位 · 轻点跳转</span>
+              <span class="precision-frame-btns">
+                <button type="button" class="precision-step" id="frameBack" title="上一帧">−1 帧</button>
+                <button type="button" class="precision-step" id="frameForward" title="下一帧">+1 帧</button>
+              </span>
             </div>
           </div>
           <div class="seek-ripple" id="seekRipple">+10s</div>
@@ -467,8 +465,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=101"></script>
-  <script src="./app.js?v=101"></script>
-  <script src="./native.js?v=101"></script>
+  <script src="./vendor/hls.min.js?v=102"></script>
+  <script src="./app.js?v=102"></script>
+  <script src="./native.js?v=102"></script>
 </body>
 </html>
