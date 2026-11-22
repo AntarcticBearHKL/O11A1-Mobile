@@ -848,7 +848,7 @@
     win.loading = false;
     setTail(feed, 'idle');
     const note = $('#upNote');
-    if (note) note.textContent = `${state.upName || 'UP 主'} · ${upSort === 'click' ? '播放量' : '最新发布'} · 触底加载`;
+    if (note) note.textContent = `${state.upName || 'UP 主'} · ${upSort === 'click' ? '播放量' : '新发布'} · 触底加载`;
     return true;
   }
 

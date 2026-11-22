@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=126">
+  <link rel="stylesheet" href="./styles.css?v=127">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -453,16 +453,18 @@
     </div>
     <footer class="up-bottom">
       <div class="up-sort" id="upSort" role="tablist" aria-label="投稿排序">
-        <button class="up-sort-btn on" type="button" role="tab" aria-selected="true" data-up-sort="pubdate">最新发布</button>
+        <button class="up-sort-btn on" type="button" role="tab" aria-selected="true" data-up-sort="pubdate">新发布</button>
         <button class="up-sort-btn" type="button" role="tab" aria-selected="false" data-up-sort="click">播放量</button>
       </div>
-      <div class="up-title-row">
-        <span class="up-avatar" id="upAvatar"></span>
-        <div class="up-copy">
-          <b id="upName">UP 主</b>
-          <small id="upMid">UID —</small>
+      <div class="up-info-card">
+        <div class="up-title-row">
+          <span class="up-avatar" id="upAvatar"></span>
+          <div class="up-copy">
+            <b id="upName">UP 主</b>
+            <small id="upMid">UID —</small>
+          </div>
+          <button class="pill-btn up-follow" id="upFollow" type="button">关注</button>
         </div>
-        <button class="pill-btn up-follow" id="upFollow" type="button">关注</button>
       </div>
     </footer>
   </section>
@@ -476,8 +478,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=126"></script>
-  <script src="./app.js?v=126"></script>
-  <script src="./native.js?v=126"></script>
+  <script src="./vendor/hls.min.js?v=127"></script>
+  <script src="./app.js?v=127"></script>
+  <script src="./native.js?v=127"></script>
 </body>
 </html>
