@@ -96,7 +96,6 @@
   const searchResultsPage = $('.page[data-page="search"]');
   const dockPlaylistBody = $('#dockPlaylistBody');
   const dockPlaylistList = $('#dockPlaylistList');
-  const dockPlaylistCount = $('#dockPlaylistCount');
   const playlistPageList = $('#playlistPageList');
   const playlistPageCount = $('#playlistPageCount');
   const playlistBack = $('#playlistBack');
@@ -1291,12 +1290,11 @@
   }
 
   /* ---------- playlist (floating dock + page) ---------- */
-  function playlistItemMarkup(item, index, current, removable) {
+  function playlistItemMarkup(item, removable) {
     return `
-      <span class="pl-index">${String(index + 1).padStart(2, '0')}</span>
       <span class="pl-thumb">${item.pic ? `<img src="${escapeHTML(item.pic)}" alt="">` : '<span class="ph-label">封面</span>'}</span>
       <span class="pl-copy">
-        <span class="pl-title">${escapeHTML(item.title)}${current ? '<span class="pl-badge">当前</span>' : ''}</span>
+        <span class="pl-title">${escapeHTML(item.title)}</span>
         <span class="pl-meta">${escapeHTML(item.meta)}</span>
       </span>
       ${removable ? '<button class="pl-remove" type="button" title="移出播放列表">×</button>' : ''}`;
@@ -1341,7 +1339,6 @@
   function renderDockPlaylist() {
     if (!dockPlaylistList) return;
     const count = state.playlist.length;
-    if (dockPlaylistCount) dockPlaylistCount.textContent = `${count} 项`;
     dockPlaylistList.innerHTML = '';
     if (!count) {
       dockPlaylistList.innerHTML = '<div class="pd-empty"><b>播放列表是空的</b><span>在视频行上向左滑加入播放列表</span></div>';
@@ -1352,7 +1349,7 @@
       row.className = `playlist-page-item${index === state.currentIndex ? ' on' : ''}`;
       row.setAttribute('role', 'button');
       row.tabIndex = 0;
-      row.innerHTML = playlistItemMarkup(item, index, index === state.currentIndex, true);
+      row.innerHTML = playlistItemMarkup(item, true);
       const open = () => openPlaylistItem(index, row);
       row.addEventListener('click', (event) => {
         if (event.target.closest('.pl-remove')) return;
@@ -1569,12 +1566,11 @@
     playlistPageList.innerHTML = '';
     if (!count) {
       const empty = document.createElement('div');
-      empty.className = 'empty-state';
+      empty.className = 'playlist-empty';
       empty.innerHTML = `
-        <span class="empty-ico">☰</span>
         <b>播放列表是空的</b>
-        <p>在任意视频行上向左滑，视频会进入播放列表。</p>
-        <button class="pill-btn" type="button" id="playlistEmptyHome">去首页看看</button>`;
+        <p>左滑任意视频即可加入</p>
+        <button class="playlist-empty-home" type="button" id="playlistEmptyHome">去首页</button>`;
       playlistPageList.appendChild(empty);
       const goHome = $('#playlistEmptyHome', empty);
       goHome.addEventListener('click', () => withPlaylistTransition(() => showPage('home')));
@@ -1586,7 +1582,7 @@
       row.className = `playlist-page-item${index === state.currentIndex ? ' on' : ''}`;
       row.setAttribute('role', 'button');
       row.tabIndex = 0;
-      row.innerHTML = playlistItemMarkup(item, index, index === state.currentIndex, true);
+      row.innerHTML = playlistItemMarkup(item, true);
       const openItem = () => openPlaylistItem(index, row);
       row.addEventListener('click', (event) => {
         if (event.target.closest('.pl-remove')) return;
@@ -1607,8 +1603,8 @@
 
     const clear = document.createElement('button');
     clear.type = 'button';
-    clear.className = 'opt playlist-clear';
-    clear.innerHTML = '<span>清空播放列表</span><span class="meta">停止播放</span>';
+    clear.className = 'playlist-clear';
+    clear.innerHTML = '<span>清空播放列表</span>';
     clear.addEventListener('click', () => {
       if (!clearArmed) {
         clearArmed = true;
