@@ -2251,6 +2251,93 @@
     },
   };
 
+  /* ---------- video detail cache ---------- */
+  const VIDEO_INFO_CACHE_MAX = 24;
+  const RELATED_CACHE_TTL = 10 * 60 * 1000;
+  const videoInfoCache = new Map();
+  let relatedVideoCache = null;
+  let relatedVideoCacheAt = 0;
+  let detailRenderedKey = '';
+  let videoPrefetchToken = 0;
+  let videoPrefetchTimers = [];
+
+  function videoCacheKey(item) {
+    if (!item) return '';
+    return String(item.bvid || item.aid || item.id || '');
+  }
+
+  function cacheVideoInfo(item, info) {
+    const key = videoCacheKey(item);
+    if (!key || !info || !info.ok) return;
+    videoInfoCache.delete(key);
+    videoInfoCache.set(key, { info, at: Date.now() });
+    while (videoInfoCache.size > VIDEO_INFO_CACHE_MAX) {
+      videoInfoCache.delete(videoInfoCache.keys().next().value);
+    }
+  }
+
+  function readVideoInfo(item, options = {}) {
+    const key = videoCacheKey(item);
+    if (!key) return null;
+    const cached = videoInfoCache.get(key);
+    if (cached) {
+      videoInfoCache.delete(key);
+      videoInfoCache.set(key, cached);
+      return cached.info;
+    }
+    if (options.cachedOnly) return null;
+    if (!item.bvid || typeof bridge.videoInfo !== 'function') return null;
+    let info = null;
+    try {
+      info = call('videoInfo', item.bvid);
+    } catch (error) {
+      info = { ok: false, error: String(error) };
+    }
+    cacheVideoInfo(item, info);
+    return info;
+  }
+
+  function patchVideoInfoCache(item, patch) {
+    const key = videoCacheKey(item);
+    if (!key) return;
+    const entry = videoInfoCache.get(key);
+    if (!entry || !entry.info) return;
+    patch(entry.info);
+    if (detailRenderedKey === key) detailRenderedKey = '';
+  }
+
+  function hasVideoDetail() {
+    const item = currentItem();
+    const key = videoCacheKey(item);
+    if (!key) return false;
+    const relatedReady = relatedVideoCache !== null || typeof bridge.popular !== 'function';
+    if (videoInfoCache.has(key) && relatedReady) return true;
+    return detailRenderedKey === key
+      && Boolean(document.querySelector('#videoDetailBody .vd-title'));
+  }
+
+  function ensureRelatedVideos() {
+    if (relatedVideoCache !== null && Date.now() - relatedVideoCacheAt < RELATED_CACHE_TTL) {
+      return relatedVideoCache;
+    }
+    if (typeof bridge.popular !== 'function') return relatedVideoCache || [];
+    let result = null;
+    try {
+      result = call('popular', 1, 50);
+    } catch (_) {
+      result = null;
+    }
+    if (result && result.ok && Array.isArray(result.items)) {
+      relatedVideoCache = result.items.slice();
+      relatedVideoCacheAt = Date.now();
+    }
+    return relatedVideoCache || [];
+  }
+
+  function relatedVideos(bvid) {
+    return ensureRelatedVideos().filter((row) => !bvid || row.bvid !== bvid);
+  }
+
   /* ---------- comments ---------- */
   const COMMENT_PREFETCH = 360;
   const COMMENT_LOAD_DELAY = 40;
@@ -2270,6 +2357,114 @@
   let commentLastLoadAt = 0;
   let commentItems = [];
   let commentScrollRaf = 0;
+  let commentNote = '';
+  const COMMENT_CACHE_MAX = 16;
+  const commentCache = new Map();
+  let commentPrefetchKey = '';
+
+  function commentCacheKey(aid, sort) {
+    return `${Number(aid) || 0}:${Number(sort) || 0}`;
+  }
+
+  function trimCommentCache() {
+    while (commentCache.size > COMMENT_CACHE_MAX) {
+      commentCache.delete(commentCache.keys().next().value);
+    }
+  }
+
+  function cacheComments(aid, sort, items, page, hasMore, note) {
+    if (!aid) return;
+    const key = commentCacheKey(aid, sort);
+    commentCache.delete(key);
+    commentCache.set(key, {
+      aid: Number(aid),
+      sort: Number(sort) || 0,
+      items: Array.isArray(items) ? items.slice() : [],
+      page: Number(page) || 1,
+      hasMore: Boolean(hasMore),
+      note: note || '',
+      at: Date.now(),
+    });
+    trimCommentCache();
+  }
+
+  function readCachedComments(aid, sort) {
+    const key = commentCacheKey(aid, sort);
+    const entry = commentCache.get(key);
+    if (!entry) return null;
+    commentCache.delete(key);
+    commentCache.set(key, entry);
+    return entry;
+  }
+
+  function prefetchComments(item) {
+    const aid = Number(item && item.aid ? item.aid : 0);
+    if (!aid || typeof bridge.comments !== 'function') return;
+    const sort = commentSort;
+    if (commentLoading && commentAid === aid && commentRequestSort === sort) return;
+    const key = commentCacheKey(aid, sort);
+    if (commentCache.has(key) || commentPrefetchKey === key) return;
+    commentPrefetchKey = key;
+    let result = null;
+    try {
+      result = call('comments', aid, 1, sort);
+    } catch (_) {
+      result = null;
+    }
+    if (commentPrefetchKey !== key) return;
+    commentPrefetchKey = '';
+    if (!result || !result.ok || !Array.isArray(result.items)) return;
+    let items = result.items;
+    let actualSort = sort;
+    let note = '';
+    if (sort === 0 && items.length === 0 && !result.count) {
+      let fallback = null;
+      try {
+        fallback = call('comments', aid, 1, 2);
+      } catch (_) {
+        fallback = null;
+      }
+      if (fallback && fallback.ok && Array.isArray(fallback.items) && fallback.items.length) {
+        items = fallback.items;
+        actualSort = 2;
+        result = fallback;
+        note = '最新评论需要登录后查看，当前显示最热评论';
+      }
+    }
+    const entry = {
+      aid,
+      sort: actualSort,
+      items: items.slice(),
+      page: 1,
+      hasMore: result.hasMore === true,
+      note,
+      at: Date.now(),
+    };
+    commentCache.set(commentCacheKey(aid, actualSort), entry);
+    if (actualSort !== sort) commentCache.set(commentCacheKey(aid, sort), entry);
+    trimCommentCache();
+  }
+
+  function prefetchCurrentVideo() {
+    const item = currentItem();
+    const token = (videoPrefetchToken += 1);
+    videoPrefetchTimers.forEach((timer) => clearTimeout(timer));
+    videoPrefetchTimers = [];
+    if (!item) return;
+    const key = videoCacheKey(item);
+    const alive = () => token === videoPrefetchToken
+      && (state.playerOpen || state.miniVisible)
+      && videoCacheKey(currentItem()) === key;
+    videoPrefetchTimers.push(setTimeout(() => {
+      if (alive()) readVideoInfo(item);
+    }, 420));
+    videoPrefetchTimers.push(setTimeout(() => {
+      if (alive()) ensureRelatedVideos();
+    }, 900));
+    videoPrefetchTimers.push(setTimeout(() => {
+      if (alive()) prefetchComments(item);
+    }, 1350));
+  }
 
   const COMMENT_HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3 4.6 13a4.7 4.7 0 0 1 6.6-6.6l.8.8.8-.8A4.7 4.7 0 0 1 19.4 13z"/></svg>';
   const COMMENT_EMPTY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-8 8H5l2.2-2.2A8 8 0 1 1 20 12Z"/><path d="M8.5 11.5h7M8.5 14.5h4.5"/></svg>';
@@ -2385,6 +2580,7 @@
       commentLoading = false;
       commentMoreError = false;
       commentItems = [];
+      commentNote = '';
       host.commentsBody.innerHTML = commentEmptyMarkup('暂无评论', '当前视频还没有可用的评论数据');
       return false;
     }
@@ -2392,6 +2588,38 @@
       return false;
     }
     if (!options.force && commentLoading && aid === commentRequestAid && commentSort === commentRequestSort) {
+      return false;
+    }
+    const cached = options.force ? null : readCachedComments(aid, commentSort);
+    if (cached) {
+      commentToken += 1;
+      commentSort = cached.sort;
+      commentAid = aid;
+      commentRequestAid = aid;
+      commentRequestSort = cached.sort;
+      commentLoaded = true;
+      commentLoadedAid = aid;
+      commentLoadedSort = cached.sort;
+      commentPage = cached.page;
+      commentHasMore = cached.hasMore;
+      commentLoading = false;
+      commentMoreError = false;
+      commentItems = cached.items.slice();
+      commentNote = cached.note || '';
+      commentLastLoadAt = 0;
+      syncCommentSortUI();
+      if (!commentItems.length) {
+        host.commentsBody.innerHTML = commentEmptyMarkup('还没有评论', '换个排序看看，或者来抢个沙发');
+      } else {
+        host.commentsBody.innerHTML = commentListMarkup(commentItems, commentNote);
+      }
+      host.commentsBody.scrollTop = 0;
+      requestAnimationFrame(() => {
+        if (commentLoadedAid !== aid || commentLoadedSort !== commentSort || !commentHasMore) return;
+        if (host.commentsBody.scrollHeight <= host.commentsBody.clientHeight + 120) {
+          requestCommentPage(true);
+        }
+      });
       return false;
     }
     commentToken += 1;
@@ -2406,6 +2634,7 @@
     commentHasMore = true;
     commentMoreError = false;
     commentItems = [];
+    commentNote = '';
     commentLoading = true;
     commentLastLoadAt = Date.now();
     host.commentsBody.innerHTML = commentSkeletonMarkup(7);
@@ -2456,6 +2685,8 @@
       commentHasMore = items.length > 0 && result.hasMore === true;
       commentMoreError = false;
       commentLastLoadAt = 0;
+      commentNote = note;
+      cacheComments(commentLoadedAid, commentLoadedSort, commentItems, commentPage, commentHasMore, commentNote);
       if (!items.length) {
         host.commentsBody.innerHTML = commentEmptyMarkup('还没有评论', '换个排序看看，或者来抢个沙发');
         return;
@@ -2527,6 +2758,7 @@
       commentHasMore = result.hasMore === true;
       commentMoreError = false;
       commentLastLoadAt = Date.now();
+      cacheComments(commentLoadedAid, commentLoadedSort, commentItems, commentPage, commentHasMore, commentNote);
     }, COMMENT_LOAD_DELAY);
     return true;
   }
@@ -2621,11 +2853,12 @@
     const item = currentItem();
     if (!item) {
       body.innerHTML = '<div class="comments-empty"><b>没有可显示的视频</b><span>先从视频流打开一个视频。</span></div>';
+      detailRenderedKey = '';
       return false;
     }
-    const detail = item.bvid && typeof bridge.videoInfo === 'function'
-      ? call('videoInfo', item.bvid)
-      : null;
+    const key = videoCacheKey(item);
+    if (key && detailRenderedKey === key && body.querySelector('.vd-title')) return true;
+    const detail = readVideoInfo(item);
     const info = detail && detail.ok ? detail : {};
     const title = info.title || item.title || '视频';
     const pic = info.pic || item.pic || '';
@@ -2653,12 +2886,7 @@
       duration,
       desc,
     });
-    let related = [];
-    if (typeof bridge.popular === 'function') {
-      const result = call('popular', 1, 50);
-      const items = result && result.ok && Array.isArray(result.items) ? result.items : [];
-      related = items.filter((row) => !bvid || row.bvid !== bvid);
-    }
+    const related = relatedVideos(bvid);
     const longDesc = desc.length > 90;
     body.innerHTML = `
       <div class="vd-hero">
@@ -2711,6 +2939,7 @@
         descToggle.textContent = expanded ? '收起简介' : '展开简介';
       });
     }
+    detailRenderedKey = key;
     return true;
   }
 
@@ -2934,7 +3163,7 @@
       });
       return;
     }
-    const detail = item.bvid ? call('videoInfo', item.bvid) : { ok: false };
+    const detail = readVideoInfo(item) || { ok: false };
     const stat = detail.stat || {};
     const owner = detail.owner || item.owner || 'UP 主';
     const title = detail.title || item.title || '视频';
@@ -3008,6 +3237,10 @@
     const result = call('favorite', item.aid, next);
     if (!result.ok) return result.needLogin ? '请先登录' : (result.error || '操作失败');
     state.fav = next;
+    patchVideoInfoCache(item, (info) => {
+      info.faved = next;
+      if (info.stat) info.stat.favorite = Math.max(0, Number(info.stat.favorite || 0) + (next ? 1 : -1));
+    });
     host.save();
     return next ? '已收藏' : '已取消';
   }
@@ -3019,6 +3252,10 @@
     const result = call('like', item.aid, next);
     if (!result.ok) return result.needLogin ? '请先登录' : (result.error || '点赞失败');
     state.liked = next;
+    patchVideoInfoCache(item, (info) => {
+      info.liked = next;
+      if (info.stat) info.stat.like = Math.max(0, Number(info.stat.like || 0) + (next ? 1 : -1));
+    });
     host.save();
     return next ? '已点赞' : '已取消';
   }
@@ -3030,6 +3267,7 @@
     const result = call('coin', item.aid, 2, false);
     if (!result.ok) return result.needLogin ? '请先登录' : (result.error || '投币失败');
     state.coin = true;
+    patchVideoInfoCache(item, (info) => { info.coined = true; });
     host.save();
     return '已投币';
   }
@@ -3037,7 +3275,7 @@
   function followCurrent() {
     const item = currentItem();
     if (!item || !item.mid || typeof bridge.follow !== 'function') {
-      const detail = item && item.bvid ? call('videoInfo', item.bvid) : null;
+      const detail = item ? readVideoInfo(item) : null;
       if (detail && detail.ok && detail.mid) item.mid = detail.mid;
     }
     if (!item || !item.mid) return '没有 UP 信息';
@@ -3045,6 +3283,7 @@
     const result = call('follow', item.mid, next);
     if (!result.ok) return result.needLogin ? '请先登录' : (result.error || '关注失败');
     state.followed = next;
+    patchVideoInfoCache(item, (info) => { info.followed = next; });
     host.save();
     return next ? '已关注' : '已取消';
   }
@@ -3184,6 +3423,8 @@
     search: (query) => loadSearch(query, 1),
     openUpPage,
     renderVideoDetail,
+    hasVideoDetail,
+    prefetchCurrent: prefetchCurrentVideo,
     onComments: (sort, options) => loadComments(sort, options),
     favorite: favoriteCurrent,
     like: likeCurrent,
