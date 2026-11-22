@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=106">
+  <link rel="stylesheet" href="./styles.css?v=107">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -437,22 +437,30 @@
       </div>
     </div>
 
-    <!-- UP 主主页：从右侧滑入，覆盖播放器 -->
-    <section class="page up-page" data-page="up">
-      <div class="up-head">
-        <span class="up-avatar" id="upAvatar"></span>
-        <div class="up-copy">
-          <span class="up-kicker">UP 主</span>
-          <b id="upName">UP 主</b>
-          <small id="upMid">UID —</small>
-        </div>
-        <button class="pill-btn up-follow" id="upFollow" type="button">关注</button>
-      </div>
-      <div class="feed" id="upFeed"></div>
-      <div class="list-note" id="upNote">UP 主视频</div>
-    </section>
     </div>
   </div>
+
+  <!-- UP 主主页：从右侧滑入，覆盖播放器 -->
+  <section class="page up-page" data-page="up">
+    <div class="up-head">
+      <span class="up-avatar" id="upAvatar"></span>
+      <div class="up-copy">
+        <span class="up-kicker">UP 主</span>
+        <b id="upName">UP 主</b>
+        <small id="upMid">UID —</small>
+      </div>
+      <button class="pill-btn up-follow" id="upFollow" type="button">关注</button>
+    </div>
+    <div class="feed" id="upFeed"></div>
+    <div class="list-note" id="upNote">UP 主视频</div>
+    <div class="up-sort" id="upSort" role="tablist" aria-label="投稿排序">
+      <span class="up-sort-count" id="upSortCount"></span>
+      <div class="up-sort-track">
+        <button class="up-sort-btn on" type="button" role="tab" aria-selected="true" data-up-sort="pubdate">最新发布</button>
+        <button class="up-sort-btn" type="button" role="tab" aria-selected="false" data-up-sort="click">播放量</button>
+      </div>
+    </div>
+  </section>
 
   <div class="psheet-backdrop" id="psheetBackdrop"></div>
   <div class="psheet" id="psheet" inert>
@@ -463,8 +471,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=106"></script>
-  <script src="./app.js?v=106"></script>
-  <script src="./native.js?v=106"></script>
+  <script src="./vendor/hls.min.js?v=107"></script>
+  <script src="./app.js?v=107"></script>
+  <script src="./native.js?v=107"></script>
 </body>
 </html>

@@ -7,18 +7,28 @@ import org.json.JSONObject;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 
 /** Account, community, PGC and live APIs used by the V2 WebView bridge. */
 final class BiliExtras {
     private static final String TAG = "O11A1Extras";
+    private static final int[] WBI_MIXIN_KEY = {
+        46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35,
+        27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13,
+        37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4,
+        22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52
+    };
     private final CookieStore cookies;
     private final StreamProxy proxy;
     private final BiliApi api;
     private long cachedMid = 0;
     private long cachedFolderId = 0;
+    private String cachedWbiKey = "";
+    private long cachedWbiAt = 0;
 
     BiliExtras(CookieStore cookies, StreamProxy proxy, BiliApi api) {
         this.cookies = cookies;
@@ -363,6 +373,191 @@ final class BiliExtras {
             row.put("time", reply.optLong("ctime", 0));
         } catch (Throwable ignored) {}
         return row;
+    }
+
+    /* ---------- UP space ---------- */
+
+    JSONObject space(long mid, int page, String order) {
+        JSONObject out = new JSONObject();
+        try {
+            if (mid <= 0) return apiFailure(-1, "缺少 UP 主 UID");
+            int pn = Math.max(1, page);
+            int ps = 20;
+            String sort = "click".equals(order) ? "click" : "pubdate";
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Referer", "https://space.bilibili.com/" + mid + "/video");
+            headers.put("Origin", "https://space.bilibili.com");
+            headers.put("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
+            JSONObject json = null;
+            try {
+                json = fetch("https://api.bilibili.com/x/space/arc/search?mid=" + mid
+                    + "&pn=" + pn + "&ps=" + ps + "&tid=0&keyword=&order=" + sort
+                    + "&order_avoided=true&jsonp=jsonp", headers);
+            } catch (Throwable ignored) {
+            }
+            JSONObject oldData = json == null ? null : json.optJSONObject("data");
+            JSONObject oldList = oldData == null ? null : oldData.optJSONObject("list");
+            JSONArray oldVlist = oldList == null ? null : oldList.optJSONArray("vlist");
+            JSONObject oldPage = oldData == null ? null : oldData.optJSONObject("page");
+            int oldCount = oldPage == null ? 0 : oldPage.optInt("count", 0);
+            boolean usable = json != null && json.optInt("code", -1) == 0 && oldData != null
+                && (oldCount == 0 || (oldVlist != null && oldVlist.length() > 0));
+            if (!usable) {
+                String key = wbiKey();
+                if (!key.isEmpty()) {
+                    Map<String, String> params = new HashMap<>();
+                    params.put("mid", String.valueOf(mid));
+                    params.put("pn", String.valueOf(pn));
+                    params.put("ps", String.valueOf(ps));
+                    params.put("tid", "0");
+                    params.put("keyword", "");
+                    params.put("order", sort);
+                    params.put("platform", "web");
+                    params.put("web_location", "1550101");
+                    params.put("order_avoided", "true");
+                    params.put("space_login_group", "2");
+                    params.put("dm_img_list", "[]");
+                    params.put("dm_img_str", "V2ViR0wgMS");
+                    params.put("dm_cover_img_str", "SW50ZWwoUikgSEQgR3JhcGhpY3NJbnRlbA");
+                    params.put("dm_img_inter", "{\"ds\":[],\"wh\":[0,0,0],\"of\":[0,0,0]}");
+                    String query = wbiSign(params, key);
+                    json = fetch("https://api.bilibili.com/x/space/wbi/arc/search?" + query, headers);
+                }
+            }
+            int code = json == null ? -1 : json.optInt("code", -1);
+            JSONObject data = json == null ? null : json.optJSONObject("data");
+            if (code != 0 || data == null) {
+                return apiFailure(code, json == null ? "space unavailable" : json.optString("message", "UP 主空间加载失败"));
+            }
+            JSONObject list = data.optJSONObject("list");
+            JSONArray vlist = list == null ? null : list.optJSONArray("vlist");
+            JSONObject pageInfo = data.optJSONObject("page");
+            int total = pageInfo == null ? 0 : pageInfo.optInt("count", 0);
+            JSONArray items = new JSONArray();
+            if (vlist != null) {
+                for (int index = 0; index < vlist.length(); index += 1) {
+                    JSONObject video = vlist.optJSONObject(index);
+                    if (video == null) continue;
+                    String durationText = video.optString("duration", "");
+                    int durationSec = durationSeconds(durationText);
+                    JSONObject row = new JSONObject();
+                    row.put("bvid", video.optString("bvid", ""));
+                    row.put("aid", video.optLong("aid", 0));
+                    row.put("cid", video.optLong("cid", 0));
+                    row.put("title", strip(video.optString("title", "")));
+                    row.put("pic", https(video.optString("pic", "")));
+                    row.put("owner", strip(video.optString("author", "")));
+                    row.put("mid", video.optLong("mid", mid));
+                    row.put("duration", durationText);
+                    row.put("durationSec", durationSec);
+                    row.put("pubdate", video.optLong("pubdate", 0));
+                    row.put("play", video.optLong("play", 0));
+                    row.put("desc", strip(video.optString("description", "")));
+                    row.put("meta", strip(video.optString("author", "")) + " · " + count(video.optLong("play", 0)) + " 播放");
+                    items.put(row);
+                }
+            }
+            out.put("ok", true);
+            out.put("items", items);
+            out.put("total", total);
+            out.put("page", pn);
+            out.put("hasMore", total > pn * ps || (total == 0 && items.length() >= ps));
+            try {
+                JSONObject cardJson = fetch("https://api.bilibili.com/x/web-interface/card?mid=" + mid + "&photo=true", headers);
+                JSONObject cardData = cardJson.optJSONObject("data");
+                JSONObject card = cardData == null ? null : cardData.optJSONObject("card");
+                if (card != null) {
+                    out.put("name", strip(card.optString("name", "")));
+                    out.put("face", https(card.optString("face", "")));
+                    out.put("sign", strip(card.optString("sign", "")));
+                    out.put("follower", card.optLong("fans", 0));
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                JSONObject relation = fetch("https://api.bilibili.com/x/relation/stat?mid=" + mid);
+                JSONObject stats = relation.optJSONObject("data");
+                if (stats != null) {
+                    out.put("follower", stats.optLong("follower", 0));
+                    out.put("following", stats.optLong("following", 0));
+                }
+            } catch (Throwable ignored) {
+            }
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out;
+    }
+
+    private String wbiKey() throws Exception {
+        long now = System.currentTimeMillis();
+        if (!cachedWbiKey.isEmpty() && now - cachedWbiAt < 6 * 60 * 60 * 1000L) {
+            return cachedWbiKey;
+        }
+        JSONObject json = fetch("https://api.bilibili.com/x/web-interface/nav");
+        JSONObject data = json.optJSONObject("data");
+        JSONObject wbi = data == null ? null : data.optJSONObject("wbi_img");
+        String img = wbi == null ? "" : wbiFileKey(wbi.optString("img_url", ""));
+        String sub = wbi == null ? "" : wbiFileKey(wbi.optString("sub_url", ""));
+        if (img.isEmpty() || sub.isEmpty()) return "";
+        String raw = img + sub;
+        StringBuilder mixed = new StringBuilder();
+        for (int index : WBI_MIXIN_KEY) {
+            if (index < raw.length()) mixed.append(raw.charAt(index));
+        }
+        cachedWbiKey = mixed.substring(0, Math.min(32, mixed.length()));
+        cachedWbiAt = now;
+        return cachedWbiKey;
+    }
+
+    private String wbiSign(Map<String, String> params, String key) throws Exception {
+        TreeMap<String, String> sorted = new TreeMap<>(params);
+        StringBuilder query = new StringBuilder();
+        for (Map.Entry<String, String> entry : sorted.entrySet()) {
+            if (entry.getValue() == null) continue;
+            if (query.length() > 0) query.append('&');
+            query.append(wbiEncode(entry.getKey())).append('=').append(wbiEncode(entry.getValue()));
+        }
+        long wts = System.currentTimeMillis() / 1000L;
+        query.append("&wts=").append(wts);
+        String wRid = md5(query.toString() + key);
+        return query.append("&w_rid=").append(wRid).toString();
+    }
+
+    private static String wbiEncode(String value) throws Exception {
+        return URLEncoder.encode(value, "UTF-8")
+            .replace("+", "%20")
+            .replace("*", "%2A")
+            .replace("%7E", "~");
+    }
+
+    private static String wbiFileKey(String url) {
+        if (url == null || url.isEmpty()) return "";
+        int slash = url.lastIndexOf('/');
+        String name = slash >= 0 ? url.substring(slash + 1) : url;
+        int dot = name.indexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
+    }
+
+    private static String md5(String text) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("MD5");
+        byte[] bytes = digest.digest(text.getBytes(StandardCharsets.UTF_8));
+        StringBuilder hex = new StringBuilder(bytes.length * 2);
+        for (byte value : bytes) hex.append(String.format(Locale.US, "%02x", value & 0xff));
+        return hex.toString();
+    }
+
+    private static int durationSeconds(String text) {
+        if (text == null || text.isEmpty()) return 0;
+        String[] parts = text.split(":");
+        int total = 0;
+        for (String part : parts) {
+            try {
+                total = total * 60 + Integer.parseInt(part.trim());
+            } catch (Exception ignored) {
+            }
+        }
+        return total;
     }
 
     /* ---------- discovery ---------- */
@@ -1132,6 +1327,10 @@ final class BiliExtras {
 
     private JSONObject fetch(String url) throws Exception {
         return new JSONObject(cookies.request(url, null, null));
+    }
+
+    private JSONObject fetch(String url, Map<String, String> headers) throws Exception {
+        return new JSONObject(cookies.request(url, headers, null));
     }
 
     private JSONObject post(String url, String body) throws Exception {

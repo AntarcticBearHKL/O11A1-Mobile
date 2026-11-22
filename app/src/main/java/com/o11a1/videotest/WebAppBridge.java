@@ -108,6 +108,11 @@ final class WebAppBridge {
     }
 
     @JavascriptInterface
+    public String space(long mid, int page, String order) {
+        return runExtra(() -> extras.space(mid, page, order).toString());
+    }
+
+    @JavascriptInterface
     public String bangumi(int page, int seasonType) {
         return runExtra(() -> extras.bangumi(page, seasonType).toString());
     }

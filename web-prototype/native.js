@@ -64,6 +64,8 @@
   };
   const FEED_PREFETCH = 900;
   const more = { dynamic: true, messages: true };
+  let upSort = 'pubdate';
+  let upTotal = 0;
   const dynamicFilterNames = ['全部', '视频', '图文'];
   const messageFilterNames = ['回复', '@我', '收到的赞', '私信'];
   const moduleFilterNames = {
@@ -745,6 +747,27 @@
     return result.ok;
   }
 
+  function syncUpSortUI() {
+    $$('#upSort [data-up-sort]').forEach((button) => {
+      const on = button.dataset.upSort === upSort;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+  }
+
+  function changeUpSort(next) {
+    if (next !== 'click' && next !== 'pubdate') return;
+    if (next === upSort) return;
+    upSort = next;
+    upTotal = 0;
+    const count = $('#upSortCount');
+    if (count) count.textContent = '';
+    const page = $('.page[data-page="up"]');
+    if (page) page.scrollTop = 0;
+    syncUpSortUI();
+    loadUp(1, false);
+  }
+
   function loadUp(page, append, immediate) {
     const feed = feeds.up;
     const win = windows.up;
@@ -777,7 +800,16 @@
       return false;
     }
     const mid = Number(state.upItem && state.upItem.mid ? state.upItem.mid : 0);
-    const result = call('space', mid, pageNo, 20);
+    if (!mid) {
+      if (!appendPage) {
+        renderEmpty(feed, '缺少 UP 主 UID', '从视频详情或视频行进入 UP 主页后再试。');
+      }
+      win.hasMore = false;
+      win.loading = false;
+      setTail(feed, 'idle');
+      return false;
+    }
+    const result = call('space', mid, pageNo, upSort);
     if (!result.ok) {
       if (!appendPage) {
         renderEmpty(feed, 'UP 主视频加载失败', result.error || '网络错误', '重试', () => loadUp(1, false));
@@ -787,6 +819,27 @@
       win.loading = false;
       return false;
     }
+    upTotal = Number(result.total) || 0;
+    const countEl = $('#upSortCount');
+    if (countEl) countEl.textContent = upTotal > 0 ? `共 ${countText(upTotal)} 个投稿` : '';
+    if (result.name) {
+      state.upName = result.name;
+      const nameEl = $('#upName');
+      if (nameEl) nameEl.textContent = result.name;
+    }
+    if (result.face) {
+      const avatar = $('#upAvatar');
+      if (avatar) {
+        avatar.style.backgroundImage = `url("${result.face}")`;
+        avatar.textContent = '';
+      }
+    }
+    const midEl = $('#upMid');
+    if (midEl) {
+      const followText = result.follower ? ` · ${countText(result.follower)} 粉丝` : '';
+      midEl.textContent = `UID ${mid}${followText}`;
+    }
+    syncUpSortUI();
     const items = Array.isArray(result.items) ? result.items : [];
     if (!items.length) {
       if (!appendPage) renderEmpty(feed, '这个 UP 主还没有视频', '');
@@ -802,7 +855,7 @@
     win.loading = false;
     setTail(feed, 'idle');
     const note = $('#upNote');
-    if (note) note.textContent = `${state.upName || 'UP 主'} · 触底加载`;
+    if (note) note.textContent = `${state.upName || 'UP 主'} · ${upSort === 'click' ? '播放量' : '最新发布'} · 触底加载`;
     return true;
   }
 
@@ -832,6 +885,9 @@
     }
     const note = $('#upNote');
     if (note) note.textContent = `${name} · UP 主视频`;
+    const count = $('#upSortCount');
+    if (count) count.textContent = '';
+    syncUpSortUI();
     host.showPage('up');
     windows.up.token += 1;
     windows.up.page = 0;
@@ -3757,6 +3813,13 @@
     } else {
       upFollow.textContent = result.needLogin ? '需登录' : '失败';
     }
+  });
+
+  const upSortBar = $('#upSort');
+  if (upSortBar) upSortBar.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-up-sort]');
+    if (!button) return;
+    changeUpSort(button.dataset.upSort);
   });
 
   window.O11A1NativeData = {

@@ -5616,6 +5616,11 @@
     window.dispatchEvent(pointerEvent('pointerup', upX - 260, upY, 0));
     await sleep(560);
     results.push(`rowUp=${state.page === 'up' && $$('#upFeed .real-row').length > 0}`);
+    const upSortClick = $('#upSort [data-up-sort="click"]');
+    if (upSortClick) upSortClick.click();
+    await sleep(420);
+    const firstUpTitle = $('#upFeed .real-title') ? $('#upFeed .real-title').textContent : '';
+    results.push(`upSort=${upSortClick ? upSortClick.classList.contains('on') && /最多播放/.test(firstUpTitle) : false}`);
     const upOverlay = $('.page[data-page="up"]');
     const upOverlayRect = upOverlay.getBoundingClientRect();
     const upOverlayX = upOverlayRect.left + upOverlayRect.width * 0.5;
