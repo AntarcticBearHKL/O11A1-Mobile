@@ -360,9 +360,8 @@
   let mockFeedLoadedAt = 0;
 
   const FEED_PREFETCH = 900;
-  const ROW_ACTION_TOTAL = 160;
-  const ROW_ACTION_FIRST = 114;
-  const ROW_ACTION_SECOND = 160;
+  const ROW_ACTION_ARM = 24;
+  const ROW_ACTION_MAX = 120;
 
   const MODULE_NOTES = {
     收藏: '真实收藏夹 · 第一页 20 条',
@@ -1681,9 +1680,7 @@
   }
 
   function rowActionForOffset(offset) {
-    if (offset >= ROW_ACTION_SECOND) return 'up';
-    if (offset >= ROW_ACTION_FIRST) return 'queue';
-    return '';
+    return offset >= ROW_ACTION_ARM ? 'queue' : '';
   }
 
   function ensureRowMask(row) {
@@ -1693,7 +1690,7 @@
     mask.className = 'row-swipe-mask';
     mask.dataset.action = 'queue';
     mask.setAttribute('aria-hidden', 'true');
-    mask.innerHTML = '<b class="rsm-label">加入播放列表</b><small class="rsm-hint">继续左滑</small>';
+    mask.innerHTML = '<b class="rsm-label">加入播放列表</b><small class="rsm-hint">左滑加入</small>';
     row.appendChild(mask);
     return mask;
   }
@@ -1703,22 +1700,17 @@
     const row = wrapper.querySelector('.video-row');
     if (!row) return;
     const mask = ensureRowMask(row);
-    const armedQueue = offset >= ROW_ACTION_FIRST;
-    const armedUp = offset >= ROW_ACTION_SECOND;
-    const action = armedUp ? 'up' : 'queue';
-    const armed = armedUp ? 'up' : armedQueue ? 'queue' : '';
-    const opacity = Math.min(1, Math.max(0, offset / 108));
-    mask.dataset.action = action;
+    const armedQueue = offset >= ROW_ACTION_ARM;
+    const armed = armedQueue ? 'queue' : '';
+    const opacity = Math.min(1, Math.max(0, offset / 24));
+    mask.dataset.action = 'queue';
     mask.style.opacity = String(opacity);
-    const label = mask.querySelector('.rsm-label');
     const hint = mask.querySelector('.rsm-hint');
-    if (label) label.textContent = armedUp ? '打开 UP 主' : '加入播放列表';
-    if (hint) hint.textContent = armedUp ? '松开执行' : armedQueue ? '松开执行 · 继续左滑切换 UP 主' : '继续左滑';
-    mask.classList.toggle('armed', Boolean(armed));
-    mask.classList.toggle('armed-up', armedUp);
+    if (hint) hint.textContent = armedQueue ? '松开加入' : '左滑加入';
+    mask.classList.toggle('armed', armedQueue);
     if (armed && armed !== wrapper.__rowArmed && navigator.vibrate) navigator.vibrate(6);
     wrapper.__rowArmed = armed;
-    wrapper.__rowAction = action;
+    wrapper.__rowAction = armed ? 'queue' : '';
   }
 
   function resetRowSwipe(wrapper) {
@@ -1732,29 +1724,13 @@
       if (mask) {
         mask.style.opacity = '';
         mask.dataset.action = 'queue';
-        mask.classList.remove('armed', 'armed-up', 'fired');
+        mask.classList.remove('armed', 'fired');
         const label = mask.querySelector('.rsm-label');
         const hint = mask.querySelector('.rsm-hint');
         if (label) label.textContent = '加入播放列表';
-        if (hint) hint.textContent = '继续左滑';
+        if (hint) hint.textContent = '左滑加入';
       }
     }
-  }
-
-  function openUpPageForRow(row) {
-    const item = row && row.__nativeItem;
-    if (!item) return;
-    if (videoDetailOpen) {
-      openUpFromDetail(item);
-      return;
-    }
-    if (window.O11A1NativeData && typeof window.O11A1NativeData.openUpPage === 'function') {
-      window.O11A1NativeData.openUpPage(item);
-      return;
-    }
-    openSheet('UP 主', item.owner || 'UP 主', (body) => {
-      body.innerHTML = `<div class="native-empty"><b>${escapeHTML(item.owner || 'UP 主')}</b><span>当前版本没有 UP 主主页接口。</span></div>`;
-    });
   }
 
   function resetUpPageDrag() {
@@ -1799,12 +1775,10 @@
     const mask = row.querySelector('.row-swipe-mask');
     if (mask) {
       mask.classList.add('armed', 'fired');
-      mask.classList.toggle('armed-up', action === 'up');
       wrapper.classList.remove('swiping');
       mask.style.opacity = '0';
     }
     if (action === 'queue') addFeedRowToPlaylist(row);
-    else if (action === 'up') openUpPageForRow(row);
     setTimeout(() => resetRowSwipe(wrapper), 220);
   }
 
@@ -4540,7 +4514,7 @@
     }
     if (rowSwipe.direction !== 'left') return;
     if (event.cancelable) event.preventDefault();
-    const offset = Math.min(ROW_ACTION_TOTAL, Math.max(0, -dx));
+    const offset = Math.min(ROW_ACTION_MAX, Math.max(0, -dx));
     rowSwipe.offset = offset;
     setRowSwipe(rowSwipe.wrapper, offset);
   }, { passive: false });
@@ -5105,10 +5079,10 @@
     const rowX = rowRect.left + rowRect.width / 2;
     row.dispatchEvent(pointerEvent('pointerdown', rowX, rowY, 1));
     for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', rowX - (150 * step) / 6, rowY, 1));
+      window.dispatchEvent(pointerEvent('pointermove', rowX - (42 * step) / 6, rowY, 1));
     }
-    window.dispatchEvent(pointerEvent('pointerup', rowX - 150, rowY, 0));
-    await sleep(200);
+    window.dispatchEvent(pointerEvent('pointerup', rowX - 42, rowY, 0));
+    await sleep(220);
     results.push(`rowQueue=${state.playlist.length > countBefore}`);
     if (state.playlist.length > countBefore) {
       state.playlist.pop();
@@ -5118,17 +5092,32 @@
       save();
     }
 
-    const upRow = $('#homeFeed .video-row');
-    const upRect = upRow.getBoundingClientRect();
-    const upY = upRect.top + upRect.height / 2;
-    const upX = upRect.left + upRect.width / 2;
-    upRow.dispatchEvent(pointerEvent('pointerdown', upX, upY, 1));
+    const noUpRow = $('#homeFeed .video-row');
+    const noUpCount = state.playlist.length;
+    const noUpRect = noUpRow.getBoundingClientRect();
+    const noUpY = noUpRect.top + noUpRect.height / 2;
+    const noUpX = noUpRect.left + noUpRect.width / 2;
+    noUpRow.dispatchEvent(pointerEvent('pointerdown', noUpX, noUpY, 1));
     for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', upX - (260 * step) / 6, upY, 1));
+      window.dispatchEvent(pointerEvent('pointermove', noUpX - (260 * step) / 6, noUpY, 1));
     }
-    window.dispatchEvent(pointerEvent('pointerup', upX - 260, upY, 0));
+    window.dispatchEvent(pointerEvent('pointerup', noUpX - 260, noUpY, 0));
+    await sleep(520);
+    results.push(`rowNoUp=${state.page === 'home' && state.playlist.length > noUpCount}`);
+    if (state.playlist.length > noUpCount) {
+      state.playlist.pop();
+      state.currentIndex = Math.min(state.currentIndex, Math.max(0, state.playlist.length - 1));
+      updatePlayerLabels();
+      updatePlaylistCounts();
+      save();
+    }
+
+    const upRow = $('#homeFeed .video-row');
+    if (window.O11A1NativeData && typeof window.O11A1NativeData.openUpPage === 'function') {
+      window.O11A1NativeData.openUpPage(upRow.__nativeItem);
+    }
     await sleep(500);
-    results.push(`rowUp=${state.page === 'up' && $$('#upFeed .real-row').length > 0}`);
+    results.push(`upPage=${state.page === 'up' && $$('#upFeed .real-row').length > 0}`);
     const upOverlay = $('.page[data-page="up"]');
     const upOverlayRect = upOverlay.getBoundingClientRect();
     const upOverlayX = upOverlayRect.left + upOverlayRect.width * 0.5;

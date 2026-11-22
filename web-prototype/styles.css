@@ -349,9 +349,6 @@ body[data-theme="dark"] .feed-skeleton::after{
   transition:opacity .22s ease;
 }
 .feed-item.swiping .row-swipe-mask{transition:none}
-.row-swipe-mask[data-action="up"]{
-  background:linear-gradient(90deg,rgba(124,92,252,.58) 0%,rgba(124,92,252,.74) 52%,rgba(124,92,252,.96) 100%);
-}
 .row-swipe-mask .rsm-label{
   font-size:16px;font-weight:700;line-height:1.15;letter-spacing:.01em;
   transition:transform .14s cubic-bezier(.16,1,.3,1);

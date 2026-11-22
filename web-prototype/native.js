@@ -235,7 +235,7 @@
       </span>
       <span class="row-swipe-mask" aria-hidden="true" data-action="queue">
         <b class="rsm-label">加入播放列表</b>
-        <small class="rsm-hint">继续左滑</small>
+        <small class="rsm-hint">左滑加入</small>
       </span>`;
     const image = $('img', row);
     if (image) {
