@@ -311,6 +311,76 @@
     feed.appendChild(fragment);
   }
 
+  function feedViewport(feed) {
+    const scroll = feed === feeds.up
+      ? $('.page[data-page="up"]')
+      : feed === feeds.search
+        ? $('.page[data-page="search"]')
+        : $('#appScroll');
+    const isActive = (feed === feeds.home && state.page === 'home')
+      || (feed === feeds.search && state.page === 'search')
+      || (feed === feeds.module && state.page === 'module')
+      || (feed === feeds.up && state.page === 'up');
+    return { scroll, isActive: Boolean(scroll && isActive) };
+  }
+
+  function topVisibleRow(feed, scroll, exclude) {
+    if (!scroll) return null;
+    const viewportTop = scroll.getBoundingClientRect().top;
+    const rows = $$('.feed-item:not(.feed-skeleton)', feed);
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      if (exclude && exclude.includes(row)) continue;
+      if (row.getBoundingClientRect().bottom > viewportTop + 1) return row;
+    }
+    return null;
+  }
+
+  function trimChunk(feed, page) {
+    const rows = $$(`[data-chunk="${page}"]`, feed);
+    if (!rows.length) {
+      delete feed.__chunkItems[page];
+      return true;
+    }
+    const { scroll, isActive } = feedViewport(feed);
+    if (isActive && scroll) {
+      const first = rows[0];
+      const last = rows[rows.length - 1];
+      const viewportTop = scroll.getBoundingClientRect().top;
+      // Never unload a chunk that still overlaps the visible feed area:
+      // removing it mid-read is what made the feed jump forward a whole page.
+      if (last.getBoundingClientRect().bottom > viewportTop + 4) return false;
+      const anchor = topVisibleRow(feed, scroll, rows);
+      const anchorTop = anchor ? anchor.getBoundingClientRect().top : 0;
+      const oldHeight = last.getBoundingClientRect().bottom - first.getBoundingClientRect().top;
+      rows.forEach((row) => row.remove());
+      if (anchor) {
+        const afterTop = anchor.getBoundingClientRect().top;
+        if (afterTop !== anchorTop) {
+          window.__o11a1ScrollAdjust = Date.now();
+          scroll.scrollTop = Math.max(0, scroll.scrollTop + (afterTop - anchorTop));
+        }
+      } else if (oldHeight > 0) {
+        window.__o11a1ScrollAdjust = Date.now();
+        scroll.scrollTop = Math.max(0, scroll.scrollTop - oldHeight);
+      }
+    } else {
+      rows.forEach((row) => row.remove());
+    }
+    delete feed.__chunkItems[page];
+    return true;
+  }
+
+  function trimFeed(feed) {
+    const pages = Array.isArray(feed.__chunkPages) ? feed.__chunkPages : [];
+    while (pages.length > 2) {
+      const oldPage = pages[0];
+      if (!trimChunk(feed, oldPage)) break;
+      pages.shift();
+      feed.__nativeItems = pages.flatMap((pageNo) => feed.__chunkItems[pageNo] || []);
+    }
+  }
+
   function appendRows(feed, items, label, page) {
     const chunk = page || 1;
     feed.__chunkPages = feed.__chunkPages || [];
@@ -331,31 +401,7 @@
       realRows.forEach((row) => fragment.appendChild(row));
       feed.appendChild(fragment);
     }
-    while (feed.__chunkPages.length > 2) {
-      const oldPage = feed.__chunkPages.shift();
-      const oldRows = $$(`[data-chunk="${oldPage}"]`, feed);
-      const firstOld = oldRows[0];
-      const lastOld = oldRows[oldRows.length - 1];
-      const oldHeight = firstOld && lastOld
-        ? lastOld.getBoundingClientRect().bottom - firstOld.getBoundingClientRect().top
-        : 0;
-      const scroll = feed === feeds.up
-        ? $('.page[data-page="up"]')
-        : feed === feeds.search
-          ? $('.page[data-page="search"]')
-          : $('#appScroll');
-      const isActive = (feed === feeds.home && state.page === 'home')
-        || (feed === feeds.search && state.page === 'search')
-        || (feed === feeds.module && state.page === 'module')
-        || (feed === feeds.up && state.page === 'up');
-      const beforeScroll = scroll && oldHeight > 0 && isActive ? scroll.scrollTop : 0;
-      oldRows.forEach((row) => row.remove());
-      delete feed.__chunkItems[oldPage];
-      if (scroll && oldHeight > 0 && isActive) {
-        window.__o11a1ScrollAdjust = Date.now();
-        scroll.scrollTop = Math.max(0, beforeScroll - oldHeight);
-      }
-    }
+    trimFeed(feed);
     feed.__nativeItems = feed.__chunkPages.flatMap((pageNo) => feed.__chunkItems[pageNo] || []);
   }
 
@@ -3070,6 +3116,8 @@
       pages.messages += 1;
       if (loadMessages(pages.messages, true) && $('#messageFeed').querySelector('.native-empty')) more.messages = false;
     }
+    if (state.page === 'home') trimFeed(feeds.home);
+    else if (state.page === 'module') trimFeed(feeds.module);
   });
 
   const upScroller = $('.page[data-page="up"]');
@@ -3078,6 +3126,7 @@
     if (state.page !== 'up') return;
     if (upScroller.scrollTop + upScroller.clientHeight < upScroller.scrollHeight - FEED_PREFETCH) return;
     requestFeedPage('up');
+    trimFeed(feeds.up);
   });
 
   const searchScroller = $('.page[data-page="search"]');
@@ -3086,6 +3135,7 @@
     if (state.page !== 'search') return;
     if (searchScroller.scrollTop + searchScroller.clientHeight < searchScroller.scrollHeight - FEED_PREFETCH) return;
     requestFeedPage('search');
+    trimFeed(feeds.search);
   });
 
   const pageObserver = new MutationObserver(() => {

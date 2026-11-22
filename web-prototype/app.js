@@ -972,6 +972,63 @@
     feed.appendChild(fragment);
   }
 
+  function mockChunkNodes(feed, page) {
+    const nodes = [];
+    $$(`[data-chunk="${page}"]`, feed).forEach((node) => {
+      const item = node.closest('.feed-item');
+      const target = item && feed.contains(item) ? item : node;
+      if (!nodes.includes(target)) nodes.push(target);
+    });
+    return nodes;
+  }
+
+  function topVisibleMockRow(feed, exclude) {
+    const viewportTop = appScroll.getBoundingClientRect().top;
+    const nodes = [];
+    $$('[data-chunk]', feed).forEach((node) => {
+      const item = node.closest('.feed-item');
+      const target = item && feed.contains(item) ? item : node;
+      if (!nodes.includes(target)) nodes.push(target);
+    });
+    for (let index = 0; index < nodes.length; index += 1) {
+      const node = nodes[index];
+      if (exclude && exclude.includes(node)) continue;
+      if (node.getBoundingClientRect().bottom > viewportTop + 1) return node;
+    }
+    return null;
+  }
+
+  function trimMockFeed(feed) {
+    const pages = Array.isArray(feed.__chunkPages) ? feed.__chunkPages : [];
+    while (pages.length > 2) {
+      const oldPage = pages[0];
+      const oldRows = mockChunkNodes(feed, oldPage);
+      if (!oldRows.length) {
+        pages.shift();
+        continue;
+      }
+      const first = oldRows[0];
+      const last = oldRows[oldRows.length - 1];
+      const viewportTop = appScroll.getBoundingClientRect().top;
+      if (last.getBoundingClientRect().bottom > viewportTop + 4) break;
+      const anchor = topVisibleMockRow(feed, oldRows);
+      const anchorTop = anchor ? anchor.getBoundingClientRect().top : 0;
+      const oldHeight = last.getBoundingClientRect().bottom - first.getBoundingClientRect().top;
+      oldRows.forEach((row) => row.remove());
+      if (anchor) {
+        const afterTop = anchor.getBoundingClientRect().top;
+        if (afterTop !== anchorTop) {
+          window.__o11a1ScrollAdjust = Date.now();
+          appScroll.scrollTop = Math.max(0, appScroll.scrollTop + (afterTop - anchorTop));
+        }
+      } else if (oldHeight > 0) {
+        window.__o11a1ScrollAdjust = Date.now();
+        appScroll.scrollTop = Math.max(0, appScroll.scrollTop - oldHeight);
+      }
+      pages.shift();
+    }
+  }
+
   function appendMockFeedChunk(feed, page) {
     if (!feed || document.body.classList.contains('native-app')) return;
     if (!Array.isArray(feed.__chunkPages) || !feed.__chunkPages.length) {
@@ -1003,21 +1060,7 @@
       realRows.forEach((row) => feed.appendChild(row));
     }
     feed.__chunkPages.push(next);
-    while (feed.__chunkPages.length > 2) {
-      const oldPage = feed.__chunkPages.shift();
-      const oldRows = $$(`[data-chunk="${oldPage}"]`, feed);
-      const firstOld = oldRows[0];
-      const lastOld = oldRows[oldRows.length - 1];
-      const oldHeight = firstOld && lastOld
-        ? lastOld.getBoundingClientRect().bottom - firstOld.getBoundingClientRect().top
-        : 0;
-      const beforeScroll = oldHeight > 0 ? appScroll.scrollTop : 0;
-      oldRows.forEach((row) => row.remove());
-      if (oldHeight > 0) {
-        window.__o11a1ScrollAdjust = Date.now();
-        appScroll.scrollTop = Math.max(0, beforeScroll - oldHeight);
-      }
-    }
+    trimMockFeed(feed);
   }
 
   function maybeAppendMockFeed() {
@@ -4873,7 +4916,12 @@
     else if (start.direction === 'search-close') resetSearchResultsDrag();
   });
 
-  appScroll.addEventListener('scroll', maybeAppendMockFeed);
+  appScroll.addEventListener('scroll', () => {
+    if (document.body.classList.contains('native-app')) return;
+    maybeAppendMockFeed();
+    const feed = activeFeed();
+    if (feed) trimMockFeed(feed);
+  });
 
   function resetSearchDrag() {
     if (!searchHomePage) return;
