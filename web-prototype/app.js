@@ -82,10 +82,15 @@
   const playlistDock = $('#playlistDock');
   const playlistPage = $('.page[data-page="playlist"]');
   const upPage = $('.page[data-page="up"]');
-  const pdThumb = $('#pdThumb');
+  const pdCollapsed = $('#pdCollapsed');
+  const pdNow = $('#pdNow');
   const pdTitle = $('#pdTitle');
   const pdMeta = $('#pdMeta');
   const pdProgress = $('#pdProgress');
+  const pdTools = $('#pdTools');
+  const pdMode = $('#pdMode');
+  const pdModeValue = $('#pdModeValue');
+  const pdClear = $('#pdClear');
   const pdSearch = $('#pdSearch');
   const pdSearchInput = $('#pdSearchInput');
   const pdSearchBack = $('#pdSearchBack');
@@ -305,6 +310,8 @@
   let hideTimer = null;
   let clearArmed = false;
   let clearTimer = null;
+  let dockClearArmed = false;
+  let dockClearTimer = null;
   let stageGesture = null;
   let stageTapTimer = null;
   let lastStageTap = { time: 0, zone: '' };
@@ -1384,6 +1391,9 @@
     const next = Boolean(expanded);
     playlistDock.classList.remove('dragging');
     playlistDock.classList.toggle('expanded', next);
+    if (pdTools) pdTools.setAttribute('aria-hidden', next ? 'false' : 'true');
+    if (pdCollapsed) pdCollapsed.setAttribute('aria-hidden', next ? 'true' : 'false');
+    resetDockClear();
     void playlistDock.offsetWidth;
     playlistDock.style.height = '';
     playlistDock.style.borderTopLeftRadius = '';
@@ -1455,6 +1465,45 @@
     updatePlaylistDock();
   }
 
+  function playlistOwnerName(item) {
+    if (!item) return '';
+    const owner = String(item.owner || '').trim();
+    if (owner) return owner;
+    if (item.offlineUrl) return '本地缓存';
+    const meta = String(item.meta || '').trim();
+    if (!meta) return '';
+    const first = meta.split('·')[0].trim();
+    if (!first || first === '播放列表' || first === '离线') return '';
+    return first;
+  }
+
+  function resetDockClear() {
+    dockClearArmed = false;
+    clearTimeout(dockClearTimer);
+    dockClearTimer = null;
+    if (pdClear) {
+      pdClear.classList.remove('confirm');
+      pdClear.textContent = '清空列表';
+    }
+  }
+
+  function handleDockClear(event) {
+    if (event) event.stopPropagation();
+    if (!state.playlist.length) return;
+    if (!dockClearArmed) {
+      dockClearArmed = true;
+      if (pdClear) {
+        pdClear.textContent = '确认清空';
+        pdClear.classList.add('confirm');
+      }
+      clearTimeout(dockClearTimer);
+      dockClearTimer = setTimeout(resetDockClear, 3200);
+      return;
+    }
+    resetDockClear();
+    clearPlaylist();
+  }
+
   function updatePlaylistDock() {
     const count = state.playlist.length;
     const item = state.playlist[state.currentIndex];
@@ -1468,18 +1517,24 @@
     app.classList.toggle('has-playlist', dockVisible);
     playlistDock.style.opacity = '';
     playlistDock.style.transform = '';
+    if (pdModeValue) pdModeValue.textContent = state.settings.loop;
+    if (pdMode) pdMode.setAttribute('aria-label', `播放模式：${state.settings.loop}，点击切换`);
+    if (pdClear) pdClear.disabled = count === 0;
+    if (!count) resetDockClear();
     if (!item) {
-      pdThumb.innerHTML = '<span class="ph-label">封面</span>';
-      pdTitle.textContent = '播放列表';
-      pdMeta.textContent = `${count} 项`;
+      if (pdNow) pdNow.textContent = '播放列表';
+      pdTitle.textContent = '暂无播放内容';
+      pdMeta.textContent = '左滑视频加入';
       pdProgress.style.width = '0%';
       return;
     }
-    pdThumb.innerHTML = item.pic
-      ? `<img src="${escapeHTML(item.pic)}" alt="">`
-      : '<span class="ph-label">封面</span>';
-    pdTitle.textContent = item.title;
-    pdMeta.textContent = `播放列表 · ${count} 项 · ${state.playing ? '正在播放' : state.progress > 0 ? '已暂停' : '待播放'}`;
+    if (pdNow) {
+      pdNow.textContent = state.playing
+        ? '正在播放'
+        : state.progress > 0 ? '已暂停' : '待播放';
+    }
+    pdTitle.textContent = item.title || '视频';
+    pdMeta.textContent = playlistOwnerName(item) || 'UP 主';
     pdProgress.style.width = `${state.progress}%`;
   }
 
@@ -1501,6 +1556,20 @@
     dockAbsorbTimer = setTimeout(() => playlistDock.classList.remove('absorbing'), 560);
   }
 
+  function playlistDockTargetRect() {
+    const dock = playlistDock.getBoundingClientRect();
+    const head = $('.pd-head', playlistDock);
+    const base = head ? head.getBoundingClientRect() : dock;
+    const width = 64;
+    const height = 38;
+    return {
+      left: dock.left + dock.width / 2 - width / 2,
+      top: base.top + base.height / 2 - height / 2,
+      width,
+      height,
+    };
+  }
+
   function flyRowToPlaylist(row) {
     const thumb = row ? row.querySelector('.row-thumb') : null;
     const dockVisible = playlistDock.classList.contains('show');
@@ -1513,7 +1582,7 @@
     }
     const start = thumb.getBoundingClientRect();
     const end = useDock
-      ? pdThumb.getBoundingClientRect()
+      ? playlistDockTargetRect()
       : {
         left: window.innerWidth / 2 - 30,
         top: window.innerHeight - 54,
@@ -3007,7 +3076,7 @@
       playlistDock.style.transform = 'translate(-50%, 0)';
       playlistDock.style.opacity = '1';
       playerDockForced = true;
-      target = pdThumb.getBoundingClientRect();
+      target = playlistDockTargetRect();
     }
     const base = player.getBoundingClientRect();
     const targetScale = target && base.width
@@ -3187,11 +3256,18 @@
     }
   }
 
-  function cycleLoop() {
+  function cyclePlaybackMode() {
     const list = ['循环', '继续', '下一分P', '暂停'];
     state.settings.loop = list[(list.indexOf(state.settings.loop) + 1) % list.length];
-    updatePlayerLabels();
+    if (pcLoopValue) pcLoopValue.textContent = state.settings.loop;
+    if (pdModeValue) pdModeValue.textContent = state.settings.loop;
+    if (pdMode) pdMode.setAttribute('aria-label', `播放模式：${state.settings.loop}，点击切换`);
     save();
+    return state.settings.loop;
+  }
+
+  function cycleLoop() {
+    cyclePlaybackMode();
     showControls();
   }
 
@@ -4945,7 +5021,8 @@
   });
   playlistDock.addEventListener('click', (event) => {
     if (playlistDock.classList.contains('searching')) return;
-    if (event.target.closest('.pd-search, .pd-search-input, .pd-body')) return;
+    if (playlistDock.classList.contains('expanded')) return;
+    if (event.target.closest('.pd-search, .pd-search-input, .pd-body, .pd-tools')) return;
     if (Date.now() < suppressDockClickUntil) return;
     launchPlayerFromDock();
   });
@@ -4954,10 +5031,24 @@
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       if (playlistDock.classList.contains('searching')) return;
+      if (playlistDock.classList.contains('expanded')) return;
       if (Date.now() < suppressDockClickUntil) return;
       launchPlayerFromDock();
     }
   });
+  if (pdMode) {
+    pdMode.addEventListener('click', (event) => {
+      event.stopPropagation();
+      cyclePlaybackMode();
+      pdMode.classList.remove('switching');
+      void pdMode.offsetWidth;
+      pdMode.classList.add('switching');
+      setTimeout(() => pdMode.classList.remove('switching'), 380);
+    });
+  }
+  if (pdClear) {
+    pdClear.addEventListener('click', handleDockClear);
+  }
   if (pdSearch) {
     pdSearch.addEventListener('click', (event) => {
       event.stopPropagation();

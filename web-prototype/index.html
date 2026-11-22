@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=114">
+  <link rel="stylesheet" href="./styles.css?v=115">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -220,11 +220,18 @@
       </section>
       <div class="playlist-dock" id="playlistDock" role="button" tabindex="0" aria-hidden="true" inert>
         <div class="pd-head">
-          <span class="pd-thumb" id="pdThumb"><span class="ph-label">封面</span></span>
-          <span class="pd-copy">
+          <div class="pd-collapsed" id="pdCollapsed">
+            <span class="pd-now" id="pdNow">正在播放</span>
             <b id="pdTitle">播放列表</b>
             <small id="pdMeta">0 项</small>
-          </span>
+          </div>
+          <div class="pd-tools" id="pdTools" aria-hidden="true">
+            <button class="pd-mode" id="pdMode" type="button" aria-label="切换播放模式">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.6-5.6L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.6 5.6L4 16"/><path d="M4 20v-4h4"/></svg>
+              <span id="pdModeValue">循环</span>
+            </button>
+            <button class="pd-clear" id="pdClear" type="button">清空列表</button>
+          </div>
           <button class="pd-search" id="pdSearch" type="button" aria-label="搜索">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
           </button>
@@ -479,8 +486,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=114"></script>
-  <script src="./app.js?v=114"></script>
-  <script src="./native.js?v=114"></script>
+  <script src="./vendor/hls.min.js?v=115"></script>
+  <script src="./app.js?v=115"></script>
+  <script src="./native.js?v=115"></script>
 </body>
 </html>
