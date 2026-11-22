@@ -130,7 +130,6 @@
   const protoDrawer = $('#protoDrawer');
   const protoBackdrop = $('#protoBackdrop');
   const protoFab = $('#protoFab');
-  const homeLandscapeBtn = $('#homeLandscapeBtn');
 
   const STORAGE_KEY = 'o11a1.v2.prototype';
   const TOTAL_SECONDS = 24 * 60;
@@ -270,7 +269,6 @@
     progress: 0,
     duration: 0,
     streamInfo: { videoBitrate: 0, audioBitrate: 0, sourceWidth: 0, sourceHeight: 0, frameRate: 0, netBps: 0, netAt: 0, direct: false },
-    landscapeHome: loaded?.landscapeHome === true,
     fav: false,
     coin: false,
     followed: false,
@@ -487,7 +485,6 @@
         settings: state.settings,
         navAllVisible: state.navAllVisible,
         navSelected: state.navSelected,
-        landscapeHome: state.landscapeHome,
         bgStyleVersion: 2,
       }));
     } catch (_) {}
@@ -3189,14 +3186,9 @@
 
   /* ---------- main page landscape ---------- */
   function syncLandscape() {
-    const landscape = state.landscapeHome;
-    app.classList.toggle('landscape', landscape);
-    document.body.classList.toggle('landscape', landscape);
-    if (homeLandscapeBtn) {
-      homeLandscapeBtn.classList.toggle('on', state.landscapeHome);
-      homeLandscapeBtn.setAttribute('aria-pressed', state.landscapeHome ? 'true' : 'false');
-      homeLandscapeBtn.textContent = state.landscapeHome ? '横屏主页 · 开' : '横屏主页';
-    }
+    // The main app is portrait-only. Video landscape is drawn inside the player rotor.
+    app.classList.remove('landscape');
+    document.body.classList.remove('landscape');
   }
 
   /* ---------- video detail overlay ---------- */
@@ -5240,12 +5232,6 @@
   $('#protoClose').addEventListener('click', closeDrawer);
   protoBackdrop.addEventListener('click', closeDrawer);
   $('#landscapeBtn').addEventListener('click', () => { closeDrawer(); openPlayer(); });
-  homeLandscapeBtn.addEventListener('click', () => {
-    state.landscapeHome = !state.landscapeHome;
-    syncLandscape();
-    save();
-    closeDrawer();
-  });
   $('#resetBtn').addEventListener('click', resetPrototype);
   $$('#platformSwitch button').forEach((button) => {
     button.addEventListener('click', () => setPlatform(button.dataset.platform));
@@ -5619,10 +5605,7 @@
     save();
     showPage('home');
   }
-  if (demo === 'landscape') {
-    state.landscapeHome = true;
-    syncLandscape();
-  } else if (demo === 'comments') {
+  if (demo === 'comments') {
     openPlayer();
     setTimeout(() => openComments(), 220);
   } else if (demo === 'sidebar') {

@@ -17,6 +17,14 @@ type BridgeModule = {
 
 const NativeBridge = requireOptionalNativeModule('O11A1Bridge') as BridgeModule | null;
 
+function lockPortraitOrientation() {
+  ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+}
+
+if (!NativeBridge) {
+  lockPortraitOrientation();
+}
+
 function bridgeShim(port: number, testFlow: string): string {
   return `
 (function () {
@@ -366,7 +374,22 @@ export default function App() {
 
   useEffect(() => {
     if (NativeBridge) return;
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+    lockPortraitOrientation();
+    const appStateSub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') lockPortraitOrientation();
+    });
+    let orientationSub: { remove(): void } | null = null;
+    try {
+      orientationSub = ScreenOrientation.addOrientationChangeListener((event) => {
+        if (event?.orientationInfo?.orientation !== ScreenOrientation.Orientation.PORTRAIT_UP) {
+          lockPortraitOrientation();
+        }
+      });
+    } catch (_) {}
+    return () => {
+      appStateSub.remove();
+      if (orientationSub) orientationSub.remove();
+    };
   }, []);
 
   useEffect(() => {

@@ -1653,77 +1653,6 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
   .row-thumb{height:clamp(72px,23vw,84px)}
 }
 
-/* ---------- landscape main page ---------- */
-.app.landscape{
-  --page-pad-x:26px;
-  width:min(920px,calc(100vw - 48px));
-  height:min(470px,calc(100dvh - 48px));
-  min-height:0;border-radius:28px;
-}
-.app.landscape .statusbar{display:none}
-.app.landscape .app-scroll{top:0}
-.app.landscape .top-glass{height:calc(env(safe-area-inset-top) + 24px)}
-.app.landscape .page{padding:0 26px calc(94px + env(safe-area-inset-bottom))}
-.app.landscape .page[data-page="home"]{padding-top:calc(env(safe-area-inset-top) * .5 + 4px);padding-left:4px;padding-right:4px}
-.app.landscape .page[data-page="search"],
-.app.landscape .page[data-page="search-home"]{
-  padding:calc(env(safe-area-inset-top) + 10px) max(26px,env(safe-area-inset-right)) 24px max(26px,env(safe-area-inset-left));
-}
-.app.landscape .page[data-page="login"]{padding:0 max(24px,env(safe-area-inset-left)) 0 max(24px,env(safe-area-inset-right))}
-.app.landscape .page-top{
-  margin-left:-26px;margin-right:-26px;
-  padding-left:max(22px,env(safe-area-inset-left));
-  padding-right:max(22px,env(safe-area-inset-right));
-}
-.app.landscape .feed,
-.app.landscape .section-label,
-.app.landscape .list-note,
-.app.landscape .settings-group,
-.app.landscape .module-group,
-.app.landscape .my-list,
-.app.landscape .account-card{max-width:860px;margin-left:auto;margin-right:auto}
-.app.landscape .feed{--feed-row-h:112px}
-.app.landscape .video-row{padding:0;gap:0;height:100%}
-.app.landscape .row-thumb{width:206px;height:100%;border-radius:0}
-.app.landscape .row-copy{gap:8px;max-width:600px;padding:16px 18px 14px 16px}
-.app.landscape .ph-line{height:10px}
-.app.landscape .ph-title .ph-line{margin-top:8px}
-.app.landscape .section-label{margin-top:20px}
-.app.landscape .tabbar{
-  left:max(18px,calc(50% - 420px),calc(env(safe-area-inset-left) + 12px));
-  right:max(18px,calc(50% - 420px),calc(env(safe-area-inset-right) + 12px));
-  bottom:calc(10px + env(safe-area-inset-bottom));
-}
-.app.landscape .tabbar.many{height:58px}
-.app.landscape .tabbar.many .tabbar-track{height:56px;flex-wrap:nowrap}
-.app.landscape .tabbar.many .tab{flex:1 1 0;height:52px}
-.app.landscape .tabbar.many .tab-ico{font-size:16px}
-.app.landscape .tabbar.many .tab-label{font-size:8px}
-.app.landscape .tabbar.many .tab.on::before{inset:3px 4px;border-radius:14px}
-.app.landscape .tabbar.many.has-dock{height:114px}
-.app.landscape .tabbar.has-dock{height:114px}
-.app.landscape[data-page="search"] .tabbar.search-mode,
-.app.landscape[data-page="search"] .tabbar.many.search-mode{height:58px}
-.app.landscape.nav-many .page{padding-bottom:calc(94px + env(safe-area-inset-bottom))}
-.app.landscape.mini-open .page{padding-bottom:calc(150px + env(safe-area-inset-bottom))}
-.app.landscape.nav-many.mini-open .page{padding-bottom:calc(150px + env(safe-area-inset-bottom))}
-
-@media (max-width:960px),(max-height:520px){
-  .app.landscape{
-    width:100%;max-width:none;height:100dvh;min-height:0;
-    border:0;border-radius:0;box-shadow:none;
-  }
-  .stage:has(.app.landscape){padding:0;align-items:stretch}
-  .app.landscape .page{
-    padding-left:max(22px,env(safe-area-inset-left));
-    padding-right:max(22px,env(safe-area-inset-right));
-  }
-  .app.landscape .page-top{
-    margin-left:calc(-1 * max(22px,env(safe-area-inset-left)));
-    margin-right:calc(-1 * max(22px,env(safe-area-inset-right)));
-  }
-}
-
 /* ---------- left sidebar navigation (no bottom toolbar) ---------- */
 .app-scroll{touch-action:pan-y}
 .sidebar-backdrop{
@@ -1835,15 +1764,6 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
   .page{padding-bottom:24px}
   .app[data-page="search"] .page[data-page="search"]{padding-bottom:24px}
 }
-@media (max-width:960px),(max-height:520px){
-  .app.landscape .page{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
-  .app.landscape .page[data-page="search"],
-.app.landscape .page[data-page="search-home"]{padding-top:calc(env(safe-area-inset-top) + 10px)}
-  .app.landscape.has-playlist .page{padding-bottom:calc(116px + env(safe-area-inset-bottom))}
-  .app.landscape[data-page="search"] .page[data-page="search"]{padding-bottom:24px}
-  body.search-mode .app.landscape.has-playlist .page[data-page="search"]{padding-bottom:calc(116px + env(safe-area-inset-bottom))}
-}
-
 /* ---------- native app additions ---------- */
 body.native-app .proto-fab,
 body.native-app .proto-drawer,

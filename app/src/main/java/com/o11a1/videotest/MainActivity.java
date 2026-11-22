@@ -2,6 +2,7 @@ package com.o11a1.videotest;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
@@ -25,6 +26,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         getWindow().setBackgroundDrawable(
             new android.graphics.drawable.ColorDrawable(Color.rgb(250, 250, 252)));
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -87,7 +89,7 @@ public final class MainActivity extends Activity {
         });
 
         setContentView(webView);
-        webView.loadUrl("file:///android_asset/web/index.html?v=98");
+        webView.loadUrl("file:///android_asset/web/index.html?v=99");
         Thread warm = new Thread(() -> cookies.ensureBuvid(), "o11a1-buvid");
         warm.setDaemon(true);
         warm.start();
