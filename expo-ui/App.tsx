@@ -439,7 +439,9 @@ export default function App() {
         if (!tiltWatching.current || AppState.currentState !== 'active') return;
         const magnitude = Math.abs(x);
         let next = tiltDirection.current;
-        if (magnitude >= 0.8) next = x > 0 ? 1 : -1;
+        // CoreMotion reports the gravity vector: +x means the right edge is
+        // down, so the player must rotate counter-clockwise (dir -1).
+        if (magnitude >= 0.8) next = x > 0 ? -1 : 1;
         else if (magnitude <= 0.45) next = 0;
         if (next === tiltDirection.current) return;
         tiltDirection.current = next;
