@@ -6123,6 +6123,23 @@
       save();
     }
 
+    const metaEl = row.querySelector('.real-meta');
+    const metaOwner = row.querySelector('.meta-owner-name');
+    const metaFresh = row.querySelector('.meta-fresh');
+    const metaTitle = row.querySelector('.real-title');
+    let feedMeta = false;
+    if (metaEl && metaOwner && metaFresh && metaTitle) {
+      const metaRect = metaEl.getBoundingClientRect();
+      const ownerRect = metaOwner.getBoundingClientRect();
+      const freshRect = metaFresh.getBoundingClientRect();
+      feedMeta = Math.abs(ownerRect.left - metaRect.left) < 1.5
+        && Math.abs(freshRect.right - metaRect.right) < 1.5
+        && getComputedStyle(metaFresh, '::before').content === 'none'
+        && parseFloat(getComputedStyle(metaTitle).fontSize) >= 15
+        && parseFloat(getComputedStyle(metaEl).fontSize) >= 11;
+    }
+    results.push(`feedMeta=${feedMeta}`);
+
     const upRow = $('#homeFeed .video-row');
     const upRect = upRow.getBoundingClientRect();
     const upY = upRect.top + upRect.height / 2;
