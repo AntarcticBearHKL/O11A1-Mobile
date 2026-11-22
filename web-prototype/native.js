@@ -2152,27 +2152,67 @@
   };
 
   /* ---------- comments ---------- */
+  const COMMENT_PREFETCH = 360;
+  const COMMENT_LOAD_DELAY = 40;
+  const COMMENT_COOLDOWN = 450;
   let commentSort = 2;
   let commentAid = 0;
-  let commentChunks = [];
-  let commentHasMoreDown = false;
+  let commentRequestAid = 0;
+  let commentRequestSort = 2;
+  let commentLoadedAid = 0;
+  let commentLoadedSort = 0;
+  let commentLoaded = false;
+  let commentPage = 0;
+  let commentHasMore = false;
   let commentLoading = false;
-  let commentGeneration = 0;
-  let commentPrefetchTimer = null;
+  let commentMoreError = false;
+  let commentToken = 0;
+  let commentLastLoadAt = 0;
+  let commentItems = [];
   let commentScrollRaf = 0;
-  let commentScrollLockUntil = 0;
-  let commentLastScrollTop = 0;
 
-  function commentRow(row, depth = 0) {
+  const COMMENT_HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3 4.6 13a4.7 4.7 0 0 1 6.6-6.6l.8.8.8-.8A4.7 4.7 0 0 1 19.4 13z"/></svg>';
+  const COMMENT_EMPTY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-8 8H5l2.2-2.2A8 8 0 1 1 20 12Z"/><path d="M8.5 11.5h7M8.5 14.5h4.5"/></svg>';
+
+  function commentCountLabel(value) {
+    const n = Number(value || 0);
+    if (n >= 100000000) return `${(n / 100000000).toFixed(1)}亿`;
+    if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
+    return String(n);
+  }
+
+  function syncCommentSortUI() {
+    $$('#commentsSort [data-comment-sort]').forEach((button) => {
+      const on = Number(button.dataset.commentSort) === commentSort;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+  }
+
+  function commentAvatarMarkup(row) {
+    return row.avatar
+      ? `<img class="comment-avatar" src="${attr(row.avatar)}" alt="" referrerpolicy="no-referrer">`
+      : '<span class="avatar-ph sm comment-avatar"></span>';
+  }
+
+  function commentRow(row, depth = 0, replyCount = 0) {
     const rpid = Number(row.rpid || 0);
     const replies = Array.isArray(row.replies) ? row.replies : [];
+    const like = Number(row.like || 0);
+    const time = row.time ? timeAgo(row.time) : '';
     return `
       <div class="comment-row${depth ? ' comment-reply' : ''}" data-rpid="${rpid}">
-        ${row.avatar ? `<img class="comment-avatar" src="${attr(row.avatar)}" alt="" referrerpolicy="no-referrer">` : '<span class="avatar-ph sm"></span>'}
+        ${commentAvatarMarkup(row)}
         <div class="comment-text">
-          <b>${esc(row.user || '用户')}${depth ? ' <span class="reply-tag">回复</span>' : ''}</b>
+          <div class="comment-meta">
+            <b>${esc(row.user || '用户')}</b>
+            ${time ? `<span>${esc(time)}</span>` : ''}
+          </div>
           <p>${esc(row.message || '')}</p>
-          <small>赞 ${Number(row.like || 0)}${row.time ? ` · ${esc(timeAgo(row.time))}` : ''}</small>
+          <div class="comment-actions">
+            <span class="comment-stat">${COMMENT_HEART}<span>${esc(like > 0 ? commentCountLabel(like) : '赞')}</span></span>
+            ${replyCount > 0 ? `<button class="comment-reply-toggle" type="button" data-reply-root="${rpid}" data-reply-count="${replyCount}">${esc(commentCountLabel(replyCount))} 条回复</button>` : ''}
+          </div>
           ${replies.length ? `<div class="comment-replies">${replies.map((reply) => commentRow(reply, depth + 1)).join('')}</div>` : ''}
         </div>
       </div>`;
@@ -2183,215 +2223,283 @@
     const count = Number(row.rcount || 0);
     return `
       <div class="comment-thread" data-thread="${rpid}">
-        ${commentRow(row)}
-        ${count > 0 ? `<button class="comment-reply-toggle" type="button" data-reply-root="${rpid}" data-reply-count="${count}">共 ${count} 条回复 ⌄</button>` : ''}
+        ${commentRow(row, 0, count)}
         <div class="comment-replies" data-reply-box="${rpid}" hidden></div>
       </div>`;
   }
 
-  function commentChunkMarkup(items, page, note) {
-    return `<div class="comment-chunk" data-comment-page="${page}">${note ? `<div class="comment-inline-note">${note}</div>` : ''}${items.map(commentThread).join('')}</div>`;
+  function commentListMarkup(items, note) {
+    return `${note ? `<div class="comment-inline-note">${esc(note)}</div>` : ''}${items.map(commentThread).join('')}`;
   }
 
-  function commentMinPage() {
-    return commentChunks.length ? commentChunks[0].page : 0;
-  }
-
-  function commentMaxPage() {
-    return commentChunks.length ? commentChunks[commentChunks.length - 1].page : 0;
-  }
-
-  function commentHasPage(page) {
-    return commentChunks.some((chunk) => chunk.page === page);
-  }
-
-  function appendCommentChunk(items, page, note, hasMore) {
-    host.commentsBody.insertAdjacentHTML('beforeend', commentChunkMarkup(items, page, note));
-    const el = host.commentsBody.lastElementChild;
-    commentChunks.push({ page, el, hasMore: hasMore === true });
-    return el;
-  }
-
-  function prependCommentChunk(items, page, note, hasMore) {
-    host.commentsBody.insertAdjacentHTML('afterbegin', commentChunkMarkup(items, page, note));
-    const el = host.commentsBody.firstElementChild;
-    commentChunks.unshift({ page, el, hasMore: hasMore === true });
-    host.commentsBody.scrollTop += el.offsetHeight;
-    commentLastScrollTop = host.commentsBody.scrollTop;
-    return el;
-  }
-
-  function trimCommentChunks(direction) {
-    while (commentChunks.length > 3) {
-      if (direction === 'down') {
-        const first = commentChunks[0];
-        const height = first.el.offsetHeight;
-        if (host.commentsBody.scrollTop < height) break;
-        commentChunks.shift();
-        first.el.remove();
-        host.commentsBody.scrollTop -= height;
-        commentLastScrollTop = host.commentsBody.scrollTop;
-      } else {
-        commentChunks.pop().el.remove();
-      }
+  function commentSkeletonRows(count) {
+    let out = '';
+    for (let i = 0; i < count; i += 1) {
+      out += `<div class="comment-skeleton-row">
+        <span class="comment-skeleton-avatar"></span>
+        <span class="comment-skeleton-copy">
+          <i style="width:${26 + (i % 3) * 9}%"></i>
+          <i style="width:${88 - (i % 4) * 11}%"></i>
+          <i style="width:${64 - (i % 3) * 13}%"></i>
+        </span>
+      </div>`;
     }
-    commentHasMoreDown = commentChunks.length
-      ? commentChunks[commentChunks.length - 1].hasMore
-      : false;
+    return out;
   }
 
-  function loadCommentPage(page, direction, note) {
-    if (commentLoading || !commentAid || !page || page < 1 || commentHasPage(page)) return false;
-    const generation = commentGeneration;
-    commentLoading = true;
-    let result;
-    try {
-      result = typeof bridge.comments === 'function'
-        ? call('comments', commentAid, page, commentSort)
-        : { ok: false, error: '不支持评论' };
-    } finally {
+  function commentSkeletonMarkup(count) {
+    return `<div class="comment-skeleton">${commentSkeletonRows(count)}</div>`;
+  }
+
+  function commentEmptyMarkup(title, sub, retry) {
+    return `<div class="comments-empty">
+      ${COMMENT_EMPTY_ICON}
+      <b>${esc(title)}</b>
+      ${sub ? `<span>${esc(sub)}</span>` : ''}
+      ${retry ? '<button class="comments-retry" type="button" data-comments-retry="all">重新加载</button>' : ''}
+    </div>`;
+  }
+
+  function commentMoreErrorMarkup() {
+    return '<div class="comment-load-more"><button type="button" data-comments-retry="more">加载失败，点击重试</button></div>';
+  }
+
+  function loadComments(sort, options = {}) {
+    const nextSort = typeof sort === 'number' ? sort : commentSort;
+    if (nextSort !== commentSort) {
+      commentSort = nextSort;
+      commentLoaded = false;
+    }
+    syncCommentSortUI();
+    const item = currentItem();
+    const aid = item && item.aid ? Number(item.aid) : 0;
+    if (!aid) {
+      commentToken += 1;
+      commentAid = 0;
+      commentRequestAid = 0;
+      commentLoadedAid = 0;
+      commentLoaded = false;
+      commentLoadedSort = 0;
+      commentPage = 0;
+      commentHasMore = false;
       commentLoading = false;
-    }
-    if (generation !== commentGeneration) return false;
-    if (!result || !result.ok || !Array.isArray(result.items)) {
-      if (direction === 'down') commentHasMoreDown = false;
+      commentMoreError = false;
+      commentItems = [];
+      host.commentsBody.innerHTML = commentEmptyMarkup('暂无评论', '当前视频还没有可用的评论数据');
       return false;
     }
-    if (!result.items.length) {
-      if (direction === 'down') commentHasMoreDown = false;
+    if (!options.force && commentLoaded && aid === commentLoadedAid && commentSort === commentLoadedSort) {
       return false;
     }
-    if (direction === 'down') {
-      appendCommentChunk(result.items, page, note || '', result.hasMore);
-    } else {
-      prependCommentChunk(result.items, page, note || '', result.hasMore);
+    if (!options.force && commentLoading && aid === commentRequestAid && commentSort === commentRequestSort) {
+      return false;
     }
-    trimCommentChunks(direction);
-    commentScrollLockUntil = Date.now() + 280;
+    commentToken += 1;
+    const token = commentToken;
+    commentAid = aid;
+    commentRequestAid = aid;
+    commentRequestSort = commentSort;
+    commentLoaded = false;
+    commentLoadedAid = 0;
+    commentLoadedSort = 0;
+    commentPage = 0;
+    commentHasMore = true;
+    commentMoreError = false;
+    commentItems = [];
+    commentLoading = true;
+    commentLastLoadAt = Date.now();
+    host.commentsBody.innerHTML = commentSkeletonMarkup(7);
+    host.commentsBody.scrollTop = 0;
+    setTimeout(() => {
+      if (token !== commentToken) return;
+      let result;
+      try {
+        result = typeof bridge.comments === 'function'
+          ? call('comments', aid, 1, commentSort)
+          : { ok: false, error: '不支持评论' };
+      } catch (error) {
+        result = { ok: false, error: String(error) };
+      }
+      if (token !== commentToken) return;
+      if (!result || !result.ok || !Array.isArray(result.items)) {
+        commentLoading = false;
+        commentLoaded = false;
+        host.commentsBody.innerHTML = commentEmptyMarkup(
+          '评论加载失败',
+          result && result.error ? String(result.error) : '请检查网络后重试',
+          true,
+        );
+        return;
+      }
+      let items = result.items;
+      let note = '';
+      if (commentSort === 0 && items.length === 0 && !result.count) {
+        const fallback = typeof bridge.comments === 'function'
+          ? call('comments', aid, 1, 2)
+          : null;
+        if (token !== commentToken) return;
+        if (fallback && fallback.ok && Array.isArray(fallback.items) && fallback.items.length) {
+          commentSort = 2;
+          commentRequestSort = 2;
+          syncCommentSortUI();
+          items = fallback.items;
+          result = fallback;
+          note = '最新评论需要登录后查看，当前显示最热评论';
+        }
+      }
+      commentLoading = false;
+      commentLoaded = true;
+      commentLoadedAid = aid;
+      commentLoadedSort = commentSort;
+      commentPage = 1;
+      commentItems = items.slice();
+      commentHasMore = items.length > 0 && result.hasMore === true;
+      commentMoreError = false;
+      commentLastLoadAt = 0;
+      if (!items.length) {
+        host.commentsBody.innerHTML = commentEmptyMarkup('还没有评论', '换个排序看看，或者来抢个沙发');
+        return;
+      }
+      host.commentsBody.innerHTML = commentListMarkup(items, note);
+      host.commentsBody.scrollTop = 0;
+      requestAnimationFrame(() => {
+        if (token !== commentToken) return;
+        if (commentHasMore && host.commentsBody.scrollHeight <= host.commentsBody.clientHeight + 120) {
+          requestCommentPage(true);
+        }
+      });
+    }, options.opening ? 360 : COMMENT_LOAD_DELAY);
     return true;
   }
 
-  function scheduleCommentPrefetch(generation) {
-    clearTimeout(commentPrefetchTimer);
-    commentPrefetchTimer = setTimeout(() => {
-      commentPrefetchTimer = null;
-      if (generation !== commentGeneration) return;
-      if (commentLoading || commentChunks.length >= 3 || !commentHasMoreDown) return;
-      const next = commentMaxPage() + 1;
-      if (loadCommentPage(next, 'down')) scheduleCommentPrefetch(generation);
-    }, 160);
-  }
-
-  function loadComments(sort) {
-    if (typeof sort === 'number') commentSort = sort;
-    commentGeneration += 1;
-    const generation = commentGeneration;
-    clearTimeout(commentPrefetchTimer);
-    commentPrefetchTimer = null;
-    commentScrollLockUntil = 0;
-    commentChunks = [];
-    commentHasMoreDown = false;
-    commentLoading = false;
-    commentLastScrollTop = 0;
-    const item = currentItem();
-    commentAid = item && item.aid ? Number(item.aid) : 0;
-    host.commentsBody.scrollTop = 0;
-    if (!commentAid) {
-      host.commentsBody.innerHTML = '<div class="native-empty">当前视频没有评论 ID</div>';
-      return;
-    }
-    host.commentsBody.innerHTML = '<div class="comment-inline-note">正在加载评论…</div>';
-    let result;
-    try {
-      result = typeof bridge.comments === 'function'
-        ? call('comments', commentAid, 1, commentSort)
-        : { ok: false, error: '不支持评论' };
-    } catch (error) {
-      result = { ok: false, error: String(error) };
-    }
-    if (generation !== commentGeneration) return;
-    if (!result.ok || !Array.isArray(result.items)) {
-      host.commentsBody.innerHTML = `<div class="native-empty">评论加载失败<br>${esc(result.error || '')}</div>`;
-      return;
-    }
-    let note = '';
-    if (commentSort === 0 && result.items.length === 0 && !result.count) {
-      const fallback = typeof bridge.comments === 'function'
-        ? call('comments', commentAid, 1, 2)
-        : null;
-      if (generation !== commentGeneration) return;
-      if (fallback && fallback.ok && Array.isArray(fallback.items) && fallback.items.length) {
-        commentSort = 2;
-        result = fallback;
-        note = '最新评论需要登录后查看，当前显示最热评论';
+  function requestCommentPage(force) {
+    if (commentLoading || !commentLoaded || !commentHasMore || !commentAid || commentPage < 1) return false;
+    if (commentMoreError && !force) return false;
+    if (!force && Date.now() - commentLastLoadAt < COMMENT_COOLDOWN) return false;
+    const token = commentToken;
+    const page = commentPage + 1;
+    $$('.comment-load-more', host.commentsBody).forEach((el) => el.remove());
+    commentMoreError = false;
+    const skeleton = document.createElement('div');
+    skeleton.className = 'comment-skeleton comment-skeleton-more';
+    skeleton.innerHTML = commentSkeletonRows(3);
+    host.commentsBody.appendChild(skeleton);
+    commentLoading = true;
+    commentRequestAid = commentAid;
+    commentRequestSort = commentSort;
+    commentLastLoadAt = Date.now();
+    setTimeout(() => {
+      if (token !== commentToken) {
+        skeleton.remove();
+        return;
       }
-    }
-    host.commentsBody.innerHTML = '';
-    if (!result.items.length) {
-      host.commentsBody.innerHTML = '<div class="native-empty">还没有评论</div>';
-      return;
-    }
-    commentHasMoreDown = result.hasMore === true;
-    appendCommentChunk(result.items, 1, note, result.hasMore);
-    host.commentsBody.scrollTop = 0;
-    scheduleCommentPrefetch(generation);
+      let result;
+      try {
+        result = typeof bridge.comments === 'function'
+          ? call('comments', commentAid, page, commentSort)
+          : { ok: false, error: '不支持评论' };
+      } catch (error) {
+        result = { ok: false, error: String(error) };
+      }
+      if (token !== commentToken) {
+        skeleton.remove();
+        return;
+      }
+      commentLoading = false;
+      if (!result || !result.ok || !Array.isArray(result.items)) {
+        skeleton.remove();
+        commentMoreError = true;
+        host.commentsBody.insertAdjacentHTML('beforeend', commentMoreErrorMarkup());
+        return;
+      }
+      const items = result.items;
+      if (!items.length) {
+        skeleton.remove();
+        commentHasMore = false;
+        return;
+      }
+      const chunk = document.createElement('div');
+      chunk.className = 'comment-chunk';
+      chunk.innerHTML = items.map(commentThread).join('');
+      skeleton.replaceWith(chunk);
+      commentItems.push(...items);
+      commentPage = page;
+      commentHasMore = result.hasMore === true;
+      commentMoreError = false;
+      commentLastLoadAt = Date.now();
+    }, COMMENT_LOAD_DELAY);
+    return true;
   }
 
-  function maybeLoadComments(delta) {
-    if (commentLoading || !commentAid || !commentChunks.length || !delta) return;
+  function maybeLoadComments() {
+    if (commentLoading || commentMoreError || !commentLoaded || !commentHasMore) return;
     const body = host.commentsBody;
-    if (delta > 0) {
-      if (!commentHasMoreDown) return;
-      if (body.scrollTop + body.clientHeight < body.scrollHeight - 260) return;
-      const next = commentMaxPage() + 1;
-      if (!commentHasPage(next)) loadCommentPage(next, 'down');
-      return;
-    }
-    if (commentMinPage() <= 1) return;
-    if (body.scrollTop > 360) return;
-    const prev = commentMinPage() - 1;
-    if (!commentHasPage(prev)) loadCommentPage(prev, 'up');
+    if (body.scrollTop + body.clientHeight < body.scrollHeight - COMMENT_PREFETCH) return;
+    requestCommentPage();
   }
 
   host.commentsBody.addEventListener('scroll', () => {
     if (commentScrollRaf) return;
     commentScrollRaf = requestAnimationFrame(() => {
       commentScrollRaf = 0;
-      if (Date.now() < commentScrollLockUntil) return;
-      const top = host.commentsBody.scrollTop;
-      const delta = top - commentLastScrollTop;
-      commentLastScrollTop = top;
-      maybeLoadComments(delta);
+      maybeLoadComments();
     });
   }, { passive: true });
 
   function toggleReplies(button) {
     const root = Number(button.dataset.replyRoot || 0);
-    const box = document.querySelector(`[data-reply-box="${root}"]`);
+    const box = host.commentsBody.querySelector(`[data-reply-box="${root}"]`);
     if (!box || !root) return;
+    const count = Number(button.dataset.replyCount || 0);
     if (!box.hidden) {
       box.hidden = true;
-      button.textContent = `共 ${button.dataset.replyCount} 条回复 ⌄`;
+      button.textContent = `${commentCountLabel(count)} 条回复`;
       return;
     }
     box.hidden = false;
-    button.textContent = '收起回复 ⌃';
-    if (box.dataset.loaded === '1') return;
-    const item = currentItem();
-    const aid = item && item.aid ? Number(item.aid) : 0;
-    const result = typeof bridge.commentsReplies === 'function'
-      ? call('commentsReplies', aid, root, 1)
-      : { ok: false, error: '当前版本不支持楼中楼' };
-    if (!result.ok || !Array.isArray(result.items)) {
-      box.innerHTML = `<div class="comment-inline-note">${esc(result.error || '回复加载失败')}</div>`;
-      return;
-    }
-    box.dataset.loaded = '1';
-    box.innerHTML = result.items.map((reply) => commentRow(reply, 1)).join('')
-      || '<div class="comment-inline-note">暂无回复</div>';
+    button.textContent = '收起回复';
+    if (box.dataset.loaded === '1' || box.dataset.loading === '1') return;
+    box.dataset.loading = '1';
+    box.innerHTML = commentSkeletonMarkup(2);
+    const token = commentToken;
+    const aid = commentAid;
+    setTimeout(() => {
+      if (token !== commentToken || box.dataset.loading !== '1') return;
+      const result = typeof bridge.commentsReplies === 'function'
+        ? call('commentsReplies', aid, root, 1)
+        : { ok: false, error: '当前版本不支持楼中楼' };
+      box.dataset.loading = '';
+      if (!result.ok || !Array.isArray(result.items)) {
+        box.innerHTML = `<div class="comment-inline-note">${esc(result.error || '回复加载失败')}</div>`;
+        return;
+      }
+      box.dataset.loaded = '1';
+      box.innerHTML = result.items.map((reply) => commentRow(reply, 1)).join('')
+        || '<div class="comment-inline-note">暂无回复</div>';
+    }, COMMENT_LOAD_DELAY);
+  }
+
+  const commentsSortBar = $('#commentsSort');
+  if (commentsSortBar) {
+    commentsSortBar.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-comment-sort]');
+      if (!button) return;
+      const sort = Number(button.dataset.commentSort);
+      if (sort === commentSort) return;
+      commentSort = sort;
+      syncCommentSortUI();
+      loadComments(sort);
+    });
   }
 
   host.commentsBody.addEventListener('click', (event) => {
+    const retry = event.target.closest('[data-comments-retry]');
+    if (retry) {
+      event.preventDefault();
+      if (retry.dataset.commentsRetry === 'more') requestCommentPage(true);
+      else loadComments(commentSort, { force: true });
+      return;
+    }
     const button = event.target.closest('[data-reply-root]');
     if (!button) return;
     event.preventDefault();
@@ -2863,7 +2971,7 @@
   window.O11A1NativeData = {
     search: (query) => loadSearch(query, 1),
     openUpPage,
-    onComments: (sort) => loadComments(sort),
+    onComments: (sort, options) => loadComments(sort, options),
     favorite: favoriteCurrent,
     like: likeCurrent,
     coin: coinCurrent,

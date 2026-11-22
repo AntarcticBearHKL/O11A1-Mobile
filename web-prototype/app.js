@@ -2631,9 +2631,8 @@
     }
     player.classList.add('comments-open');
     swipeHint.classList.remove('show');
-    commentsBody.scrollTop = 0;
     if (window.O11A1NativeData && typeof window.O11A1NativeData.onComments === 'function') {
-      window.O11A1NativeData.onComments();
+      window.O11A1NativeData.onComments(undefined, { opening: true });
     }
     clearTimeout(hideTimer);
     playerControls.classList.add('hidden');

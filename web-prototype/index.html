@@ -453,12 +453,19 @@
     </div>
 
     <div class="comments-panel" id="commentsPanel" aria-hidden="true" inert>
-      <div class="comments-body" id="commentsBody">
-        <div class="comment-row"><span class="avatar-ph sm"></span><div class="ph-title" style="flex:1"><i class="ph-line w25"></i><i class="ph-line w90"></i><i class="ph-line w70"></i><i class="ph-line w40"></i></div></div>
-        <div class="comment-row"><span class="avatar-ph sm"></span><div class="ph-title" style="flex:1"><i class="ph-line w30"></i><i class="ph-line w80"></i><i class="ph-line w55"></i></div></div>
-        <div class="comment-row"><span class="avatar-ph sm"></span><div class="ph-title" style="flex:1"><i class="ph-line w20"></i><i class="ph-line w85"></i><i class="ph-line w65"></i><i class="ph-line w35"></i></div></div>
-        <div class="comment-row"><span class="avatar-ph sm"></span><div class="ph-title" style="flex:1"><i class="ph-line w25"></i><i class="ph-line w75"></i><i class="ph-line w50"></i></div></div>
-        <div class="comment-row"><span class="avatar-ph sm"></span><div class="ph-title" style="flex:1"><i class="ph-line w35"></i><i class="ph-line w85"></i><i class="ph-line w60"></i><i class="ph-line w45"></i></div></div>
+      <div class="comments-card" role="dialog" aria-label="评论">
+        <div class="comments-body" id="commentsBody">
+          <div class="comment-skeleton">
+            <div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i style="width:28%"></i><i style="width:84%"></i><i style="width:62%"></i></span></div>
+            <div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i style="width:36%"></i><i style="width:76%"></i><i style="width:52%"></i></span></div>
+            <div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i style="width:24%"></i><i style="width:88%"></i><i style="width:68%"></i></span></div>
+            <div class="comment-skeleton-row"><span class="comment-skeleton-avatar"></span><span class="comment-skeleton-copy"><i style="width:32%"></i><i style="width:72%"></i><i style="width:46%"></i></span></div>
+          </div>
+        </div>
+        <div class="comments-sort-dock" id="commentsSort" role="tablist" aria-label="评论排序">
+          <button class="comments-sort" type="button" role="tab" aria-selected="false" data-comment-sort="0">最新</button>
+          <button class="comments-sort on" type="button" role="tab" aria-selected="true" data-comment-sort="2">最热</button>
+        </div>
       </div>
     </div>
   </div>
