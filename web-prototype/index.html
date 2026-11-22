@@ -319,11 +319,13 @@
   <!-- 横屏空播放器 -->
   <div class="player" id="player" aria-hidden="true" inert>
     <span class="player-pause-ring" id="playerPauseRing" aria-hidden="true"></span>
+    <div class="player-rotor" id="playerRotor">
     <div class="player-top">
       <button class="player-top-btn" id="playerBack" title="返回" aria-label="返回">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>
       </button>
       <div class="player-title"><b id="playerTitle">队列视频占位 01</b><small id="playerSub">UP 占位 · 1080P60 · 占位</small></div>
+      <span class="player-orientation-badge" id="playerOrientationBadge" hidden>横屏</span>
       <button class="player-top-btn" id="playerQueue" title="播放列表" aria-label="播放列表">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h11M4 10h11M4 14h7"/><path d="m16 13 5 3-5 3z" fill="currentColor" stroke="none"/></svg>
       </button>
@@ -397,7 +399,7 @@
           <div class="rotate-hud" id="rotateHud">
             <span class="rotate-arrow" id="rotateArrow">↔</span>
             <b id="rotateLabel">横屏</b>
-            <small>中间上滑切换横竖屏</small>
+            <small>陀螺仪 · 自动横屏</small>
           </div>
           <div class="swipe-hint" id="swipeHint">‹ 松开查看评论</div>
         </div>
@@ -457,6 +459,7 @@
       <div class="feed" id="upFeed"></div>
       <div class="list-note" id="upNote">UP 主视频</div>
     </section>
+    </div>
   </div>
 
   <div class="psheet-backdrop" id="psheetBackdrop"></div>

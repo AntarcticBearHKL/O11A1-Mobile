@@ -52,6 +52,7 @@
   const rotateHud = $('#rotateHud');
   const rotateArrow = $('#rotateArrow');
   const rotateLabel = $('#rotateLabel');
+  const playerOrientationBadge = $('#playerOrientationBadge');
   const swipeHint = $('#swipeHint');
   const commentsPanel = $('#commentsPanel');
   const commentsBody = $('#commentsBody');
@@ -198,6 +199,7 @@
     aspect: '适应',
     debugHud: true,
     feedDebug: true,
+    autoLandscape: true,
 
     danmaku: true,
     danmakuOpacity: 85,
@@ -264,6 +266,7 @@
     playing: false,
     locked: false,
     playerLandscape: false,
+    playerLandscapeDir: 0,
     progress: 0,
     duration: 0,
     streamInfo: { videoBitrate: 0, audioBitrate: 0, sourceWidth: 0, sourceHeight: 0, netBps: 0, netAt: 0, direct: false },
@@ -322,6 +325,11 @@
   let levelHudTimer = null;
   let rateHudTimer = null;
   let rotateHudTimer = null;
+  let gyroBound = false;
+  let gyroPermission = 'ask';
+  let gyroPermissionPending = false;
+  let gyroCandidateDir = null;
+  let gyroCandidateTimer = null;
 
   let commentsGesture = null;
   let commentsCloseTimer = null;
@@ -2283,20 +2291,26 @@
   }
 
   /* ---------- player orientation ---------- */
-  function setPlayerOrientation(landscape, options = {}) {
-    const next = landscape === true;
-    state.playerLandscape = next;
-    const mode = next ? 'landscape-right' : 'portrait';
-    if (window.O11A1Native && typeof window.O11A1Native.setOrientation === 'function') {
-      try { window.O11A1Native.setOrientation(mode); } catch (_) {}
-    } else if (screen.orientation && typeof screen.orientation.lock === 'function') {
-      try {
-        screen.orientation.lock(next ? 'landscape' : 'portrait').catch(() => {});
-      } catch (_) {}
-    }
-    if (options.silent) return;
-    rotateArrow.textContent = next ? '↔' : '↕';
-    rotateLabel.textContent = next ? '横屏' : '竖屏';
+  function playerLandscapeDirection(mode) {
+    if (mode === true || mode === 'left' || mode === -1) return -1;
+    if (mode === 'right' || mode === 1) return 1;
+    return 0;
+  }
+
+  function setPlayerOrientation(mode, options = {}) {
+    const dir = playerLandscapeDirection(mode);
+    const changed = state.playerLandscape !== (dir !== 0) || state.playerLandscapeDir !== dir;
+    state.playerLandscape = dir !== 0;
+    state.playerLandscapeDir = dir;
+    player.classList.toggle('landscape', dir !== 0);
+    player.classList.toggle('landscape-left', dir === -1);
+    player.classList.toggle('landscape-right', dir === 1);
+    if (playerOrientationBadge) playerOrientationBadge.hidden = dir === 0;
+    if (!changed || options.silent) return;
+    rotateArrow.textContent = dir ? '↔' : '↕';
+    rotateLabel.textContent = dir ? '横屏' : '竖屏';
+    const hint = rotateHud.querySelector('small');
+    if (hint) hint.textContent = dir ? '陀螺仪 · 转动手机恢复竖屏' : '陀螺仪 · 已恢复竖屏';
     rotateHud.classList.remove('show');
     void rotateHud.offsetWidth;
     rotateHud.classList.add('show');
@@ -2305,6 +2319,77 @@
       rotateHudTimer = null;
       rotateHud.classList.remove('show');
     }, 1200);
+  }
+
+  function queueGyroOrientation(dir) {
+    if (dir === state.playerLandscapeDir) {
+      clearTimeout(gyroCandidateTimer);
+      gyroCandidateTimer = null;
+      gyroCandidateDir = null;
+      return;
+    }
+    if (gyroCandidateDir === dir) return;
+    gyroCandidateDir = dir;
+    clearTimeout(gyroCandidateTimer);
+    gyroCandidateTimer = setTimeout(() => {
+      gyroCandidateTimer = null;
+      const target = gyroCandidateDir;
+      gyroCandidateDir = null;
+      if (target === null || !state.playerOpen || target === state.playerLandscapeDir) return;
+      if (stageGesture || player.classList.contains('to-playlist') || player.classList.contains('dragging')) return;
+      setPlayerOrientation(target, { silent: false });
+      if (navigator.vibrate) navigator.vibrate(6);
+    }, 360);
+  }
+
+  function onDeviceOrientation(event) {
+    if (!state.playerOpen || state.locked || state.settings.autoLandscape === false) return;
+    if (psheet && psheet.classList.contains('open')) return;
+    if (window.innerWidth > window.innerHeight) return;
+    const gamma = Number(event.gamma);
+    if (!Number.isFinite(gamma)) return;
+    const magnitude = Math.abs(gamma);
+    let next = null;
+    if (magnitude >= 55) next = gamma > 0 ? -1 : 1;
+    else if (magnitude <= 28) next = 0;
+    if (next === null) return;
+    queueGyroOrientation(next);
+  }
+
+  function attachGyro() {
+    if (gyroBound) return;
+    gyroBound = true;
+    window.addEventListener('deviceorientation', onDeviceOrientation, true);
+  }
+
+  function startGyro() {
+    if (state.settings.autoLandscape === false) return;
+    if (!window.DeviceOrientationEvent) return;
+    const ctor = window.DeviceOrientationEvent;
+    attachGyro();
+    if (typeof ctor.requestPermission === 'function' && gyroPermission === 'ask' && !gyroPermissionPending) {
+      gyroPermissionPending = true;
+      Promise.resolve(ctor.requestPermission())
+        .then((result) => {
+          gyroPermission = result === 'granted' ? 'granted' : 'denied';
+        })
+        .catch(() => {
+          gyroPermission = 'ask';
+        })
+        .finally(() => {
+          gyroPermissionPending = false;
+        });
+    }
+  }
+
+  function stopGyro() {
+    if (gyroBound) {
+      window.removeEventListener('deviceorientation', onDeviceOrientation, true);
+      gyroBound = false;
+    }
+    clearTimeout(gyroCandidateTimer);
+    gyroCandidateTimer = null;
+    gyroCandidateDir = null;
   }
 
   function cancelPlayerOpenExpansion() {
@@ -2394,7 +2479,7 @@
     }
     state.playerOpen = true;
     state.locked = false;
-    setPlayerOrientation(false, { silent: true });
+    if (!wasOpen) setPlayerOrientation(false, { silent: true });
     hideMiniPlayer();
     clearTimeout(hideTimer);
     setPlayIcon(state.playing);
@@ -2428,6 +2513,7 @@
     hideRateHud(0);
     rotateHud.classList.remove('show');
     showControls();
+    startGyro();
     if (expandFromRow) expandPlayerWindowFromOrigin(origin);
     if (window.O11A1Media && typeof window.O11A1Media.onOpen === 'function') {
       window.O11A1Media.onOpen();
@@ -2472,7 +2558,7 @@
     resetVideoDetail();
     state.playerOpen = false;
     state.locked = false;
-    setPlayerOrientation(false, { silent: true });
+    stopGyro();
     restoreNativeBrightness();
     clearTimeout(hideTimer);
     const dragY = Number.isFinite(fromY) ? Math.max(0, fromY) : 0;
@@ -2545,6 +2631,7 @@
       player.style.opacity = '';
       player.style.borderRadius = '';
       player.style.pointerEvents = '';
+      setPlayerOrientation(false, { silent: true });
       if (playerDockForced) {
         playlistDock.style.transition = '';
         playlistDock.style.transform = '';
@@ -2624,6 +2711,7 @@
     state.playing = false;
     state.progress = 0;
     state.locked = false;
+    stopGyro();
     setPlayerOrientation(false, { silent: true });
     restoreNativeBrightness();
     clearTimeout(hideTimer);
@@ -3131,9 +3219,18 @@
   }
 
   /* ---------- player gesture state machine ---------- */
-  function stageZone(clientX) {
+  function stageZone(event) {
     const rect = playerStage.getBoundingClientRect();
-    const ratio = (clientX - rect.left) / Math.max(1, rect.width);
+    let ratio;
+    if (state.playerLandscape) {
+      const centerY = rect.top + rect.height / 2;
+      const localX = state.playerLandscapeDir === -1
+        ? -(event.clientY - centerY)
+        : (event.clientY - centerY);
+      ratio = 0.5 + localX / Math.max(1, rect.height);
+    } else {
+      ratio = (event.clientX - rect.left) / Math.max(1, rect.width);
+    }
     if (ratio < 1 / 3) return 'left';
     if (ratio > 2 / 3) return 'right';
     return 'middle';
@@ -3147,7 +3244,7 @@
     clearTimeout(hideTimer);
     clearTimeout(stageTapTimer);
     stageTapTimer = null;
-    const zone = stageZone(event.clientX);
+    const zone = stageZone(event);
     stageGesture = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -3180,7 +3277,12 @@
     if (!gesture || event.pointerId !== gesture.pointerId) return;
     const dx = event.clientX - gesture.startX;
     const dy = event.clientY - gesture.startY;
-    gesture.lastDy = dy;
+    const dir = state.playerLandscapeDir;
+    const localX = state.playerLandscape ? dy * dir : dx;
+    const localY = state.playerLandscape ? -dx * dir : dy;
+    gesture.localX = localX;
+    gesture.localY = localY;
+    gesture.lastDy = localY;
     if (gesture.mode === 'rate' || gesture.longPressFired) return;
 
     if (!gesture.moved) {
@@ -3189,10 +3291,10 @@
       clearTimeout(gesture.longPressTimer);
       gesture.longPressTimer = null;
       player.classList.add('gesture-active');
-      if (state.settings.swipeComments && Math.abs(dx) > Math.abs(dy) * 1.15) {
+      if (state.settings.swipeComments && Math.abs(localX) > Math.abs(localY) * 1.15) {
         gesture.mode = 'horizontal';
       } else if (gesture.zone === 'middle') {
-        if (dy > 0 && state.settings.middleCollapse) gesture.mode = 'collapse';
+        if (localY > 0 && state.settings.middleCollapse) gesture.mode = 'collapse';
         else {
           gesture.mode = 'none';
           return;
@@ -3210,22 +3312,28 @@
     }
 
     if (gesture.mode === 'collapse') {
-      const dragY = Math.max(0, dy);
+      const dragY = Math.max(0, localY);
       gesture.collapseY = dragY;
       const scale = 1 - Math.min(0.05, dragY / 3000);
-      player.style.transform = `translateY(${dragY}px) scale(${scale})`;
+      if (state.playerLandscape) {
+        player.style.transform = `scale(${scale})`;
+      } else {
+        player.style.transform = `translateY(${dragY}px) scale(${scale})`;
+      }
       player.style.opacity = '1';
       player.style.borderRadius = `${Math.min(28, dragY * 0.16)}px`;
     } else if (gesture.mode === 'level') {
       const rect = playerStage.getBoundingClientRect();
-      const delta = (-dy / Math.max(1, rect.height)) * 140;
+      const localHeight = state.playerLandscape ? rect.width : rect.height;
+      const delta = (-localY / Math.max(1, localHeight)) * 140;
       if (gesture.zone === 'left') applyBrightness(gesture.startBrightness + delta, false, true);
       else applyVolume(gesture.startVolume + delta, false, true);
     } else if (gesture.mode === 'horizontal') {
-      gesture.horizontal = dx;
-      if (dx < 0 && state.settings.swipeComments) {
-        const rect = playerStage.getBoundingClientRect();
-        const progress = Math.min(1, -dx / Math.max(1, rect.width * 0.62));
+      gesture.horizontal = localX;
+      const rect = playerStage.getBoundingClientRect();
+      const localWidth = state.playerLandscape ? rect.height : rect.width;
+      if (localX < 0 && state.settings.swipeComments) {
+        const progress = Math.min(1, -localX / Math.max(1, localWidth * 0.62));
         commentsPanel.classList.add('peeking');
         commentsPanel.setAttribute('aria-hidden', 'false');
         commentsPanel.inert = true;
@@ -3233,17 +3341,16 @@
         player.classList.add('comments-open');
         swipeHint.textContent = '‹ 松开查看评论';
         swipeHint.classList.remove('left');
-        swipeHint.classList.toggle('show', -dx > 46);
-      } else if (dx > 0 && videoDetailPanel) {
-        const rect = playerStage.getBoundingClientRect();
-        const progress = Math.min(1, dx / Math.max(1, rect.width * 0.62));
+        swipeHint.classList.toggle('show', -localX > 46);
+      } else if (localX > 0 && videoDetailPanel) {
+        const progress = Math.min(1, localX / Math.max(1, localWidth * 0.62));
         videoDetailPanel.classList.add('peeking');
         videoDetailPanel.setAttribute('aria-hidden', 'false');
         videoDetailPanel.inert = true;
         videoDetailPanel.style.transform = `translateX(${-(1 - progress) * 100}%)`;
         swipeHint.textContent = '‹ 松开查看详情';
         swipeHint.classList.add('left');
-        swipeHint.classList.toggle('show', dx > 46);
+        swipeHint.classList.toggle('show', localX > 46);
       } else {
         swipeHint.classList.remove('show');
       }
@@ -3307,7 +3414,8 @@
 
     if (gesture.mode === 'collapse') {
       if (gesture.collapseY > 110) {
-        minimizePlayer(gesture.collapseY, 1 - Math.min(0.05, gesture.collapseY / 3000));
+        const fromY = state.playerLandscape ? 0 : gesture.collapseY;
+        minimizePlayer(fromY, 1 - Math.min(0.05, gesture.collapseY / 3000));
         return;
       }
       player.style.transition = 'transform .24s cubic-bezier(.16,1,.3,1), opacity .2s ease, border-radius .2s ease';
@@ -3749,6 +3857,7 @@
           { type: 'choice', label: '画质增强', key: 'enhance', options: ['关', 'CAS', 'Anime4K'], onChange: updatePlayerLabels },
           { type: 'switch', label: '原始分辨率解码（4K）', key: 'native4k' },
           { type: 'switch', label: '仅音频', key: 'audioOnly' },
+          { type: 'switch', label: '陀螺仪自动横屏', key: 'autoLandscape', onChange: () => { if (state.settings.autoLandscape) { if (state.playerOpen) startGyro(); } else { stopGyro(); setPlayerOrientation(false); } } },
           { type: 'switch', label: '视频调试 HUD', key: 'debugHud', onChange: updateDebugHud },
           { type: 'switch', label: '视频流刷新率', key: 'feedDebug', onChange: updateDebugHud },
           { type: 'static', label: '解码策略', value: 'WebView 媒体层 · 系统决定' },
@@ -4802,6 +4911,9 @@
   });
 
   playerStage.addEventListener('pointerdown', startStageGesture);
+  playerStage.addEventListener('pointerdown', () => {
+    if (state.playerOpen) startGyro();
+  }, { passive: true });
   window.addEventListener('pointermove', moveStageGesture);
   window.addEventListener('pointerup', endStageGesture);
   window.addEventListener('pointercancel', endStageGesture);
@@ -5059,6 +5171,16 @@
     openPlayer();
     await sleep(80);
     results.push(`brightnessSync=${state.brightness === 63}`);
+    if (typeof DeviceOrientationEvent === 'function') {
+      window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', { alpha: 0, beta: 0, gamma: 85 }));
+      await sleep(520);
+      const gyroLandscape = state.playerLandscape === true;
+      window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', { alpha: 0, beta: 90, gamma: 0 }));
+      await sleep(520);
+      results.push(`gyro=${gyroLandscape && state.playerLandscape === false}`);
+    } else {
+      results.push('gyro=skip');
+    }
     window.__O11A1_BRIGHTNESS = 50;
     applyBrightness(50);
     applyVolume(40);
