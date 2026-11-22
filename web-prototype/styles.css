@@ -1954,7 +1954,7 @@ body.native-app .proto-backdrop{display:none!important}
   content:"·";margin-right:7px;color:var(--faint);font-weight:600;
 }
 .real-video{
-  position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;
+  position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:var(--paper);
   z-index:0;display:none;pointer-events:none;
 }
 .player-video.has-video .real-video{display:block}
@@ -2066,7 +2066,7 @@ body.native-app .proto-backdrop{display:none!important}
 .video-debug[hidden]{display:none!important}
 .post-canvas{
   position:absolute;inset:0;width:100%;height:100%;
-  object-fit:contain;z-index:2;pointer-events:none;background:#000;
+  object-fit:contain;z-index:2;pointer-events:none;background:var(--paper);
 }
 .post-canvas[hidden]{display:none!important}
 .live-dm-badge{position:absolute;left:8px;bottom:8px;z-index:10;padding:4px 8px;border-radius:999px;background:rgba(6,8,12,.7);border:1px solid rgba(255,255,255,.14);color:#9FB3CC;font:600 9px/1 var(--font-mono);pointer-events:none}
