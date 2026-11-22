@@ -338,8 +338,6 @@ final class O11A1LocalServer {
       )
     case "mediaStats":
       data = o11a1Data(["ok": true, "bytes": mediaBytes, "requests": mediaRequests])
-    case "displayHz":
-      data = o11a1Data(["ok": true, "hz": UIScreen.main.maximumFramesPerSecond, "fps": O11A1HighRefresh.shared.compositorFps()])
     case "downloadStart":
       data = downloads.start(
         bvid: query["bvid"] ?? "",

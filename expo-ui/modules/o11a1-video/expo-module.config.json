@@ -1,7 +1,0 @@
-{
-  "platforms": ["apple"],
-  "apple": {
-    "modules": ["O11A1VideoModule"],
-    "podspecPath": "O11A1Video.podspec"
-  }
-}

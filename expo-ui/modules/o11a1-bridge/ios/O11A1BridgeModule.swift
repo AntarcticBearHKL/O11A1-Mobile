@@ -25,16 +25,5 @@ public final class O11A1BridgeModule: Module {
     Function("testFlow") { () -> String in
       return ProcessInfo.processInfo.environment["O11A1_TEST_FLOW"] ?? ""
     }
-
-    Function("enableHighRefresh") {
-      O11A1HighRefresh.shared.enable()
-    }
-
-    Function("highRefreshInfo") { () -> [String: Any] in
-      return [
-        "maxHz": O11A1HighRefresh.shared.maxHz(),
-        "compositorFps": O11A1HighRefresh.shared.compositorFps()
-      ]
-    }
   }
 }

@@ -1409,8 +1409,6 @@
 
   /* ---------- media ---------- */
   const video = $('#realVideo');
-  const postCanvas = $('#postCanvas');
-  const playerStage = $('#playerStage');
   const playerVideo = host.playerVideo;
   const player = $('#player');
   const status = $('#realVideoStatus');
@@ -1440,112 +1438,6 @@
     playerVideo.classList.toggle('video-loading', mode === 'loading');
     playerVideo.classList.toggle('video-error', mode === 'error');
     if (mode !== 'loading' && host.hidePlayerBoot) host.hidePlayerBoot();
-  }
-
-  const ambientCanvas = $('#ambientCanvas');
-  const ambientCtx = ambientCanvas ? ambientCanvas.getContext('2d', { alpha: false }) : null;
-  let ambientOn = false;
-  let ambientRaf = 0;
-  let ambientSyncRaf = 0;
-
-  function stopAmbientLoop() {
-    if (ambientRaf) cancelAnimationFrame(ambientRaf);
-    ambientRaf = 0;
-  }
-
-  function drawAmbientFrame() {
-    if (!ambientOn || !ambientCanvas || !ambientCtx) return;
-    if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) return;
-    const cw = ambientCanvas.width;
-    const ch = ambientCanvas.height;
-    if (!cw || !ch) return;
-    const scale = Math.max(cw / video.videoWidth, ch / video.videoHeight);
-    const dw = video.videoWidth * scale;
-    const dh = video.videoHeight * scale;
-    try {
-      ambientCtx.drawImage(video, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
-    } catch (_) {
-      setAmbientActive(false);
-    }
-  }
-
-  function ambientLoop() {
-    ambientRaf = 0;
-    if (!ambientOn) return;
-    drawAmbientFrame();
-    if (!video.paused) ambientRaf = requestAnimationFrame(ambientLoop);
-  }
-
-  function startAmbientLoop() {
-    if (!ambientOn || ambientRaf) return;
-    ambientRaf = requestAnimationFrame(ambientLoop);
-  }
-
-  function resizeAmbientCanvas() {
-    if (!ambientCanvas) return;
-    const width = playerStage.clientWidth;
-    const height = playerStage.clientHeight;
-    if (!width || !height) return;
-    const scale = Math.min(1, 520 / Math.max(width, height));
-    const canvasWidth = Math.max(2, Math.round(width * scale));
-    const canvasHeight = Math.max(2, Math.round(height * scale));
-    if (ambientCanvas.width !== canvasWidth || ambientCanvas.height !== canvasHeight) {
-      ambientCanvas.width = canvasWidth;
-      ambientCanvas.height = canvasHeight;
-    }
-  }
-
-  function setAmbientActive(active) {
-    if (!ambientCanvas || !ambientCtx) return;
-    const next = Boolean(active);
-    if (ambientOn === next) {
-      if (next) {
-        drawAmbientFrame();
-        if (!video.paused) startAmbientLoop();
-      }
-      return;
-    }
-    ambientOn = next;
-    playerVideo.classList.toggle('ambient-on', ambientOn);
-    if (!ambientOn) {
-      stopAmbientLoop();
-      try { ambientCtx.clearRect(0, 0, ambientCanvas.width, ambientCanvas.height); } catch (_) {}
-      return;
-    }
-    resizeAmbientCanvas();
-    drawAmbientFrame();
-    if (!video.paused) startAmbientLoop();
-  }
-
-  function syncAmbient() {
-    if (!ambientCanvas || !ambientCtx) return;
-    if (!state.playerOpen) {
-      setAmbientActive(false);
-      return;
-    }
-    const width = playerStage.clientWidth;
-    const height = playerStage.clientHeight;
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    const hasFrame = video.readyState >= 2 && vw > 0 && vh > 0;
-    const mismatch = hasFrame && width > 0 && height > 0
-      && Math.abs(vw / vh - width / height) > 0.01;
-    setAmbientActive(mismatch);
-  }
-
-  function requestAmbientSync() {
-    if (ambientSyncRaf) return;
-    ambientSyncRaf = requestAnimationFrame(() => {
-      ambientSyncRaf = 0;
-      syncAmbient();
-    });
-  }
-
-  window.addEventListener('resize', requestAmbientSync);
-  if (window.ResizeObserver) {
-    try {
-      new ResizeObserver(requestAmbientSync).observe(playerStage);
-    } catch (_) {}
   }
 
   function danmakuSettingNumber(value, fallback, min, max) {
@@ -1814,7 +1706,6 @@
     destroyHls();
     destroyDash();
     closeLiveDanmaku();
-    stopPostProcess();
     mediaItem = null;
     mediaBackup = '';
     mediaTriedBackup = false;
@@ -1831,7 +1722,6 @@
       video.load();
     } catch (_) {}
     playerVideo.classList.remove('has-video', 'video-loading', 'video-error');
-    setAmbientActive(false);
     if (host.hidePlayerBoot) host.hidePlayerBoot();
     if (player) player.classList.remove('live-player');
     if (status) status.textContent = '';
@@ -1868,14 +1758,12 @@
 
   function loadLive(item, autoplay) {
     destroyHls();
-    stopPostProcess();
     mediaItem = item;
     mediaLive = true;
     mediaBackup = '';
     mediaTriedBackup = false;
     state.duration = 0;
     playerVideo.classList.remove('video-error');
-    setAmbientActive(false);
     playerVideo.classList.add('video-loading', 'has-video');
     if (player) player.classList.add('live-player');
     setStatus('连接直播…', 'loading');
@@ -1909,15 +1797,15 @@
 
   /* ---------- DASH via MediaSource ---------- */
   function destroyDash() {
-    if (!dashState) return;
-    dashState.aborted = true;
-    try {
-      if (dashState.readers) {
-        dashState.readers.forEach((reader) => { try { reader.cancel(); } catch (_) {} });
-      }
-    } catch (_) {}
-    try { URL.revokeObjectURL(dashState.url); } catch (_) {}
+    const session = dashState;
+    if (!session) return;
     dashState = null;
+    session.aborted = true;
+    try { if (session.controller) session.controller.abort(); } catch (_) {}
+    try {
+      if (session.readers) session.readers.forEach((reader) => { try { reader.cancel(); } catch (_) {} });
+    } catch (_) {}
+    try { URL.revokeObjectURL(session.url); } catch (_) {}
   }
 
   function dashFallback(item, autoplay, reason) {
@@ -1965,38 +1853,72 @@
     }
   }
 
-  async function waitDashRoom(buffer, state) {
-    let guard = 0;
-    while (!state.aborted && guard < 120) {
-      guard += 1;
-      let bufferedEnd = 0;
-      let bufferedStart = 0;
-      try {
-        if (buffer.buffered.length) {
-          bufferedEnd = buffer.buffered.end(buffer.buffered.length - 1);
-          bufferedStart = buffer.buffered.start(0);
-        }
-      } catch (_) {}
-      if (!bufferedEnd || video.currentTime <= 0) return;
-      if (bufferedEnd - video.currentTime < 45) return;
-      if (bufferedStart > 0 && bufferedStart < video.currentTime - 30 && !buffer.updating) {
-        try { buffer.remove(0, Math.max(0, video.currentTime - 20)); } catch (_) {}
-      }
-      await new Promise((resolve) => setTimeout(resolve, 350));
+  function dashBufferedAhead(buffer) {
+    try {
+      if (!buffer.buffered.length || !Number.isFinite(video.currentTime)) return 0;
+      return buffer.buffered.end(buffer.buffered.length - 1) - video.currentTime;
+    } catch (_) {
+      return 0;
     }
   }
 
-  async function pumpDash(urls, buffer, type, item, autoplay, state) {
+  function waitDashResume(session) {
+    return new Promise((resolve) => {
+      if (session.aborted) { resolve(); return; }
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        video.removeEventListener('play', finish);
+        if (session.controller) {
+          try { session.controller.signal.removeEventListener('abort', finish); } catch (_) {}
+        }
+        resolve();
+      };
+      video.addEventListener('play', finish, { once: true });
+      if (session.controller) {
+        session.controller.signal.addEventListener('abort', finish, { once: true });
+      }
+    });
+  }
+
+  async function waitDashRoom(buffer, session) {
+    const maxAhead = 18;
+    while (!session.aborted) {
+      const ahead = dashBufferedAhead(buffer);
+      if (ahead < maxAhead) return;
+      if (video.paused) {
+        await waitDashResume(session);
+        continue;
+      }
+      try {
+        if (buffer.buffered.length && buffer.buffered.start(0) > 0
+          && buffer.buffered.start(0) < video.currentTime - 25 && !buffer.updating) {
+          buffer.remove(0, Math.max(0, video.currentTime - 15));
+        }
+      } catch (_) {}
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+
+  async function pumpDash(urls, buffer, type, item, autoplay, session) {
+    const chunkSize = 4 * 1024 * 1024;
     let lastError = 'DASH 地址不可用';
     for (const url of urls.filter(Boolean)) {
       try {
         let offset = 0;
         let total = 0;
         let appended = 0;
-        while (!state.aborted) {
+        while (!session.aborted) {
+          if (video.paused && dashBufferedAhead(buffer) >= 10) {
+            await waitDashResume(session);
+            continue;
+          }
+          const end = offset + chunkSize - 1;
           const response = await fetch(url, {
             cache: 'no-store',
-            headers: { Range: `bytes=${offset}-` }
+            headers: { Range: 'bytes=' + offset + '-' + end },
+            signal: session.controller ? session.controller.signal : undefined
           });
           if (!response.ok) throw new Error('HTTP ' + response.status);
           const contentRange = response.headers.get('Content-Range') || '';
@@ -2005,28 +1927,28 @@
           const value = new Uint8Array(await response.arrayBuffer());
           if (!value.length) break;
           addNetBytes(value.length);
-          await appendDashChunk(buffer, value, state);
+          await appendDashChunk(buffer, value, session);
           appended += value.length;
           offset += value.length;
-          if (!state.started && type === 'video' && appended > 350 * 1024) {
-            state.started = true;
+          if (!session.started && type === 'video' && appended > 350 * 1024) {
+            session.started = true;
             startDashPlayback(autoplay);
           }
-          await waitDashRoom(buffer, state);
+          await waitDashRoom(buffer, session);
           if (response.status === 200 && !total) break;
           if (total > 0 && offset >= total) break;
-          if (value.length < 64 * 1024) break;
+          if (value.length < Math.min(chunkSize, 64 * 1024)) break;
         }
-        if (!state.aborted && type === 'video') startDashPlayback(autoplay);
-        if (!state.aborted) log('dash ' + type + ' stream ended bytes=' + appended);
+        if (!session.aborted && type === 'video') startDashPlayback(autoplay);
+        if (!session.aborted) log('dash ' + type + ' ended bytes=' + appended);
         return;
       } catch (error) {
+        if (session.aborted) return;
         lastError = String(error);
         log('dash ' + type + ' source failed ' + lastError);
-        if (state.aborted) return;
       }
     }
-    if (!state.aborted) dashFallback(item, autoplay, lastError);
+    if (!session.aborted) dashFallback(item, autoplay, lastError);
   }
 
   function startDashPlayback(autoplay) {
@@ -2104,6 +2026,7 @@
       aborted: false,
       started: false,
       readers: [],
+      controller: typeof AbortController === 'function' ? new AbortController() : null,
       url,
       mediaSource,
       videoBuffer: null,
@@ -2120,6 +2043,7 @@
       showQualityFallback(requestedQuality, actualTrackQuality);
     }
     mediaSource.addEventListener('sourceopen', () => {
+      if (session.aborted) return;
       try {
         const videoBuffer = mediaSource.addSourceBuffer(videoMime);
         const audioBuffer = mediaSource.addSourceBuffer(audioMime);
@@ -2142,6 +2066,7 @@
         }).catch(() => {});
       }
     }, { once: true });
+    try { video.pause(); } catch (_) {}
     video.src = url;
     video.load();
   }
@@ -2168,8 +2093,9 @@
       if (autoplay) video.play().catch(() => {});
       return;
     }
+    destroyDash();
     destroyHls();
-    stopPostProcess();
+    try { video.pause(); } catch (_) {}
     mediaLive = false;
     if (player) player.classList.remove('live-player');
     mediaItem = item;
@@ -2177,7 +2103,6 @@
     mediaBackup = '';
     state.duration = 0;
     playerVideo.classList.remove('has-video', 'video-error');
-    setAmbientActive(false);
     playerVideo.classList.add('video-loading');
     setStatus('加载中…', 'loading');
     if (item.offlineUrl) {
@@ -2256,9 +2181,6 @@
     state.duration = Number.isFinite(video.duration) ? video.duration : 0;
     if (state.duration > 0 && !mediaLive) host.setProgress(video.currentTime / state.duration * 100);
     playerVideo.classList.remove('video-loading');
-    post.newFrame = true;
-    syncPostProcess();
-    requestAmbientSync();
   });
   video.addEventListener('timeupdate', () => {
     if (mediaLive) return;
@@ -2273,16 +2195,12 @@
     playerVideo.classList.remove('video-loading');
     if (danmakuLayer) danmakuLayer.classList.remove('paused');
     if (status) status.textContent = '';
-    syncPostProcess();
-    requestAmbientSync();
-    startAmbientLoop();
   });
   video.addEventListener('pause', () => {
     state.playing = false;
     host.setPlayIcon(false);
     host.updatePlaylistDock();
     if (danmakuLayer) danmakuLayer.classList.add('paused');
-    drawAmbientFrame();
   });
   video.addEventListener('waiting', () => {
     playerVideo.classList.add('video-loading');
@@ -2291,7 +2209,6 @@
   video.addEventListener('playing', () => {
     playerVideo.classList.remove('video-loading', 'video-error');
     if (status) status.textContent = '';
-    startAmbientLoop();
   });
   video.addEventListener('error', () => {
     if (mediaBackup && !mediaTriedBackup) {
@@ -2302,7 +2219,6 @@
       return;
     }
     setStatus(mediaLive ? '直播加载失败 · 点击重试' : '播放失败 · 点击重试', 'error');
-    setAmbientActive(false);
     log('video element error ' + (mediaItem ? mediaItem.bvid || mediaItem.roomId : ''));
   });
   video.addEventListener('ended', () => {
@@ -2324,339 +2240,6 @@
     loadVideo(item, true);
   });
 
-  /* ---------- WebGL post-process: interpolation / CAS / Anime4K ---------- */
-  const post = {
-    gl: null,
-    canvas: null,
-    program: null,
-    copyProgram: null,
-    curTex: null,
-    prevTex: null,
-    prevFbo: null,
-    width: 0,
-    height: 0,
-    raf: 0,
-    running: false,
-    newFrame: true,
-    lastFrameAt: 0,
-    initialized: false,
-  };
-  let lastInterpNoticeKey = '';
-  let postFallbackNotified = false;
-
-  function displayRefreshRate() {
-    try {
-      if (window.O11A1Native && typeof window.O11A1Native.displayHz === 'function') {
-        return Number(window.O11A1Native.displayHz()) || 0;
-      }
-    } catch (_) {}
-    return 0;
-  }
-
-  function measureRenderFps(callback) {
-    let start = 0;
-    let frames = 0;
-    const tick = (now) => {
-      if (!state.playerOpen) {
-        callback(0);
-        return;
-      }
-      if (!start) {
-        start = now;
-        frames = 0;
-        requestAnimationFrame(tick);
-        return;
-      }
-      frames += 1;
-      if (now - start >= 800) {
-        callback(frames * 1000 / Math.max(1, now - start));
-        return;
-      }
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }
-
-  function syncHighRefresh() {
-    if (!window.O11A1Native || typeof window.O11A1Native.setHighRefresh !== 'function') return;
-    const interp = state.settings.interp;
-    const target = interp === '自动' ? 120 : Number(interp) || 0;
-    const want = Boolean(state.playerOpen) && target >= 90;
-    try {
-      window.O11A1Native.setHighRefresh(want);
-    } catch (_) {}
-    if (!want) {
-      lastInterpNoticeKey = '';
-      return;
-    }
-    setTimeout(() => {
-      if (!state.playerOpen || state.settings.interp !== interp) return;
-      const hz = displayRefreshRate();
-      if (hz && hz < target) {
-        const key = `${target}:${hz}`;
-        if (key === lastInterpNoticeKey) return;
-        lastInterpNoticeKey = key;
-        if (host.showPlayerNotice) {
-          host.showPlayerNotice('插帧', `屏幕 ${hz}Hz · ${target} 帧插帧不可用`, 3400);
-        }
-        return;
-      }
-      measureRenderFps((fps) => {
-        if (!state.playerOpen || state.settings.interp !== interp) return;
-        const rendered = Math.round(fps);
-        if (!rendered || rendered >= target * 0.85) return;
-        const key = `${target}:render:${rendered}`;
-        if (key === lastInterpNoticeKey) return;
-        lastInterpNoticeKey = key;
-        if (host.showPlayerNotice) {
-          host.showPlayerNotice('插帧', `实际渲染约 ${rendered}fps · ${target} 帧插帧不可用`, 3400);
-        }
-      });
-    }, 750);
-  }
-
-  const POST_VERTEX = `
-    attribute vec2 aPos;
-    varying vec2 vUv;
-    void main(){ vUv = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }
-  `;
-  const POST_FRAGMENT = `
-    precision mediump float;
-    varying vec2 vUv;
-    uniform sampler2D uCur;
-    uniform sampler2D uPrev;
-    uniform vec2 uTexel;
-    uniform float uAlpha;
-    uniform float uSharp;
-    uniform float uSat;
-    void main(){
-      vec2 uv = vec2(vUv.x, 1.0 - vUv.y);
-      vec3 c = texture2D(uCur, uv).rgb;
-      vec3 p = texture2D(uPrev, uv).rgb;
-      vec3 n = texture2D(uCur, uv + vec2(0.0, uTexel.y)).rgb;
-      vec3 s = texture2D(uCur, uv - vec2(0.0, uTexel.y)).rgb;
-      vec3 e = texture2D(uCur, uv + vec2(uTexel.x, 0.0)).rgb;
-      vec3 w = texture2D(uCur, uv - vec2(uTexel.x, 0.0)).rgb;
-      vec3 blur = (n + s + e + w) * 0.25;
-      vec3 sharp = clamp(c + (c - blur) * uSharp, 0.0, 1.0);
-      vec3 col = mix(p, sharp, uAlpha);
-      float l = dot(col, vec3(0.299, 0.587, 0.114));
-      col = mix(vec3(l), col, uSat);
-      gl_FragColor = vec4(col, 1.0);
-    }
-  `;
-  const COPY_FRAGMENT = `
-    precision mediump float;
-    varying vec2 vUv;
-    uniform sampler2D uCur;
-    void main(){ gl_FragColor = texture2D(uCur, vUv); }
-  `;
-
-  function compileShader(gl, type, source) {
-    const shader = gl.createShader(type);
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      log('post shader failed ' + gl.getShaderInfoLog(shader));
-      gl.deleteShader(shader);
-      return null;
-    }
-    return shader;
-  }
-
-  function makeProgram(gl, fragment) {
-    const vertex = compileShader(gl, gl.VERTEX_SHADER, POST_VERTEX);
-    const pixel = compileShader(gl, gl.FRAGMENT_SHADER, fragment);
-    if (!vertex || !pixel) return null;
-    const program = gl.createProgram();
-    gl.attachShader(program, vertex);
-    gl.attachShader(program, pixel);
-    gl.bindAttribLocation(program, 0, 'aPos');
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      log('post link failed ' + gl.getProgramInfoLog(program));
-      return null;
-    }
-    return program;
-  }
-
-  function newTexture(gl) {
-    const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    return texture;
-  }
-
-  function initPostProcess() {
-    if (post.initialized) return Boolean(post.gl);
-    post.initialized = true;
-    const canvas = postCanvas;
-    if (!canvas) return false;
-    const gl = canvas.getContext('webgl', { alpha: false, antialias: false, preserveDrawingBuffer: false })
-      || canvas.getContext('experimental-webgl', { alpha: false, antialias: false });
-    if (!gl) {
-      log('post process unavailable: no webgl');
-      return false;
-    }
-    post.canvas = canvas;
-    post.gl = gl;
-    post.program = makeProgram(gl, POST_FRAGMENT);
-    post.copyProgram = makeProgram(gl, COPY_FRAGMENT);
-    if (!post.program || !post.copyProgram) return false;
-    const buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-    return true;
-  }
-
-  function postSettings() {
-    const interp = state.settings.interp;
-    const enhance = state.settings.enhance;
-    const enabled = mediaLive === false && !video.paused && video.readyState >= 2
-      && (interp !== '关' || enhance !== '关');
-    return {
-      enabled,
-      interp: interp === '自动' ? Math.min(120, Math.max(60, displayRefreshRate() || 60)) : Number(interp) || 0,
-      sharp: enhance === 'Anime4K' ? 1.78 : enhance === 'CAS' ? 1.16 : 0.15,
-      sat: enhance === 'Anime4K' ? 1.12 : enhance === 'CAS' ? 1.045 : 1,
-    };
-  }
-
-  function syncPostProcess() {
-    const settings = postSettings();
-    if (!settings.enabled) {
-      stopPostProcess();
-      return;
-    }
-    if (!initPostProcess()) {
-      log('post process fallback to css filter');
-      playerStage.classList.remove('post-active');
-      postCanvas.hidden = true;
-      const enhance = state.settings.enhance;
-      video.style.filter = enhance === 'Anime4K'
-        ? 'contrast(1.1) saturate(1.14)'
-        : enhance === 'CAS'
-          ? 'contrast(1.06) saturate(1.05)'
-          : '';
-      if (enhance !== '关' && !postFallbackNotified) {
-        postFallbackNotified = true;
-        if (host.showPlayerNotice) host.showPlayerNotice('增强', 'WebGL 不可用 · 已用滤镜降级', 3000);
-      }
-      return;
-    }
-    postFallbackNotified = false;
-    postCanvas.hidden = false;
-    video.style.filter = '';
-    playerStage.classList.add('post-active');
-    if (!post.running) startPostProcess();
-  }
-
-  function stopPostProcess() {
-    post.running = false;
-    cancelAnimationFrame(post.raf);
-    post.raf = 0;
-    playerStage.classList.remove('post-active');
-    if (postCanvas) postCanvas.hidden = true;
-    video.style.filter = '';
-  }
-
-  function ensurePostSize() {
-    const gl = post.gl;
-    if (!gl || !video.videoWidth) return false;
-    const width = Math.min(1280, video.videoWidth);
-    const height = Math.max(1, Math.round(width * video.videoHeight / video.videoWidth));
-    if (post.width === width && post.height === height) return true;
-    post.width = width;
-    post.height = height;
-    postCanvas.width = width;
-    postCanvas.height = height;
-    if (post.curTex) gl.deleteTexture(post.curTex);
-    if (post.prevTex) gl.deleteTexture(post.prevTex);
-    if (post.prevFbo) gl.deleteFramebuffer(post.prevFbo);
-    post.curTex = newTexture(gl);
-    post.prevTex = newTexture(gl);
-    gl.bindTexture(gl.TEXTURE_2D, post.curTex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.bindTexture(gl.TEXTURE_2D, post.prevTex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    post.prevFbo = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, post.prevFbo);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, post.prevTex, 0);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    post.newFrame = true;
-    return true;
-  }
-
-  function uploadPostFrame() {
-    const gl = post.gl;
-    if (!gl || !ensurePostSize()) return;
-    if (!post.newFrame) return;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, post.prevFbo);
-    gl.viewport(0, 0, post.width, post.height);
-    gl.useProgram(post.copyProgram);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, post.curTex);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.bindTexture(gl.TEXTURE_2D, post.curTex);
-    try {
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
-    } catch (error) {
-      log('post upload failed ' + error);
-    }
-    post.newFrame = false;
-    post.lastFrameAt = performance.now();
-  }
-
-  function drawPostFrame(now) {
-    const gl = post.gl;
-    if (!gl || !post.running) return;
-    const settings = postSettings();
-    if (!settings.enabled) { stopPostProcess(); return; }
-    uploadPostFrame();
-    gl.viewport(0, 0, post.width, post.height);
-    gl.useProgram(post.program);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, post.curTex);
-    gl.uniform1i(gl.getUniformLocation(post.program, 'uCur'), 0);
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, post.prevTex);
-    gl.uniform1i(gl.getUniformLocation(post.program, 'uPrev'), 1);
-    gl.uniform2f(gl.getUniformLocation(post.program, 'uTexel'), 1 / post.width, 1 / post.height);
-    let alpha = 1;
-    if (settings.interp) {
-      const interval = 1000 / settings.interp;
-      alpha = Math.min(1, Math.max(0.05, (now - post.lastFrameAt) / interval));
-    }
-    gl.uniform1f(gl.getUniformLocation(post.program, 'uAlpha'), alpha);
-    gl.uniform1f(gl.getUniformLocation(post.program, 'uSharp'), settings.sharp);
-    gl.uniform1f(gl.getUniformLocation(post.program, 'uSat'), settings.sat);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    post.raf = requestAnimationFrame(drawPostFrame);
-  }
-
-  function startPostProcess() {
-    if (post.running) return;
-    post.running = true;
-    post.newFrame = true;
-    post.raf = requestAnimationFrame(drawPostFrame);
-  }
-
-  if (typeof video.requestVideoFrameCallback === 'function') {
-    const onVideoFrame = () => {
-      post.newFrame = true;
-      video.requestVideoFrameCallback(onVideoFrame);
-    };
-    video.requestVideoFrameCallback(onVideoFrame);
-  }
-  video.addEventListener('seeked', () => { post.newFrame = true; drawAmbientFrame(); });
-  video.addEventListener('loadeddata', () => { post.newFrame = true; requestAmbientSync(); });
-
   window.O11A1Media = {
     isCurrentReady() {
       const item = currentItem();
@@ -2667,17 +2250,11 @@
     },
     onOpen() {
       applyDanmakuStyle();
-      syncHighRefresh();
       loadVideo(currentItem(), Boolean(state.playing));
-      requestAmbientSync();
     },
     onMinimize() {
-      syncHighRefresh();
-      setAmbientActive(false);
-      stopAmbientLoop();
     },
     onStop() {
-      syncHighRefresh();
       clearVideo();
     },
     togglePlay() {
@@ -2697,12 +2274,10 @@
     },
     onSettings() {
       applyDanmakuStyle();
-      syncHighRefresh();
       if (!video.src) return;
       const rate = parseFloat(state.settings.speed || '1');
       video.playbackRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
       video.loop = state.settings.loop === '循环';
-      syncPostProcess();
     },
     onTrackChange() {
       loadVideo(currentItem(), true);

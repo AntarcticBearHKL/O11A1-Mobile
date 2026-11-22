@@ -198,40 +198,6 @@ final class WebAppBridge {
     }
 
     @JavascriptInterface
-    public int displayHz() {
-        try {
-            android.view.Display display = activity.getWindowManager().getDefaultDisplay();
-            return Math.round(display.getRefreshRate());
-        } catch (Throwable error) {
-            return 60;
-        }
-    }
-
-    @JavascriptInterface
-    public String setHighRefresh(boolean on) {
-        JSONObject out = new JSONObject();
-        try {
-            activity.runOnUiThread(() -> {
-                try {
-                    WindowManager.LayoutParams attributes = activity.getWindow().getAttributes();
-                    attributes.preferredRefreshRate = on ? 120f : 0f;
-                    activity.getWindow().setAttributes(attributes);
-                } catch (Throwable ignored) {
-                }
-            });
-            out.put("ok", true);
-        } catch (Throwable error) {
-            out = error(error);
-        }
-        return out.toString();
-    }
-
-    @JavascriptInterface
-    public double compositorFps() {
-        return displayHz();
-    }
-
-    @JavascriptInterface
     public String openWebLogin(String phone) {
         JSONObject out = new JSONObject();
         try {

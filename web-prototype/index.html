@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=147">
+  <link rel="stylesheet" href="./styles.css?v=148">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -15,12 +15,6 @@
       <div class="app-main" id="appMain">
       <div class="statusbar"><span>9:41</span><span class="status-icons">5G ▮▮▮ ▰</span></div>
       <div class="top-glass" aria-hidden="true"></div>
-      <div class="feed-debug" id="feedDebug" aria-hidden="true">
-        <span class="fd-dot"></span>
-        <span class="fd-k">FEED</span>
-        <b id="feedDebugHz">60.0 Hz</b>
-        <span id="feedDebugFps">59.9 fps</span>
-      </div>
       <div class="app-scroll" id="appScroll">
         <!-- 首页：单列，每行一个视频 -->
         <section class="page active" data-page="home">
@@ -139,7 +133,7 @@
           <div class="settings-group">
             <div class="section-label">播放与弹幕</div>
             <div class="my-list">
-              <button class="my-row" data-sheet="settings-playback"><span>播放</span><span class="my-meta">画质 / 插帧 / 增强</span></button>
+              <button class="my-row" data-sheet="settings-playback"><span>播放</span><span class="my-meta">画质 / 硬解 / 默认</span></button>
               <button class="my-row" data-sheet="settings-danmaku"><span>弹幕</span><span class="my-meta">显示 / 字号 / 速度 / 屏蔽</span></button>
               <button class="my-row" data-sheet="settings-download"><span>离线下载</span><span class="my-meta">任务 / 合流 / 存储</span></button>
             </div>
@@ -330,7 +324,6 @@
     <div class="player-body">
       <div class="player-stage" id="playerStage">
         <div class="player-video" id="playerVideo">
-          <canvas class="ambient-canvas" id="ambientCanvas" aria-hidden="true"></canvas>
           <video class="real-video" id="realVideo" playsinline webkit-playsinline preload="metadata" crossorigin="anonymous"></video>
           <div class="real-video-status" id="realVideoStatus">加载中…</div>
           <div class="player-boot" id="playerBoot" aria-hidden="true">
@@ -338,8 +331,6 @@
             <b id="playerBootText">正在打开视频…</b>
           </div>
           <div class="live-dm-badge" id="liveDmBadge" hidden>直播弹幕</div>
-          <canvas class="post-canvas" id="postCanvas" hidden></canvas>
-          <pre class="video-debug" id="videoDebug" aria-hidden="true"></pre>
           <span class="ph-label">视频占位 · 无播放源</span>
           <span class="play-big light">▶</span>
           <span class="video-hint">空播放器</span>
@@ -376,21 +367,9 @@
         <div class="player-settings-list">
           <div class="pc-group" id="pcQualityGroup">
             <button class="pc-row" id="pcQuality" type="button" aria-expanded="false">
-              <span class="pc-row-label">画质</span><span class="pc-row-value" id="pcQualityValue">1080P60</span>
+              <span class="pc-row-label">画质</span><span class="pc-row-value" id="pcQualityValue">720P</span>
             </button>
             <div class="pc-panel" id="pcQualityPanel"></div>
-          </div>
-          <div class="pc-group" id="pcInterpGroup">
-            <button class="pc-row" id="pcInterp" type="button" aria-expanded="false">
-              <span class="pc-row-label">插帧</span><span class="pc-row-value" id="pcInterpValue">120</span>
-            </button>
-            <div class="pc-panel" id="pcInterpPanel"></div>
-          </div>
-          <div class="pc-group" id="pcEnhanceGroup">
-            <button class="pc-row" id="pcEnhance" type="button" aria-expanded="false">
-              <span class="pc-row-label">增强</span><span class="pc-row-value" id="pcEnhanceValue">CAS</span>
-            </button>
-            <div class="pc-panel" id="pcEnhancePanel"></div>
           </div>
           <div class="pc-group" id="pcDanmakuGroup">
             <button class="pc-row" id="pcDanmaku" type="button" aria-expanded="false">
@@ -505,8 +484,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=147"></script>
-  <script src="./app.js?v=147"></script>
-  <script src="./native.js?v=147"></script>
+  <script src="./vendor/hls.min.js?v=148"></script>
+  <script src="./app.js?v=148"></script>
+  <script src="./native.js?v=148"></script>
 </body>
 </html>

@@ -1,5 +1,7 @@
 # O11A1 Mobile 设计规范 · V2
 
+> **播放架构已重构**：当前版本移除了原生 MediaCodec / VideoToolbox / Metal 测试播放器、插帧 / CAS / Anime4K、120Hz 强制高刷和逐帧调试 HUD；实际播放使用系统 WebView 硬解，默认 720P、渐进优先，详见 [README.md](README.md) 的「0. 播放管线」。
+>
 > 功能完整对照：[MOBILE_FEATURES.md](MOBILE_FEATURES.md)
 >
 > 交互与动效：[MOBILE_INTERACTION.md](MOBILE_INTERACTION.md)
