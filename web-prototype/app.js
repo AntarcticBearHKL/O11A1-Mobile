@@ -8,7 +8,6 @@
   const homeFeed = $('#homeFeed');
   const moduleFeed = $('#moduleFeed');
   const player = $('#player');
-  const playerBackdrop = $('#playerBackdrop');
   const playerTop = $('.player-top');
   const playerStage = $('#playerStage');
   const playerControls = $('#playerControls');
@@ -327,6 +326,7 @@
   let commentsGesture = null;
   let commentsCloseTimer = null;
   let playerCollapseAnim = null;
+  let playerCollapseRadiusAnim = null;
   let playerCollapseTimer = null;
   let playerCollapseToken = 0;
   let playerDockForced = false;
@@ -2266,11 +2266,6 @@
     player.style.pointerEvents = '';
     player.classList.remove('dragging', 'collapsing');
     player.classList.add('open');
-    if (playerBackdrop) {
-      playerBackdrop.classList.add('show');
-      playerBackdrop.style.transition = '';
-      playerBackdrop.style.opacity = '';
-    }
     player.setAttribute('aria-hidden', 'false');
     player.inert = false;
     player.classList.remove('ui-hidden');
@@ -2299,6 +2294,11 @@
       try { playerCollapseAnim.cancel(); } catch (_) {}
       playerCollapseAnim = null;
     }
+    if (playerCollapseRadiusAnim) {
+      try { playerCollapseRadiusAnim.cancel(); } catch (_) {}
+      playerCollapseRadiusAnim = null;
+    }
+    player.style.borderRadius = '';
     if (playerDockForced) {
       playlistDock.style.transition = '';
       playlistDock.style.transform = '';
@@ -2335,10 +2335,6 @@
     if (player.contains(document.activeElement)) document.activeElement.blur();
     showMiniPlayer();
     updatePlaylistDock();
-    if (playerBackdrop) {
-      playerBackdrop.style.transition = 'opacity .46s ease';
-      playerBackdrop.style.opacity = '0';
-    }
     let target = null;
     if (playlistDock.classList.contains('show')) {
       playlistDock.classList.remove('receiving', 'absorbing', 'launching', 'dragging');
@@ -2369,6 +2365,10 @@
         try { playerCollapseAnim.cancel(); } catch (_) {}
         playerCollapseAnim = null;
       }
+      if (playerCollapseRadiusAnim) {
+        try { playerCollapseRadiusAnim.cancel(); } catch (_) {}
+        playerCollapseRadiusAnim = null;
+      }
       player.classList.remove('open', 'ui-hidden', 'collapsing', 'to-playlist', 'dragging');
       player.setAttribute('aria-hidden', 'true');
       player.inert = true;
@@ -2376,6 +2376,7 @@
       player.style.transition = '';
       player.style.transform = '';
       player.style.opacity = '';
+      player.style.borderRadius = '';
       player.style.pointerEvents = '';
       if (playerDockForced) {
         playlistDock.style.transition = '';
@@ -2383,44 +2384,47 @@
         playlistDock.style.opacity = '';
         playerDockForced = false;
       }
-      if (playerBackdrop) {
-        playerBackdrop.classList.remove('show');
-        playerBackdrop.style.transition = '';
-        playerBackdrop.style.opacity = '';
-      }
       absorbPlaylistDock();
     };
     if (typeof player.animate === 'function' && target && target.width > 0) {
       const midScale = dragScale + (targetScale - dragScale) * 0.9;
+      playerCollapseRadiusAnim = player.animate([
+        { borderRadius: '0px' },
+        { borderRadius: '28px', offset: 0.16 },
+        { borderRadius: '140px' },
+      ], { duration: 600, easing: 'linear', fill: 'forwards' });
       playerCollapseAnim = player.animate([
         {
           transform: `translate(0px, ${dragY}px) scale(${dragScale})`,
           opacity: 1,
-          borderRadius: '28px',
         },
         {
           transform: `translate(${endX * 0.9}px, ${endY * 0.9}px) scale(${midScale})`,
           opacity: 1,
-          borderRadius: '20px',
-          offset: 0.86,
+          offset: 0.9,
         },
         {
           transform: `translate(${endX}px, ${endY}px) scale(${targetScale})`,
           opacity: 0,
-          borderRadius: '16px',
         },
-      ], { duration: 540, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'forwards' });
+      ], {
+        duration: 520,
+        delay: 80,
+        easing: 'cubic-bezier(.22,1,.36,1)',
+        fill: 'forwards',
+      });
       if (playerCollapseAnim.finished && playerCollapseAnim.finished.then) {
         playerCollapseAnim.finished.then(complete).catch(() => {});
       }
-      playerCollapseTimer = setTimeout(complete, 640);
+      playerCollapseTimer = setTimeout(complete, 700);
     } else {
-      player.style.transition = 'transform .42s cubic-bezier(.22,1,.36,1),opacity .24s ease .18s';
+      player.style.transition = 'transform .48s cubic-bezier(.22,1,.36,1) .08s,opacity .24s ease .22s,border-radius .6s linear';
       player.style.transform = target
         ? `translate(${endX}px, ${endY}px) scale(${targetScale})`
         : 'translateY(105%) scale(.94)';
       player.style.opacity = '0';
-      playerCollapseTimer = setTimeout(complete, 560);
+      player.style.borderRadius = '140px';
+      playerCollapseTimer = setTimeout(complete, 700);
     }
     if (document.fullscreenElement && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
@@ -2434,11 +2438,6 @@
 
   function stopPlayback() {
     cancelPlayerCollapse();
-    if (playerBackdrop) {
-      playerBackdrop.classList.remove('show');
-      playerBackdrop.style.transition = '';
-      playerBackdrop.style.opacity = '';
-    }
     state.playerOpen = false;
     state.miniVisible = false;
     state.playing = false;
