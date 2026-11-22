@@ -3764,14 +3764,12 @@
       player.classList.add('gesture-active');
       if (state.settings.swipeComments && Math.abs(localX) > Math.abs(localY) * 1.15) {
         gesture.mode = 'horizontal';
-      } else if (gesture.zone === 'middle') {
-        if (localY > 0 && state.settings.middleCollapse) gesture.mode = 'collapse';
-        else if (localY < 0) gesture.mode = 'settings';
-        else {
-          gesture.mode = 'none';
-          return;
-        }
+      } else if (localY > 0 && state.settings.middleCollapse) {
+        gesture.mode = 'collapse';
+      } else if (localY < 0) {
+        gesture.mode = 'settings';
       } else {
+        gesture.mode = 'none';
         return;
       }
     }
@@ -3839,7 +3837,7 @@
     stageTapTimer = setTimeout(() => {
       stageTapTimer = null;
       lastStageTap = { time: 0, zone: '' };
-      scheduleHide();
+      showControls();
     }, 260);
   }
 
@@ -5711,6 +5709,13 @@
 
     openPlayer();
     await sleep(80);
+    playerControls.classList.add('hidden');
+    player.classList.add('ui-hidden');
+    const sideTap = stagePoint('left');
+    playerStage.dispatchEvent(pointerEvent('pointerdown', sideTap.x, sideTap.y, 1));
+    window.dispatchEvent(pointerEvent('pointerup', sideTap.x, sideTap.y, 0));
+    await sleep(330);
+    results.push(`sideTap=${!playerControls.classList.contains('hidden')}`);
     if (typeof DeviceOrientationEvent === 'function') {
       window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', { alpha: 0, beta: 0, gamma: 85 }));
       await sleep(520);
@@ -5723,7 +5728,7 @@
     }
 
     await sleep(140);
-    dispatchSwipe('middle', 0, -150);
+    dispatchSwipe('left', 0, -150);
     await sleep(450);
     results.push(`noRotate=${state.playerLandscape === false}`);
     const settingsOpened = playerSettingsOpen;
@@ -5739,7 +5744,7 @@
     results.push(`settings=${settingsOpened && !playerSettingsOpen}`);
 
     await sleep(180);
-    dispatchSwipe('middle', 0, 190);
+    dispatchSwipe('right', 0, 190);
     results.push(`collapsed=${!state.playerOpen && state.miniVisible}`);
 
     await sleep(420);
