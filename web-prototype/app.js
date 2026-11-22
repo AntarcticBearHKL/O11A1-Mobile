@@ -2464,6 +2464,7 @@
 
   function minimizePlayer(fromY = 0, fromScale = 1) {
     if (!state.playerOpen) return;
+    const dragRadius = Math.min(28, Math.max(0, parseFloat(player.style.borderRadius) || 0));
     cancelPlayerOpenExpansion();
     cancelPlayerCollapse();
     resetVideoDetail();
@@ -2545,10 +2546,9 @@
     if (typeof player.animate === 'function' && target && target.width > 0) {
       const midScale = dragScale + (targetScale - dragScale) * 0.9;
       playerCollapseRadiusAnim = player.animate([
-        { borderRadius: '0px' },
-        { borderRadius: '28px', offset: 0.16 },
+        { borderRadius: `${dragRadius}px` },
         { borderRadius: '140px' },
-      ], { duration: 600, easing: 'linear', fill: 'forwards' });
+      ], { duration: 540, easing: 'linear', fill: 'forwards' });
       playerCollapseAnim = player.animate([
         {
           transform: `translate(0px, ${dragY}px) scale(${dragScale})`,
@@ -2564,23 +2564,26 @@
           opacity: 0,
         },
       ], {
-        duration: 520,
-        delay: 80,
+        duration: 540,
         easing: 'cubic-bezier(.22,1,.36,1)',
         fill: 'forwards',
       });
       if (playerCollapseAnim.finished && playerCollapseAnim.finished.then) {
         playerCollapseAnim.finished.then(complete).catch(() => {});
       }
-      playerCollapseTimer = setTimeout(complete, 700);
+      playerCollapseTimer = setTimeout(complete, 650);
     } else {
-      player.style.transition = 'transform .48s cubic-bezier(.22,1,.36,1) .08s,opacity .24s ease .22s,border-radius .6s linear';
+      player.style.transition = 'none';
+      player.style.transform = `translate(0px, ${dragY}px) scale(${dragScale})`;
+      player.style.borderRadius = `${dragRadius}px`;
+      void player.offsetWidth;
+      player.style.transition = 'transform .5s cubic-bezier(.22,1,.36,1),opacity .24s ease .22s,border-radius .54s linear';
       player.style.transform = target
         ? `translate(${endX}px, ${endY}px) scale(${targetScale})`
         : 'translateY(105%) scale(.94)';
       player.style.opacity = '0';
       player.style.borderRadius = '140px';
-      playerCollapseTimer = setTimeout(complete, 700);
+      playerCollapseTimer = setTimeout(complete, 650);
     }
     if (document.fullscreenElement && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
@@ -3138,6 +3141,7 @@
       const scale = 1 - Math.min(0.05, dragY / 3000);
       player.style.transform = `translateY(${dragY}px) scale(${scale})`;
       player.style.opacity = '1';
+      player.style.borderRadius = `${Math.min(28, dragY * 0.16)}px`;
     } else if (gesture.mode === 'level') {
       const rect = playerStage.getBoundingClientRect();
       const delta = (-dy / Math.max(1, rect.height)) * 140;
@@ -3232,14 +3236,16 @@
         minimizePlayer(gesture.collapseY, 1 - Math.min(0.05, gesture.collapseY / 3000));
         return;
       }
-      player.style.transition = 'transform .24s cubic-bezier(.16,1,.3,1), opacity .2s ease';
+      player.style.transition = 'transform .24s cubic-bezier(.16,1,.3,1), opacity .2s ease, border-radius .2s ease';
       player.style.transform = 'none';
       player.style.opacity = '1';
+      player.style.borderRadius = '0px';
       setTimeout(() => {
         if (state.playerOpen) {
           player.style.transition = '';
           player.style.transform = '';
           player.style.opacity = '';
+          player.style.borderRadius = '';
         }
       }, 260);
     } else if (gesture.mode === 'level') {
