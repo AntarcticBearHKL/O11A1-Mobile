@@ -92,6 +92,7 @@
   const pdSearchInput = $('#pdSearchInput');
   const pdSearchBack = $('#pdSearchBack');
   const dockSearchHot = $('#dockSearchHot');
+  const dockSearchPanel = $('#dockSearchPanel');
   const dockSearchSuggest = $('#dockSearchSuggest');
   const dockHotSearchList = $('#dockHotSearchList');
   const dockSearchSuggestList = $('#dockSearchSuggestList');
@@ -356,6 +357,7 @@
   let sidebarPicked = null;
   let menuSwipeStart = null;
   let searchDrag = null;
+  let searchResultsTouch = null;
   let sidebarSwipeStart = null;
   let suppressFeedClickUntil = 0;
   let suppressSidebarClickUntil = 0;
@@ -368,6 +370,10 @@
   let dockBodyTouch = null;
   let dockAbsorbTimer = null;
   let pdSearchPressTimer = null;
+  let dockSearchDrag = null;
+  let dockSearchTouch = null;
+  let dockSearchPullTimer = null;
+  let suppressDockSearchClickUntil = 0;
   let playlistDrag = null;
   let toolbarDrag = null;
   let mockFeedLoading = false;
@@ -778,8 +784,9 @@
     if (!searchResultsPage) return;
     searchResultsPage.classList.remove('dragging');
     searchResultsPage.classList.add('settling');
-    searchResultsPage.style.transition = 'transform .32s cubic-bezier(.16,1,.3,1)';
+    searchResultsPage.style.transition = 'transform .32s cubic-bezier(.16,1,.3,1),opacity .22s ease';
     searchResultsPage.style.transform = '';
+    searchResultsPage.style.opacity = '';
     searchResultsPage.style.boxShadow = '';
     setTimeout(() => {
       if (!searchResultsPage.classList.contains('dragging')) {
@@ -787,6 +794,27 @@
         searchResultsPage.classList.remove('settling');
       }
     }, 340);
+  }
+
+  function closeSearchResultsFromPull() {
+    if (!searchResultsPage) {
+      closeSearch();
+      return;
+    }
+    searchResultsPage.classList.remove('dragging');
+    searchResultsPage.classList.add('settling');
+    searchResultsPage.style.transition = 'transform .28s cubic-bezier(.22,1,.36,1),opacity .2s ease';
+    searchResultsPage.style.transform = 'translate3d(0,105%,0)';
+    searchResultsPage.style.opacity = '0';
+    searchResultsPage.style.boxShadow = '';
+    setTimeout(() => {
+      closeSearch();
+      searchResultsPage.classList.remove('settling');
+      searchResultsPage.style.transition = '';
+      searchResultsPage.style.transform = '';
+      searchResultsPage.style.opacity = '';
+      searchResultsPage.style.boxShadow = '';
+    }, 280);
   }
 
   function closeSearchFromSwipe() {
@@ -5277,6 +5305,11 @@
 
   function enterDockSearch() {
     if (!pdSearchInput || !playlistDock.classList.contains('show')) return;
+    clearTimeout(dockSearchPullTimer);
+    dockSearchPullTimer = null;
+    playlistDock.style.transition = '';
+    playlistDock.style.transform = '';
+    playlistDock.style.opacity = '';
     setDockExpanded(false);
     playlistDock.classList.remove('receiving', 'absorbing');
     playlistDock.classList.add('searching');
@@ -5294,6 +5327,42 @@
     playlistDock.classList.remove('searching');
     pdSearchInput.blur();
     pdSearchInput.value = '';
+    if (dockSearchPanel) dockSearchPanel.scrollTop = 0;
+  }
+
+  function resetDockSearchPull() {
+    clearTimeout(dockSearchPullTimer);
+    playlistDock.style.transition = 'transform .26s cubic-bezier(.16,1,.3,1), opacity .2s ease';
+    playlistDock.style.transform = 'translate(-50%, 0)';
+    playlistDock.style.opacity = '';
+    dockSearchPullTimer = setTimeout(() => {
+      dockSearchPullTimer = null;
+      playlistDock.style.transition = '';
+      playlistDock.style.transform = '';
+    }, 270);
+  }
+
+  function closeDockSearchFromPull() {
+    clearTimeout(dockSearchPullTimer);
+    playlistDock.style.transition = 'transform .24s cubic-bezier(.22,1,.36,1), opacity .18s ease';
+    playlistDock.style.transform = 'translate(-50%, 105%)';
+    playlistDock.style.opacity = '0';
+    dockSearchPullTimer = setTimeout(() => {
+      exitDockSearch();
+      playlistDock.style.transition = 'none';
+      playlistDock.style.transform = 'translate(-50%, 100%)';
+      playlistDock.style.opacity = '0';
+      void playlistDock.offsetWidth;
+      playlistDock.style.transition = 'transform .28s cubic-bezier(.16,1,.3,1), opacity .2s ease';
+      playlistDock.style.transform = 'translate(-50%, 0)';
+      playlistDock.style.opacity = '';
+      dockSearchPullTimer = setTimeout(() => {
+        dockSearchPullTimer = null;
+        playlistDock.style.transition = '';
+        playlistDock.style.transform = '';
+        playlistDock.style.opacity = '';
+      }, 300);
+    }, 220);
   }
 
   function dockContentTarget() {
@@ -5430,6 +5499,100 @@
     dockPlaylistBody.addEventListener('touchcancel', endDockBodyTouch);
   }
 
+  playlistDock.addEventListener('pointerdown', (event) => {
+    if (!playlistDock.classList.contains('searching')) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (event.target.closest('input, textarea')) return;
+    const panel = event.target.closest('.pd-search-panel');
+    if (panel && dockSearchPanel && dockSearchPanel.scrollTop > 0) return;
+    clearTimeout(dockSearchPullTimer);
+    dockSearchPullTimer = null;
+    dockSearchDrag = {
+      id: event.pointerId,
+      y: event.clientY,
+      dy: 0,
+      moved: false,
+      panel: Boolean(panel),
+    };
+  });
+  window.addEventListener('pointermove', (event) => {
+    if (!dockSearchDrag || event.pointerId !== dockSearchDrag.id) return;
+    const dy = event.clientY - dockSearchDrag.y;
+    if (dockSearchDrag.panel && dockSearchPanel && dockSearchPanel.scrollTop > 0) {
+      dockSearchDrag = null;
+      return;
+    }
+    if (dy < -6) {
+      dockSearchDrag = null;
+      return;
+    }
+    if (dy < 6) return;
+    dockSearchDrag.dy = dy;
+    dockSearchDrag.moved = true;
+    suppressDockSearchClickUntil = Date.now() + 420;
+    if (event.cancelable) event.preventDefault();
+    playlistDock.style.transition = 'none';
+    playlistDock.style.transform = `translate(-50%, ${dy}px)`;
+    playlistDock.style.opacity = String(Math.max(0.35, 1 - dy / 900));
+  });
+  window.addEventListener('pointerup', (event) => {
+    if (!dockSearchDrag || event.pointerId !== dockSearchDrag.id) return;
+    const gesture = dockSearchDrag;
+    dockSearchDrag = null;
+    if (!gesture.moved) return;
+    if (gesture.dy > 96) closeDockSearchFromPull();
+    else resetDockSearchPull();
+  });
+  window.addEventListener('pointercancel', () => {
+    if (!dockSearchDrag) return;
+    dockSearchDrag = null;
+    resetDockSearchPull();
+  });
+
+  function startDockSearchTouch(event) {
+    if (!playlistDock.classList.contains('searching')) return;
+    if (!event.touches || event.touches.length !== 1) return;
+    if (event.target.closest('input, textarea')) return;
+    const panel = event.target.closest('.pd-search-panel');
+    if (panel && dockSearchPanel && dockSearchPanel.scrollTop > 0) return;
+    dockSearchTouch = { y: event.touches[0].clientY, panel: Boolean(panel) };
+  }
+
+  function moveDockSearchTouch(event) {
+    if (!dockSearchTouch) return;
+    if (!event.touches || event.touches.length !== 1) {
+      dockSearchTouch = null;
+      return;
+    }
+    const dy = event.touches[0].clientY - dockSearchTouch.y;
+    if (dockSearchTouch.panel && dockSearchPanel && dockSearchPanel.scrollTop > 0) {
+      dockSearchTouch = null;
+      return;
+    }
+    if (dy < -6) {
+      dockSearchTouch = null;
+      return;
+    }
+    if (dy < 6) return;
+    if (event.cancelable) event.preventDefault();
+  }
+
+  function endDockSearchTouch() {
+    dockSearchTouch = null;
+  }
+
+  playlistDock.addEventListener('touchstart', startDockSearchTouch, { passive: true });
+  playlistDock.addEventListener('touchmove', moveDockSearchTouch, { passive: false });
+  playlistDock.addEventListener('touchend', endDockSearchTouch);
+  playlistDock.addEventListener('touchcancel', endDockSearchTouch);
+
+  playlistDock.addEventListener('click', (event) => {
+    if (Date.now() < suppressDockSearchClickUntil) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, true);
+
   playlistDock.addEventListener('click', (event) => {
     if (playlistDock.classList.contains('searching')) return;
     if (playlistDock.classList.contains('expanded')) return;
@@ -5553,6 +5716,34 @@
   if (upPage) upPage.addEventListener('pointerdown', (event) => startFeedGesture(event, 'up'));
   if (searchResultsPage) searchResultsPage.addEventListener('pointerdown', (event) => startFeedGesture(event, 'search'));
   if (videoDetailScroll) videoDetailScroll.addEventListener('pointerdown', (event) => startFeedGesture(event, 'detail'));
+
+  function startSearchResultsTouch(event) {
+    if (!searchResultsPage || searchResultsPage.scrollTop > 0) return;
+    if (!event.touches || event.touches.length !== 1) return;
+    searchResultsTouch = { y: event.touches[0].clientY };
+  }
+  function moveSearchResultsTouch(event) {
+    if (!searchResultsTouch) return;
+    if (!event.touches || event.touches.length !== 1) {
+      searchResultsTouch = null;
+      return;
+    }
+    const dy = event.touches[0].clientY - searchResultsTouch.y;
+    if (searchResultsPage.scrollTop > 0 || dy < -6) {
+      searchResultsTouch = null;
+      return;
+    }
+    if (dy > 6 && event.cancelable) event.preventDefault();
+  }
+  function endSearchResultsTouch() {
+    searchResultsTouch = null;
+  }
+  if (searchResultsPage) {
+    searchResultsPage.addEventListener('touchstart', startSearchResultsTouch, { passive: true });
+    searchResultsPage.addEventListener('touchmove', moveSearchResultsTouch, { passive: false });
+    searchResultsPage.addEventListener('touchend', endSearchResultsTouch);
+    searchResultsPage.addEventListener('touchcancel', endSearchResultsTouch);
+  }
   window.addEventListener('pointermove', (event) => {
     if (!rowSwipe || event.pointerId !== rowSwipe.id) return;
     const dx = event.clientX - rowSwipe.x;
@@ -5560,7 +5751,14 @@
     if (!rowSwipe.direction) {
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
       if (Math.abs(dy) > Math.abs(dx) * 1.15) {
-        rowSwipe.direction = 'vertical';
+        if (rowSwipe.surface === 'search' && dy > 0 && searchResultsPage && searchResultsPage.scrollTop <= 0) {
+          rowSwipe.direction = 'search-pull';
+          rowSwipe.searchPullY = 0;
+          searchResultsPage.classList.add('dragging');
+          searchResultsPage.style.transition = 'none';
+        } else {
+          rowSwipe.direction = 'vertical';
+        }
         return;
       }
       if (dx > 8) {
@@ -5618,6 +5816,14 @@
       searchResultsPage.style.boxShadow = offset > 0 ? '-18px 0 46px rgba(10,12,20,.18)' : '';
       return;
     }
+    if (rowSwipe.direction === 'search-pull') {
+      if (event.cancelable) event.preventDefault();
+      const pullY = Math.max(0, dy);
+      rowSwipe.searchPullY = pullY;
+      searchResultsPage.style.transform = `translate3d(0,${pullY}px,0)`;
+      searchResultsPage.style.opacity = String(Math.max(0.35, 1 - pullY / 520));
+      return;
+    }
     if (rowSwipe.direction === 'up-close') {
       if (event.cancelable) event.preventDefault();
       const width = app.clientWidth || window.innerWidth;
@@ -5659,6 +5865,12 @@
       else resetSearchResultsDrag();
       return;
     }
+    if (start.direction === 'search-pull') {
+      suppressFeedClickUntil = Date.now() + 420;
+      if ((start.searchPullY || 0) > 96) closeSearchResultsFromPull();
+      else resetSearchResultsDrag();
+      return;
+    }
     if (start.direction === 'up-close') {
       suppressFeedClickUntil = Date.now() + 420;
       const width = app.clientWidth || window.innerWidth;
@@ -5683,6 +5895,7 @@
     else if (start.direction === 'left') resetRowSwipe(start.wrapper);
     else if (start.direction === 'up-close') resetUpPageDrag();
     else if (start.direction === 'search-close') resetSearchResultsDrag();
+    else if (start.direction === 'search-pull') resetSearchResultsDrag();
   });
 
   appScroll.addEventListener('scroll', () => {
@@ -5700,13 +5913,14 @@
     searchHomePage.style.opacity = '';
   }
 
-  function closeSearchWithDrag() {
+  function closeSearchWithDrag(direction = 'down') {
     if (!searchHomePage) {
       closeSearch();
       return;
     }
+    suppressFeedClickUntil = Date.now() + 420;
     searchHomePage.style.transition = 'transform .24s cubic-bezier(.4,0,1,1),opacity .2s ease';
-    searchHomePage.style.transform = 'translateY(-105%)';
+    searchHomePage.style.transform = direction === 'up' ? 'translateY(-105%)' : 'translateY(105%)';
     searchHomePage.style.opacity = '0';
     setTimeout(() => {
       resetSearchDrag();
@@ -5717,24 +5931,25 @@
   if (searchHomePage) {
     searchHomePage.addEventListener('pointerdown', (event) => {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
-      if (event.target.closest('button')) return;
+      if (event.target.closest('button, input, textarea')) return;
       searchDrag = { id: event.pointerId, y: event.clientY, dy: 0 };
       searchHomePage.classList.add('dragging');
       searchHomePage.style.transition = 'none';
     });
     window.addEventListener('pointermove', (event) => {
       if (!searchDrag || event.pointerId !== searchDrag.id) return;
-      const dy = Math.min(0, event.clientY - searchDrag.y);
+      const dy = event.clientY - searchDrag.y;
       searchDrag.dy = dy;
       searchHomePage.style.transform = `translateY(${dy}px)`;
-      searchHomePage.style.opacity = String(Math.max(0.25, 1 + dy / 320));
-      if (dy < -4 && event.cancelable) event.preventDefault();
+      searchHomePage.style.opacity = String(Math.max(0.25, 1 - Math.abs(dy) / 320));
+      if (Math.abs(dy) > 4 && event.cancelable) event.preventDefault();
     }, { passive: false });
     window.addEventListener('pointerup', (event) => {
       if (!searchDrag || event.pointerId !== searchDrag.id) return;
       const dy = searchDrag.dy;
       searchDrag = null;
-      if (dy < -70) closeSearchWithDrag();
+      if (dy > 70) closeSearchWithDrag('down');
+      else if (dy < -70) closeSearchWithDrag('up');
       else resetSearchDrag();
     });
     window.addEventListener('pointercancel', () => {
