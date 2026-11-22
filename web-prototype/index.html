@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=149">
+  <link rel="stylesheet" href="./styles.css?v=150">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -426,29 +426,11 @@
     </div>
   </div>
 
-  <!-- 下拉播放器：三等分投放区 -->
+  <!-- 下拉播放器：底部独立投放条，左 2/9 / 中 5/9 / 右 2/9 -->
   <div class="player-drop" id="playerDrop" aria-hidden="true">
-    <div class="player-drop-zone close" data-drop-zone="-1">
-      <div class="pdz-copy">
-        <span class="pdz-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg></span>
-        <b>关闭视频</b>
-        <small>松手退出</small>
-      </div>
-    </div>
-    <div class="player-drop-zone background" data-drop-zone="0">
-      <div class="pdz-copy">
-        <span class="pdz-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v9"/><path d="m8 9 4 4 4-4"/><path d="M5 19h14"/></svg></span>
-        <b>进入后台</b>
-        <small>留在播放列表</small>
-      </div>
-    </div>
-    <div class="player-drop-zone close" data-drop-zone="1">
-      <div class="pdz-copy">
-        <span class="pdz-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg></span>
-        <b>关闭视频</b>
-        <small>松手退出</small>
-      </div>
-    </div>
+    <div class="player-drop-zone close" data-drop-zone="-1"><b>关闭视频</b></div>
+    <div class="player-drop-zone background" data-drop-zone="0"><b>进入后台</b></div>
+    <div class="player-drop-zone close" data-drop-zone="1"><b>关闭视频</b></div>
   </div>
 
   <!-- UP 主主页：从右侧滑入，覆盖播放器 -->
@@ -484,8 +466,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=149"></script>
-  <script src="./app.js?v=149"></script>
-  <script src="./native.js?v=149"></script>
+  <script src="./vendor/hls.min.js?v=150"></script>
+  <script src="./app.js?v=150"></script>
+  <script src="./native.js?v=150"></script>
 </body>
 </html>

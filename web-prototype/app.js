@@ -3074,6 +3074,7 @@
   function closePlayerFromDrop(direction, fromY, scale) {
     if (!state.playerOpen) return;
     const token = ++playerDropExitToken;
+    const closingItem = state.playlist[state.currentIndex] || null;
     const width = window.innerWidth || 1;
     const exitX = direction * width * 1.02;
     const exitRotate = direction * 3.5;
@@ -3084,6 +3085,10 @@
       if (finished || token !== playerDropExitToken) return;
       finished = true;
       stopPlayback();
+      if (closingItem) {
+        const index = state.playlist.indexOf(closingItem);
+        if (index >= 0) removeFromPlaylist(index);
+      }
       player.classList.remove('dropping');
       if (playerDropExitAnim) {
         try { playerDropExitAnim.cancel(); } catch (_) {}
@@ -3849,10 +3854,11 @@
         }
         if (gesture.dropShown) {
           let zone = 0;
-          if (dragY > 64 && Math.abs(localX) >= 24) {
-            const third = window.innerWidth / 3;
-            if (event.clientX < third) zone = -1;
-            else if (event.clientX > third * 2) zone = 1;
+          if (dragY > 64) {
+            const width = window.innerWidth || 1;
+            const side = width * 2 / 9;
+            if (event.clientX < side) zone = -1;
+            else if (event.clientX > width - side) zone = 1;
           }
           if (dragY <= 64) zone = null;
           gesture.dropZone = zone;
