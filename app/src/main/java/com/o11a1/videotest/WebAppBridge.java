@@ -16,6 +16,7 @@ import android.os.Looper;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.view.PixelCopy;
+import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 
 import org.json.JSONObject;
@@ -199,6 +200,25 @@ final class WebAppBridge {
         } catch (Throwable error) {
             return 60;
         }
+    }
+
+    @JavascriptInterface
+    public String setHighRefresh(boolean on) {
+        JSONObject out = new JSONObject();
+        try {
+            activity.runOnUiThread(() -> {
+                try {
+                    WindowManager.LayoutParams attributes = activity.getWindow().getAttributes();
+                    attributes.preferredRefreshRate = on ? 120f : 0f;
+                    activity.getWindow().setAttributes(attributes);
+                } catch (Throwable ignored) {
+                }
+            });
+            out.put("ok", true);
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out.toString();
     }
 
     @JavascriptInterface

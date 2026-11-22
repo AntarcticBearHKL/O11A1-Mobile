@@ -54,6 +54,9 @@
   const rotateHud = $('#rotateHud');
   const rotateArrow = $('#rotateArrow');
   const rotateLabel = $('#rotateLabel');
+  const playerNotice = $('#playerNotice');
+  const playerNoticeTitle = $('#playerNoticeTitle');
+  const playerNoticeText = $('#playerNoticeText');
   const playerOrientationBadge = $('#playerOrientationBadge');
   const swipeHint = $('#swipeHint');
   const commentsPanel = $('#commentsPanel');
@@ -269,6 +272,7 @@
     progress: 0,
     duration: 0,
     streamInfo: { videoBitrate: 0, audioBitrate: 0, sourceWidth: 0, sourceHeight: 0, frameRate: 0, netBps: 0, netAt: 0, direct: false },
+    availableQualities: [],
     fav: false,
     coin: false,
     followed: false,
@@ -324,6 +328,7 @@
   let precisionDrag = null;
   let rateHudTimer = null;
   let rotateHudTimer = null;
+  let playerNoticeTimer = null;
   let gyroBound = false;
   let gyroPermission = 'ask';
   let gyroPermissionPending = false;
@@ -388,7 +393,11 @@
   const sheetData = {
     quality: {
       title: '画质',
-      sub: 'DASH · AVC / HEVC / AV1 · 4K 与 1080P+ 需要大会员',
+      sub: () => {
+        const available = Array.isArray(state.availableQualities) ? state.availableQualities : [];
+        const base = 'DASH · AVC / HEVC / AV1 · 4K 与 1080P+ 需要大会员';
+        return available.length ? `${base} · 当前可用：${available.join(' / ')}` : base;
+      },
       options: [
         { label: '4K 超清', value: '4K', meta: '大会员' },
         { label: '1080P60', value: '1080P60', meta: '高帧率' },
@@ -428,7 +437,15 @@
     },
     interp: {
       title: '插帧',
-      sub: '自动 = 跟随屏幕刷新率；不会因掉帧自动关闭',
+      sub: () => {
+        let hz = 0;
+        try {
+          if (window.O11A1Native && typeof window.O11A1Native.displayHz === 'function') {
+            hz = Number(window.O11A1Native.displayHz()) || 0;
+          }
+        } catch (_) {}
+        return `${hz ? `屏幕 ${hz}Hz · ` : ''}自动 = 跟随屏幕刷新率；超过屏幕刷新率的档位不会生效`;
+      },
       options: [
         { label: '关闭', value: '关' },
         { label: '自动', value: '自动', meta: '跟随屏幕' },
@@ -445,7 +462,7 @@
     },
     enhance: {
       title: '画质增强',
-      sub: 'GPU 直接采样；直播强制关闭增强与插帧',
+      sub: 'WebGL 锐化 + 饱和度近似；WebGL 不可用时降级为滤镜；直播强制关闭',
       options: [
         { label: '关闭', value: '关' },
         { label: 'CAS', value: 'CAS', meta: '低负载' },
@@ -456,6 +473,9 @@
         state.settings.enhance = value;
         updatePlayerLabels();
         save();
+        if (state.playerOpen && value !== '关') {
+          showPlayerNotice('增强', `${value === 'CAS' ? 'CAS 锐化' : 'Anime4K 近似'}已开启`, 2200);
+        }
       },
     },
   };
@@ -2815,6 +2835,7 @@
     updatePlaylistDock();
     closeSheet();
     resetComments();
+    hidePlayerNotice();
     prefetchPlayerMedia();
     hideRateHud(0);
     rotateHud.classList.remove('show');
@@ -3182,6 +3203,24 @@
       rateHudTimer = null;
       rateHud.classList.remove('show');
     }, delay);
+  }
+
+  function showPlayerNotice(title, text, duration = 2800) {
+    if (!playerNotice) return;
+    clearTimeout(playerNoticeTimer);
+    if (playerNoticeTitle) playerNoticeTitle.textContent = title || '';
+    if (playerNoticeText) playerNoticeText.textContent = text || '';
+    playerNotice.classList.add('show');
+    playerNoticeTimer = setTimeout(() => {
+      playerNoticeTimer = null;
+      playerNotice.classList.remove('show');
+    }, Math.max(800, Number(duration) || 2800));
+  }
+
+  function hidePlayerNotice() {
+    clearTimeout(playerNoticeTimer);
+    playerNoticeTimer = null;
+    if (playerNotice) playerNotice.classList.remove('show');
   }
 
   /* ---------- main page landscape ---------- */
@@ -3750,7 +3789,8 @@
   function openOptionsSheet(kind) {
     const data = sheetData[kind];
     if (!data) return;
-    openSheet(data.title, data.sub, (body) => {
+    const sub = typeof data.sub === 'function' ? data.sub() : data.sub;
+    openSheet(data.title, sub, (body) => {
       data.options.forEach((option) => {
         const button = document.createElement('button');
         button.type = 'button';
@@ -5269,6 +5309,7 @@
     updatePlayerLabels,
     updatePlaylistDock,
     updatePlaylistCounts,
+    showPlayerNotice,
     addToPlaylist,
     setCurrent,
     save,

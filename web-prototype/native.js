@@ -1451,6 +1451,7 @@
     danmakuItems = [];
     danmakuIndex = 0;
     danmakuLastTime = 0;
+    state.availableQualities = [];
     if (danmakuLayer) danmakuLayer.innerHTML = '';
     state.duration = 0;
     try {
@@ -1471,6 +1472,25 @@
   function qualityLabelFromQn(qn) {
     const map = { 120: '4K', 116: '1080P60', 112: '1080P+', 80: '1080P', 74: '720P60', 64: '720P', 32: '480P', 16: '360P' };
     return map[Number(qn)] || '';
+  }
+
+  function showQualityFallback(requested, actual) {
+    if (!requested || !actual || requested === actual) return;
+    if (host.showPlayerNotice) {
+      host.showPlayerNotice('画质', `${requested} 不可用 · 已切到 ${actual}`, 3200);
+    }
+  }
+
+  function setAvailableQualities(tracks) {
+    const labels = [];
+    (tracks || [])
+      .slice()
+      .sort((a, b) => Number(b.qn || 0) - Number(a.qn || 0))
+      .forEach((track) => {
+        const label = qualityLabelFromQn(track && track.qn);
+        if (label && !labels.includes(label)) labels.push(label);
+      });
+    state.availableQualities = labels;
   }
 
   function loadLive(item, autoplay) {
@@ -1677,6 +1697,8 @@
       loadVideo(item, autoplay, false);
       return;
     }
+    setAvailableQualities(videoCandidates.length ? videoCandidates : [videoTrack]);
+    const requestedQuality = state.settings.quality;
     state.streamInfo = {
       videoBitrate: Number(videoTrack.bandwidth) || 0,
       audioBitrate: Number(audioTrack.bandwidth) || 0,
@@ -1718,10 +1740,11 @@
     playerVideo.classList.remove('video-error');
     playerVideo.classList.add('has-video', 'video-loading');
     setStatus('DASH 缓冲中…', 'loading');
-    if (dash.qualityLabel) {
-      const actual = qualityLabelFromQn(videoTrack.qn) || dash.qualityLabel;
-      window.O11A1Host.state.settings.quality = actual;
+    const actualTrackQuality = qualityLabelFromQn(videoTrack.qn) || dash.qualityLabel;
+    if (actualTrackQuality) {
+      window.O11A1Host.state.settings.quality = actualTrackQuality;
       host.updatePlayerLabels();
+      showQualityFallback(requestedQuality, actualTrackQuality);
     }
     mediaSource.addEventListener('sourceopen', () => {
       try {
@@ -1752,6 +1775,7 @@
 
   function loadVideo(item, autoplay, allowDash = true) {
     state.streamInfo = { videoBitrate: 0, audioBitrate: 0, sourceWidth: 0, sourceHeight: 0, frameRate: 0, netBps: 0, netAt: 0, direct: false };
+    state.availableQualities = [];
     resetNetMeter();
     if (!item) {
       clearVideo();
@@ -1815,12 +1839,14 @@
       }
       log('dash unavailable ' + (dash.error || ''));
     }
+    const requestedQuality = state.settings.quality;
     const result = item.epId
       ? call('playPgc', item.epId, item.bvid || '', item.cid || 0, qualityQn(state.settings.quality))
       : call('playQuality', item.bvid, item.cid || 0, qualityQn(state.settings.quality));
     if (!result.ok) {
       setStatus('加载失败 · 点击重试', 'error');
       log('play error ' + (item.bvid || item.epId || '') + ' ' + (result.error || ''));
+      if (host.showPlayerNotice) host.showPlayerNotice('画质', `${requestedQuality} 加载失败`, 3200);
       return;
     }
     if (result.cid) {
@@ -1830,7 +1856,9 @@
     }
     if (result.qualityLabel) {
       state.settings.quality = result.qualityLabel;
+      state.availableQualities = [result.qualityLabel];
       host.updatePlayerLabels();
+      showQualityFallback(requestedQuality, result.qualityLabel);
     }
     loadDanmaku(result.cid || item.cid);
     mediaBackup = result.backup || '';
@@ -1937,6 +1965,79 @@
     lastFrameAt: 0,
     initialized: false,
   };
+  let lastInterpNoticeKey = '';
+  let postFallbackNotified = false;
+
+  function displayRefreshRate() {
+    try {
+      if (window.O11A1Native && typeof window.O11A1Native.displayHz === 'function') {
+        return Number(window.O11A1Native.displayHz()) || 0;
+      }
+    } catch (_) {}
+    return 0;
+  }
+
+  function measureRenderFps(callback) {
+    let start = 0;
+    let frames = 0;
+    const tick = (now) => {
+      if (!state.playerOpen) {
+        callback(0);
+        return;
+      }
+      if (!start) {
+        start = now;
+        frames = 0;
+        requestAnimationFrame(tick);
+        return;
+      }
+      frames += 1;
+      if (now - start >= 800) {
+        callback(frames * 1000 / Math.max(1, now - start));
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  function syncHighRefresh() {
+    if (!window.O11A1Native || typeof window.O11A1Native.setHighRefresh !== 'function') return;
+    const interp = state.settings.interp;
+    const target = interp === '自动' ? 120 : Number(interp) || 0;
+    const want = Boolean(state.playerOpen) && target >= 90;
+    try {
+      window.O11A1Native.setHighRefresh(want);
+    } catch (_) {}
+    if (!want) {
+      lastInterpNoticeKey = '';
+      return;
+    }
+    setTimeout(() => {
+      if (!state.playerOpen || state.settings.interp !== interp) return;
+      const hz = displayRefreshRate();
+      if (hz && hz < target) {
+        const key = `${target}:${hz}`;
+        if (key === lastInterpNoticeKey) return;
+        lastInterpNoticeKey = key;
+        if (host.showPlayerNotice) {
+          host.showPlayerNotice('插帧', `屏幕 ${hz}Hz · ${target} 帧插帧不可用`, 3400);
+        }
+        return;
+      }
+      measureRenderFps((fps) => {
+        if (!state.playerOpen || state.settings.interp !== interp) return;
+        const rendered = Math.round(fps);
+        if (!rendered || rendered >= target * 0.85) return;
+        const key = `${target}:render:${rendered}`;
+        if (key === lastInterpNoticeKey) return;
+        lastInterpNoticeKey = key;
+        if (host.showPlayerNotice) {
+          host.showPlayerNotice('插帧', `实际渲染约 ${rendered}fps · ${target} 帧插帧不可用`, 3400);
+        }
+      });
+    }, 750);
+  }
 
   const POST_VERTEX = `
     attribute vec2 aPos;
@@ -2044,9 +2145,9 @@
       && (interp !== '关' || enhance !== '关');
     return {
       enabled,
-      interp: interp === '自动' ? (window.devicePixelRatio > 1.5 ? 120 : 60) : Number(interp) || 0,
-      sharp: enhance === 'Anime4K' ? 1.65 : enhance === 'CAS' ? 1.05 : 0.15,
-      sat: enhance === 'Anime4K' ? 1.12 : enhance === 'CAS' ? 1.03 : 1,
+      interp: interp === '自动' ? Math.min(120, Math.max(60, displayRefreshRate() || 60)) : Number(interp) || 0,
+      sharp: enhance === 'Anime4K' ? 1.78 : enhance === 'CAS' ? 1.16 : 0.15,
+      sat: enhance === 'Anime4K' ? 1.12 : enhance === 'CAS' ? 1.045 : 1,
     };
   }
 
@@ -2060,10 +2161,21 @@
       log('post process fallback to css filter');
       playerStage.classList.remove('post-active');
       postCanvas.hidden = true;
-      video.style.filter = settings.sharp > 0.2 ? 'contrast(1.06) saturate(1.05)' : '';
+      const enhance = state.settings.enhance;
+      video.style.filter = enhance === 'Anime4K'
+        ? 'contrast(1.1) saturate(1.14)'
+        : enhance === 'CAS'
+          ? 'contrast(1.06) saturate(1.05)'
+          : '';
+      if (enhance !== '关' && !postFallbackNotified) {
+        postFallbackNotified = true;
+        if (host.showPlayerNotice) host.showPlayerNotice('增强', 'WebGL 不可用 · 已用滤镜降级', 3000);
+      }
       return;
     }
+    postFallbackNotified = false;
     postCanvas.hidden = false;
+    video.style.filter = '';
     playerStage.classList.add('post-active');
     if (!post.running) startPostProcess();
   }
@@ -2171,10 +2283,14 @@
 
   window.O11A1Media = {
     onOpen() {
+      syncHighRefresh();
       loadVideo(currentItem(), Boolean(state.playing));
     },
-    onMinimize() {},
+    onMinimize() {
+      syncHighRefresh();
+    },
     onStop() {
+      syncHighRefresh();
       clearVideo();
     },
     togglePlay() {
@@ -2194,6 +2310,7 @@
     },
     onSettings() {
       if (danmakuLayer) danmakuLayer.style.display = state.settings.danmaku ? 'block' : 'none';
+      syncHighRefresh();
       if (!video.src) return;
       const rate = parseFloat(state.settings.speed || '1');
       video.playbackRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
@@ -2227,12 +2344,17 @@
       const result = mediaItem.epId
         ? call('playPgc', mediaItem.epId, mediaItem.bvid || '', mediaItem.cid || 0, qn)
         : call('playQuality', mediaItem.bvid, mediaItem.cid || 0, qn);
-      if (!result.ok || !result.url) return;
+      if (!result.ok || !result.url) {
+        if (host.showPlayerNotice) host.showPlayerNotice('画质', `${value} 切换失败`, 2600);
+        return;
+      }
       mediaBackup = result.backup || '';
       mediaTriedBackup = false;
       if (result.qualityLabel) {
         state.settings.quality = result.qualityLabel;
+        state.availableQualities = [result.qualityLabel];
         host.updatePlayerLabels();
+        showQualityFallback(value, result.qualityLabel);
       }
       playerVideo.classList.add('video-loading');
       setStatus('切换画质…', 'loading');

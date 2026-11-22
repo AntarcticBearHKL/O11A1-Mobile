@@ -82,7 +82,21 @@ final class BiliApi {
     JSONObject playQuality(String bvid, long cid, int qn) {
         if (qn <= 0) qn = 32;
         if (qn == 16) return playWithQns(bvid, cid, new int[]{16});
-        return playWithQns(bvid, cid, new int[]{qn, 64, 32, 16});
+        return playWithQns(bvid, cid, qualityLadder(qn));
+    }
+
+    static int[] qualityLadder(int qn) {
+        int target = qn <= 0 ? 64 : qn;
+        int[] all = {120, 116, 112, 80, 74, 64, 32, 16};
+        int[] temp = new int[all.length];
+        int count = 0;
+        for (int value : all) {
+            if (value <= target) temp[count++] = value;
+        }
+        if (count == 0) temp[count++] = 16;
+        int[] out = new int[count];
+        System.arraycopy(temp, 0, out, 0, count);
+        return out;
     }
 
     JSONObject playQns(String bvid, long cid, int[] qns) {
@@ -102,7 +116,7 @@ final class BiliApi {
                 if (pageCid > 0) cid = pageCid;
             }
             if (cid <= 0) throw new IllegalStateException("cid not found");
-            int[] qns = qn <= 0 ? new int[]{80, 64, 32, 16} : new int[]{qn, 80, 64, 32, 16};
+            int[] qns = qn <= 0 ? new int[]{80, 64, 32, 16} : BiliApi.qualityLadder(qn);
             JSONObject data = null;
             for (int candidate : qns) {
                 String url = "https://api.bilibili.com/x/player/playurl?bvid=" + bvid + "&cid=" + cid

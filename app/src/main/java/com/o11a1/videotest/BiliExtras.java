@@ -474,7 +474,7 @@ final class BiliExtras {
     JSONObject playPgc(long epId, String bvid, long cid, int qn) {
         try {
             if (bvid != null && !bvid.isEmpty() && cid > 0) {
-                JSONObject normal = api.playQns(bvid, cid, new int[]{qn, 64, 32, 16});
+                JSONObject normal = api.playQns(bvid, cid, BiliApi.qualityLadder(qn));
                 if (normal.optBoolean("ok")) return normal;
             }
             JSONObject json = fetch("https://api.bilibili.com/pgc/player/web/playurl?ep_id=" + epId
