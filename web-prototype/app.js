@@ -49,6 +49,8 @@
   const videoDetailBody = $('#videoDetailBody');
   const playerVideo = $('#playerVideo');
   const realVideo = $('#realVideo');
+  const playerBoot = $('#playerBoot');
+  const playerBootText = $('#playerBootText');
   const feedDebug = $('#feedDebug');
   const feedDebugHz = $('#feedDebugHz');
   const feedDebugFps = $('#feedDebugFps');
@@ -335,6 +337,9 @@
   let pendingPlayerOrigin = null;
   let playerOpenWindowAnim = null;
   let playerOpenWindowTimer = null;
+  let playerMediaOpenTimer = null;
+  let playerMediaOpenToken = 0;
+  let playerPrefetchTimer = null;
   let playerCollapseAnim = null;
   let playerCollapseRadiusAnim = null;
   let playerCollapseTimer = null;
@@ -2936,6 +2941,24 @@
     playerOpenWindowTimer = setTimeout(complete, 520);
   }
 
+  function showPlayerBoot(text) {
+    if (!playerBoot || !playerVideo) return;
+    if (playerBootText) playerBootText.textContent = text || '正在打开视频…';
+    playerVideo.classList.add('booting');
+    playerBoot.setAttribute('aria-hidden', 'false');
+  }
+
+  function hidePlayerBoot() {
+    if (!playerVideo || !playerVideo.classList.contains('booting')) return;
+    playerVideo.classList.remove('booting');
+    if (playerBoot) playerBoot.setAttribute('aria-hidden', 'true');
+    if (state.playerOpen) showControls();
+  }
+
+  ['loadeddata', 'playing', 'error'].forEach((type) => {
+    realVideo.addEventListener(type, hidePlayerBoot);
+  });
+
   function openPlayer(options = {}) {
     if (!state.loggedIn) {
       showPage('login');
@@ -2944,6 +2967,11 @@
     const origin = pendingPlayerOrigin;
     pendingPlayerOrigin = null;
     const wasOpen = state.playerOpen;
+    const openToken = ++playerMediaOpenToken;
+    clearTimeout(playerMediaOpenTimer);
+    playerMediaOpenTimer = null;
+    clearTimeout(playerPrefetchTimer);
+    playerPrefetchTimer = null;
     closePlayerSettings({ instant: true });
     cancelPlayerOpenExpansion();
     cancelPlayerCollapse();
@@ -2963,6 +2991,13 @@
     if (!wasOpen) setPlayerOrientation(false, { silent: true });
     hideMiniPlayer();
     clearTimeout(hideTimer);
+    const mediaApi = window.O11A1Media;
+    const hasMediaApi = Boolean(mediaApi && typeof mediaApi.onOpen === 'function');
+    const mediaReady = hasMediaApi && typeof mediaApi.isCurrentReady === 'function'
+      ? Boolean(mediaApi.isCurrentReady())
+      : !hasMediaApi;
+    if (hasMediaApi && !mediaReady) showPlayerBoot('正在打开视频…');
+    else hidePlayerBoot();
     setPlayIcon(state.playing);
     updatePlayerLabels();
     player.style.animation = '';
@@ -2987,13 +3022,32 @@
     closeSheet();
     resetComments();
     hidePlayerNotice();
-    prefetchPlayerMedia();
     hideRateHud(0);
     showControls();
     startGyro();
     if (expandFromRow) expandPlayerWindowFromOrigin(origin);
-    if (window.O11A1Media && typeof window.O11A1Media.onOpen === 'function') {
-      window.O11A1Media.onOpen();
+    if (!hasMediaApi) return;
+    const startMedia = () => {
+      if (openToken !== playerMediaOpenToken || !state.playerOpen) return;
+      try {
+        if (window.O11A1Media && typeof window.O11A1Media.onOpen === 'function') {
+          window.O11A1Media.onOpen();
+        }
+      } catch (_) {}
+      clearTimeout(playerPrefetchTimer);
+      playerPrefetchTimer = setTimeout(() => {
+        playerPrefetchTimer = null;
+        if (openToken === playerMediaOpenToken && state.playerOpen) prefetchPlayerMedia();
+      }, 900);
+    };
+    if (mediaReady) {
+      startMedia();
+    } else {
+      playerMediaOpenTimer = setTimeout(() => {
+        playerMediaOpenTimer = null;
+        if (openToken !== playerMediaOpenToken || !state.playerOpen) return;
+        requestAnimationFrame(() => setTimeout(startMedia, 0));
+      }, expandFromRow ? 620 : 40);
     }
   }
 
@@ -3021,6 +3075,11 @@
 
   function minimizePlayer(fromY = 0, fromScale = 1) {
     if (!state.playerOpen) return;
+    playerMediaOpenToken += 1;
+    clearTimeout(playerMediaOpenTimer);
+    playerMediaOpenTimer = null;
+    clearTimeout(playerPrefetchTimer);
+    playerPrefetchTimer = null;
     closePlayerSettings({ instant: true });
     const dragRadius = Math.min(28, Math.max(0, parseFloat(player.style.borderRadius) || 0));
     cancelPlayerOpenExpansion();
@@ -3028,6 +3087,7 @@
     resetVideoDetail();
     state.playerOpen = false;
     state.locked = false;
+    hidePlayerBoot();
     stopGyro();
     clearTimeout(hideTimer);
     const dragY = Number.isFinite(fromY) ? Math.max(0, fromY) : 0;
@@ -3150,6 +3210,11 @@
   }
 
   function stopPlayback() {
+    playerMediaOpenToken += 1;
+    clearTimeout(playerMediaOpenTimer);
+    playerMediaOpenTimer = null;
+    clearTimeout(playerPrefetchTimer);
+    playerPrefetchTimer = null;
     closePlayerSettings({ instant: true });
     cancelPlayerOpenExpansion();
     cancelPlayerCollapse();
@@ -3159,6 +3224,7 @@
     state.playing = false;
     state.progress = 0;
     state.locked = false;
+    hidePlayerBoot();
     stopGyro();
     setPlayerOrientation(false, { silent: true });
     clearTimeout(hideTimer);
@@ -5530,6 +5596,7 @@
     stopPlayback,
     updatePlayerLabels,
     updatePlaylistDock,
+    hidePlayerBoot,
     updatePlaylistCounts,
     showPlayerNotice,
     addToPlaylist,

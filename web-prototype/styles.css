@@ -2073,6 +2073,24 @@ body[data-theme="light"] .ambient-canvas{filter:blur(30px) saturate(1.25) bright
   border:1px solid rgba(255,255,255,.18);font-size:10.5px;font-weight:700;
   opacity:0;pointer-events:none;transition:opacity .2s ease;white-space:nowrap;
 }
+.player-boot{
+  position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+  background:var(--paper);color:var(--muted);pointer-events:none;
+  opacity:0;visibility:hidden;transition:opacity .24s ease,visibility 0s linear .24s;
+}
+.player-video.booting .player-boot{
+  opacity:1;visibility:visible;
+  transition:opacity .2s ease,visibility 0s;
+}
+.player-video.booting .player-controls{opacity:0!important;pointer-events:none!important}
+.player-boot-ring{
+  width:30px;height:30px;border:2px solid var(--line-strong);border-top-color:var(--blue);
+  border-radius:50%;animation:playerBootSpin .75s linear infinite;
+}
+.player-boot b{font-size:11px;font-weight:650;letter-spacing:.02em}
+@keyframes playerBootSpin{to{transform:rotate(360deg)}}
+body.reduce-motion .player-boot-ring{animation:none}
+.real-video-status:empty{display:none}
 .danmaku-layer{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
 .danmaku-layer.paused .danmaku-item{animation-play-state:paused}
 .danmaku-item{

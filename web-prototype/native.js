@@ -1434,6 +1434,7 @@
     status.textContent = text || '';
     playerVideo.classList.toggle('video-loading', mode === 'loading');
     playerVideo.classList.toggle('video-error', mode === 'error');
+    if (mode !== 'loading' && host.hidePlayerBoot) host.hidePlayerBoot();
   }
 
   const ambientCanvas = $('#ambientCanvas');
@@ -1795,6 +1796,7 @@
     } catch (_) {}
     playerVideo.classList.remove('has-video', 'video-loading', 'video-error');
     setAmbientActive(false);
+    if (host.hidePlayerBoot) host.hidePlayerBoot();
     if (player) player.classList.remove('live-player');
     if (status) status.textContent = '';
   }
@@ -2625,6 +2627,13 @@
   video.addEventListener('loadeddata', () => { post.newFrame = true; requestAmbientSync(); });
 
   window.O11A1Media = {
+    isCurrentReady() {
+      const item = currentItem();
+      if (!item || !mediaItem || !video.src || video.readyState < 2) return false;
+      const key = item.offlineUrl ? `offline:${item.id || item.bvid}`
+        : item.epId ? `ep:${item.epId}` : item.roomId ? `live:${item.roomId}` : `bvid:${item.bvid}`;
+      return mediaItem.key === key;
+    },
     onOpen() {
       syncHighRefresh();
       loadVideo(currentItem(), Boolean(state.playing));

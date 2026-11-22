@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=116">
+  <link rel="stylesheet" href="./styles.css?v=117">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -330,6 +330,10 @@
           <canvas class="ambient-canvas" id="ambientCanvas" aria-hidden="true"></canvas>
           <video class="real-video" id="realVideo" playsinline webkit-playsinline preload="metadata" crossorigin="anonymous"></video>
           <div class="real-video-status" id="realVideoStatus">加载中…</div>
+          <div class="player-boot" id="playerBoot" aria-hidden="true">
+            <span class="player-boot-ring" aria-hidden="true"></span>
+            <b id="playerBootText">正在打开视频…</b>
+          </div>
           <div class="live-dm-badge" id="liveDmBadge" hidden>直播弹幕</div>
           <canvas class="post-canvas" id="postCanvas" hidden></canvas>
           <pre class="video-debug" id="videoDebug" aria-hidden="true"></pre>
@@ -481,8 +485,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=116"></script>
-  <script src="./app.js?v=116"></script>
-  <script src="./native.js?v=116"></script>
+  <script src="./vendor/hls.min.js?v=117"></script>
+  <script src="./app.js?v=117"></script>
+  <script src="./native.js?v=117"></script>
 </body>
 </html>
