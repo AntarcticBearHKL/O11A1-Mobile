@@ -6682,6 +6682,41 @@
     await sleep(420);
     const firstUpTitle = $('#upFeed .real-title') ? $('#upFeed .real-title').textContent : '';
     results.push(`upSort=${upSortClick ? upSortClick.classList.contains('on') && /最多播放/.test(firstUpTitle) : false}`);
+    const upRowCheck = $('#upFeed .video-row');
+    const homeRowCheck = $('#homeFeed .video-row');
+    const upSortBar = $('#upSort');
+    const upInfoCard = $('.up-info-card');
+    let upRowMatch = false;
+    let upSortFloat = false;
+    if (upRowCheck && homeRowCheck && upSortBar && upInfoCard && upScroll) {
+      const upRowRect = upRowCheck.getBoundingClientRect();
+      const homeRowRect = homeRowCheck.getBoundingClientRect();
+      const upThumbRect = upRowCheck.querySelector('.row-thumb').getBoundingClientRect();
+      const homeThumbRect = homeRowCheck.querySelector('.row-thumb').getBoundingClientRect();
+      const upRowStyle = getComputedStyle(upRowCheck);
+      const homeRowStyle = getComputedStyle(homeRowCheck);
+      upRowMatch = Math.abs(upRowRect.width - homeRowRect.width) < 1.5
+        && Math.abs(upRowRect.height - homeRowRect.height) < 1.5
+        && Math.abs(upThumbRect.width - homeThumbRect.width) < 1.5
+        && Math.abs(upThumbRect.height - homeThumbRect.height) < 1.5
+        && upRowStyle.borderRadius === homeRowStyle.borderRadius
+        && Math.abs(parseFloat(upRowStyle.paddingRight) - parseFloat(homeRowStyle.paddingRight)) < 0.5;
+      const sortRect = upSortBar.getBoundingClientRect();
+      const sortStyle = getComputedStyle(upSortBar);
+      const infoRect = upInfoCard.getBoundingClientRect();
+      const scrollRect = upScroll.getBoundingClientRect();
+      upSortFloat = sortStyle.position === 'absolute'
+        && sortStyle.backgroundImage === 'none'
+        && sortStyle.backgroundColor === 'rgba(0, 0, 0, 0)'
+        && sortStyle.boxShadow === 'none'
+        && sortStyle.backdropFilter === 'none'
+        && parseFloat(sortStyle.paddingLeft) === 0
+        && sortRect.top >= scrollRect.top
+        && sortRect.bottom <= scrollRect.bottom
+        && sortRect.top < infoRect.top;
+    }
+    results.push(`upRowMatch=${upRowMatch}`);
+    results.push(`upSortFloat=${upSortFloat}`);
     const upOverlay = $('.page[data-page="up"]');
     const upOverlayRect = upOverlay.getBoundingClientRect();
     const upOverlayX = upOverlayRect.left + upOverlayRect.width * 0.5;
