@@ -60,7 +60,7 @@ npx expo start --tunnel
 ## iOS V2 实装（当前 IPA）
 
 - **架构**：`expo-ui` 启动 `O11A1Bridge` 原生模块，在 `127.0.0.1` 随机端口起一个本地 HTTP 服务，把打包进 JS 的 `index.html / app.js / native.js / styles.css` 原样提供给 WKWebView。
-- **同步桥**：注入 `window.O11A1Native`，通过同步 XHR 调本地 `/api/*`，与 Android 的 `WebAppBridge` API 完全一致；`native.js` 不需要分叉。
+- **同步桥**：注入 `window.O11A1Native`，通过同步 XHR 调本地 `/api/*`，与 Android 的 `WebAppBridge` API 完全一致，包括 UP 主空间 `space`（先请求旧版空间接口，失败时再用 WBI 签名请求新版接口，并补全 UP 名字、头像和粉丝数）；`native.js` 不需要分叉。
 - **真实数据**：Swift `O11A1BiliClient` 直接请求 B 站热门、搜索、分页 cid、playurl、评论、弹幕、导航登录态、账户资料、收藏夹、历史、关注动态、动态、消息、排行榜、番剧/影视索引、番剧选集、直播推荐与直播地址、分区、视频详情；Cookie 持久化到 UserDefaults。
 - **真实登录**：应用内打开 B 站官方短信验证码登录页；登录成功后读取 WebKit Cookie 并保存 `SESSDATA` 等 Cookie。
 - **真实播放**：progressive MP4 优先 720P，失败回退 480P / 360P；本地 `/media` 代理补 Referer/UA、转发 Range，按 8MB 分块返回 206；主 CDN 失败自动试备用 CDN；番剧通过 `pgc/player/web/playurl` 播放并一次加入整季选集；直播使用原生 HLS；1080P / 4K / 1080P+ 会先尝试 DASH，失败自动回退渐进播放。

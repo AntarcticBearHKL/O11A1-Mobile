@@ -64,6 +64,7 @@ function bridgeShim(port: number, testFlow: string): string {
     favorites: function (page) { return call('favorites', { page: page }); },
     history: function (page, cursor) { return call('history', { page: page, cursor: cursor }); },
     following: function (page) { return call('following', { page: page }); },
+    space: function (mid, page, order) { return call('space', { mid: mid, page: page, order: order }); },
     dynamicFeed: function (page, filter) { return call('dynamicFeed', { page: page, filter: filter }); },
     messages: function (page, filter) { return call('messages', { page: page, filter: filter }); },
     ranking: function (page) { return call('ranking', { page: page }); },

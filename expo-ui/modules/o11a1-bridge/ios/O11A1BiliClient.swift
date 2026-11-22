@@ -1,4 +1,5 @@
 import Foundation
+import CommonCrypto
 
 final class O11A1CookieStore {
   private let defaults = UserDefaults.standard
@@ -78,6 +79,12 @@ final class O11A1CookieStore {
 
 final class O11A1BiliClient {
   static let apiBase = "https://api.bilibili.com"
+  private static let wbiMixinKey: [Int] = [
+    46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35,
+    27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13,
+    37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4,
+    22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52
+  ]
   static let passportBase = "https://passport.bilibili.com"
   static let userAgent = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
 
@@ -90,6 +97,8 @@ final class O11A1BiliClient {
   private var cidCache: [String: Int64] = [:]
   private var cachedMid: Int64 = 0
   private var cachedFolderId: Int64 = 0
+  private var cachedWbiKey = ""
+  private var cachedWbiAt: TimeInterval = 0
 
   var port: Int = 0
 
@@ -908,6 +917,117 @@ final class O11A1BiliClient {
     return o11a1Data(["ok": true, "items": items, "page": max(1, page), "total": list.count, "hasMore": start + 20 < list.count])
   }
 
+  /* ---------- UP space ---------- */
+
+  func space(mid: Int64, page: Int, order: String) -> Data {
+    if mid <= 0 { return o11a1Error("缺少 UP 主 UID") }
+    ensureBuvid()
+    let pageNumber = max(1, page)
+    let pageSize = 20
+    let sort = order == "click" ? "click" : "pubdate"
+    let referer = "https://space.bilibili.com/\(mid)/video"
+
+    var payload = json(
+      base: Self.apiBase,
+      path: "/x/space/arc/search",
+      query: [
+        "mid": "\(mid)", "pn": "\(pageNumber)", "ps": "\(pageSize)",
+        "tid": "0", "keyword": "", "order": sort,
+        "order_avoided": "true", "jsonp": "jsonp"
+      ]
+    )
+    var data = payload?["data"] as? [String: Any]
+    var list = data?["list"] as? [String: Any]
+    var videos = list?["vlist"] as? [[String: Any]]
+    let oldPageInfo = data?["page"] as? [String: Any]
+    let oldTotal = o11a1Int(oldPageInfo?["count"])
+    let usable = o11a1Int(payload?["code"]) == 0
+      && data != nil
+      && (oldTotal == 0 || !(videos?.isEmpty ?? true))
+
+    if !usable {
+      let key = wbiKey()
+      if !key.isEmpty {
+        let params: [String: String] = [
+          "mid": "\(mid)", "pn": "\(pageNumber)", "ps": "\(pageSize)",
+          "tid": "0", "keyword": "", "order": sort, "platform": "web",
+          "web_location": "1550101", "order_avoided": "true",
+          "space_login_group": "2", "dm_img_list": "[]",
+          "dm_img_str": "V2ViR0wgMS",
+          "dm_cover_img_str": "SW50ZWwoUikgSEQgR3JhcGhpY3NJbnRlbA",
+          "dm_img_inter": "{\"ds\":[],\"wh\":[0,0,0],\"of\":[0,0,0]}"
+        ]
+        payload = signedJSON(
+          path: "/x/space/wbi/arc/search",
+          query: wbiSign(params, key: key),
+          referer: referer
+        )
+        data = payload?["data"] as? [String: Any]
+        list = data?["list"] as? [String: Any]
+        videos = list?["vlist"] as? [[String: Any]]
+      }
+    }
+
+    let code = o11a1Int(payload?["code"])
+    guard code == 0, let spaceData = data, let rows = videos else {
+      let message = o11a1String(payload?["message"])
+      return o11a1Error(message.isEmpty ? "UP 主空间加载失败" : message)
+    }
+    let pageInfo = spaceData["page"] as? [String: Any]
+    let total = o11a1Int(pageInfo?["count"])
+    var items: [[String: Any]] = []
+    for row in rows {
+      let owner = o11a1StripHTML(o11a1String(row["author"]))
+      let plays = o11a1Int64(row["play"])
+      let duration = o11a1String(row["duration"])
+      items.append([
+        "bvid": o11a1String(row["bvid"]),
+        "aid": o11a1Int64(row["aid"]),
+        "cid": o11a1Int64(row["cid"]),
+        "title": o11a1StripHTML(o11a1String(row["title"])),
+        "pic": o11a1HTTPS(o11a1String(row["pic"])),
+        "owner": owner,
+        "mid": o11a1Int64(row["mid"]) != 0 ? o11a1Int64(row["mid"]) : mid,
+        "duration": duration,
+        "durationSec": o11a1DurationSeconds(duration),
+        "pubdate": o11a1Int64(row["pubdate"]),
+        "play": plays,
+        "playText": o11a1Count(plays),
+        "desc": o11a1StripHTML(o11a1String(row["description"])),
+        "meta": "\(owner) · \(o11a1Count(plays)) 播放"
+      ])
+    }
+
+    var output: [String: Any] = [
+      "ok": true,
+      "items": items,
+      "total": total,
+      "page": pageNumber,
+      "hasMore": total > pageNumber * pageSize || (total == 0 && items.count >= pageSize)
+    ]
+
+    if let cardPayload = json(
+      base: Self.apiBase,
+      path: "/x/web-interface/card",
+      query: ["mid": "\(mid)", "photo": "true"]
+    ), let cardData = cardPayload["data"] as? [String: Any],
+       let card = cardData["card"] as? [String: Any] {
+      output["name"] = o11a1StripHTML(o11a1String(card["name"]))
+      output["face"] = o11a1HTTPS(o11a1String(card["face"]))
+      output["sign"] = o11a1StripHTML(o11a1String(card["sign"]))
+      output["follower"] = o11a1Int64(card["fans"])
+    }
+    if let relationPayload = json(
+      base: Self.apiBase,
+      path: "/x/relation/stat",
+      query: ["mid": "\(mid)"]
+    ), let stats = relationPayload["data"] as? [String: Any] {
+      output["follower"] = o11a1Int64(stats["follower"])
+      output["following"] = o11a1Int64(stats["following"])
+    }
+    return o11a1Data(output)
+  }
+
   func bangumi(page: Int, seasonType: Int) -> Data {
     let type = seasonType <= 0 ? 1 : seasonType
     guard let payload = json(base: Self.apiBase, path: "/pgc/season/index/result", query: [
@@ -1261,6 +1381,74 @@ final class O11A1BiliClient {
   }
 
   /* ---------- helpers for community APIs ---------- */
+
+  private func wbiKey() -> String {
+    let now = Date().timeIntervalSince1970
+    if !cachedWbiKey.isEmpty && now - cachedWbiAt < 6 * 60 * 60 {
+      return cachedWbiKey
+    }
+    guard let data = navData(), let wbi = data["wbi_img"] as? [String: Any] else { return "" }
+    let img = wbiFileKey(o11a1String(wbi["img_url"]))
+    let sub = wbiFileKey(o11a1String(wbi["sub_url"]))
+    if img.isEmpty || sub.isEmpty { return "" }
+    let raw = Array(img + sub)
+    var mixed = ""
+    for index in Self.wbiMixinKey where index < raw.count {
+      mixed.append(raw[index])
+    }
+    cachedWbiKey = String(mixed.prefix(32))
+    cachedWbiAt = now
+    return cachedWbiKey
+  }
+
+  private func wbiSign(_ params: [String: String], key: String) -> String {
+    let query = params
+      .sorted { $0.key < $1.key }
+      .map { "\(wbiEncode($0.key))=\(wbiEncode($0.value))" }
+      .joined(separator: "&")
+    let signed = query + "&wts=\(Int(Date().timeIntervalSince1970))"
+    return signed + "&w_rid=" + md5(signed + key)
+  }
+
+  private func wbiEncode(_ value: String) -> String {
+    var allowed = CharacterSet.alphanumerics
+    allowed.insert(charactersIn: "-_.~")
+    return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+  }
+
+  private func wbiFileKey(_ url: String) -> String {
+    guard let last = url.split(separator: "/").last else { return "" }
+    let name = String(last)
+    if let dot = name.firstIndex(of: ".") {
+      return String(name[..<dot])
+    }
+    return name
+  }
+
+  private func md5(_ text: String) -> String {
+    let data = Data(text.utf8)
+    var digest = [UInt8](repeating: 0, count: Int(CC_MD5_DIGEST_LENGTH))
+    data.withUnsafeBytes { buffer in
+      _ = CC_MD5(buffer.baseAddress, CC_LONG(data.count), &digest)
+    }
+    return digest.map { String(format: "%02x", $0) }.joined()
+  }
+
+  private func signedJSON(path: String, query: String, referer: String) -> [String: Any]? {
+    guard let url = URL(string: Self.apiBase + path + "?" + query) else { return nil }
+    var request = URLRequest(url: url)
+    request.httpMethod = "GET"
+    request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+    request.setValue(referer, forHTTPHeaderField: "Referer")
+    request.setValue("https://space.bilibili.com", forHTTPHeaderField: "Origin")
+    request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+    request.setValue("zh-CN,zh;q=0.9,en;q=0.8", forHTTPHeaderField: "Accept-Language")
+    let header = cookies.header()
+    if !header.isEmpty { request.setValue(header, forHTTPHeaderField: "Cookie") }
+    guard let result = perform(request, session: apiSession), result.1.statusCode < 400 else { return nil }
+    cookies.absorb(result.1)
+    return (try? JSONSerialization.jsonObject(with: result.0)) as? [String: Any]
+  }
 
   private func navData() -> [String: Any]? {
     json(base: Self.apiBase, path: "/x/web-interface/nav")?["data"] as? [String: Any]

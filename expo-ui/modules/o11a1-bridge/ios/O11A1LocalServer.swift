@@ -406,6 +406,12 @@ final class O11A1LocalServer {
         rid: o11a1Int(query["rid"] ?? "1"),
         page: max(1, o11a1Int(query["page"] ?? "1"))
       )
+    case "space":
+      data = client.space(
+        mid: o11a1Int64(query["mid"] ?? "0"),
+        page: max(1, o11a1Int(query["page"] ?? "1")),
+        order: query["order"] ?? "pubdate"
+      )
     case "videoInfo":
       data = client.videoInfo(bvid: query["bvid"] ?? "")
     case "like":
