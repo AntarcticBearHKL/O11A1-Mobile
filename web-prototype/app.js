@@ -352,6 +352,7 @@
   let suppressSidebarClickUntil = 0;
   let suppressPlaylistClickUntil = 0;
   let suppressDockClickUntil = 0;
+  let suppressDetailClickUntil = 0;
   let dockLaunching = false;
   let dockLaunchTimer = null;
   let dockDrag = null;
@@ -3534,7 +3535,6 @@
   function startVideoDetailSwipe(event) {
     if (!videoDetailOpen || !videoDetailPanel) return;
     if (event.button !== undefined && event.button !== 0) return;
-    if (event.target.closest('.video-row, button, input, textarea, a')) return;
     videoDetailSwipe = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -3553,6 +3553,7 @@
       if (Math.hypot(dx, dy) < 10) return;
       if (dx < 0 && Math.abs(dx) > Math.abs(dy) * 1.2) {
         gesture.dragging = true;
+        suppressDetailClickUntil = Date.now() + 420;
         videoDetailPanel.classList.add('dragging');
       } else {
         return;
@@ -3570,6 +3571,7 @@
     const gesture = videoDetailSwipe;
     videoDetailSwipe = null;
     if (!gesture || !gesture.dragging) return;
+    suppressDetailClickUntil = Date.now() + 420;
     videoDetailPanel.classList.remove('dragging');
     if (gesture.dx < -90) {
       closeVideoDetail();
@@ -5475,6 +5477,11 @@
   if (videoDetailPanel) {
     videoDetailPanel.addEventListener('pointerdown', startVideoDetailSwipe);
     videoDetailPanel.addEventListener('click', (event) => {
+      if (Date.now() < suppressDetailClickUntil) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       const row = event.target.closest('.video-row');
       if (!row) return;
       if (row.closest('.detail-related')) {
@@ -5742,15 +5749,28 @@
     results.push(`detail=${videoDetailPanel.classList.contains('open')}`);
     results.push(`detailRows=${videoDetailBody.querySelectorAll('.feed-item').length >= 4}`);
     const detailRect = videoDetailPanel.getBoundingClientRect();
-    const detailStartX = detailRect.left + detailRect.width * 0.62;
-    const detailStartY = detailRect.top + 120;
-    videoDetailPanel.dispatchEvent(pointerEvent('pointerdown', detailStartX, detailStartY, 1));
+    const detailRow = videoDetailBody.querySelector('.detail-related .feed-item .video-row')
+      || videoDetailBody.querySelector('.feed-item .video-row');
+    const detailRowRect = detailRow ? detailRow.getBoundingClientRect() : detailRect;
+    const detailStartX = detailRow
+      ? detailRowRect.left + Math.max(20, detailRowRect.width * 0.7)
+      : detailRect.left + detailRect.width * 0.62;
+    const detailStartY = detailRow
+      ? detailRowRect.top + detailRowRect.height * 0.5
+      : detailRect.top + 120;
+    const detailSwipeTarget = detailRow || videoDetailPanel;
+    detailSwipeTarget.dispatchEvent(pointerEvent('pointerdown', detailStartX, detailStartY, 1));
     for (let step = 1; step <= 6; step += 1) {
       window.dispatchEvent(pointerEvent('pointermove', detailStartX - (150 * step) / 6, detailStartY, 1));
     }
     window.dispatchEvent(pointerEvent('pointerup', detailStartX - 150, detailStartY, 0));
+    const playlistBeforeDetailClick = state.playlist.length;
+    if (detailRow) {
+      detailRow.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    }
     await sleep(500);
     results.push(`detailClose=${!videoDetailPanel.classList.contains('open')}`);
+    results.push(`detailSwipeNoClick=${state.playlist.length === playlistBeforeDetailClick}`);
     dispatchSwipe('middle', -240, 0);
     results.push(`comments=${commentsPanel.classList.contains('open')}`);
     results.push(`commentsClean=${!commentsPanel.querySelector('.comments-top, .comments-input')}`);
