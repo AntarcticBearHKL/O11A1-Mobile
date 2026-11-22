@@ -1324,6 +1324,63 @@ body.grid .grid-overlay{display:block}
 .player-notice.show{opacity:1;transform:translate(-50%,0)}
 .player-notice b{font-size:10px;font-weight:750;letter-spacing:.04em;color:rgba(255,255,255,.92)}
 .player-notice small{font-size:9px;line-height:1.45;color:rgba(255,255,255,.58)}
+
+/* light theme player chrome: wheel deck, settings drawer, notice */
+body[data-theme="light"] .player-controls{
+  background:linear-gradient(0deg,rgba(250,250,252,.95),rgba(250,250,252,.84) 58%,rgba(250,250,252,.58) 100%);
+  border-top:1px solid rgba(0,0,0,.06);
+  backdrop-filter:blur(22px) saturate(1.45);-webkit-backdrop-filter:blur(22px) saturate(1.45);
+}
+body[data-theme="light"] .precision-time{color:rgba(26,26,26,.88)}
+body[data-theme="light"] .precision-frames{color:rgba(26,26,26,.5)}
+body[data-theme="light"] .precision-wheel{border-bottom-color:rgba(26,26,26,.13)}
+body[data-theme="light"] .wheel-tick{background:rgba(26,26,26,.18)}
+body[data-theme="light"] .wheel-tick.mid{background:rgba(26,26,26,.3)}
+body[data-theme="light"] .wheel-tick.major{background:rgba(26,26,26,.42)}
+body[data-theme="light"] .wheel-tick.major.past{background:#2F7CF6}
+body[data-theme="light"] .wheel-tick.major.past::after{background:#2F7CF6}
+body[data-theme="light"] .wheel-tick-label{color:rgba(26,26,26,.44)}
+body[data-theme="light"] .wheel-tick-label.past{color:#2F7CF6}
+body[data-theme="light"] .wheel-band{background:rgba(47,124,246,.1)}
+body[data-theme="light"] .wheel-needle{background:#D3453D;box-shadow:0 0 8px rgba(211,69,61,.32)}
+body[data-theme="light"] .seek-bubble{
+  background:rgba(250,250,252,.96);border-color:rgba(0,0,0,.1);color:#1A1A1A;
+  box-shadow:0 8px 24px rgba(20,22,30,.14);
+}
+body[data-theme="light"] .precision-hint{color:rgba(26,26,26,.46)}
+body[data-theme="light"] .precision-step{
+  border-color:rgba(0,0,0,.1);background:rgba(0,0,0,.04);color:rgba(26,26,26,.72);
+}
+body[data-theme="light"] .precision-step:hover{background:rgba(0,0,0,.08);color:#1A1A1A}
+body[data-theme="light"] .player.live-player .precision-time{color:#D3453D}
+body[data-theme="light"] .player-settings-scrim{background:rgba(12,14,20,.32)}
+body[data-theme="light"] .player-settings-card{
+  border-color:rgba(255,255,255,.9);
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.72),rgba(255,255,255,.28) 26%,rgba(255,255,255,.08) 100%),
+    linear-gradient(180deg,rgba(250,250,252,.9),rgba(242,244,249,.95));
+  box-shadow:0 -24px 70px rgba(24,26,40,.24),inset 0 1px 0 rgba(255,255,255,.96),inset 0 0 80px rgba(255,255,255,.2);
+}
+body[data-theme="light"] .player-settings-grab{background:rgba(26,26,26,.24);box-shadow:0 1px 0 rgba(255,255,255,.8)}
+body[data-theme="light"] .player-settings-title b{color:#1A1A1A}
+body[data-theme="light"] .player-settings-title small{color:rgba(26,26,26,.55)}
+body[data-theme="light"] .player-settings-tip{color:rgba(26,26,26,.4)}
+body[data-theme="light"] .player-settings .pc-tool{
+  border-color:rgba(0,0,0,.08);background:rgba(255,255,255,.58);color:#1A1A1A;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9);
+}
+body[data-theme="light"] .player-settings .pc-tool:hover{background:rgba(255,255,255,.82);border-color:rgba(0,0,0,.12)}
+body[data-theme="light"] .player-settings .pc-tool.on{background:rgba(47,124,246,.1);border-color:rgba(47,124,246,.28)}
+body[data-theme="light"] .player-settings .pc-tool-label{color:rgba(26,26,26,.48)}
+body[data-theme="light"] .player-settings .pc-tool-value{color:rgba(26,26,26,.9)}
+body[data-theme="light"] .player-settings .pc-tool.done .pc-tool-value{color:#2F8A5A}
+body[data-theme="light"] .player-settings-note{color:rgba(26,26,26,.38)}
+body[data-theme="light"] .player-notice{
+  border-color:rgba(0,0,0,.1);background:rgba(250,250,252,.95);color:#1A1A1A;
+  box-shadow:0 10px 28px rgba(20,22,30,.18);
+}
+body[data-theme="light"] .player-notice b{color:rgba(26,26,26,.92)}
+body[data-theme="light"] .player-notice small{color:rgba(26,26,26,.6)}
 .swipe-hint{
   position:absolute;right:max(20px,5%);top:50%;z-index:9;transform:translateY(-50%);
   padding:9px 13px;border-radius:999px;
