@@ -1430,7 +1430,7 @@
     const count = state.playlist.length;
     dockPlaylistList.innerHTML = '';
     if (!count) {
-      dockPlaylistList.innerHTML = '<div class="pd-empty"><b>播放列表是空的</b><span>在视频行上向左滑加入播放列表</span></div>';
+      dockPlaylistList.innerHTML = '<div class="pd-empty">播放列表是空的</div>';
       return;
     }
     state.playlist.forEach((item, index) => {
