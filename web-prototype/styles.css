@@ -168,7 +168,7 @@ i{font-style:normal}
   border-radius:0 34px 34px 0;
   overflow:hidden;isolation:isolate;
   transform-origin:left center;
-  transition:transform .44s cubic-bezier(.22,1,.36,1),border-radius .44s ease;
+  transition:transform .36s cubic-bezier(.22,1,.36,1),border-radius .36s cubic-bezier(.22,1,.36,1),box-shadow .36s cubic-bezier(.22,1,.36,1);
   will-change:transform;
 }
 .app-main::before{
@@ -184,7 +184,7 @@ i{font-style:normal}
 .app.sidebar-open .app-main{
   transform:translate3d(14%,0,0) scale(.86) rotateY(7deg);
   border-radius:26px;
-  box-shadow:30px 18px 70px rgba(10,12,20,.34);
+  box-shadow:0 12px 32px rgba(10,12,20,.26);
 }
 .app.sidebar-dragging .app-main,
 .app.sidebar-dragging .sidebar,
@@ -1990,8 +1990,9 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
   }
   .app-main{border-radius:0}
   .app.sidebar-open .app-main{
-    transform:translate3d(10%,0,0) scale(.9) rotateY(5deg);
+    transform:translate3d(10%,0,0) scale(.9);
     border-radius:24px;
+    box-shadow:0 12px 30px rgba(10,12,20,.24);
   }
   .statusbar{display:none}
   .app-scroll{top:0}
@@ -2016,7 +2017,7 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
 .sidebar-backdrop{
   position:absolute;inset:0;z-index:70;background:rgba(12,14,20,.34);
   opacity:0;pointer-events:none;
-  transition:opacity .38s cubic-bezier(.22,1,.36,1);
+  transition:opacity .36s cubic-bezier(.22,1,.36,1);
   will-change:opacity;
 }
 .sidebar-backdrop.show{opacity:1;pointer-events:auto}
@@ -2028,15 +2029,15 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
   background:linear-gradient(180deg,rgba(250,250,252,.74),rgba(244,245,249,.88));
   border:1px solid rgba(255,255,255,.58);border-left:0;border-radius:0 26px 26px 0;
   box-shadow:22px 0 54px rgba(24,24,32,.18),inset 0 1px 0 rgba(255,255,255,.75);
-  backdrop-filter:blur(30px) saturate(1.7);-webkit-backdrop-filter:blur(30px) saturate(1.7);
-  opacity:0;visibility:hidden;will-change:transform;
+  backdrop-filter:blur(20px) saturate(1.6);-webkit-backdrop-filter:blur(20px) saturate(1.6);
+  opacity:1;visibility:hidden;will-change:transform;
   transform:translateX(calc(-100% - 24px));
-  transition:transform .38s cubic-bezier(.22,1,.36,1),opacity .24s ease,visibility 0s linear .38s;
+  transition:transform .36s cubic-bezier(.22,1,.36,1),visibility 0s linear .36s;
 }
 .sidebar.open{
   opacity:1;visibility:visible;
   transform:none;
-  transition:transform .38s cubic-bezier(.22,1,.36,1),opacity .24s ease,visibility 0s;
+  transition:transform .36s cubic-bezier(.22,1,.36,1),visibility 0s;
 }
 .sidebar-inner{
   width:100%;flex:1 1 auto;min-height:0;padding:0;

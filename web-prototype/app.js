@@ -359,6 +359,10 @@
   let searchDrag = null;
   let searchResultsTouch = null;
   let sidebarSwipeStart = null;
+  let sidebarCompact = window.matchMedia('(max-width:760px)').matches;
+  window.addEventListener('resize', () => {
+    sidebarCompact = window.matchMedia('(max-width:760px)').matches;
+  });
   let suppressFeedClickUntil = 0;
   let suppressSidebarClickUntil = 0;
   let suppressPlaylistClickUntil = 0;
@@ -2138,6 +2142,9 @@
     app.classList.add('sidebar-open', 'sidebar-dragging');
     sidebar.classList.add('open');
     sidebarBackdrop.classList.add('show');
+    appMain.style.boxShadow = sidebarCompact
+      ? '0 12px 30px rgba(10,12,20,.24)'
+      : '0 12px 32px rgba(10,12,20,.26)';
     playlistDock.classList.remove('receiving', 'absorbing');
     updatePlaylistDock();
     return true;
@@ -2145,8 +2152,15 @@
 
   function applySidebarDrag(progress) {
     const p = Math.max(0, Math.min(1, progress));
-    appMain.style.transform = `translate3d(${(p * 10).toFixed(2)}%,0,0) scale(${(1 - p * 0.1).toFixed(4)}) rotateY(${(p * 5).toFixed(2)}deg)`;
-    appMain.style.borderRadius = `${(p * 24).toFixed(1)}px`;
+    const compact = sidebarCompact;
+    const shift = compact ? 10 : 14;
+    const scaleDrop = compact ? 0.10 : 0.14;
+    const rotate = compact ? 0 : 7;
+    const radius = compact ? 24 : 26;
+    appMain.style.transform = `translate3d(${(p * shift).toFixed(2)}%,0,0) scale(${(1 - p * scaleDrop).toFixed(4)})${rotate ? ` rotateY(${(p * rotate).toFixed(2)}deg)` : ''}`;
+    appMain.style.borderRadius = compact
+      ? `${(p * radius).toFixed(1)}px`
+      : `${(p * radius).toFixed(1)}px ${(34 - p * 8).toFixed(1)}px ${(34 - p * 8).toFixed(1)}px ${(p * radius).toFixed(1)}px`;
     sidebar.style.transform = `translate3d(${((p - 1) * 100).toFixed(2)}%,0,0)`;
     sidebarBackdrop.style.opacity = String(p);
   }
@@ -2157,6 +2171,7 @@
     clearSidebarPicked();
     appMain.style.transform = '';
     appMain.style.borderRadius = '';
+    appMain.style.boxShadow = '';
     sidebar.style.transform = '';
     sidebarBackdrop.style.opacity = '';
   }
@@ -2168,6 +2183,7 @@
     closeSidebar();
     appMain.style.transform = '';
     appMain.style.borderRadius = '';
+    appMain.style.boxShadow = '';
     sidebar.style.transform = '';
     sidebarBackdrop.style.opacity = '';
   }
