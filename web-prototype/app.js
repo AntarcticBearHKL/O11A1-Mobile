@@ -360,6 +360,7 @@
   let dockDrag = null;
   let dockBodyTouch = null;
   let dockAbsorbTimer = null;
+  let pdSearchPressTimer = null;
   let playlistDrag = null;
   let toolbarDrag = null;
   let mockFeedLoading = false;
@@ -5272,7 +5273,16 @@
   if (pdSearch) {
     pdSearch.addEventListener('click', (event) => {
       event.stopPropagation();
-      enterDockSearch();
+      if (playlistDock.classList.contains('searching')) return;
+      pdSearch.classList.remove('pressed');
+      void pdSearch.offsetWidth;
+      pdSearch.classList.add('pressed');
+      clearTimeout(pdSearchPressTimer);
+      pdSearchPressTimer = setTimeout(() => {
+        pdSearchPressTimer = null;
+        pdSearch.classList.remove('pressed');
+        enterDockSearch();
+      }, 150);
     });
   }
   if (pdSearchBack) {
