@@ -2010,7 +2010,6 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
 }
 @media (max-width:400px){
   .feed{--feed-row-h:104px}
-  .row-thumb{height:clamp(72px,23vw,84px)}
 }
 
 /* ---------- left sidebar navigation (no bottom toolbar) ---------- */
