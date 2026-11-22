@@ -469,6 +469,83 @@
     },
   };
 
+  const pcPanels = {
+    quality: {
+      group: $('#pcQualityGroup'),
+      row: $('#pcQuality'),
+      panel: $('#pcQualityPanel'),
+      data: sheetData.quality,
+    },
+    interp: {
+      group: $('#pcInterpGroup'),
+      row: $('#pcInterp'),
+      panel: $('#pcInterpPanel'),
+      data: sheetData.interp,
+    },
+    enhance: {
+      group: $('#pcEnhanceGroup'),
+      row: $('#pcEnhance'),
+      panel: $('#pcEnhancePanel'),
+      data: sheetData.enhance,
+    },
+    danmaku: {
+      group: $('#pcDanmakuGroup'),
+      row: $('#pcDanmaku'),
+      panel: $('#pcDanmakuPanel'),
+      data: null,
+    },
+  };
+  let pcOpenPanel = '';
+
+  function renderPcChoicePanel(panel, data) {
+    if (!panel || !data) return;
+    panel.innerHTML = '';
+    data.options.forEach((option) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `pc-choice${data.selected() === option.value ? ' on' : ''}`;
+      button.textContent = option.label;
+      button.addEventListener('click', () => {
+        data.apply(option.value);
+        renderPcChoicePanel(panel, data);
+      });
+      panel.appendChild(button);
+    });
+  }
+
+  function renderPcDanmakuPanel(panel) {
+    if (!panel) return;
+    panel.innerHTML = '';
+    settingsDefinition('settings-danmaku').rows
+      .filter((row) => row.type !== 'static')
+      .forEach((row) => panel.appendChild(buildSettingRow(row)));
+  }
+
+  function setPcPanel(name) {
+    const next = pcOpenPanel === name ? '' : name;
+    pcOpenPanel = next;
+    Object.entries(pcPanels).forEach(([key, config]) => {
+      const open = key === next;
+      config.group.classList.toggle('open', open);
+      config.row.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (!open) return;
+      if (key === 'danmaku') renderPcDanmakuPanel(config.panel);
+      else renderPcChoicePanel(config.panel, config.data);
+    });
+    if (next) {
+      const active = pcPanels[next];
+      setTimeout(() => active.group.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30);
+    }
+  }
+
+  function closePcPanels() {
+    pcOpenPanel = '';
+    Object.values(pcPanels).forEach((config) => {
+      config.group.classList.remove('open');
+      config.row.setAttribute('aria-expanded', 'false');
+    });
+  }
+
   /* ---------- persistence ---------- */
   function loadPersisted() {
     try {
@@ -2530,6 +2607,9 @@
     if (!playerSettings || playerSettingsOpen || !state.playerOpen) return;
     playerSettingsOpen = true;
     clearTimeout(hideTimer);
+    closePcPanels();
+    const settingsList = $('.player-settings-list');
+    if (settingsList) settingsList.scrollTop = 0;
     playerSettings.inert = false;
     playerSettings.setAttribute('aria-hidden', 'false');
     playerSettings.classList.add('open');
@@ -4645,9 +4725,10 @@
   });
 
   /* player */
-  pcDanmaku.addEventListener('click', () => {
-    openSettingsSheet('settings-danmaku', { minimal: true });
-  });
+  pcQuality.addEventListener('click', () => setPcPanel('quality'));
+  pcInterp.addEventListener('click', () => setPcPanel('interp'));
+  pcEnhance.addEventListener('click', () => setPcPanel('enhance'));
+  pcDanmaku.addEventListener('click', () => setPcPanel('danmaku'));
   pcLoop.addEventListener('click', cycleLoop);
   lockBadge.addEventListener('click', unlockPlayer);
 

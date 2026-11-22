@@ -1288,7 +1288,7 @@ body.grid .grid-overlay{display:block}
 .player-settings.open .player-settings-scrim{opacity:1}
 .player-settings-card{
   position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;
-  max-height:78%;padding:8px 16px calc(14px + env(safe-area-inset-bottom));
+  max-height:92%;padding:8px 16px calc(14px + env(safe-area-inset-bottom));
   border:1px solid rgba(255,255,255,.16);border-radius:28px 28px 0 0;
   background:
     linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,.035) 24%,rgba(255,255,255,.015) 100%),
@@ -1328,6 +1328,38 @@ body.grid .grid-overlay{display:block}
   flex:none;max-width:58%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:11.5px;font-weight:600;color:rgba(255,255,255,.46);line-height:1.2;
 }
+.player-settings .pc-group{display:flex;flex-direction:column;gap:4px}
+.player-settings .pc-panel{
+  display:none;flex-direction:column;gap:2px;padding:0 2px 2px 12px;
+  color:rgba(255,255,255,.62);
+}
+.player-settings .pc-group.open .pc-panel{display:flex}
+.player-settings .pc-choice{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  width:100%;min-height:36px;padding:0 10px;border:0;border-radius:8px;
+  background:none;color:inherit;font-size:12px;font-weight:600;text-align:left;cursor:pointer;
+}
+.player-settings .pc-choice:hover{background:rgba(255,255,255,.06);color:#fff}
+.player-settings .pc-choice.on{color:#8FBCFF}
+.player-settings .pc-choice.on::after{
+  content:"";width:5px;height:5px;flex:none;border-radius:50%;background:var(--blue);
+}
+.player-settings .pc-panel-controls{padding-left:2px;gap:0}
+.player-settings .pc-panel-controls .sheet-row{
+  min-height:38px;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.08);
+}
+.player-settings .pc-panel-controls .sheet-row:last-child{border-bottom:0}
+.player-settings .pc-panel-controls .sheet-row .sr-label{font-size:12px}
+.player-settings .pc-panel-controls .sheet-row .sr-value{font-size:10.5px}
+.player-settings .pc-panel-controls .sheet-slider{
+  min-height:38px;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.08);gap:8px;
+}
+.player-settings .pc-panel-controls .sheet-slider:last-child{border-bottom:0}
+.player-settings .pc-panel-controls .sheet-slider label{width:52px;font-size:12px}
+.player-settings .pc-panel-controls .sheet-slider input{height:18px}
+.player-settings .pc-panel-controls .sheet-slider output{width:36px;font-size:10px;color:rgba(255,255,255,.5)}
+.player-settings .pc-panel-controls .choice-row{flex-wrap:wrap;gap:6px;min-height:38px;padding:6px 2px}
+.player-settings .pc-panel-controls .choice-btn{height:26px;padding:0 8px;font-size:10px}
 .player.landscape .player-settings-card{max-height:94%;padding-bottom:10px}
 .player.landscape .player-rotor > .psheet{max-height:76%}
 .seek-ripple{
@@ -1438,6 +1470,15 @@ body[data-theme="light"] .player-settings .pc-row{
 body[data-theme="light"] .player-settings .pc-row:hover{background:rgba(255,255,255,.82);border-color:rgba(0,0,0,.12)}
 body[data-theme="light"] .player-settings .pc-row-label{color:rgba(26,26,26,.9)}
 body[data-theme="light"] .player-settings .pc-row-value{color:rgba(26,26,26,.48)}
+body[data-theme="light"] .player-settings .pc-panel{color:rgba(26,26,26,.62)}
+body[data-theme="light"] .player-settings .pc-choice{color:rgba(26,26,26,.62)}
+body[data-theme="light"] .player-settings .pc-choice:hover{background:rgba(0,0,0,.04);color:#1A1A1A}
+body[data-theme="light"] .player-settings .pc-choice.on{color:#2F7CF6}
+body[data-theme="light"] .player-settings .pc-panel-controls .sheet-row,
+body[data-theme="light"] .player-settings .pc-panel-controls .sheet-slider{
+  border-bottom-color:rgba(0,0,0,.07);color:rgba(26,26,26,.84);
+}
+body[data-theme="light"] .player-settings .pc-panel-controls .sheet-slider output{color:rgba(26,26,26,.5)}
 body[data-theme="light"] .player-notice{
   border-color:rgba(0,0,0,.1);background:rgba(250,250,252,.95);color:#1A1A1A;
   box-shadow:0 10px 28px rgba(20,22,30,.18);

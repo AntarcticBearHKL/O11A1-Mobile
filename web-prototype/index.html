@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=112">
+  <link rel="stylesheet" href="./styles.css?v=113">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -375,18 +375,30 @@
       <section class="player-settings-card" id="playerSettingsCard" role="dialog" aria-label="播放设置">
         <span class="player-settings-grab" aria-hidden="true"></span>
         <div class="player-settings-list">
-          <button class="pc-row" data-sheet="quality" id="pcQuality" type="button">
-            <span class="pc-row-label">画质</span><span class="pc-row-value" id="pcQualityValue">1080P60</span>
-          </button>
-          <button class="pc-row" data-sheet="interp" id="pcInterp" type="button">
-            <span class="pc-row-label">插帧</span><span class="pc-row-value" id="pcInterpValue">120</span>
-          </button>
-          <button class="pc-row" data-sheet="enhance" id="pcEnhance" type="button">
-            <span class="pc-row-label">增强</span><span class="pc-row-value" id="pcEnhanceValue">CAS</span>
-          </button>
-          <button class="pc-row" id="pcDanmaku" type="button">
-            <span class="pc-row-label">弹幕设置</span><span class="pc-row-value" id="pcDanmakuValue">开</span>
-          </button>
+          <div class="pc-group" id="pcQualityGroup">
+            <button class="pc-row" id="pcQuality" type="button" aria-expanded="false">
+              <span class="pc-row-label">画质</span><span class="pc-row-value" id="pcQualityValue">1080P60</span>
+            </button>
+            <div class="pc-panel" id="pcQualityPanel"></div>
+          </div>
+          <div class="pc-group" id="pcInterpGroup">
+            <button class="pc-row" id="pcInterp" type="button" aria-expanded="false">
+              <span class="pc-row-label">插帧</span><span class="pc-row-value" id="pcInterpValue">120</span>
+            </button>
+            <div class="pc-panel" id="pcInterpPanel"></div>
+          </div>
+          <div class="pc-group" id="pcEnhanceGroup">
+            <button class="pc-row" id="pcEnhance" type="button" aria-expanded="false">
+              <span class="pc-row-label">增强</span><span class="pc-row-value" id="pcEnhanceValue">CAS</span>
+            </button>
+            <div class="pc-panel" id="pcEnhancePanel"></div>
+          </div>
+          <div class="pc-group" id="pcDanmakuGroup">
+            <button class="pc-row" id="pcDanmaku" type="button" aria-expanded="false">
+              <span class="pc-row-label">弹幕设置</span><span class="pc-row-value" id="pcDanmakuValue">开</span>
+            </button>
+            <div class="pc-panel pc-panel-controls" id="pcDanmakuPanel"></div>
+          </div>
           <button class="pc-row" id="pcLoop" type="button">
             <span class="pc-row-label">循环模式</span><span class="pc-row-value" id="pcLoopValue">循环</span>
           </button>
@@ -467,8 +479,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=112"></script>
-  <script src="./app.js?v=112"></script>
-  <script src="./native.js?v=112"></script>
+  <script src="./vendor/hls.min.js?v=113"></script>
+  <script src="./app.js?v=113"></script>
+  <script src="./native.js?v=113"></script>
 </body>
 </html>
