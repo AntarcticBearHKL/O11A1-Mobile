@@ -4575,8 +4575,8 @@
   if (playerSettingsScrim) {
     playerSettingsScrim.addEventListener('click', () => closePlayerSettings());
   }
-  if (playerSettingsCard) {
-    playerSettingsCard.addEventListener('pointerdown', startSettingsDraw);
+  if (playerSettings) {
+    playerSettings.addEventListener('pointerdown', startSettingsDraw);
   }
   window.addEventListener('pointermove', moveSettingsDraw);
   window.addEventListener('pointerup', endSettingsDraw);
