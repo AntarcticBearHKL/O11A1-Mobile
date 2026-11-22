@@ -1436,6 +1436,112 @@
     playerVideo.classList.toggle('video-error', mode === 'error');
   }
 
+  const ambientCanvas = $('#ambientCanvas');
+  const ambientCtx = ambientCanvas ? ambientCanvas.getContext('2d', { alpha: false }) : null;
+  let ambientOn = false;
+  let ambientRaf = 0;
+  let ambientSyncRaf = 0;
+
+  function stopAmbientLoop() {
+    if (ambientRaf) cancelAnimationFrame(ambientRaf);
+    ambientRaf = 0;
+  }
+
+  function drawAmbientFrame() {
+    if (!ambientOn || !ambientCanvas || !ambientCtx) return;
+    if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) return;
+    const cw = ambientCanvas.width;
+    const ch = ambientCanvas.height;
+    if (!cw || !ch) return;
+    const scale = Math.max(cw / video.videoWidth, ch / video.videoHeight);
+    const dw = video.videoWidth * scale;
+    const dh = video.videoHeight * scale;
+    try {
+      ambientCtx.drawImage(video, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+    } catch (_) {
+      setAmbientActive(false);
+    }
+  }
+
+  function ambientLoop() {
+    ambientRaf = 0;
+    if (!ambientOn) return;
+    drawAmbientFrame();
+    if (!video.paused) ambientRaf = requestAnimationFrame(ambientLoop);
+  }
+
+  function startAmbientLoop() {
+    if (!ambientOn || ambientRaf) return;
+    ambientRaf = requestAnimationFrame(ambientLoop);
+  }
+
+  function resizeAmbientCanvas() {
+    if (!ambientCanvas) return;
+    const width = playerStage.clientWidth;
+    const height = playerStage.clientHeight;
+    if (!width || !height) return;
+    const scale = Math.min(1, 520 / Math.max(width, height));
+    const canvasWidth = Math.max(2, Math.round(width * scale));
+    const canvasHeight = Math.max(2, Math.round(height * scale));
+    if (ambientCanvas.width !== canvasWidth || ambientCanvas.height !== canvasHeight) {
+      ambientCanvas.width = canvasWidth;
+      ambientCanvas.height = canvasHeight;
+    }
+  }
+
+  function setAmbientActive(active) {
+    if (!ambientCanvas || !ambientCtx) return;
+    const next = Boolean(active);
+    if (ambientOn === next) {
+      if (next) {
+        drawAmbientFrame();
+        if (!video.paused) startAmbientLoop();
+      }
+      return;
+    }
+    ambientOn = next;
+    playerVideo.classList.toggle('ambient-on', ambientOn);
+    if (!ambientOn) {
+      stopAmbientLoop();
+      try { ambientCtx.clearRect(0, 0, ambientCanvas.width, ambientCanvas.height); } catch (_) {}
+      return;
+    }
+    resizeAmbientCanvas();
+    drawAmbientFrame();
+    if (!video.paused) startAmbientLoop();
+  }
+
+  function syncAmbient() {
+    if (!ambientCanvas || !ambientCtx) return;
+    if (!state.playerOpen) {
+      setAmbientActive(false);
+      return;
+    }
+    const width = playerStage.clientWidth;
+    const height = playerStage.clientHeight;
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    const hasFrame = video.readyState >= 2 && vw > 0 && vh > 0;
+    const mismatch = hasFrame && width > 0 && height > 0
+      && Math.abs(vw / vh - width / height) > 0.01;
+    setAmbientActive(mismatch);
+  }
+
+  function requestAmbientSync() {
+    if (ambientSyncRaf) return;
+    ambientSyncRaf = requestAnimationFrame(() => {
+      ambientSyncRaf = 0;
+      syncAmbient();
+    });
+  }
+
+  window.addEventListener('resize', requestAmbientSync);
+  if (window.ResizeObserver) {
+    try {
+      new ResizeObserver(requestAmbientSync).observe(playerStage);
+    } catch (_) {}
+  }
+
   function loadDanmaku(cid) {
     danmakuItems = [];
     danmakuIndex = 0;
@@ -1688,6 +1794,7 @@
       video.load();
     } catch (_) {}
     playerVideo.classList.remove('has-video', 'video-loading', 'video-error');
+    setAmbientActive(false);
     if (player) player.classList.remove('live-player');
     if (status) status.textContent = '';
   }
@@ -1730,6 +1837,7 @@
     mediaTriedBackup = false;
     state.duration = 0;
     playerVideo.classList.remove('video-error');
+    setAmbientActive(false);
     playerVideo.classList.add('video-loading', 'has-video');
     if (player) player.classList.add('live-player');
     if (host.pcTime) host.pcTime.textContent = 'LIVE';
@@ -2032,6 +2140,7 @@
     mediaBackup = '';
     state.duration = 0;
     playerVideo.classList.remove('has-video', 'video-error');
+    setAmbientActive(false);
     playerVideo.classList.add('video-loading');
     setStatus('加载中…', 'loading');
     if (item.offlineUrl) {
@@ -2113,6 +2222,7 @@
     playerVideo.classList.remove('video-loading');
     post.newFrame = true;
     syncPostProcess();
+    requestAmbientSync();
   });
   video.addEventListener('timeupdate', () => {
     if (mediaLive) {
@@ -2131,12 +2241,15 @@
     if (danmakuLayer) danmakuLayer.classList.remove('paused');
     if (status) status.textContent = '';
     syncPostProcess();
+    requestAmbientSync();
+    startAmbientLoop();
   });
   video.addEventListener('pause', () => {
     state.playing = false;
     host.setPlayIcon(false);
     host.updatePlaylistDock();
     if (danmakuLayer) danmakuLayer.classList.add('paused');
+    drawAmbientFrame();
   });
   video.addEventListener('waiting', () => {
     playerVideo.classList.add('video-loading');
@@ -2145,6 +2258,7 @@
   video.addEventListener('playing', () => {
     playerVideo.classList.remove('video-loading', 'video-error');
     if (status) status.textContent = '';
+    startAmbientLoop();
   });
   video.addEventListener('error', () => {
     if (mediaBackup && !mediaTriedBackup) {
@@ -2155,6 +2269,7 @@
       return;
     }
     setStatus(mediaLive ? '直播加载失败 · 点击重试' : '播放失败 · 点击重试', 'error');
+    setAmbientActive(false);
     log('video element error ' + (mediaItem ? mediaItem.bvid || mediaItem.roomId : ''));
   });
   video.addEventListener('ended', () => {
@@ -2506,16 +2621,19 @@
     };
     video.requestVideoFrameCallback(onVideoFrame);
   }
-  video.addEventListener('seeked', () => { post.newFrame = true; });
-  video.addEventListener('loadeddata', () => { post.newFrame = true; });
+  video.addEventListener('seeked', () => { post.newFrame = true; drawAmbientFrame(); });
+  video.addEventListener('loadeddata', () => { post.newFrame = true; requestAmbientSync(); });
 
   window.O11A1Media = {
     onOpen() {
       syncHighRefresh();
       loadVideo(currentItem(), Boolean(state.playing));
+      requestAmbientSync();
     },
     onMinimize() {
       syncHighRefresh();
+      setAmbientActive(false);
+      stopAmbientLoop();
     },
     onStop() {
       syncHighRefresh();

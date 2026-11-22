@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=115">
+  <link rel="stylesheet" href="./styles.css?v=116">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -327,6 +327,7 @@
     <div class="player-body">
       <div class="player-stage" id="playerStage">
         <div class="player-video" id="playerVideo">
+          <canvas class="ambient-canvas" id="ambientCanvas" aria-hidden="true"></canvas>
           <video class="real-video" id="realVideo" playsinline webkit-playsinline preload="metadata" crossorigin="anonymous"></video>
           <div class="real-video-status" id="realVideoStatus">加载中…</div>
           <div class="live-dm-badge" id="liveDmBadge" hidden>直播弹幕</div>
@@ -340,7 +341,6 @@
             <div class="wheel-head">
               <span class="precision-time" id="pcTime">00:00.000 / 00:00</span>
               <span class="precision-frames" id="pcFrames">帧 —</span>
-              <span class="player-orientation-badge" id="playerOrientationBadge" hidden>横屏</span>
             </div>
             <div class="precision-wheel" id="progressBar">
               <div class="wheel-strip" id="wheelStrip" aria-hidden="true"></div>
@@ -362,11 +362,6 @@
           <div class="rate-hud" id="rateHud">
             <b id="rateValue">2.0×</b>
             <small id="rateLabel">快放中 · 松开恢复</small>
-          </div>
-          <div class="rotate-hud" id="rotateHud">
-            <span class="rotate-arrow" id="rotateArrow">↔</span>
-            <b id="rotateLabel">横屏</b>
-            <small>陀螺仪 · 自动横屏</small>
           </div>
           <div class="player-notice" id="playerNotice" role="status" aria-live="polite">
             <b id="playerNoticeTitle"></b>
@@ -486,8 +481,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=115"></script>
-  <script src="./app.js?v=115"></script>
-  <script src="./native.js?v=115"></script>
+  <script src="./vendor/hls.min.js?v=116"></script>
+  <script src="./app.js?v=116"></script>
+  <script src="./native.js?v=116"></script>
 </body>
 </html>

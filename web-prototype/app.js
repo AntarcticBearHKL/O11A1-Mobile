@@ -38,13 +38,9 @@
   const rateHud = $('#rateHud');
   const rateValue = $('#rateValue');
   const rateLabel = $('#rateLabel');
-  const rotateHud = $('#rotateHud');
-  const rotateArrow = $('#rotateArrow');
-  const rotateLabel = $('#rotateLabel');
   const playerNotice = $('#playerNotice');
   const playerNoticeTitle = $('#playerNoticeTitle');
   const playerNoticeText = $('#playerNoticeText');
-  const playerOrientationBadge = $('#playerOrientationBadge');
   const swipeHint = $('#swipeHint');
   const commentsPanel = $('#commentsPanel');
   const commentsBody = $('#commentsBody');
@@ -323,7 +319,6 @@
   let sheetSwipeTimer = null;
   let precisionDrag = null;
   let rateHudTimer = null;
-  let rotateHudTimer = null;
   let playerNoticeTimer = null;
   let gyroBound = false;
   let gyroPermission = 'ask';
@@ -2797,28 +2792,13 @@
     return 0;
   }
 
-  function setPlayerOrientation(mode, options = {}) {
+  function setPlayerOrientation(mode) {
     const dir = playerLandscapeDirection(mode);
-    const changed = state.playerLandscape !== (dir !== 0) || state.playerLandscapeDir !== dir;
     state.playerLandscape = dir !== 0;
     state.playerLandscapeDir = dir;
     player.classList.toggle('landscape', dir !== 0);
     player.classList.toggle('landscape-left', dir === -1);
     player.classList.toggle('landscape-right', dir === 1);
-    if (playerOrientationBadge) playerOrientationBadge.hidden = dir === 0;
-    if (!changed || options.silent) return;
-    rotateArrow.textContent = dir ? '↔' : '↕';
-    rotateLabel.textContent = dir ? '横屏' : '竖屏';
-    const hint = rotateHud.querySelector('small');
-    if (hint) hint.textContent = dir ? '陀螺仪 · 转动手机恢复竖屏' : '陀螺仪 · 已恢复竖屏';
-    rotateHud.classList.remove('show');
-    void rotateHud.offsetWidth;
-    rotateHud.classList.add('show');
-    clearTimeout(rotateHudTimer);
-    rotateHudTimer = setTimeout(() => {
-      rotateHudTimer = null;
-      rotateHud.classList.remove('show');
-    }, 1200);
   }
 
   function queueGyroOrientation(dir) {
@@ -3009,7 +2989,6 @@
     hidePlayerNotice();
     prefetchPlayerMedia();
     hideRateHud(0);
-    rotateHud.classList.remove('show');
     showControls();
     startGyro();
     if (expandFromRow) expandPlayerWindowFromOrigin(origin);
@@ -3064,7 +3043,6 @@
     lockBadge.classList.remove('show');
     resetComments();
     hideRateHud(0);
-    rotateHud.classList.remove('show');
     closeSheet();
     if (player.contains(document.activeElement)) document.activeElement.blur();
     showMiniPlayer();
@@ -3199,7 +3177,6 @@
     updatePlaylistDock();
     resetComments();
     hideRateHud(0);
-    rotateHud.classList.remove('show');
     setPlayIcon(false);
     closeSheet();
     if (document.fullscreenElement && document.exitFullscreen) {
@@ -3219,7 +3196,6 @@
     lockBadge.classList.add('show');
     resetComments();
     hideRateHud(0);
-    rotateHud.classList.remove('show');
     closeSheet();
   }
 
