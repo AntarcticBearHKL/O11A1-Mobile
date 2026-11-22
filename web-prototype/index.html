@@ -320,19 +320,6 @@
   <div class="player" id="player" aria-hidden="true" inert>
     <span class="player-pause-ring" id="playerPauseRing" aria-hidden="true"></span>
     <div class="player-rotor" id="playerRotor">
-    <div class="player-top">
-      <button class="player-top-btn" id="playerBack" title="返回" aria-label="返回">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>
-      </button>
-      <div class="player-title"><b id="playerTitle">队列视频占位 01</b><small id="playerSub">UP 占位 · 1080P60 · 占位</small></div>
-      <span class="player-orientation-badge" id="playerOrientationBadge" hidden>横屏</span>
-      <button class="player-top-btn" id="playerQueue" title="播放列表" aria-label="播放列表">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h11M4 10h11M4 14h7"/><path d="m16 13 5 3-5 3z" fill="currentColor" stroke="none"/></svg>
-      </button>
-      <button class="player-top-btn" id="playerMore" title="更多" aria-label="更多">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>
-      </button>
-    </div>
 
     <div class="player-body">
       <div class="player-stage" id="playerStage">
@@ -347,28 +334,25 @@
           <span class="video-hint">空播放器</span>
 
           <div class="player-controls" id="playerControls">
-            <div class="pc-seek">
-              <div class="progress-ph"><span class="progress-buffer"></span><span class="progress-played"></span><span class="progress-thumb"></span></div>
-            </div>
-            <div class="pc-main">
-              <span class="pc-time" id="pcTime">00:00 / 24:00</span>
-              <span class="pc-spacer"></span>
-              <button class="pc-icon" id="pcDanmaku" title="弹幕开关" aria-label="弹幕开关">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="13" rx="2"/><path d="M7 9h10M7 12.5h6"/></svg>
-              </button>
-              <button class="pc-icon" id="pcFullscreen" title="全屏" aria-label="全屏">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4"/></svg>
-              </button>
-            </div>
-            <div class="pc-rail">
-              <button class="pc-tool" data-sheet="quality" id="pcQuality"><span class="pc-tool-label">画质</span><span class="pc-tool-value" id="pcQualityValue">1080P60</span></button>
-              <button class="pc-tool" data-sheet="speed" id="pcSpeed"><span class="pc-tool-label">倍速</span><span class="pc-tool-value" id="pcSpeedValue">1.0×</span></button>
-              <button class="pc-tool" data-sheet="interp" id="pcInterp"><span class="pc-tool-label">插帧</span><span class="pc-tool-value" id="pcInterpValue">120</span></button>
-              <button class="pc-tool" data-sheet="enhance" id="pcEnhance"><span class="pc-tool-label">增强</span><span class="pc-tool-value" id="pcEnhanceValue">CAS</span></button>
-              <button class="pc-tool" id="pcLoop"><span class="pc-tool-label">播放</span><span class="pc-tool-value" id="pcLoopValue">循环</span></button>
-              <button class="pc-tool" id="pcSide"><span class="pc-tool-label">面板</span><span class="pc-tool-value">信息</span></button>
-              <button class="pc-tool" id="pcSettings"><span class="pc-tool-label">设置</span><span class="pc-tool-value">更多</span></button>
-              <button class="pc-tool" id="pcShot"><span class="pc-tool-label">截图</span><span class="pc-tool-value" id="pcShotValue">当前帧</span></button>
+            <div class="precision-bar">
+              <div class="precision-head">
+                <span class="precision-time" id="pcTime">00:00.000 / 00:00</span>
+                <span class="precision-frames" id="pcFrames">帧 —</span>
+                <span class="player-orientation-badge" id="playerOrientationBadge" hidden>横屏</span>
+              </div>
+              <div class="progress-ph" id="progressBar">
+                <span class="progress-buffer"></span>
+                <span class="progress-played"></span>
+                <span class="progress-thumb"></span>
+                <span class="seek-bubble" id="seekBubble">00:00.000</span>
+              </div>
+              <div class="precision-foot">
+                <span class="precision-hint">拖动进度条精确定位 · 松手跳转</span>
+                <span class="precision-frame-btns">
+                  <button type="button" class="precision-step" id="frameBack" title="上一帧">−1 帧</button>
+                  <button type="button" class="precision-step" id="frameForward" title="下一帧">+1 帧</button>
+                </span>
+              </div>
             </div>
           </div>
           <div class="seek-ripple" id="seekRipple">+10s</div>
@@ -386,6 +370,34 @@
           <div class="swipe-hint" id="swipeHint">‹ 松开查看评论</div>
         </div>
       </div>
+    </div>
+
+    <div class="player-settings" id="playerSettings" aria-hidden="true" inert>
+      <div class="player-settings-scrim" id="playerSettingsScrim"></div>
+      <section class="player-settings-card" id="playerSettingsCard" role="dialog" aria-label="播放设置">
+        <span class="player-settings-grab" aria-hidden="true"></span>
+        <header class="player-settings-head">
+          <div class="player-settings-title">
+            <b id="playerTitle">队列视频占位 01</b>
+            <small id="playerSub">UP 占位 · 1080P60 · 占位</small>
+          </div>
+          <small class="player-settings-tip">上滑打开 · 下滑关闭</small>
+        </header>
+        <div class="player-settings-grid">
+          <button class="pc-tool" data-sheet="quality" id="pcQuality" type="button"><span class="pc-tool-label">画质</span><span class="pc-tool-value" id="pcQualityValue">1080P60</span></button>
+          <button class="pc-tool" data-sheet="speed" id="pcSpeed" type="button"><span class="pc-tool-label">倍速</span><span class="pc-tool-value" id="pcSpeedValue">1.0×</span></button>
+          <button class="pc-tool" data-sheet="interp" id="pcInterp" type="button"><span class="pc-tool-label">插帧</span><span class="pc-tool-value" id="pcInterpValue">120</span></button>
+          <button class="pc-tool" data-sheet="enhance" id="pcEnhance" type="button"><span class="pc-tool-label">增强</span><span class="pc-tool-value" id="pcEnhanceValue">CAS</span></button>
+          <button class="pc-tool" id="pcLoop" type="button"><span class="pc-tool-label">播放</span><span class="pc-tool-value" id="pcLoopValue">循环</span></button>
+          <button class="pc-tool" id="pcSide" type="button"><span class="pc-tool-label">面板</span><span class="pc-tool-value">信息</span></button>
+          <button class="pc-tool" id="pcSettings" type="button"><span class="pc-tool-label">设置</span><span class="pc-tool-value">更多</span></button>
+          <button class="pc-tool" id="pcShot" type="button"><span class="pc-tool-label">截图</span><span class="pc-tool-value" id="pcShotValue">当前帧</span></button>
+          <button class="pc-tool" id="pcDanmaku" type="button" aria-label="弹幕开关"><span class="pc-tool-label">弹幕</span><span class="pc-tool-value" id="pcDanmakuValue">开</span></button>
+          <button class="pc-tool" id="pcFullscreen" type="button"><span class="pc-tool-label">全屏</span><span class="pc-tool-value" id="pcFullscreenValue">画面</span></button>
+          <button class="pc-tool" id="psPlaylist" type="button"><span class="pc-tool-label">播放列表</span><span class="pc-tool-value">打开</span></button>
+        </div>
+        <p class="player-settings-note">下滑收起设置 · 点击空白处也可关闭</p>
+      </section>
     </div>
 
     <div class="comments-panel" id="commentsPanel" aria-hidden="true" inert>

@@ -904,6 +904,7 @@ final class BiliExtras {
             row.put("codecs", track.optString("codecs", ""));
             row.put("width", track.optInt("width", 0));
             row.put("height", track.optInt("height", 0));
+            row.put("frameRate", track.optString("frameRate", track.optString("frame_rate", "")));
             row.put("remote", base);
             row.put("url", proxy.localUrl(base));
             JSONArray backups = track.optJSONArray("backupUrl");

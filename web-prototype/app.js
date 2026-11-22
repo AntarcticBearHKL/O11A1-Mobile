@@ -9,7 +9,6 @@
   const moduleFeed = $('#moduleFeed');
   const player = $('#player');
   const playerPauseRing = $('#playerPauseRing');
-  const playerTop = $('.player-top');
   const playerStage = $('#playerStage');
   const playerControls = $('#playerControls');
   const playerTitle = $('#playerTitle');
@@ -35,6 +34,17 @@
   const progressBar = $('.progress-ph', playerControls);
   const progressPlayed = $('.progress-played', playerControls);
   const progressThumb = $('.progress-thumb', playerControls);
+  const progressBuffer = $('.progress-buffer', playerControls);
+  const pcFrames = $('#pcFrames');
+  const seekBubble = $('#seekBubble');
+  const frameBack = $('#frameBack');
+  const frameForward = $('#frameForward');
+  const playerSettings = $('#playerSettings');
+  const playerSettingsCard = $('#playerSettingsCard');
+  const playerSettingsScrim = $('#playerSettingsScrim');
+  const pcDanmakuValue = $('#pcDanmakuValue');
+  const pcFullscreenValue = $('#pcFullscreenValue');
+  const psPlaylist = $('#psPlaylist');
   const seekRipple = $('#seekRipple');
   const lockBadge = $('#lockBadge');
   const rateHud = $('#rateHud');
@@ -258,7 +268,7 @@
     playerLandscapeDir: 0,
     progress: 0,
     duration: 0,
-    streamInfo: { videoBitrate: 0, audioBitrate: 0, sourceWidth: 0, sourceHeight: 0, netBps: 0, netAt: 0, direct: false },
+    streamInfo: { videoBitrate: 0, audioBitrate: 0, sourceWidth: 0, sourceHeight: 0, frameRate: 0, netBps: 0, netAt: 0, direct: false },
     landscapeHome: loaded?.landscapeHome === true,
     fav: false,
     coin: false,
@@ -309,6 +319,10 @@
   let stageGesture = null;
   let stageTapTimer = null;
   let lastStageTap = { time: 0, zone: '' };
+  let playerSettingsOpen = false;
+  let settingsDrawGesture = null;
+  let settingsSuppressClick = false;
+  let precisionDrag = null;
   let rateHudTimer = null;
   let rotateHudTimer = null;
   let gyroBound = false;
@@ -2239,6 +2253,8 @@
     pcInterpValue.textContent = state.settings.interp;
     pcEnhanceValue.textContent = state.settings.enhance;
     pcDanmaku.classList.toggle('on', state.settings.danmaku);
+    if (pcDanmakuValue) pcDanmakuValue.textContent = state.settings.danmaku ? '开' : '关';
+    if (pcFullscreenValue) pcFullscreenValue.textContent = document.fullscreenElement ? '退出' : '画面';
     pcLoopValue.textContent = state.settings.loop;
     setProgress(state.progress);
     updatePlaylistDock();
@@ -2262,17 +2278,203 @@
     updateMiniPlayer();
   }
 
+  function formatTimeMs(seconds) {
+    const totalMs = Math.max(0, Math.round(Number(seconds || 0) * 1000));
+    const hours = Math.floor(totalMs / 3600000);
+    const minutes = Math.floor((totalMs % 3600000) / 60000);
+    const secs = Math.floor((totalMs % 60000) / 1000);
+    const millis = totalMs % 1000;
+    const body = `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(millis).padStart(3, '0')}`;
+    return hours > 0 ? `${hours}:${body}` : body;
+  }
+
+  function precisionContext() {
+    const total = state.duration > 0 ? state.duration : TOTAL_SECONDS;
+    const current = total * state.progress / 100;
+    const fps = Number(state.streamInfo && state.streamInfo.frameRate) || 0;
+    const totalFrames = fps > 0 ? Math.round(total * fps) : 0;
+    const currentFrame = fps > 0 ? Math.min(totalFrames, Math.round(current * fps)) : 0;
+    return { total, current, fps, totalFrames, currentFrame };
+  }
+
+  function updatePrecisionReadout(currentOverride) {
+    const context = precisionContext();
+    const current = Number.isFinite(currentOverride) ? currentOverride : context.current;
+    if (pcTime) pcTime.textContent = `${formatTimeMs(current)} / ${formatTime(context.total)}`;
+    if (pcFrames) {
+      pcFrames.textContent = context.fps > 0
+        ? `帧 ${currentOverride !== undefined ? Math.min(context.totalFrames, Math.round(current * context.fps)) : context.currentFrame} / ${context.totalFrames}`
+        : '帧 —';
+    }
+    if (frameBack) frameBack.disabled = context.fps <= 0;
+    if (frameForward) frameForward.disabled = context.fps <= 0;
+  }
+
+  function syncPrecisionBuffer() {
+    if (!progressBuffer) return;
+    const total = state.duration > 0 ? state.duration : (Number(realVideo.duration) || 0);
+    if (!total || !realVideo.buffered || !realVideo.buffered.length) {
+      progressBuffer.style.width = '0%';
+      return;
+    }
+    let end = 0;
+    for (let index = 0; index < realVideo.buffered.length; index += 1) {
+      end = Math.max(end, realVideo.buffered.end(index));
+    }
+    progressBuffer.style.width = `${Math.min(100, (end / total) * 100)}%`;
+  }
+
   function setProgress(percent, seek) {
+    if (precisionDrag && !seek) return;
     state.progress = Math.min(100, Math.max(0, percent));
     progressPlayed.style.width = `${state.progress}%`;
     progressThumb.style.left = `${state.progress}%`;
     pdProgress.style.width = `${state.progress}%`;
-    const total = state.duration > 0 ? state.duration : TOTAL_SECONDS;
-    const current = total * state.progress / 100;
-    pcTime.textContent = `${formatTime(current)} / ${formatTime(total)}`;
+    updatePrecisionReadout();
+    syncPrecisionBuffer();
     if (seek && window.O11A1Media && typeof window.O11A1Media.seek === 'function') {
       window.O11A1Media.seek(state.progress);
     }
+  }
+
+  function openPlayerSettings() {
+    if (!playerSettings || playerSettingsOpen || !state.playerOpen) return;
+    playerSettingsOpen = true;
+    clearTimeout(hideTimer);
+    playerSettings.inert = false;
+    playerSettings.setAttribute('aria-hidden', 'false');
+    playerSettings.classList.add('open');
+    player.classList.add('settings-open');
+    playerSettingsCard.style.transition = '';
+    playerSettingsCard.style.transform = '';
+    playerSettingsScrim.style.opacity = '';
+    playerControls.classList.add('hidden');
+    player.classList.add('ui-hidden');
+  }
+
+  function closePlayerSettings(options = {}) {
+    if (!playerSettingsOpen) return;
+    playerSettingsOpen = false;
+    settingsDrawGesture = null;
+    playerSettingsCard.classList.remove('dragging');
+    playerSettingsCard.style.transition = options.instant ? 'none' : '';
+    playerSettingsCard.style.transform = '';
+    playerSettingsScrim.style.opacity = '';
+    playerSettings.classList.remove('open');
+    playerSettings.setAttribute('aria-hidden', 'true');
+    playerSettings.inert = true;
+    player.classList.remove('settings-open');
+    if (options.instant) {
+      playerSettingsCard.style.transition = '';
+    } else if (state.playerOpen) {
+      showControls();
+    }
+  }
+
+  function startSettingsDraw(event) {
+    if (!playerSettingsOpen) return;
+    if (event.button !== undefined && event.button !== 0) return;
+    settingsDrawGesture = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      dy: 0,
+    };
+    settingsSuppressClick = false;
+  }
+
+  function moveSettingsDraw(event) {
+    const gesture = settingsDrawGesture;
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    const dx = event.clientX - gesture.startX;
+    const dy = event.clientY - gesture.startY;
+    const dir = state.playerLandscapeDir;
+    const localY = state.playerLandscape ? -dx * dir : dy;
+    if (!gesture.moved) {
+      if (Math.hypot(dx, dy) < 8) return;
+      if (localY <= 0) return;
+      gesture.moved = true;
+      settingsSuppressClick = true;
+      playerSettingsCard.classList.add('dragging');
+    }
+    if (event.cancelable) event.preventDefault();
+    gesture.dy = Math.max(0, localY);
+    playerSettingsCard.style.transition = 'none';
+    playerSettingsCard.style.transform = `translate3d(0,${gesture.dy}px,0)`;
+    playerSettingsScrim.style.opacity = String(1 - Math.min(0.55, gesture.dy / 720) * 0.55);
+  }
+
+  function endSettingsDraw(event) {
+    const gesture = settingsDrawGesture;
+    if (!gesture) return;
+    settingsDrawGesture = null;
+    if (event && event.pointerId !== undefined && event.pointerId !== gesture.pointerId) return;
+    playerSettingsCard.classList.remove('dragging');
+    playerSettingsCard.style.transition = '';
+    playerSettingsScrim.style.opacity = '';
+    if (!gesture.moved) return;
+    if (gesture.dy > 64) {
+      closePlayerSettings();
+    } else {
+      playerSettingsCard.style.transform = '';
+    }
+    setTimeout(() => {
+      if (!settingsDrawGesture) settingsSuppressClick = false;
+    }, 260);
+  }
+
+  function seekFrames(delta) {
+    const context = precisionContext();
+    if (!context.fps || !context.total) return;
+    const target = Math.max(0, Math.min(context.total, context.current + delta / context.fps));
+    setProgress(target / context.total * 100, true);
+    updatePrecisionReadout(target);
+    showControls();
+  }
+
+  function precisionPercentFor(event) {
+    const rect = progressBar.getBoundingClientRect();
+    return Math.min(100, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width) * 100));
+  }
+
+  function previewPrecision(percent) {
+    const total = state.duration > 0 ? state.duration : TOTAL_SECONDS;
+    const seconds = total * percent / 100;
+    progressPlayed.style.width = `${percent}%`;
+    progressThumb.style.left = `${percent}%`;
+    updatePrecisionReadout(seconds);
+    seekBubble.textContent = formatTimeMs(seconds);
+    seekBubble.style.left = `${percent}%`;
+    seekBubble.classList.add('show');
+    syncPrecisionBuffer();
+  }
+
+  function startPrecisionDrag(event) {
+    if (!state.playerOpen) return;
+    if (event.button !== undefined && event.button !== 0) return;
+    const percent = precisionPercentFor(event);
+    precisionDrag = { pointerId: event.pointerId, percent };
+    progressBar.classList.add('dragging');
+    previewPrecision(percent);
+    if (event.cancelable) event.preventDefault();
+  }
+
+  function movePrecisionDrag(event) {
+    if (!precisionDrag || event.pointerId !== precisionDrag.pointerId) return;
+    precisionDrag.percent = precisionPercentFor(event);
+    previewPrecision(precisionDrag.percent);
+    if (event.cancelable) event.preventDefault();
+  }
+
+  function endPrecisionDrag(event) {
+    if (!precisionDrag || (event && event.pointerId !== undefined && event.pointerId !== precisionDrag.pointerId)) return;
+    const percent = precisionDrag.percent;
+    precisionDrag = null;
+    progressBar.classList.remove('dragging');
+    seekBubble.classList.remove('show');
+    setProgress(percent, true);
+    showControls();
   }
 
   function showControls() {
@@ -2467,6 +2669,7 @@
     const origin = pendingPlayerOrigin;
     pendingPlayerOrigin = null;
     const wasOpen = state.playerOpen;
+    closePlayerSettings({ instant: true });
     cancelPlayerOpenExpansion();
     cancelPlayerCollapse();
     if (videoDetailOpen) closeVideoDetail({ silent: true });
@@ -2550,6 +2753,7 @@
 
   function minimizePlayer(fromY = 0, fromScale = 1) {
     if (!state.playerOpen) return;
+    closePlayerSettings({ instant: true });
     const dragRadius = Math.min(28, Math.max(0, parseFloat(player.style.borderRadius) || 0));
     cancelPlayerOpenExpansion();
     cancelPlayerCollapse();
@@ -2699,6 +2903,7 @@
   }
 
   function stopPlayback() {
+    closePlayerSettings({ instant: true });
     cancelPlayerOpenExpansion();
     cancelPlayerCollapse();
     resetVideoDetail();
@@ -2867,12 +3072,14 @@
       document.exitFullscreen().catch(() => {});
       pcFullscreen.classList.remove('on');
       pcFullscreen.title = '全屏';
+      if (pcFullscreenValue) pcFullscreenValue.textContent = '画面';
       return;
     }
     if (document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().then(() => {
         pcFullscreen.classList.add('on');
         pcFullscreen.title = '退出全屏';
+        if (pcFullscreenValue) pcFullscreenValue.textContent = '退出';
       }).catch(() => {});
     }
   }
@@ -3156,7 +3363,7 @@
   function startStageGesture(event) {
     if (!state.playerOpen || state.locked) return;
     if (event.button !== undefined && event.button !== 0) return;
-    if (event.target.closest('.player-controls, .player-top, .lock-badge, button, input, textarea')) return;
+    if (event.target.closest('.player-controls, .lock-badge, button, input, textarea')) return;
     if (commentsPanel.classList.contains('open') || videoDetailOpen) return;
     clearTimeout(hideTimer);
     clearTimeout(stageTapTimer);
@@ -3173,6 +3380,7 @@
       longPressTimer: null,
       collapseY: 0,
       horizontal: 0,
+      settingsY: 0,
       lastDy: 0,
     };
     if (zone !== 'middle' && state.settings.longPressRate) {
@@ -3212,6 +3420,7 @@
         gesture.mode = 'horizontal';
       } else if (gesture.zone === 'middle') {
         if (localY > 0 && state.settings.middleCollapse) gesture.mode = 'collapse';
+        else if (localY < 0) gesture.mode = 'settings';
         else {
           gesture.mode = 'none';
           return;
@@ -3221,7 +3430,9 @@
       }
     }
 
-    if (gesture.mode === 'collapse') {
+    if (gesture.mode === 'settings') {
+      gesture.settingsY = Math.min(gesture.settingsY || 0, localY);
+    } else if (gesture.mode === 'collapse') {
       const dragY = Math.max(0, localY);
       gesture.collapseY = dragY;
       const scale = 1 - Math.min(0.05, dragY / 3000);
@@ -3334,6 +3545,9 @@
           player.style.borderRadius = '';
         }
       }, 260);
+    } else if (gesture.mode === 'settings') {
+      if ((gesture.settingsY || 0) < -36) openPlayerSettings();
+      else showControls();
     } else if (gesture.mode === 'horizontal') {
       if (gesture.horizontal > 70) {
         cancelCommentsPeek();
@@ -4168,9 +4382,6 @@
   });
 
   /* player */
-  $('#playerBack').addEventListener('click', minimizePlayer);
-  $('#playerQueue').addEventListener('click', openPlaylistPage);
-  $('#playerMore').addEventListener('click', openPlayerMoreSheet);
   pcDanmaku.addEventListener('click', () => {
     state.settings.danmaku = !state.settings.danmaku;
     updatePlayerLabels();
@@ -4194,6 +4405,41 @@
   });
   pcFullscreen.addEventListener('click', toggleFullscreen);
   lockBadge.addEventListener('click', unlockPlayer);
+
+  if (psPlaylist) {
+    psPlaylist.addEventListener('click', () => {
+      closePlayerSettings();
+      openPlaylistPage();
+    });
+  }
+  if (playerSettingsScrim) {
+    playerSettingsScrim.addEventListener('click', () => closePlayerSettings());
+  }
+  if (playerSettingsCard) {
+    playerSettingsCard.addEventListener('pointerdown', startSettingsDraw);
+  }
+  window.addEventListener('pointermove', moveSettingsDraw);
+  window.addEventListener('pointerup', endSettingsDraw);
+  window.addEventListener('pointercancel', endSettingsDraw);
+  if (playerSettings) {
+    playerSettings.addEventListener('click', (event) => {
+      if (!settingsSuppressClick) return;
+      event.preventDefault();
+      event.stopPropagation();
+      settingsSuppressClick = false;
+    }, true);
+  }
+  if (progressBar) {
+    progressBar.addEventListener('pointerdown', startPrecisionDrag);
+    window.addEventListener('pointermove', movePrecisionDrag);
+    window.addEventListener('pointerup', endPrecisionDrag);
+    window.addEventListener('pointercancel', endPrecisionDrag);
+  }
+  if (frameBack) frameBack.addEventListener('click', () => seekFrames(-1));
+  if (frameForward) frameForward.addEventListener('click', () => seekFrames(1));
+  realVideo.addEventListener('progress', syncPrecisionBuffer);
+  realVideo.addEventListener('loadedmetadata', syncPrecisionBuffer);
+  realVideo.addEventListener('durationchange', syncPrecisionBuffer);
 
   playerControls.addEventListener('pointerdown', (event) => {
     if (event.target.closest('button, input, .progress-ph')) return;
@@ -4785,11 +5031,6 @@
   player.addEventListener('input', () => {
     if (state.playerOpen) scheduleHide();
   });
-  playerTop.addEventListener('click', (event) => {
-    if (!state.playerOpen) return;
-    if (event.target.closest('button')) return;
-    showControls();
-  });
 
   commentsPanel.addEventListener('pointerdown', startCommentsGesture);
   if (videoDetailPanel) {
@@ -4809,13 +5050,6 @@
   window.addEventListener('pointerup', endCommentsGesture);
   window.addEventListener('pointercancel', endCommentsGesture);
 
-  progressBar.addEventListener('click', (event) => {
-    const rect = progressBar.getBoundingClientRect();
-    const percent = (event.clientX - rect.left) / rect.width * 100;
-    setProgress(percent, true);
-    showControls();
-  });
-
   psheetBackdrop.addEventListener('click', closeSheet);
   psheetClose.addEventListener('click', closeSheet);
 
@@ -4823,6 +5057,7 @@
     const on = Boolean(document.fullscreenElement);
     pcFullscreen.classList.toggle('on', on);
     pcFullscreen.title = on ? '退出全屏' : '全屏';
+    if (pcFullscreenValue) pcFullscreenValue.textContent = on ? '退出' : '画面';
   });
 
   /* keyboard */
@@ -5031,7 +5266,19 @@
 
     await sleep(140);
     dispatchSwipe('middle', 0, -150);
+    await sleep(450);
     results.push(`noRotate=${state.playerLandscape === false}`);
+    const settingsOpened = playerSettingsOpen;
+    const settingsRect = playerSettingsCard.getBoundingClientRect();
+    const settingsX = settingsRect.left + settingsRect.width * 0.5;
+    const settingsY = settingsRect.top + 30;
+    playerSettingsCard.dispatchEvent(pointerEvent('pointerdown', settingsX, settingsY, 1));
+    for (let step = 1; step <= 6; step += 1) {
+      window.dispatchEvent(pointerEvent('pointermove', settingsX, settingsY + (110 * step) / 6, 1));
+    }
+    window.dispatchEvent(pointerEvent('pointerup', settingsX, settingsY + 110, 0));
+    await sleep(500);
+    results.push(`settings=${settingsOpened && !playerSettingsOpen}`);
 
     await sleep(180);
     dispatchSwipe('middle', 0, 190);

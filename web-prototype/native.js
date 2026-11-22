@@ -1636,6 +1636,7 @@
       audioBitrate: Number(audioTrack.bandwidth) || 0,
       sourceWidth: Number(videoTrack.width) || 0,
       sourceHeight: Number(videoTrack.height) || 0,
+      frameRate: Number(videoTrack.frameRate) || 0,
       netBps: 0,
       netAt: 0,
       direct: true,
@@ -1704,7 +1705,7 @@
   }
 
   function loadVideo(item, autoplay, allowDash = true) {
-    state.streamInfo = { videoBitrate: 0, audioBitrate: 0, sourceWidth: 0, sourceHeight: 0, netBps: 0, netAt: 0, direct: false };
+    state.streamInfo = { videoBitrate: 0, audioBitrate: 0, sourceWidth: 0, sourceHeight: 0, frameRate: 0, netBps: 0, netAt: 0, direct: false };
     resetNetMeter();
     if (!item) {
       clearVideo();
