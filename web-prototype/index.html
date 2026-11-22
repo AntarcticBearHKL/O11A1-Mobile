@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=127">
+  <link rel="stylesheet" href="./styles.css?v=128">
 </head>
 <body data-platform="ios">
-  <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
+  <button class="proto-fab" id="protoFab" title="原型工具"><span>�?/span> PROTO</button>
 
   <main class="stage">
     <div class="app" id="app" data-page="home">
       <div class="app-main" id="appMain">
-      <div class="statusbar"><span>9:41</span><span class="status-icons">5G ▮▮▮ ▰</span></div>
+      <div class="statusbar"><span>9:41</span><span class="status-icons">5G ▮▮�?�?/span></div>
       <div class="top-glass" aria-hidden="true"></div>
       <div class="feed-debug" id="feedDebug" aria-hidden="true">
         <span class="fd-dot"></span>
@@ -22,7 +22,7 @@
         <span id="feedDebugFps">59.9 fps</span>
       </div>
       <div class="app-scroll" id="appScroll">
-        <!-- 首页：单列，每行一个视频 -->
+        <!-- 首页：单列，每行一个视�?-->
         <section class="page active" data-page="home">
                     <div class="feed" id="homeFeed">
             <div class="feed-item feed-skeleton" data-skeleton-page="1" aria-hidden="true"><span class="video-row skel-row"><span class="row-thumb skel-thumb"></span><span class="row-copy"><span class="ph-line w80"></span><span class="ph-line w55"></span><span class="ph-line w30"></span></span></span></div>
@@ -34,15 +34,15 @@
             <div class="feed-item feed-skeleton" data-skeleton-page="1" aria-hidden="true"><span class="video-row skel-row"><span class="row-thumb skel-thumb"></span><span class="row-copy"><span class="ph-line w80"></span><span class="ph-line w55"></span><span class="ph-line w30"></span></span></span></div>
             <div class="feed-item feed-skeleton" data-skeleton-page="1" aria-hidden="true"><span class="video-row skel-row"><span class="row-thumb skel-thumb"></span><span class="row-copy"><span class="ph-line w80"></span><span class="ph-line w55"></span><span class="ph-line w30"></span></span></span></div>
           </div>
-          <div class="list-note" id="homeNote">推荐模块占位 · 单列 · 触底加载 · 保留最近两段</div>
+          <div class="list-note" id="homeNote">推荐模块占位 · 单列 · 触底加载 · 保留最近两�?/div>
         </section>
 
-        <!-- 搜索入口：热门搜索 / 联想 -->
+        <!-- 搜索入口：热门搜�?/ 联想 -->
         <section class="page search-home" data-page="search-home">
           <div class="search-home-head">
-            <button class="back" id="searchClose" type="button" title="返回">‹</button>
+            <button class="back" id="searchClose" type="button" title="返回">�?/button>
             <label class="search-field" id="searchField">
-              <span>⌕</span>
+              <span>�?/span>
               <input id="searchInput" placeholder="搜索视频 / UP / 番剧" autocomplete="off">
               <button class="search-clear" id="searchClear" type="button" aria-label="清空搜索" hidden>×</button>
             </label>
@@ -57,11 +57,11 @@
           </div>
         </section>
 
-        <!-- 视频流点击直接进播放器，没有中间详情页 -->
-        <!-- 动态 -->
+        <!-- 视频流点击直接进播放器，没有中间详情�?-->
+        <!-- 动�?-->
         <section class="page" data-page="dynamic">
           <div class="page-filter-row">
-            <button class="filter-btn" id="dynamicFilter" data-index="0">全部 ⌄</button>
+            <button class="filter-btn" id="dynamicFilter" data-index="0">全部 �?/button>
           </div>
           <div class="dynamic-feed" id="dynamicFeed"></div>
           <div class="native-empty" id="dynamicEmpty" hidden></div>
@@ -70,7 +70,7 @@
         <!-- 消息 -->
         <section class="page" data-page="messages">
           <div class="page-filter-row">
-            <button class="filter-btn" id="messageFilter" data-index="0">回复 ⌄</button>
+            <button class="filter-btn" id="messageFilter" data-index="0">回复 �?/button>
           </div>
           <div class="message-feed" id="messageFeed"></div>
           <div class="native-empty" id="messageEmpty" hidden></div>
@@ -84,38 +84,38 @@
             <span class="vip-ph">VIP 占位</span>
           </button>
           <div class="my-list">
-            <button class="my-row" data-module="收藏"><span>收藏</span><span class="my-meta">收藏夹 / 推荐</span></button>
+            <button class="my-row" data-module="收藏"><span>收藏</span><span class="my-meta">收藏�?/ 推荐</span></button>
             <button class="my-row" data-module="历史"><span>历史</span><span class="my-meta">继续观看</span></button>
-            <button class="my-row" data-module="关注"><span>关注</span><span class="my-meta">UP 动态</span></button>
+            <button class="my-row" data-module="关注"><span>关注</span><span class="my-meta">UP 动�?/span></button>
             <button class="my-row" data-module="养鱼" id="myFishRow"><span>养鱼 · AI 看片</span><span class="my-meta">实验</span></button>
             <button class="my-row" data-module="下载"><span>离线缓存</span><span class="my-meta">占位</span></button>
-            <button class="my-row" data-module="会员"><span>大会员</span><span class="my-meta">占位</span></button>
+            <button class="my-row" data-module="会员"><span>大会�?/span><span class="my-meta">占位</span></button>
             <button class="my-row" id="myModuleRow"><span>当前模块</span><span class="my-meta" id="myModuleName">推荐</span></button>
-            <button class="my-row" data-goto="modules"><span>主页模块</span><span class="my-meta">自定义</span></button>
-            <button class="my-row" data-goto="settings"><span>设置</span><span class="my-meta">›</span></button>
+            <button class="my-row" data-goto="modules"><span>主页模块</span><span class="my-meta">自定�?/span></button>
+            <button class="my-row" data-goto="settings"><span>设置</span><span class="my-meta">�?/span></button>
           </div>
         </section>
 
         <!-- 登录 gate：短信验证码 -->
         <section class="page" data-page="login">
-          <button class="back login-back" data-goto="my" title="返回">‹</button>
+          <button class="back login-back" data-goto="my" title="返回">�?/button>
           <div class="login-gate">
             <div class="login-sms-card">
-              <span class="login-sms-icon">✉</span>
-              <b>短信验证码登录</b>
-              <p>使用手机号 + B 站短信验证码登录。点击下方按钮打开 B 站官方短信登录页，登录成功后会自动同步 Cookie，不再使用二维码。</p>
+              <span class="login-sms-icon">�?/span>
+              <b>短信验证码登�?/b>
+              <p>使用手机�?+ B 站短信验证码登录。点击下方按钮打开 B 站官方短信登录页，登录成功后会自动同�?Cookie，不再使用二维码�?/p>
               <button class="pill-btn primary login-cta" type="button" id="loginSms">打开短信登录</button>
-              <div class="login-status" id="loginStatus">未登录</div>
-              <div class="login-note">登录后同步收藏 / 历史 / 大会员画质<br>不支持扫码登录</div>
+              <div class="login-status" id="loginStatus">未登�?/div>
+              <div class="login-note">登录后同步收�?/ 历史 / 大会员画�?br>不支持扫码登�?/div>
             </div>
-            <button class="login-test" type="button" id="loginCta">本地测试进入（不登录账号）</button>
+            <button class="login-test" type="button" id="loginCta">本地测试进入（不登录账号�?/button>
           </div>
         </section>
 
         <!-- 通用模块占位页：收藏 / 历史 / 下载 / 会员 / 番剧 / 直播 / 分区... -->
         <section class="page" data-page="module">
           <div class="page-filter-row">
-            <button class="filter-btn" id="moduleFilter" title="筛选">全部</button>
+            <button class="filter-btn" id="moduleFilter" title="筛�?>全部</button>
           </div>
           <div class="feed" id="moduleFeed">
             <button class="video-row" data-open-player><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w60"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w18"></i></span></span></button>
@@ -127,7 +127,7 @@
 
         <!-- 主页模块设置 -->
         <section class="page" data-page="modules">
-          <p class="page-desc">选择可以出现在首页的模块；在「我的 → 当前模块」里切换。长按拖动排序可后续接入。</p>
+          <p class="page-desc">选择可以出现在首页的模块；在「我�?�?当前模块」里切换。长按拖动排序可后续接入�?/p>
           <div class="module-count" id="moduleCount"></div>
           <div id="moduleSettings" class="module-settings"></div>
         </section>
@@ -135,7 +135,7 @@
         <!-- 设置 -->
         <section class="page" data-page="settings">
           <div class="settings-group">
-            <div class="section-label">播放与弹幕</div>
+            <div class="section-label">播放与弹�?/div>
             <div class="my-list">
               <button class="my-row" data-sheet="settings-playback"><span>播放</span><span class="my-meta">画质 / 插帧 / 增强</span></button>
               <button class="my-row" data-sheet="settings-danmaku"><span>弹幕</span><span class="my-meta">显示 / 字号 / 速度 / 屏蔽</span></button>
@@ -144,31 +144,31 @@
           </div>
 
           <div class="settings-group">
-            <div class="section-label">外观与交互</div>
+            <div class="section-label">外观与交�?/div>
             <div class="my-list">
-              <button class="my-row" data-sheet="settings-appearance"><span>外观</span><span class="my-meta">主题 / 透明度 / 模糊</span></button>
+              <button class="my-row" data-sheet="settings-appearance"><span>外观</span><span class="my-meta">主题 / 透明�?/ 模糊</span></button>
               <button class="my-row" data-sheet="settings-gesture"><span>手势</span><span class="my-meta">双击 / 长按 / 滑动</span></button>
-              <button class="my-row" data-sheet="settings-distraction"><span>防干扰</span><span class="my-meta">入口 / 热搜</span></button>
-              <button class="my-row" data-goto="modules"><span>主页模块</span><span class="my-meta">首页快速切换</span></button>
+              <button class="my-row" data-sheet="settings-distraction"><span>防干�?/span><span class="my-meta">入口 / 热搜</span></button>
+              <button class="my-row" data-goto="modules"><span>主页模块</span><span class="my-meta">首页快速切�?/span></button>
             </div>
           </div>
 
           <div class="settings-group">
-            <div class="section-label">账户与系统</div>
+            <div class="section-label">账户与系�?/div>
             <div class="my-list">
               <button class="my-row" data-sheet="settings-account"><span>账户</span><span class="my-meta">昵称 / UID / 登录</span></button>
-              <button class="my-row" data-sheet="settings-shortcuts"><span>快捷键</span><span class="my-meta">11 项播放器快捷键</span></button>
+              <button class="my-row" data-sheet="settings-shortcuts"><span>快捷�?/span><span class="my-meta">11 项播放器快捷�?/span></button>
               <button class="my-row" data-sheet="settings-system"><span>系统</span><span class="my-meta">自启 / 托盘 / 更新</span></button>
             </div>
           </div>
 
           <div class="settings-group">
-            <div class="section-label">内容与优化</div>
+            <div class="section-label">内容与优�?/div>
             <div class="my-list">
-              <button class="my-row" data-sheet="settings-block"><span>屏蔽</span><span class="my-meta">关键词 / 正则 / 用户</span></button>
-              <button class="my-row" data-sheet="settings-cloud"><span>智能云屏蔽</span><span class="my-meta">等级 / 同步</span></button>
+              <button class="my-row" data-sheet="settings-block"><span>屏蔽</span><span class="my-meta">关键�?/ 正则 / 用户</span></button>
+              <button class="my-row" data-sheet="settings-cloud"><span>智能云屏�?/span><span class="my-meta">等级 / 同步</span></button>
               <button class="my-row" data-sheet="settings-storage"><span>存储</span><span class="my-meta">缓存 / 清理</span></button>
-              <button class="my-row" data-sheet="settings-optimize"><span>优化</span><span class="my-meta">预加载 / 性能</span></button>
+              <button class="my-row" data-sheet="settings-optimize"><span>优化</span><span class="my-meta">预加�?/ 性能</span></button>
               <button class="my-row" data-sheet="settings-about"><span>关于 O11A1</span><span class="my-meta">版本 / 构建</span></button>
             </div>
           </div>
@@ -178,21 +178,21 @@
         <section class="page playlist-page" data-page="playlist">
           <div class="playlist-grab" id="playlistGrab" aria-hidden="true"></div>
           <div class="playlist-page-top">
-            <button class="back" id="playlistBack" type="button" title="返回">‹</button>
+            <button class="back" id="playlistBack" type="button" title="返回">�?/button>
             <b class="playlist-page-title">播放列表</b>
-            <span class="playlist-page-count" id="playlistPageCount">0 项</span>
+            <span class="playlist-page-count" id="playlistPageCount">0 �?/span>
           </div>
           <div class="playlist-page-list" id="playlistPageList"></div>
         </section>
 
-        <!-- 底部导航：全量预览 / 自选 5 个 -->
+        <!-- 底部导航：全量预�?/ 自�?5 �?-->
         <section class="page" data-page="nav">
           <div class="page-top">
-            <button class="back" data-goto="settings">‹</button>
+            <button class="back" data-goto="settings">�?/button>
             <b>底部导航</b>
             <span class="my-meta" id="navCount">5 / 5</span>
           </div>
-          <p class="page-desc">只选 5 个页面按钮；播放列表 / 队列固定在底栏播放行，不占名额。全量预览显示桌面端全部按钮；关掉后只显示下面勾选的 5 个。选择顺序就是底部顺序。</p>
+          <p class="page-desc">只�?5 个页面按钮；播放列表 / 队列固定在底栏播放行，不占名额。全量预览显示桌面端全部按钮；关掉后只显示下面勾选的 5 个。选择顺序就是底部顺序�?/p>
           <div class="nav-mode-row">
             <span>全量预览</span>
             <button class="sheet-switch" id="navAllToggle" type="button" aria-label="全量预览"></button>
@@ -216,14 +216,14 @@
           <button class="video-row" data-open-player><span class="row-thumb alt3"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w90"></i><i class="ph-line w55"></i></span><span class="row-meta"><i class="ph-line w30"></i><i class="ph-line w22"></i></span></span></button>
           <button class="video-row" data-open-player><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w75"></i><i class="ph-line w45"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w20"></i></span></span></button>
         </div>
-        <div class="search-empty" id="searchEmpty" hidden>没有找到视频 · 换个关键词试试</div>
+        <div class="search-empty" id="searchEmpty" hidden>没有找到视频 · 换个关键词试�?/div>
       </section>
       <div class="playlist-dock" id="playlistDock" role="button" tabindex="0" aria-hidden="true" inert>
         <div class="pd-head">
           <div class="pd-collapsed" id="pdCollapsed">
             <span class="pd-now" id="pdNow">正在播放</span>
             <b id="pdTitle">播放列表</b>
-            <small id="pdMeta">0 项</small>
+            <small id="pdMeta">0 �?/small>
           </div>
           <div class="pd-tools" id="pdTools" aria-hidden="true">
             <button class="pd-mode" id="pdMode" type="button" aria-label="切换播放模式">
@@ -236,8 +236,8 @@
           <button class="pd-search" id="pdSearch" type="button" aria-label="搜索">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
           </button>
-          <button class="pd-search-back" id="pdSearchBack" type="button" aria-label="返回">‹</button>
-          <input class="pd-search-input" id="pdSearchInput" type="text" placeholder="搜索视频 / UP / 关键词" autocomplete="off" enterkeyhint="search">
+          <button class="pd-search-back" id="pdSearchBack" type="button" aria-label="返回">�?/button>
+          <input class="pd-search-input" id="pdSearchInput" type="text" placeholder="搜索视频 / UP / 关键�? autocomplete="off" enterkeyhint="search">
         </div>
         <div class="pd-search-panel" id="dockSearchPanel">
           <div class="search-section" id="dockSearchHot">
@@ -260,7 +260,7 @@
       <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
       <aside class="sidebar" id="sidebar" aria-hidden="true" inert>
         <div class="sidebar-inner">
-          <nav class="sidebar-nav" id="sidebarNav" aria-label="主导航"></nav>
+          <nav class="sidebar-nav" id="sidebarNav" aria-label="主导�?></nav>
           <div class="sidebar-foot" id="sidebarFoot"></div>
         </div>
       </aside>
@@ -269,7 +269,7 @@
     </div>
   </main>
 
-  <!-- 原型工具抽屉：不属于 App，默认隐藏 -->
+  <!-- 原型工具抽屉：不属于 App，默认隐�?-->
   <div class="proto-backdrop" id="protoBackdrop"></div>
   <aside class="proto-drawer" id="protoDrawer" aria-hidden="true" inert>
     <div class="drawer-head"><b>PROTO</b><button class="drawer-close" id="protoClose">×</button></div>
@@ -285,13 +285,13 @@
       <button class="drawer-toggle" id="bgBtn">背景纹理</button>
       <button class="drawer-toggle" id="motionBtn">动效</button>
     </div>
-    <button class="drawer-primary" id="landscapeBtn">打开播放器</button>
-    <button class="drawer-toggle" id="resetBtn" style="width:100%;margin-top:8px">重置原型状态</button>
+    <button class="drawer-primary" id="landscapeBtn">打开播放�?/button>
+    <button class="drawer-toggle" id="resetBtn" style="width:100%;margin-top:8px">重置原型状�?/button>
     <div class="drawer-label">PAGES</div>
     <div class="drawer-pages">
       <button data-goto="home">首页</button>
       <button data-queue>播放列表</button>
-      <button data-goto="dynamic">动态</button>
+      <button data-goto="dynamic">动�?/button>
       <button data-goto="messages">消息</button>
       <button data-goto="my">我的</button>
       <button data-goto="login">登录</button>
@@ -304,21 +304,21 @@
       <div><span>内容边距</span><b>18</b></div>
       <div><span>行高</span><b>56 / 108</b></div>
       <div><span>封面</span><b>150 × 84</b></div>
-      <div><span>Sidebar</span><b>左滑出 / 右滑开</b></div>
+      <div><span>Sidebar</span><b>左滑�?/ 右滑开</b></div>
       <div><span>Session</span><b>全部入口</b></div>
       <div><span>Sheet</span><b>26 顶部圆角</b></div>
-      <div><span>播放器</span><b>三区手势 + 横屏</b></div>
+      <div><span>播放�?/span><b>三区手势 + 横屏</b></div>
       <div><span>主页</span><b>竖屏 / 横屏</b></div>
     </div>
     <div class="drawer-label">PLAYER GESTURES</div>
     <div class="drawer-tokens">
-      <div><span>中间 ↓</span><b>收起</b></div>
+      <div><span>中间 �?/span><b>收起</b></div>
       <div><span>中间双击</span><b>播放 / 暂停</b></div>
       <div><span>陀螺仪</span><b>自动横屏</b></div>
       <div><span>左滑</span><b>全屏评论</b></div>
-      <div><span>左 / 右 长按</span><b>减速 / 加速</b></div>
+      <div><span>�?/ �?长按</span><b>减�?/ 加�?/b></div>
     </div>
-    <p class="drawer-note">全部内容为占位；视频区域不加载媒体。iOS / Android 只切换玻璃材质，布局完全一致。</p>
+    <p class="drawer-note">全部内容为占位；视频区域不加载媒体。iOS / Android 只切换玻璃材质，布局完全一致�?/p>
   </aside>
 
   <!-- 横屏空播放器 -->
@@ -330,16 +330,16 @@
         <div class="player-video" id="playerVideo">
           <canvas class="ambient-canvas" id="ambientCanvas" aria-hidden="true"></canvas>
           <video class="real-video" id="realVideo" playsinline webkit-playsinline preload="metadata" crossorigin="anonymous"></video>
-          <div class="real-video-status" id="realVideoStatus">加载中…</div>
+          <div class="real-video-status" id="realVideoStatus">加载中�?/div>
           <div class="player-boot" id="playerBoot" aria-hidden="true">
             <span class="player-boot-ring" aria-hidden="true"></span>
-            <b id="playerBootText">正在打开视频…</b>
+            <b id="playerBootText">正在打开视频�?/b>
           </div>
           <div class="live-dm-badge" id="liveDmBadge" hidden>直播弹幕</div>
           <canvas class="post-canvas" id="postCanvas" hidden></canvas>
           <pre class="video-debug" id="videoDebug" aria-hidden="true"></pre>
           <span class="ph-label">视频占位 · 无播放源</span>
-          <span class="play-big light">▶</span>
+          <span class="play-big light">�?/span>
           <span class="video-hint">空播放器</span>
 
           <div class="player-controls" id="playerControls">
@@ -352,17 +352,17 @@
             <span class="seek-bubble" id="seekBubble">00:00.000</span>
           </div>
           <div class="seek-ripple" id="seekRipple">+10s</div>
-          <div class="lock-badge" id="lockBadge">已锁定 · 点击解锁</div>
+          <div class="lock-badge" id="lockBadge">已锁�?· 点击解锁</div>
 
           <div class="rate-hud" id="rateHud">
             <b id="rateValue">2.0×</b>
-            <small id="rateLabel">快放中 · 松开恢复</small>
+            <small id="rateLabel">快放�?· 松开恢复</small>
           </div>
           <div class="player-notice" id="playerNotice" role="status" aria-live="polite">
             <b id="playerNoticeTitle"></b>
             <small id="playerNoticeText"></small>
           </div>
-          <div class="swipe-hint" id="swipeHint">‹ 松开查看评论</div>
+          <div class="swipe-hint" id="swipeHint">�?松开查看评论</div>
         </div>
       </div>
     </div>
@@ -414,8 +414,8 @@
           </div>
         </div>
         <div class="comments-sort-dock" id="commentsSort" role="tablist" aria-label="评论排序">
-          <button class="comments-sort" type="button" role="tab" aria-selected="false" data-comment-sort="0">最新</button>
-          <button class="comments-sort on" type="button" role="tab" aria-selected="true" data-comment-sort="2">最热</button>
+          <button class="comments-sort" type="button" role="tab" aria-selected="false" data-comment-sort="0">最�?/button>
+          <button class="comments-sort on" type="button" role="tab" aria-selected="true" data-comment-sort="2">最�?/button>
         </div>
       </div>
     </div>
@@ -445,23 +445,23 @@
     </div>
   </div>
 
-  <!-- UP 主主页：从右侧滑入，覆盖播放器 -->
+  <!-- UP 主主页：从右侧滑入，覆盖播放�?-->
   <section class="page up-page" data-page="up">
     <div class="up-scroll" id="upScroll">
       <div class="feed" id="upFeed"></div>
-      <div class="list-note" id="upNote">UP 主视频</div>
+      <div class="list-note" id="upNote">UP 主视�?/div>
     </div>
     <footer class="up-bottom">
       <div class="up-sort" id="upSort" role="tablist" aria-label="投稿排序">
-        <button class="up-sort-btn on" type="button" role="tab" aria-selected="true" data-up-sort="pubdate">新发布</button>
-        <button class="up-sort-btn" type="button" role="tab" aria-selected="false" data-up-sort="click">播放量</button>
+        <button class="up-sort-btn on" type="button" role="tab" aria-selected="true" data-up-sort="pubdate">新发�?/button>
+        <button class="up-sort-btn" type="button" role="tab" aria-selected="false" data-up-sort="click">播放�?/button>
       </div>
       <div class="up-info-card">
         <div class="up-title-row">
           <span class="up-avatar" id="upAvatar"></span>
           <div class="up-copy">
-            <b id="upName">UP 主</b>
-            <small id="upMid">UID —</small>
+            <b id="upName">UP �?/b>
+            <small id="upMid">UID �?/small>
           </div>
           <button class="pill-btn up-follow" id="upFollow" type="button">关注</button>
         </div>
@@ -478,8 +478,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=127"></script>
-  <script src="./app.js?v=127"></script>
-  <script src="./native.js?v=127"></script>
+  <script src="./vendor/hls.min.js?v=128"></script>
+  <script src="./app.js?v=128"></script>
+  <script src="./native.js?v=128"></script>
 </body>
 </html>
