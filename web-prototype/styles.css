@@ -1226,6 +1226,7 @@ body.grid .grid-overlay{display:block}
 .player-settings-note{margin:10px 0 0;text-align:center;font-size:8.5px;color:rgba(255,255,255,.28);letter-spacing:.03em}
 .player.landscape .player-settings-card{max-height:94%;padding-bottom:10px}
 .player.landscape .player-settings-note{display:none}
+.player.landscape .player-rotor > .psheet{max-height:76%}
 .seek-ripple{
   position:absolute;top:46%;left:50%;z-index:7;pointer-events:none;
   transform:translate(-50%,-50%) scale(.9);

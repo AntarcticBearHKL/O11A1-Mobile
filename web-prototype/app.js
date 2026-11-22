@@ -10,6 +10,7 @@
   const player = $('#player');
   const playerPauseRing = $('#playerPauseRing');
   const playerStage = $('#playerStage');
+  const playerRotor = $('#playerRotor');
   const playerControls = $('#playerControls');
   const playerTitle = $('#playerTitle');
   const playerSub = $('#playerSub');
@@ -3608,7 +3609,15 @@
   }
 
   /* ---------- sheets ---------- */
+  function mountPlayerSheet() {
+    if (!psheet || !psheetBackdrop) return;
+    const host = state.playerOpen && state.playerLandscape ? playerRotor : document.body;
+    if (psheetBackdrop.parentElement !== host) host.appendChild(psheetBackdrop);
+    if (psheet.parentElement !== host) host.appendChild(psheet);
+  }
+
   function openSheet(title, sub, build) {
+    mountPlayerSheet();
     psheet.dataset.kind = '';
     psheetTitle.textContent = title;
     psheetSub.textContent = sub || '';
