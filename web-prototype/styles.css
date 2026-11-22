@@ -1324,7 +1324,7 @@ body.grid .grid-overlay{display:block}
 .player-settings.open .player-settings-scrim{opacity:1}
 .player-settings-card{
   position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;
-  max-height:92%;padding:8px 16px calc(14px + env(safe-area-inset-bottom));
+  max-height:92%;padding:0 16px calc(14px + env(safe-area-inset-bottom));
   border:1px solid rgba(255,255,255,.16);border-radius:28px 28px 0 0;
   background:
     linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,.035) 24%,rgba(255,255,255,.015) 100%),
@@ -1336,26 +1336,29 @@ body.grid .grid-overlay{display:block}
 }
 .player-settings.open .player-settings-card{transform:none}
 .player-settings-card.dragging{transition:none}
-.player-settings-grab{
-  width:36px;height:4px;margin:2px auto 10px;border-radius:999px;
-  background:rgba(255,255,255,.3);box-shadow:0 1px 0 rgba(0,0,0,.2);flex:none;
+.player-settings-titlebar{
+  flex:none;height:46px;display:flex;align-items:center;justify-content:center;
+  border-bottom:1px solid rgba(255,255,255,.1);
+}
+.player-settings-titlebar b{
+  font-size:15px;font-weight:750;line-height:1;letter-spacing:.08em;
+  color:rgba(255,255,255,.92);
 }
 .player-settings-list{
-  display:flex;flex-direction:column;gap:8px;min-height:0;
+  display:flex;flex-direction:column;gap:0;min-height:0;
   overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;
-  padding-bottom:2px;
+  padding:2px 0;
 }
 .player-settings-list::-webkit-scrollbar{display:none}
 .player-settings .pc-row{
   display:flex;align-items:center;justify-content:space-between;gap:14px;
-  width:100%;min-height:50px;padding:0 15px;
-  border:1px solid rgba(255,255,255,.12);border-radius:14px;
-  background:rgba(255,255,255,.07);color:#fff;text-align:left;cursor:pointer;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.07);
-  transition:background .14s,border-color .14s,transform .1s;
+  width:100%;min-height:48px;padding:0 4px;
+  border:0;border-bottom:1px solid rgba(255,255,255,.1);border-radius:0;
+  background:none;color:#fff;text-align:left;cursor:pointer;
+  box-shadow:none;transition:opacity .12s ease;
 }
-.player-settings .pc-row:hover{background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.18)}
-.player-settings .pc-row:active{transform:scale(.985)}
+.player-settings .pc-row:active{opacity:.62}
+.player-settings-list > .pc-row:last-child{border-bottom:0}
 .player-settings .pc-row-label{
   min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:13px;font-weight:650;color:rgba(255,255,255,.92);line-height:1.2;
@@ -1364,18 +1367,18 @@ body.grid .grid-overlay{display:block}
   flex:none;max-width:58%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:11.5px;font-weight:600;color:rgba(255,255,255,.46);line-height:1.2;
 }
-.player-settings .pc-group{display:flex;flex-direction:column;gap:4px}
+.player-settings .pc-group{display:flex;flex-direction:column;gap:0}
 .player-settings .pc-panel{
-  display:none;flex-direction:column;gap:2px;padding:0 2px 2px 12px;
+  display:none;flex-direction:column;gap:0;padding:0 2px 6px 12px;
   color:rgba(255,255,255,.62);
 }
 .player-settings .pc-group.open .pc-panel{display:flex}
 .player-settings .pc-choice{
   display:flex;align-items:center;justify-content:space-between;gap:12px;
-  width:100%;min-height:36px;padding:0 10px;border:0;border-radius:8px;
+  width:100%;min-height:34px;padding:0 6px;border:0;border-radius:0;
   background:none;color:inherit;font-size:12px;font-weight:600;text-align:left;cursor:pointer;
 }
-.player-settings .pc-choice:hover{background:rgba(255,255,255,.06);color:#fff}
+.player-settings .pc-choice:active{opacity:.6}
 .player-settings .pc-choice.on{color:#8FBCFF}
 .player-settings .pc-choice.on::after{
   content:"";width:5px;height:5px;flex:none;border-radius:50%;background:var(--blue);
@@ -1395,7 +1398,13 @@ body.grid .grid-overlay{display:block}
 .player-settings .pc-panel-controls .sheet-slider input{height:18px}
 .player-settings .pc-panel-controls .sheet-slider output{width:36px;font-size:10px;color:rgba(255,255,255,.5)}
 .player-settings .pc-panel-controls .choice-row{flex-wrap:wrap;gap:6px;min-height:38px;padding:6px 2px}
-.player-settings .pc-panel-controls .choice-btn{height:26px;padding:0 8px;font-size:10px}
+.player-settings .pc-panel-controls .choice-btn{
+  height:26px;padding:0 6px;border:0;border-radius:0;background:none;
+  color:var(--muted);font-size:10px;box-shadow:none;
+}
+.player-settings .pc-panel-controls .choice-btn.on{
+  background:none;border:0;color:var(--blue);font-weight:700;box-shadow:none;
+}
 .player.landscape .player-settings-card{max-height:94%;padding-bottom:10px}
 .player.landscape .player-rotor > .psheet{max-height:76%}
 .seek-ripple{
@@ -1475,17 +1484,15 @@ body[data-theme="light"] .player-settings-card{
     linear-gradient(180deg,rgba(250,250,252,.9),rgba(242,244,249,.95));
   box-shadow:0 -24px 70px rgba(24,26,40,.24),inset 0 1px 0 rgba(255,255,255,.96),inset 0 0 80px rgba(255,255,255,.2);
 }
-body[data-theme="light"] .player-settings-grab{background:rgba(26,26,26,.24);box-shadow:0 1px 0 rgba(255,255,255,.8)}
+body[data-theme="light"] .player-settings-titlebar{border-bottom-color:rgba(0,0,0,.08)}
+body[data-theme="light"] .player-settings-titlebar b{color:rgba(26,26,26,.92)}
 body[data-theme="light"] .player-settings .pc-row{
-  border-color:rgba(0,0,0,.08);background:rgba(255,255,255,.58);color:#1A1A1A;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.9);
+  border-bottom-color:rgba(0,0,0,.08);background:none;color:#1A1A1A;box-shadow:none;
 }
-body[data-theme="light"] .player-settings .pc-row:hover{background:rgba(255,255,255,.82);border-color:rgba(0,0,0,.12)}
 body[data-theme="light"] .player-settings .pc-row-label{color:rgba(26,26,26,.9)}
 body[data-theme="light"] .player-settings .pc-row-value{color:rgba(26,26,26,.48)}
 body[data-theme="light"] .player-settings .pc-panel{color:rgba(26,26,26,.62)}
 body[data-theme="light"] .player-settings .pc-choice{color:rgba(26,26,26,.62)}
-body[data-theme="light"] .player-settings .pc-choice:hover{background:rgba(0,0,0,.04);color:#1A1A1A}
 body[data-theme="light"] .player-settings .pc-choice.on{color:#2F7CF6}
 body[data-theme="light"] .player-settings .pc-panel-controls .sheet-row,
 body[data-theme="light"] .player-settings .pc-panel-controls .sheet-slider{
