@@ -155,6 +155,7 @@
     { id: 'favorite', label: '收藏', icon: 'favorite', type: 'module', target: '收藏', group: '桌面端' },
     { id: 'fish', label: '养鱼', icon: 'fish', type: 'module', target: '养鱼', group: '桌面端' },
     { id: 'live', label: '直播', icon: 'live', type: 'module', target: '直播', group: '桌面端' },
+    { id: 'bangumi', label: '番剧', icon: 'bangumi', type: 'module', target: '番剧', group: '桌面端' },
     { id: 'follow', label: '关注', icon: 'follow', type: 'module', target: '关注', group: '桌面端' },
     { id: 'dynamic', label: '动态', icon: 'dynamic', type: 'page', target: 'dynamic', group: '桌面端' },
     { id: 'messages', label: '消息', icon: 'messages', type: 'page', target: 'messages', group: '桌面端' },
@@ -167,6 +168,7 @@
     favorite: '<path d="M6.5 3.5h11a1 1 0 0 1 1 1v16l-6.5-4-6.5 4v-16a1 1 0 0 1 1-1z"/>',
     fish: '<path d="M3.5 12c2.4-3.1 5.5-4.6 9.1-4.6 3.1 0 5.7 1.5 7.9 4.6-2.2 3.1-4.8 4.6-7.9 4.6-3.6 0-6.7-1.5-9.1-4.6z"/><path d="M3.5 12 1.5 8.7v6.6L3.5 12z"/><circle cx="15.8" cy="10.5" r="0.8" fill="currentColor" stroke="none"/>',
     live: '<rect x="3" y="4.5" width="18" height="12.5" rx="2"/><path d="m10 8 5 2.75L10 13.5z"/><path d="M8.5 21h7M12 17v4"/>',
+    bangumi: '<rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M7.5 4.5v15M16.5 4.5v15"/><path d="M3 9h4.5M3 14.5h4.5M16.5 9H21M16.5 14.5H21"/>',
     follow: '<circle cx="9" cy="8" r="3.8"/><path d="M2.5 21v-1.4A5.6 5.6 0 0 1 8.1 14h1.8a5.6 5.6 0 0 1 5.6 5.6V21"/><path d="M19 8.5v5M16.5 11h5"/>',
     dynamic: '<path d="M3 12h3.4l2.4-5.8 4.4 11.6 2.4-5.8H21"/>',
     messages: '<path d="M4 4.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4v-4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M8 9h8M8 12.5h5"/>',
@@ -676,7 +678,12 @@
 
   /* ---------- navigation ---------- */
   function navItemsVisible() {
-    return NAV_ITEMS.filter((item) => !(state.settings.hideFish && item.id === 'fish'));
+    return NAV_ITEMS.filter((item) => {
+      if (state.settings.hideFish && item.id === 'fish') return false;
+      if (state.settings.hideLive && item.id === 'live') return false;
+      if (state.settings.hideBangumi && item.id === 'bangumi') return false;
+      return true;
+    });
   }
 
   function visibleNavItems() {
@@ -1090,7 +1097,8 @@
       section.classList.toggle('active', section.dataset.page === page);
     });
     app.dataset.page = page;
-    app.classList.toggle('module-live', page === 'module' && state.moduleName === '直播');
+    app.classList.toggle('module-wide', page === 'module'
+      && (state.moduleName === '直播' || state.moduleName === '番剧' || state.moduleName === '影视'));
     document.body.classList.toggle('search-mode', page === 'search' || page === 'search-home');
     if (typeof updateDebugHud === 'function') updateDebugHud();
     if (page !== 'search-home' && document.activeElement === searchInput) {
@@ -4908,8 +4916,8 @@
         title: '防干扰',
         sub: '只保留自己需要的入口，首页会更干净',
         rows: [
-          { type: 'switch', label: '隐藏直播入口', key: 'hideLive' },
-          { type: 'switch', label: '隐藏番剧入口', key: 'hideBangumi' },
+          { type: 'switch', label: '隐藏直播入口', key: 'hideLive', onChange: applyHiddenEntries },
+          { type: 'switch', label: '隐藏番剧入口', key: 'hideBangumi', onChange: applyHiddenEntries },
           { type: 'switch', label: '隐藏养鱼入口', key: 'hideFish', onChange: applyHiddenEntries },
           { type: 'switch', label: '隐藏热搜', key: 'hideHotSearch' },
           { type: 'static', label: '应用范围', value: '首页 / 底栏 / 搜索' },

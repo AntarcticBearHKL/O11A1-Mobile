@@ -365,6 +365,10 @@
   }
 
   function metaMarkup(item, label) {
+    const season = item.seasonId || item.epId;
+    if (season && item.meta) {
+      return `<span class="real-meta season-meta"><span class="meta-owner"><span class="meta-owner-name">${esc(item.meta)}</span></span></span>`;
+    }
     const owner = item.owner || '';
     const fresh = item.live ? '直播中' : feedFreshness(item.pubdate);
     const color = item.live ? '#d97862' : feedFreshnessColor(item.pubdate);
@@ -393,7 +397,7 @@
       <span class="row-thumb real">
         ${pic ? `<img src="${attr(pic)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : ''}
         ${item.live ? '<span class="live-badge">LIVE</span>' : ''}
-        ${item.live ? '' : `<span class="dur-ph">${esc(item.duration || (item.seasonId ? '番剧' : '00:00'))}</span>`}
+        ${item.live ? '' : `<span class="dur-ph">${esc(item.duration || item.badge || (item.seasonId ? '番剧' : '00:00'))}</span>`}
         ${progress ? `<span class="row-progress"><span style="width:${progress}%"></span></span>` : ''}
       </span>
       <span class="row-copy">

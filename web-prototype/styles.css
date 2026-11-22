@@ -311,9 +311,9 @@ body[data-theme="dark"] .feed-skeleton::after{
 @keyframes feedSkelShimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
 .page[data-page="home"]{padding-top:0;padding-left:4px;padding-right:4px}
 .page[data-page="home"] .video-row{padding-left:0;padding-right:8px}
-.app.module-live .page[data-page="module"]{padding-left:4px;padding-right:4px}
-.app.module-live .page[data-page="module"] .page-filter-row{padding-left:14px;padding-right:14px}
-.app.module-live .page[data-page="module"] .video-row{padding-left:0;padding-right:8px}
+.app.module-wide .page[data-page="module"]{padding-left:4px;padding-right:4px}
+.app.module-wide .page[data-page="module"] .page-filter-row{padding-left:14px;padding-right:14px}
+.app.module-wide .page[data-page="module"] .video-row{padding-left:0;padding-right:8px}
 
 /* generic content skeletons for network-backed pages */
 .skeleton-line,
