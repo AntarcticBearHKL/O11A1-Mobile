@@ -282,7 +282,18 @@
           <button class="pd-search" id="pdSearch" type="button" aria-label="搜索">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
           </button>
+          <button class="pd-search-back" id="pdSearchBack" type="button" aria-label="返回">‹</button>
           <input class="pd-search-input" id="pdSearchInput" type="text" placeholder="搜索视频 / UP / 关键词" autocomplete="off" enterkeyhint="search">
+        </div>
+        <div class="pd-search-panel" id="dockSearchPanel">
+          <div class="search-section" id="dockSearchHot">
+            <div class="section-label">热门搜索</div>
+            <div class="search-chips" id="dockHotSearchList"></div>
+          </div>
+          <div class="search-section" id="dockSearchSuggest" hidden>
+            <div class="section-label">搜索建议</div>
+            <div class="search-suggest-list" id="dockSearchSuggestList"></div>
+          </div>
         </div>
         <div class="pd-body" id="dockPlaylistBody">
           <div class="pd-body-head"><b>播放列表</b><span id="dockPlaylistCount">0 项</span></div>

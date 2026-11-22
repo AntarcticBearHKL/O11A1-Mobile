@@ -96,6 +96,12 @@
   const pdProgress = $('#pdProgress');
   const pdSearch = $('#pdSearch');
   const pdSearchInput = $('#pdSearchInput');
+  const pdSearchBack = $('#pdSearchBack');
+  const dockSearchHot = $('#dockSearchHot');
+  const dockSearchSuggest = $('#dockSearchSuggest');
+  const dockHotSearchList = $('#dockHotSearchList');
+  const dockSearchSuggestList = $('#dockSearchSuggestList');
+  const searchResultsPage = $('.page[data-page="search"]');
   const dockPlaylistBody = $('#dockPlaylistBody');
   const dockPlaylistList = $('#dockPlaylistList');
   const dockPlaylistCount = $('#dockPlaylistCount');
@@ -650,6 +656,34 @@
       : 'home';
     resetSearchDrag();
     showPage(target, state.searchReturnNav || undefined);
+  }
+
+  function resetSearchResultsDrag() {
+    if (!searchResultsPage) return;
+    searchResultsPage.classList.remove('dragging');
+    searchResultsPage.style.transition = 'transform .32s cubic-bezier(.16,1,.3,1)';
+    searchResultsPage.style.transform = '';
+    searchResultsPage.style.boxShadow = '';
+    setTimeout(() => {
+      if (!searchResultsPage.classList.contains('dragging')) searchResultsPage.style.transition = '';
+    }, 340);
+  }
+
+  function closeSearchFromSwipe() {
+    if (!searchResultsPage) {
+      closeSearch();
+      return;
+    }
+    searchResultsPage.classList.remove('dragging');
+    searchResultsPage.style.transition = 'transform .3s cubic-bezier(.16,1,.3,1)';
+    searchResultsPage.style.transform = 'translate3d(105%,0,0)';
+    searchResultsPage.style.boxShadow = '';
+    setTimeout(() => {
+      closeSearch();
+      searchResultsPage.style.transition = '';
+      searchResultsPage.style.transform = '';
+      searchResultsPage.style.boxShadow = '';
+    }, 300);
   }
 
   function loginSucceeded() {
@@ -3386,14 +3420,53 @@
     renderSearchSuggestions(query);
   }
 
+  function renderDockHotSearches() {
+    if (!dockHotSearchList) return;
+    dockHotSearchList.innerHTML = HOT_SEARCHES.map((term, index) => `
+      <button class="search-chip" type="button" data-search-term="${escapeHTML(term)}">
+        <i>${index + 1}</i><span>${escapeHTML(term)}</span>
+      </button>`).join('');
+  }
+
+  function renderDockSearchSuggestions(query) {
+    if (!dockSearchSuggestList) return;
+    const q = query.trim();
+    if (!q) {
+      dockSearchSuggestList.innerHTML = '';
+      return;
+    }
+    const terms = [q, `${q} 教程`, `${q} 4K`, `${q} 合集`, `${q} 最新`];
+    dockSearchSuggestList.innerHTML = terms.map((term) => `
+      <button class="search-suggest" type="button" data-search-term="${escapeHTML(term)}">
+        <span>⌕</span><b>${escapeHTML(term)}</b>
+      </button>`).join('');
+  }
+
+  function updateDockSearch() {
+    const query = pdSearchInput ? pdSearchInput.value.trim() : '';
+    const hasQuery = query.length > 0;
+    if (dockSearchHot) dockSearchHot.hidden = hasQuery;
+    if (dockSearchSuggest) dockSearchSuggest.hidden = !hasQuery;
+    if (hasQuery) renderDockSearchSuggestions(query);
+    else renderDockHotSearches();
+  }
+
   function performSearch(term) {
-    const query = String(term || searchInput.value || '').trim();
+    const query = String(term || (pdSearchInput && pdSearchInput.value) || searchInput.value || '').trim();
     if (!query) return;
+    exitDockSearch();
+    setDockExpanded(false);
     searchInput.value = query;
     searchClear.hidden = false;
     state.searchReturn = state.searchReturn && state.searchReturn !== 'search' && state.searchReturn !== 'search-home'
       ? state.searchReturn
       : 'home';
+    if (searchResultsPage) {
+      searchResultsPage.classList.remove('dragging');
+      searchResultsPage.style.transition = '';
+      searchResultsPage.style.transform = '';
+      searchResultsPage.style.boxShadow = '';
+    }
     showPage('search');
     if (searchResultsLabel) searchResultsLabel.textContent = `“${query}”的视频`;
     searchResults.hidden = false;
@@ -3536,7 +3609,7 @@
   });
 
   if (searchClose) searchClose.addEventListener('click', closeSearch);
-  if (searchBack) searchBack.addEventListener('click', closeSearch);
+  if (searchBack) searchBack.addEventListener('click', closeSearchFromSwipe);
   searchClear.addEventListener('click', () => {
     searchInput.value = '';
     updateSearch();
@@ -3712,8 +3785,10 @@
   function enterDockSearch() {
     if (!pdSearchInput || !playlistDock.classList.contains('show')) return;
     setDockExpanded(false);
+    playlistDock.classList.remove('receiving', 'absorbing');
     playlistDock.classList.add('searching');
     pdSearchInput.value = '';
+    updateDockSearch();
     void pdSearchInput.offsetWidth;
     try {
       pdSearchInput.focus({ preventScroll: true });
@@ -3725,6 +3800,7 @@
     if (!pdSearchInput) return;
     playlistDock.classList.remove('searching');
     pdSearchInput.blur();
+    pdSearchInput.value = '';
   }
 
   function dockContentTarget() {
@@ -3822,8 +3898,15 @@
       enterDockSearch();
     });
   }
+  if (pdSearchBack) {
+    pdSearchBack.addEventListener('click', (event) => {
+      event.stopPropagation();
+      exitDockSearch();
+    });
+  }
   if (pdSearchInput) {
     pdSearchInput.addEventListener('click', (event) => event.stopPropagation());
+    pdSearchInput.addEventListener('input', updateDockSearch);
     pdSearchInput.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -3882,6 +3965,12 @@
         return;
       }
       if (dx > 8) {
+        if (state.page === 'search' && searchResultsPage) {
+          rowSwipe.direction = 'search-close';
+          rowSwipe.searchOffset = 0;
+          searchResultsPage.classList.add('dragging');
+          return;
+        }
         if (rowSwipe.surface === 'up') {
           rowSwipe.direction = 'up-close';
           rowSwipe.upOffset = 0;
@@ -3912,6 +4001,15 @@
         rowSwipe.direction = 'left';
         rowSwipe.wrapper.classList.add('swiping');
       }
+    }
+    if (rowSwipe.direction === 'search-close') {
+      if (event.cancelable) event.preventDefault();
+      const width = app.clientWidth || window.innerWidth;
+      const offset = Math.max(0, Math.min(width, dx));
+      rowSwipe.searchOffset = offset;
+      searchResultsPage.style.transform = `translate3d(${offset}px,0,0)`;
+      searchResultsPage.style.boxShadow = offset > 0 ? '-18px 0 46px rgba(10,12,20,.18)' : '';
+      return;
     }
     if (rowSwipe.direction === 'up-close') {
       if (event.cancelable) event.preventDefault();
@@ -3947,6 +4045,13 @@
       endSidebarDrag(start, event);
       return;
     }
+    if (start.direction === 'search-close') {
+      suppressFeedClickUntil = Date.now() + 420;
+      const width = app.clientWidth || window.innerWidth;
+      if ((start.searchOffset || 0) > width * 0.24) closeSearchFromSwipe();
+      else resetSearchResultsDrag();
+      return;
+    }
     if (start.direction === 'up-close') {
       suppressFeedClickUntil = Date.now() + 420;
       const width = app.clientWidth || window.innerWidth;
@@ -3970,6 +4075,7 @@
     if (start.direction === 'right') endSidebarDrag(start, { type: 'pointercancel' });
     else if (start.direction === 'left') resetRowSwipe(start.wrapper);
     else if (start.direction === 'up-close') resetUpPageDrag();
+    else if (start.direction === 'search-close') resetSearchResultsDrag();
   });
 
   appScroll.addEventListener('scroll', maybeAppendMockFeed);

@@ -438,6 +438,14 @@ body[data-theme="dark"] .row-thumb::after{
 .page-top.search-results-top .search-results-note{
   flex:none;font-size:9.5px;color:var(--faint);font-weight:600;letter-spacing:.03em;
 }
+.page[data-page="search"].active{
+  animation:searchResultsIn .36s cubic-bezier(.16,1,.3,1);
+}
+@keyframes searchResultsIn{
+  from{opacity:.35;transform:translate3d(100%,0,0)}
+  to{opacity:1;transform:none}
+}
+.search-results-page.dragging{animation:none!important;transition:none!important}
 
 /* bottom search dock: fills the tabbar */
 .search-dock{display:none;width:100%;height:100%;align-items:center;gap:6px;padding:0 8px 0 7px}
@@ -553,6 +561,7 @@ body.search-mode .proto-fab{opacity:0;pointer-events:none}
 .pd-head{
   display:flex;align-items:center;gap:14px;height:104px;flex:none;
   padding:0 max(18px,env(safe-area-inset-left)) 0 max(18px,env(safe-area-inset-right));
+  transition:height .3s cubic-bezier(.16,1,.3,1),padding .3s cubic-bezier(.16,1,.3,1),gap .2s ease;
 }
 .pd-body{
   flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
@@ -635,20 +644,56 @@ body[data-theme="dark"] .playlist-dock::before{background:rgba(255,255,255,.28)}
 .pd-search:hover{background:none;color:var(--blue)}
 .pd-search:active{transform:scale(.88)}
 .pd-search svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.pd-search-back{
+  display:none;width:36px;height:44px;flex:none;border:0;background:none;
+  color:var(--ink);font-size:28px;line-height:1;cursor:pointer;
+  place-items:center;padding:0;
+}
 .pd-search-input{
   display:none;flex:1;min-width:0;height:44px;
   border:0;border-bottom:1px solid var(--line-strong);border-radius:0;
   background:none;color:var(--ink);font:inherit;font-size:14px;padding:0 2px;outline:none;
+  transform-origin:left center;
 }
 .pd-search-input::placeholder{color:var(--faint)}
 .pd-search-input:focus{border-bottom-color:var(--blue)}
+.pd-search-panel{
+  display:none;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:4px max(18px,env(safe-area-inset-left)) calc(14px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-right));
+  touch-action:pan-y;scrollbar-width:none;
+}
+.pd-search-panel::-webkit-scrollbar{display:none}
+.pd-search-panel .search-section{margin-top:14px}
+.playlist-dock.searching{
+  height:calc(100dvh - var(--kb,0px));
+  padding-bottom:0;border-radius:0;box-shadow:none;
+}
+.playlist-dock.searching .pd-head{
+  height:calc(env(safe-area-inset-top) + 64px);gap:6px;
+  padding:env(safe-area-inset-top) max(14px,env(safe-area-inset-left)) 0 max(14px,env(safe-area-inset-right));
+}
 .playlist-dock.searching .pd-thumb,
 .playlist-dock.searching .pd-copy,
 .playlist-dock.searching .pd-search{display:none}
-.playlist-dock.searching .pd-search-input{display:block}
+.playlist-dock.searching .pd-search-back{display:grid}
+.playlist-dock.searching .pd-search-input{
+  display:block;animation:pdSearchInputIn .3s cubic-bezier(.16,1,.3,1);
+}
+.playlist-dock.searching .pd-search-panel{
+  display:block;animation:pdSearchPanelIn .26s ease .06s both;
+}
 .playlist-dock.searching .pd-body{display:none}
+@keyframes pdSearchInputIn{
+  from{opacity:0;transform:scaleX(.35)}
+  to{opacity:1;transform:none}
+}
+@keyframes pdSearchPanelIn{
+  from{opacity:0;transform:translateY(10px)}
+  to{opacity:1;transform:none}
+}
 .pd-progress{display:none}
-body.kb-open .playlist-dock{height:104px;padding-bottom:0}
+body.kb-open .playlist-dock:not(.searching){height:104px;padding-bottom:0}
+body.kb-open .playlist-dock.searching{padding-bottom:0}
 
 /* ---------- up page ---------- */
 .up-page{
