@@ -262,12 +262,25 @@
 
   function renderRows(feed, items, label, page) {
     const chunk = page || 1;
-    feed.innerHTML = '';
     feed.__nativeItems = items.slice();
     feed.__chunkPages = [chunk];
     feed.__chunkItems = { [chunk]: items.slice() };
+    const realRows = items.map((item, index) => buildRow(item, label, chunk, index));
+    const skeletons = $$(`.feed-skeleton[data-skeleton-page="${chunk}"]`, feed);
+    if (skeletons.length) {
+      realRows.forEach((row, index) => {
+        const skeleton = skeletons[index];
+        row.classList.add('feed-reveal');
+        setTimeout(() => row.classList.remove('feed-reveal'), 240);
+        if (skeleton && skeleton.isConnected) skeleton.replaceWith(row);
+        else feed.appendChild(row);
+      });
+      skeletons.slice(realRows.length).forEach((skeleton) => skeleton.remove());
+      return;
+    }
+    feed.innerHTML = '';
     const fragment = document.createDocumentFragment();
-    items.forEach((item, index) => fragment.appendChild(buildRow(item, label, chunk, index)));
+    realRows.forEach((row) => fragment.appendChild(row));
     feed.appendChild(fragment);
   }
 
