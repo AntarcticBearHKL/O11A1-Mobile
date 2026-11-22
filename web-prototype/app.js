@@ -721,7 +721,19 @@
     updateSearch();
     resetSearchDrag();
     showPage('search-home');
-    setTimeout(() => searchInput.focus(), 160);
+    focusSearchInput();
+    setTimeout(() => {
+      if (state.page === 'search-home' && document.activeElement !== searchInput) focusSearchInput();
+    }, 180);
+  }
+
+  function focusSearchInput() {
+    try {
+      searchInput.focus({ preventScroll: true });
+      searchInput.setSelectionRange(0, 0);
+    } catch (_) {
+      try { searchInput.focus(); } catch (_) {}
+    }
   }
 
   function closeSearch() {
@@ -1050,9 +1062,6 @@
     updateNavActive();
     updatePlaylistDock();
     if (!returningToBase && !returningFromSearch) appScroll.scrollTop = 0;
-    if (page === 'search-home') {
-      setTimeout(() => searchInput.focus(), 120);
-    }
   }
 
   function openModulePage(name, navId) {
@@ -5668,8 +5677,8 @@
       pdSearchPressTimer = setTimeout(() => {
         pdSearchPressTimer = null;
         pdSearch.classList.remove('pressed');
-        enterDockSearch();
       }, 150);
+      enterDockSearch();
     });
   }
   if (pdSearchBack) {
@@ -6577,6 +6586,15 @@
     window.dispatchEvent(pointerEvent('pointerup', dockBodyX, dockBodyY + 90, 0));
     await sleep(480);
     results.push(`dockBodyClose=${!playlistDock.classList.contains('expanded') && playlistDock.classList.contains('show')}`);
+    let dockSearchFocus = false;
+    if (pdSearch && pdSearchInput) {
+      pdSearch.click();
+      dockSearchFocus = playlistDock.classList.contains('searching')
+        && document.activeElement === pdSearchInput;
+      if (pdSearchBack) pdSearchBack.click();
+      await sleep(200);
+    }
+    results.push(`dockSearchFocus=${dockSearchFocus}`);
     openPlaylistPage();
     await sleep(480);
     const playlistOpened = state.page === 'playlist';
