@@ -4686,9 +4686,18 @@
       const output = document.createElement('output');
       const format = row.format || ((value) => `${value}${row.unit || ''}`);
       output.textContent = format(state.settings[row.key]);
+      const paintFill = () => {
+        const min = Number(row.min) || 0;
+        const max = Number(row.max);
+        const value = Number(input.value);
+        const percent = max > min ? ((value - min) / (max - min)) * 100 : 0;
+        input.style.setProperty('--fill', `${Math.max(0, Math.min(100, percent)).toFixed(2)}%`);
+      };
+      paintFill();
       input.addEventListener('input', () => {
         state.settings[row.key] = Number(input.value);
         output.textContent = format(input.value);
+        paintFill();
         save();
         if (row.onChange) row.onChange();
       });
