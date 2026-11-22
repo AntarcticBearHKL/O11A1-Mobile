@@ -231,21 +231,6 @@
         </section>
       </div>
 
-      <!-- UP 主主页：覆盖在视频流上的一层 -->
-      <section class="page up-page" data-page="up">
-        <div class="up-head">
-          <span class="up-avatar" id="upAvatar"></span>
-          <div class="up-copy">
-            <span class="up-kicker">UP 主</span>
-            <b id="upName">UP 主</b>
-            <small id="upMid">UID —</small>
-          </div>
-          <button class="pill-btn up-follow" id="upFollow" type="button">关注</button>
-        </div>
-        <div class="feed" id="upFeed"></div>
-        <div class="list-note" id="upNote">UP 主视频</div>
-      </section>
-
       <!-- 搜索结果：从右侧滑入的独立覆盖页 -->
       <section class="page search-results-page" data-page="search">
         <div class="page-top search-results-top">
@@ -390,7 +375,7 @@
           </div>
           <span class="ph-label">视频占位 · 无播放源</span>
           <span class="play-big light">▶</span>
-          <span class="video-hint">空播放器 · 上滑切换横竖屏</span>
+          <span class="video-hint">空播放器</span>
 
           <div class="player-controls" id="playerControls">
             <div class="pc-seek">
@@ -468,6 +453,50 @@
         </div>
       </div>
     </div>
+
+    <!-- 视频详情：从左侧滑入 -->
+    <div class="video-detail-panel" id="videoDetailPanel" aria-hidden="true" inert>
+      <div class="video-detail-card" role="dialog" aria-label="视频详情">
+        <button class="video-detail-close" id="videoDetailClose" type="button" aria-label="关闭详情">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+        <div class="video-detail-scroll" id="videoDetailScroll">
+          <div class="video-detail-body" id="videoDetailBody">
+            <div class="vd-skeleton">
+              <div class="vd-skeleton-hero"></div>
+              <i class="vd-skeleton-line w70"></i>
+              <i class="vd-skeleton-line w90"></i>
+              <i class="vd-skeleton-line w55"></i>
+              <div class="vd-skeleton-author"><span></span><i></i></div>
+              <div class="vd-skeleton-stats"></div>
+              <div class="vd-skeleton-section"></div>
+              <div class="vd-skeleton-row"></div>
+              <div class="vd-skeleton-row"></div>
+              <div class="vd-skeleton-row"></div>
+            </div>
+          </div>
+        </div>
+        <div class="video-detail-playlist" id="detailPlaylistTarget" aria-hidden="true">
+          <span class="dvp-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h11M4 10h11M4 14h7"/><path d="m16 13 5 3-5 3z" fill="currentColor" stroke="none"/></svg></span>
+          <span class="dvp-copy"><small>播放列表</small><b id="detailPlaylistCount">0</b></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- UP 主主页：从右侧滑入，覆盖播放器 -->
+    <section class="page up-page" data-page="up">
+      <div class="up-head">
+        <span class="up-avatar" id="upAvatar"></span>
+        <div class="up-copy">
+          <span class="up-kicker">UP 主</span>
+          <b id="upName">UP 主</b>
+          <small id="upMid">UID —</small>
+        </div>
+        <button class="pill-btn up-follow" id="upFollow" type="button">关注</button>
+      </div>
+      <div class="feed" id="upFeed"></div>
+      <div class="list-note" id="upNote">UP 主视频</div>
+    </section>
   </div>
 
   <div class="psheet-backdrop" id="psheetBackdrop"></div>

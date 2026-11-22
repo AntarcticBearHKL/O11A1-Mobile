@@ -54,6 +54,12 @@
   const swipeHint = $('#swipeHint');
   const commentsPanel = $('#commentsPanel');
   const commentsBody = $('#commentsBody');
+  const videoDetailPanel = $('#videoDetailPanel');
+  const videoDetailScroll = $('#videoDetailScroll');
+  const videoDetailBody = $('#videoDetailBody');
+  const videoDetailClose = $('#videoDetailClose');
+  const detailPlaylistTarget = $('#detailPlaylistTarget');
+  const detailPlaylistCount = $('#detailPlaylistCount');
   const playerVideo = $('#playerVideo');
   const realVideo = $('#realVideo');
   const feedDebug = $('#feedDebug');
@@ -325,6 +331,9 @@
 
   let commentsGesture = null;
   let commentsCloseTimer = null;
+  let videoDetailOpen = false;
+  let videoDetailCloseTimer = null;
+  let videoDetailRenderTimer = null;
   let playerCollapseAnim = null;
   let playerCollapseRadiusAnim = null;
   let playerCollapseTimer = null;
@@ -784,8 +793,6 @@
       app.dataset.page = 'up';
       document.body.classList.toggle('search-mode', false);
       if (typeof updateDebugHud === 'function') updateDebugHud();
-      upPage.style.zIndex = '48';
-      if (searchResultsPage) searchResultsPage.style.zIndex = '46';
       if (searchResultsPage && base !== 'search') {
         searchResultsPage.classList.remove('active', 'dragging', 'settling', 'entering');
         searchResultsPage.style.transition = '';
@@ -801,7 +808,7 @@
       upPage.classList.add('active');
       void upPage.offsetWidth;
       upPage.classList.add('entering');
-      setTimeout(() => upPage.classList.remove('entering'), 360);
+      setTimeout(() => upPage.classList.remove('entering'), 430);
       upPage.scrollTop = 0;
       updatePlaylistDock();
       return;
@@ -820,7 +827,6 @@
       document.body.classList.toggle('search-mode', false);
       if (typeof updateDebugHud === 'function') updateDebugHud();
       searchResultsPage.style.zIndex = '48';
-      if (upPage) upPage.style.zIndex = '45';
       searchResultsPage.classList.remove('dragging', 'settling', 'entering');
       searchResultsPage.style.transition = '';
       searchResultsPage.style.transform = '';
@@ -1303,6 +1309,20 @@
 
   function updatePlaylistCounts() {
     updatePlaylistDock();
+    syncDetailPlaylistCount();
+  }
+
+  function syncDetailPlaylistCount() {
+    if (detailPlaylistCount) detailPlaylistCount.textContent = String(state.playlist.length);
+  }
+
+  function pulseDetailPlaylist() {
+    if (!detailPlaylistTarget || !videoDetailOpen) return;
+    syncDetailPlaylistCount();
+    detailPlaylistTarget.classList.remove('absorbing');
+    void detailPlaylistTarget.offsetWidth;
+    detailPlaylistTarget.classList.add('absorbing');
+    setTimeout(() => detailPlaylistTarget.classList.remove('absorbing'), 620);
   }
 
   function updatePlaylistDock() {
@@ -1357,15 +1377,19 @@
   function flyRowToPlaylist(row) {
     const thumb = row ? row.querySelector('.row-thumb') : null;
     const dockVisible = playlistDock.classList.contains('show');
-    if (!thumb || !dockVisible || document.body.classList.contains('reduce-motion')
+    const detailTarget = videoDetailOpen && detailPlaylistTarget ? detailPlaylistTarget : null;
+    const targetVisible = Boolean(detailTarget) || dockVisible;
+    if (!thumb || !targetVisible || document.body.classList.contains('reduce-motion')
       || typeof thumb.animate !== 'function') {
-      absorbPlaylistDock();
+      if (detailTarget) pulseDetailPlaylist();
+      else absorbPlaylistDock();
       return;
     }
     const start = thumb.getBoundingClientRect();
-    const end = pdThumb.getBoundingClientRect();
+    const end = (detailTarget || pdThumb).getBoundingClientRect();
     if (!start.width || !end.width) {
-      absorbPlaylistDock();
+      if (detailTarget) pulseDetailPlaylist();
+      else absorbPlaylistDock();
       return;
     }
     const flyer = thumb.cloneNode(true);
@@ -1407,7 +1431,10 @@
       easing: 'cubic-bezier(.22,1,.36,1)',
     });
     flight.finished.then(() => flyer.remove()).catch(() => flyer.remove());
-    setTimeout(absorbPlaylistDock, 430);
+    setTimeout(() => {
+      if (detailTarget) pulseDetailPlaylist();
+      else absorbPlaylistDock();
+    }, 430);
   }
 
   function setCurrent(index) {
@@ -1731,11 +1758,15 @@
 
   function openUpPageForRow(row) {
     const item = row && row.__nativeItem;
+    if (!item) return;
+    if (videoDetailOpen) {
+      openUpFromDetail(item);
+      return;
+    }
     if (window.O11A1NativeData && typeof window.O11A1NativeData.openUpPage === 'function') {
       window.O11A1NativeData.openUpPage(item);
       return;
     }
-    if (!item) return;
     openSheet('UP 主', item.owner || 'UP 主', (body) => {
       body.innerHTML = `<div class="native-empty"><b>${escapeHTML(item.owner || 'UP 主')}</b><span>当前版本没有 UP 主主页接口。</span></div>`;
     });
@@ -2233,18 +2264,13 @@
     }, 1200);
   }
 
-  function togglePlayerOrientation() {
-    if (!state.playerOpen || state.locked) return;
-    setPlayerOrientation(!state.playerLandscape);
-    showControls();
-  }
-
   function openPlayer(options = {}) {
     if (!state.loggedIn) {
       showPage('login');
       return;
     }
     cancelPlayerCollapse();
+    if (videoDetailOpen) closeVideoDetail({ silent: true });
     const resume = options.resume === true;
     const autoplay = options.autoplay === true;
     if (!state.playlist.length) addToPlaylist();
@@ -2311,6 +2337,7 @@
   function minimizePlayer(fromY = 0, fromScale = 1) {
     if (!state.playerOpen) return;
     cancelPlayerCollapse();
+    resetVideoDetail();
     state.playerOpen = false;
     state.locked = false;
     setPlayerOrientation(false, { silent: true });
@@ -2438,6 +2465,7 @@
 
   function stopPlayback() {
     cancelPlayerCollapse();
+    resetVideoDetail();
     state.playerOpen = false;
     state.miniVisible = false;
     state.playing = false;
@@ -2723,9 +2751,105 @@
     }
   }
 
+  /* ---------- video detail overlay ---------- */
+  const detailSkeletonMarkup = videoDetailBody ? videoDetailBody.innerHTML : '';
+
+  function openVideoDetail(fromPeek) {
+    if (!videoDetailPanel || !state.playerOpen || videoDetailOpen) return;
+    clearTimeout(videoDetailCloseTimer);
+    clearTimeout(videoDetailRenderTimer);
+    videoDetailOpen = true;
+    videoDetailPanel.inert = false;
+    videoDetailPanel.classList.remove('closing', 'peeking');
+    videoDetailPanel.setAttribute('aria-hidden', 'false');
+    if (fromPeek) {
+      videoDetailPanel.classList.add('open');
+      requestAnimationFrame(() => { videoDetailPanel.style.transform = ''; });
+    } else {
+      videoDetailPanel.style.transform = '';
+      videoDetailPanel.classList.add('open');
+    }
+    if (videoDetailBody) videoDetailBody.innerHTML = detailSkeletonMarkup;
+    videoDetailScroll.scrollTop = 0;
+    syncDetailPlaylistCount();
+    swipeHint.classList.remove('show', 'left');
+    clearTimeout(hideTimer);
+    playerControls.classList.add('hidden');
+    player.classList.add('ui-hidden');
+    videoDetailRenderTimer = setTimeout(() => {
+      videoDetailRenderTimer = null;
+      if (!videoDetailOpen) return;
+      if (window.O11A1NativeData && typeof window.O11A1NativeData.renderVideoDetail === 'function') {
+        window.O11A1NativeData.renderVideoDetail();
+        syncDetailPlaylistCount();
+      }
+    }, 320);
+  }
+
+  function cancelVideoDetailPeek() {
+    if (!videoDetailPanel || videoDetailOpen
+      || !videoDetailPanel.classList.contains('peeking')) return;
+    videoDetailPanel.classList.remove('peeking');
+    videoDetailPanel.classList.add('closing');
+    videoDetailPanel.setAttribute('aria-hidden', 'true');
+    videoDetailPanel.inert = true;
+    videoDetailPanel.style.transform = '';
+    clearTimeout(videoDetailCloseTimer);
+    videoDetailCloseTimer = setTimeout(() => {
+      videoDetailCloseTimer = null;
+      videoDetailPanel.classList.remove('closing');
+      videoDetailPanel.style.transform = '';
+    }, 420);
+  }
+
+  function closeVideoDetail(options = {}) {
+    if (!videoDetailPanel || !videoDetailOpen) return;
+    videoDetailOpen = false;
+    clearTimeout(videoDetailRenderTimer);
+    videoDetailRenderTimer = null;
+    videoDetailPanel.inert = true;
+    videoDetailPanel.classList.remove('open', 'peeking');
+    videoDetailPanel.classList.add('closing');
+    videoDetailPanel.setAttribute('aria-hidden', 'true');
+    videoDetailPanel.style.transform = 'translateX(calc(-100% - 18px))';
+    clearTimeout(videoDetailCloseTimer);
+    videoDetailCloseTimer = setTimeout(() => {
+      videoDetailCloseTimer = null;
+      videoDetailPanel.classList.remove('closing');
+      videoDetailPanel.style.transform = '';
+    }, 420);
+    if (!options.silent) {
+      setTimeout(() => {
+        if (state.playerOpen && !commentsPanel.classList.contains('open')) showControls();
+      }, 160);
+    }
+  }
+
+  function openUpFromDetail(item) {
+    if (!item) return;
+    if (videoDetailOpen) closeVideoDetail({ silent: true });
+    if (window.O11A1NativeData && typeof window.O11A1NativeData.openUpPage === 'function') {
+      window.O11A1NativeData.openUpPage(item);
+    }
+  }
+
+  function resetVideoDetail() {
+    videoDetailOpen = false;
+    clearTimeout(videoDetailCloseTimer);
+    clearTimeout(videoDetailRenderTimer);
+    videoDetailCloseTimer = null;
+    videoDetailRenderTimer = null;
+    if (!videoDetailPanel) return;
+    videoDetailPanel.classList.remove('open', 'peeking', 'closing');
+    videoDetailPanel.style.transform = '';
+    videoDetailPanel.setAttribute('aria-hidden', 'true');
+    videoDetailPanel.inert = true;
+  }
+
   /* ---------- full-screen comments ---------- */
   function openComments(fromPeek) {
     if (!state.playerOpen) return;
+    if (videoDetailOpen) resetVideoDetail();
     clearTimeout(commentsCloseTimer);
     commentsCloseTimer = null;
     commentsPanel.inert = false;
@@ -2812,7 +2936,7 @@
     if (!state.playerOpen || state.locked) return;
     if (event.button !== undefined && event.button !== 0) return;
     if (event.target.closest('.player-controls, .player-top, .lock-badge, button, input, textarea')) return;
-    if (commentsPanel.classList.contains('open')) return;
+    if (commentsPanel.classList.contains('open') || videoDetailOpen) return;
     clearTimeout(hideTimer);
     clearTimeout(stageTapTimer);
     stageTapTimer = null;
@@ -2861,8 +2985,11 @@
       if (state.settings.swipeComments && Math.abs(dx) > Math.abs(dy) * 1.15) {
         gesture.mode = 'horizontal';
       } else if (gesture.zone === 'middle') {
-        gesture.mode = dy > 0 ? 'collapse' : 'rotate';
-        if (dy > 0 && !state.settings.middleCollapse) return;
+        if (dy > 0 && state.settings.middleCollapse) gesture.mode = 'collapse';
+        else {
+          gesture.mode = 'none';
+          return;
+        }
       } else if (state.settings.swipeLevel) {
         gesture.mode = 'level';
         if (gesture.zone === 'left') syncNativeBrightness();
@@ -2881,9 +3008,6 @@
       const scale = 1 - Math.min(0.05, dragY / 3000);
       player.style.transform = `translateY(${dragY}px) scale(${scale})`;
       player.style.opacity = '1';
-    } else if (gesture.mode === 'rotate') {
-      showControls();
-      clearTimeout(hideTimer);
     } else if (gesture.mode === 'level') {
       const rect = playerStage.getBoundingClientRect();
       const delta = (-dy / Math.max(1, rect.height)) * 140;
@@ -2899,7 +3023,19 @@
         commentsPanel.inert = true;
         commentsPanel.style.transform = `translateX(${(1 - progress) * 100}%)`;
         player.classList.add('comments-open');
+        swipeHint.textContent = '‹ 松开查看评论';
+        swipeHint.classList.remove('left');
         swipeHint.classList.toggle('show', -dx > 46);
+      } else if (dx > 0 && videoDetailPanel) {
+        const rect = playerStage.getBoundingClientRect();
+        const progress = Math.min(1, dx / Math.max(1, rect.width * 0.62));
+        videoDetailPanel.classList.add('peeking');
+        videoDetailPanel.setAttribute('aria-hidden', 'false');
+        videoDetailPanel.inert = true;
+        videoDetailPanel.style.transform = `translateX(${-(1 - progress) * 100}%)`;
+        swipeHint.textContent = '‹ 松开查看详情';
+        swipeHint.classList.add('left');
+        swipeHint.classList.toggle('show', dx > 46);
       } else {
         swipeHint.classList.remove('show');
       }
@@ -2976,16 +3112,21 @@
           player.style.opacity = '';
         }
       }, 260);
-    } else if (gesture.mode === 'rotate') {
-      if (!cancelled && gesture.lastDy < -60) togglePlayerOrientation();
-      else showControls();
     } else if (gesture.mode === 'level') {
       hideLevelHuds(700);
       showControls();
       save();
     } else if (gesture.mode === 'horizontal') {
-      if (gesture.horizontal < -70) openComments(true);
-      else cancelCommentsPeek();
+      if (gesture.horizontal > 70) {
+        cancelCommentsPeek();
+        openVideoDetail(true);
+      } else if (gesture.horizontal < -70) {
+        cancelVideoDetailPeek();
+        openComments(true);
+      } else {
+        cancelCommentsPeek();
+        cancelVideoDetailPeek();
+      }
     }
   }
 
@@ -4144,6 +4285,7 @@
   appScroll.addEventListener('pointerdown', (event) => startFeedGesture(event, 'scroll'));
   if (upPage) upPage.addEventListener('pointerdown', (event) => startFeedGesture(event, 'up'));
   if (searchResultsPage) searchResultsPage.addEventListener('pointerdown', (event) => startFeedGesture(event, 'search'));
+  if (videoDetailScroll) videoDetailScroll.addEventListener('pointerdown', (event) => startFeedGesture(event, 'detail'));
   window.addEventListener('pointermove', (event) => {
     if (!rowSwipe || event.pointerId !== rowSwipe.id) return;
     const dx = event.clientX - rowSwipe.x;
@@ -4155,6 +4297,10 @@
         return;
       }
       if (dx > 8) {
+        if (rowSwipe.surface === 'detail') {
+          rowSwipe.direction = 'vertical';
+          return;
+        }
         if (state.page === 'search' && searchResultsPage) {
           rowSwipe.direction = 'search-close';
           rowSwipe.searchOffset = 0;
@@ -4439,6 +4585,21 @@
   });
 
   commentsPanel.addEventListener('pointerdown', startCommentsGesture);
+  if (videoDetailClose) {
+    videoDetailClose.addEventListener('click', (event) => {
+      event.stopPropagation();
+      closeVideoDetail();
+    });
+  }
+  if (videoDetailPanel) {
+    videoDetailPanel.addEventListener('click', (event) => {
+      if (Date.now() < suppressFeedClickUntil) return;
+      if (!event.target.closest('.video-row')) return;
+      setTimeout(() => {
+        if (videoDetailOpen) closeVideoDetail();
+      }, 40);
+    }, true);
+  }
   window.addEventListener('pointermove', moveCommentsGesture);
   window.addEventListener('pointerup', endCommentsGesture);
   window.addEventListener('pointercancel', endCommentsGesture);
@@ -4553,6 +4714,8 @@
     refreshPlaylistPage,
     isFeedClickSuppressed: () => Date.now() < suppressFeedClickUntil,
     openComments,
+    closeVideoDetail,
+    openUpFromDetail,
     playerVideo,
     playerTitle,
     playerSub,
@@ -4670,10 +4833,7 @@
 
     await sleep(140);
     dispatchSwipe('middle', 0, -150);
-    results.push(`landscape=${state.playerLandscape === true && rotateLabel.textContent === '横屏'}`);
-    await sleep(140);
-    dispatchSwipe('middle', 0, -150);
-    results.push(`portrait=${state.playerLandscape === false && rotateLabel.textContent === '竖屏'}`);
+    results.push(`noRotate=${state.playerLandscape === false}`);
 
     await sleep(180);
     dispatchSwipe('middle', 0, 190);
@@ -4682,6 +4842,13 @@
     await sleep(420);
     openPlayer({ resume: true });
     await sleep(360);
+    dispatchSwipe('middle', 240, 0);
+    await sleep(650);
+    results.push(`detail=${videoDetailPanel.classList.contains('open')}`);
+    results.push(`detailRows=${videoDetailBody.querySelectorAll('.feed-item').length >= 4}`);
+    videoDetailClose.click();
+    await sleep(460);
+    results.push(`detailClose=${!videoDetailPanel.classList.contains('open')}`);
     dispatchSwipe('middle', -240, 0);
     results.push(`comments=${commentsPanel.classList.contains('open')}`);
     results.push(`commentsClean=${!commentsPanel.querySelector('.comments-top, .comments-input')}`);

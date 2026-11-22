@@ -311,6 +311,12 @@ final class BiliApi {
             out.put("title", title);
             out.put("pic", pic);
             out.put("owner", owner);
+            if (ownerObj != null) {
+                out.put("mid", ownerObj.optLong("mid", 0));
+                out.put("ownerFace", https(ownerObj.optString("face", "")));
+            } else {
+                out.put("mid", item.optLong("mid", 0));
+            }
             out.put("duration", duration);
             out.put("play", play);
             out.put("playText", count(play));

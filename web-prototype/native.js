@@ -2506,6 +2506,114 @@
     toggleReplies(button);
   });
 
+  /* ---------- video detail ---------- */
+  function detailDate(seconds) {
+    const value = Number(seconds || 0);
+    if (!value) return '';
+    const date = new Date(value * 1000);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  }
+
+  function renderVideoDetail() {
+    const body = document.getElementById('videoDetailBody');
+    if (!body) return false;
+    const item = currentItem();
+    if (!item) {
+      body.innerHTML = '<div class="comments-empty"><b>没有可显示的视频</b><span>先从视频流打开一个视频。</span></div>';
+      return false;
+    }
+    const detail = item.bvid && typeof bridge.videoInfo === 'function'
+      ? call('videoInfo', item.bvid)
+      : null;
+    const info = detail && detail.ok ? detail : {};
+    const title = info.title || item.title || '视频';
+    const pic = info.pic || item.pic || '';
+    const duration = info.duration || item.duration || '';
+    const desc = info.desc || item.desc || '暂无简介';
+    const owner = info.owner || item.owner || 'UP 主';
+    const ownerFace = info.ownerFace || item.ownerFace || '';
+    const mid = Number(info.mid || item.mid || 0);
+    const bvid = info.bvid || item.bvid || '';
+    const aid = Number(info.aid || item.aid || 0);
+    const stat = info.stat || {};
+    const view = Number(stat.view || item.view || 0);
+    const danmaku = Number(stat.danmaku || 0);
+    const like = Number(stat.like || 0);
+    const favorite = Number(stat.favorite || 0);
+    const date = detailDate(info.pubdate || item.pubdate || 0);
+    const authorItem = Object.assign({}, item, {
+      owner,
+      ownerFace,
+      mid,
+      bvid,
+      aid,
+      title,
+      pic,
+      duration,
+      desc,
+    });
+    let related = [];
+    if (typeof bridge.popular === 'function') {
+      const result = call('popular', 1, 12);
+      const items = result && result.ok && Array.isArray(result.items) ? result.items : [];
+      related = items.filter((row) => !bvid || row.bvid !== bvid).slice(0, 6);
+    }
+    const longDesc = desc.length > 90;
+    body.innerHTML = `
+      <div class="vd-hero">
+        ${pic ? `<img src="${attr(pic)}" alt="" referrerpolicy="no-referrer">` : ''}
+        ${duration ? `<span class="vd-duration">${esc(duration)}</span>` : ''}
+      </div>
+      <h2 class="vd-title">${esc(title)}</h2>
+      <div class="vd-meta">
+        ${date ? `<span>${esc(date)}</span>` : ''}
+        ${bvid ? `<span>${esc(bvid)}</span>` : ''}
+        ${duration ? `<span>${esc(duration)}</span>` : ''}
+      </div>
+      <button class="vd-author" type="button" data-detail-author>
+        ${ownerFace ? `<img class="vd-avatar" src="${attr(ownerFace)}" alt="" referrerpolicy="no-referrer">` : '<span class="avatar-ph sm vd-avatar"></span>'}
+        <span class="vd-author-copy">
+          <b>${esc(owner)}</b>
+          <small>${mid ? `UID ${mid}` : 'UP 主'} · 点击进入主页</small>
+        </span>
+        <span class="vd-author-go">主页 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></span>
+      </button>
+      <div class="vd-stat-row">
+        <span class="vd-stat"><b>${esc(countText(view))}</b><small>播放</small></span>
+        <span class="vd-stat"><b>${esc(countText(danmaku))}</b><small>弹幕</small></span>
+        <span class="vd-stat"><b>${esc(countText(like))}</b><small>点赞</small></span>
+        <span class="vd-stat"><b>${esc(countText(favorite))}</b><small>收藏</small></span>
+      </div>
+      <p class="vd-desc${longDesc ? '' : ' expanded'}" id="vdDesc">${esc(desc)}</p>
+      ${longDesc ? '<button class="vd-desc-toggle" type="button" data-vd-desc-toggle>展开简介</button>' : ''}
+      <div class="vd-section"><b>相关推荐</b><span>${related.length} 个视频</span></div>
+      <div class="feed detail-related" id="detailRelatedFeed"></div>`;
+    const relatedFeed = document.getElementById('detailRelatedFeed');
+    if (related.length) {
+      renderRows(relatedFeed, related, '相关推荐', 1);
+    } else if (relatedFeed) {
+      relatedFeed.innerHTML = '<div class="comment-inline-note">暂无相关推荐</div>';
+    }
+    const author = body.querySelector('[data-detail-author]');
+    if (author) {
+      author.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (host.openUpFromDetail) host.openUpFromDetail(authorItem);
+      });
+    }
+    const descEl = body.querySelector('#vdDesc');
+    const descToggle = body.querySelector('[data-vd-desc-toggle]');
+    if (descEl && descToggle) {
+      descToggle.addEventListener('click', () => {
+        const expanded = descEl.classList.toggle('expanded');
+        descToggle.textContent = expanded ? '收起简介' : '展开简介';
+      });
+    }
+    return true;
+  }
+
   /* ---------- account ---------- */
   function renderAccount() {
     const card = $('#accountCard');
@@ -2971,6 +3079,7 @@
   window.O11A1NativeData = {
     search: (query) => loadSearch(query, 1),
     openUpPage,
+    renderVideoDetail,
     onComments: (sort, options) => loadComments(sort, options),
     favorite: favoriteCurrent,
     like: likeCurrent,
