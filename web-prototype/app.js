@@ -25,10 +25,7 @@
   const pcLoopValue = $('#pcLoopValue');
   const progressBar = $('#progressBar');
   const wheelStrip = $('#wheelStrip');
-  const pcFrames = $('#pcFrames');
   const seekBubble = $('#seekBubble');
-  const frameBack = $('#frameBack');
-  const frameForward = $('#frameForward');
   const playerSettings = $('#playerSettings');
   const playerSettingsCard = $('#playerSettingsCard');
   const playerSettingsScrim = $('#playerSettingsScrim');
@@ -2549,13 +2546,6 @@
     const context = precisionContext();
     const current = Number.isFinite(currentOverride) ? currentOverride : context.current;
     if (pcTime) pcTime.textContent = `${formatTimeMs(current)} / ${formatTime(context.total)}`;
-    if (pcFrames) {
-      pcFrames.textContent = context.fps > 0
-        ? `帧 ${currentOverride !== undefined ? Math.min(context.totalFrames, Math.round(current * context.fps)) : context.currentFrame} / ${context.totalFrames}`
-        : '帧 —';
-    }
-    if (frameBack) frameBack.disabled = context.fps <= 0;
-    if (frameForward) frameForward.disabled = context.fps <= 0;
   }
 
   function precisionWheelScale(width) {
@@ -2622,18 +2612,29 @@
     renderPrecisionWheel(value);
   }
 
+  function precisionLocalX(event, width) {
+    const localWidth = width || progressBar.clientWidth || 1;
+    const rect = progressBar.getBoundingClientRect();
+    if (!state.playerLandscape) {
+      return Math.max(0, Math.min(localWidth, event.clientX - rect.left));
+    }
+    const centerY = rect.top + rect.height / 2;
+    const offset = (event.clientY - centerY) * state.playerLandscapeDir;
+    return Math.max(0, Math.min(localWidth, localWidth / 2 + offset));
+  }
+
   function startPrecisionDrag(event) {
     if (!state.playerOpen) return;
     if (event.button !== undefined && event.button !== 0) return;
     clearTimeout(hideTimer);
     const context = precisionContext();
-    const rect = progressBar.getBoundingClientRect();
-    const { pxPerSecond } = precisionWheelScale(rect.width || 1);
-    const centerX = rect.left + rect.width / 2;
-    const tapTime = context.current + (event.clientX - centerX) / pxPerSecond;
+    const width = progressBar.clientWidth || progressBar.getBoundingClientRect().width || 1;
+    const { pxPerSecond } = precisionWheelScale(width);
+    const localX = precisionLocalX(event, width);
+    const tapTime = context.current + (localX - width / 2) / pxPerSecond;
     precisionDrag = {
       pointerId: event.pointerId,
-      startX: event.clientX,
+      startLocalX: localX,
       startTime: context.current,
       preview: context.current,
       tapTime,
@@ -2646,15 +2647,16 @@
   function movePrecisionDrag(event) {
     const drag = precisionDrag;
     if (!drag || event.pointerId !== drag.pointerId) return;
-    const dx = event.clientX - drag.startX;
+    const width = progressBar.clientWidth || progressBar.getBoundingClientRect().width || 1;
+    const localX = precisionLocalX(event, width);
+    const delta = localX - drag.startLocalX;
     if (!drag.moved) {
-      if (Math.abs(dx) < 3) return;
+      if (Math.abs(delta) < 3) return;
       drag.moved = true;
     }
     const context = precisionContext();
-    const rect = progressBar.getBoundingClientRect();
-    const { pxPerSecond } = precisionWheelScale(rect.width || 1);
-    drag.preview = Math.max(0, Math.min(context.total, drag.startTime - dx / pxPerSecond));
+    const { pxPerSecond } = precisionWheelScale(width);
+    drag.preview = Math.max(0, Math.min(context.total, drag.startTime - delta / pxPerSecond));
     previewPrecisionTime(drag.preview);
     if (event.cancelable) event.preventDefault();
   }
@@ -2760,15 +2762,6 @@
     setTimeout(() => {
       if (!settingsDrawGesture) settingsSuppressClick = false;
     }, 260);
-  }
-
-  function seekFrames(delta) {
-    const context = precisionContext();
-    if (!context.fps || !context.total) return;
-    const target = Math.max(0, Math.min(context.total, context.current + delta / context.fps));
-    setProgress(target / context.total * 100, true);
-    updatePrecisionReadout(target);
-    showControls();
   }
 
   function showControls() {
@@ -4862,8 +4855,6 @@
     window.addEventListener('pointerup', endPrecisionDrag);
     window.addEventListener('pointercancel', endPrecisionDrag);
   }
-  if (frameBack) frameBack.addEventListener('click', () => seekFrames(-1));
-  if (frameForward) frameForward.addEventListener('click', () => seekFrames(1));
 
   playerControls.addEventListener('pointerdown', (event) => {
     if (event.target.closest('button, input, .precision-wheel')) return;
