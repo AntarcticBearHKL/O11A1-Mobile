@@ -3849,11 +3849,26 @@
 
   function enterDockSearch() {
     if (!pdSearchInput || !playlistDock.classList.contains('show')) return;
+    if (typeof playlistDock.getAnimations === 'function') {
+      playlistDock.getAnimations().forEach((anim) => {
+        if (anim.id === 'dockSearchRise') anim.cancel();
+      });
+    }
+    const fromTop = playlistDock.getBoundingClientRect().top;
     setDockExpanded(false);
     playlistDock.classList.remove('receiving', 'absorbing');
     playlistDock.classList.add('searching');
     pdSearchInput.value = '';
     updateDockSearch();
+    const rise = Math.max(0, fromTop - playlistDock.getBoundingClientRect().top);
+    if (rise > 0 && typeof playlistDock.animate === 'function'
+      && !document.body.classList.contains('reduce-motion')) {
+      const searchRise = playlistDock.animate([
+        { transform: `translate(-50%, ${rise}px)` },
+        { transform: 'translate(-50%, 0)' },
+      ], { duration: 420, easing: 'cubic-bezier(.16,1,.3,1)' });
+      searchRise.id = 'dockSearchRise';
+    }
     void pdSearchInput.offsetWidth;
     try {
       pdSearchInput.focus({ preventScroll: true });

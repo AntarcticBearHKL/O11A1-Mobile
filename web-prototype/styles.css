@@ -682,6 +682,7 @@ body[data-theme="dark"] .playlist-dock::before{background:rgba(255,255,255,.28)}
 .playlist-dock.searching{
   height:calc(100dvh - var(--kb,0px));
   padding-bottom:0;border-radius:0;box-shadow:none;
+  transition:opacity .2s ease,border-radius .3s ease,box-shadow .3s ease,visibility 0s;
 }
 .playlist-dock.searching .pd-head{
   height:calc(env(safe-area-inset-top) + 64px);gap:6px;
@@ -692,18 +693,18 @@ body[data-theme="dark"] .playlist-dock::before{background:rgba(255,255,255,.28)}
 .playlist-dock.searching .pd-search{display:none}
 .playlist-dock.searching .pd-search-back{display:grid}
 .playlist-dock.searching .pd-search-input{
-  display:block;animation:pdSearchInputIn .3s cubic-bezier(.16,1,.3,1);
+  display:block;animation:pdSearchInputIn .38s cubic-bezier(.16,1,.3,1);
 }
 .playlist-dock.searching .pd-search-panel{
-  display:block;animation:pdSearchPanelIn .26s ease .06s both;
+  display:block;animation:pdSearchPanelIn .34s cubic-bezier(.16,1,.3,1) .08s both;
 }
 .playlist-dock.searching .pd-body{display:none}
 @keyframes pdSearchInputIn{
-  from{opacity:0;transform:scaleX(.35)}
+  from{opacity:0;transform:translateY(24px)}
   to{opacity:1;transform:none}
 }
 @keyframes pdSearchPanelIn{
-  from{opacity:0;transform:translateY(10px)}
+  from{opacity:0;transform:translateY(26px)}
   to{opacity:1;transform:none}
 }
 .pd-progress{display:none}
