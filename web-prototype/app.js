@@ -4331,14 +4331,14 @@
     if (!dockDrag.moved) return;
     if (!playlistDock.classList.contains('dragging')) playlistDock.classList.add('dragging');
     const target = dockContentTarget();
-    const startContent = dockDrag.expanded ? target : 104;
-    const content = Math.max(104, Math.min(target, startContent - dy));
-    const progress = (content - 104) / Math.max(1, target - 104);
+    const startContent = dockDrag.expanded ? target : 88;
+    const content = Math.max(88, Math.min(target, startContent - dy));
+    const progress = (content - 88) / Math.max(1, target - 88);
     playlistDock.style.height = `calc(${content.toFixed(1)}px + env(safe-area-inset-bottom))`;
-    const radius = 26 + progress * 10;
+    const radius = 24 + progress * 10;
     playlistDock.style.borderTopLeftRadius = `${radius.toFixed(1)}px`;
     playlistDock.style.borderTopRightRadius = `${radius.toFixed(1)}px`;
-    playlistDock.style.boxShadow = `0 -${(12 + progress * 18).toFixed(0)}px ${(34 + progress * 26).toFixed(0)}px rgba(20,22,30,${(0.12 + progress * 0.09).toFixed(2)}), inset 0 1px 0 rgba(255,255,255,.8)`;
+    playlistDock.style.boxShadow = `0 -${(10 + progress * 20).toFixed(0)}px ${(28 + progress * 28).toFixed(0)}px rgba(20,22,30,${(0.10 + progress * 0.11).toFixed(2)})`;
   });
   window.addEventListener('pointerup', (event) => {
     if (!dockDrag || event.pointerId !== dockDrag.id) return;
