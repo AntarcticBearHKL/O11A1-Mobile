@@ -1290,7 +1290,7 @@ body.grid .grid-overlay{display:block}
 
 /* flat moving ruler (desktop precision wheel) */
 .player-controls{
-  position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));z-index:6;
+  position:absolute;left:50%;bottom:max(2px,env(safe-area-inset-bottom));z-index:6;
   width:min(560px,calc(100% - 32px));height:104px;padding:0;
   display:block;
   background:
