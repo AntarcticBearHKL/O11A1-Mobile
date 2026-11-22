@@ -2201,13 +2201,19 @@ body[data-theme="light"] .ambient-canvas{filter:blur(30px) saturate(1.25) bright
 @keyframes playerBootSpin{to{transform:rotate(360deg)}}
 body.reduce-motion .player-boot-ring{animation:none}
 .real-video-status:empty{display:none}
-.danmaku-layer{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+.danmaku-layer{
+  position:absolute;left:0;right:0;top:0;bottom:auto;z-index:2;pointer-events:none;overflow:hidden;
+  height:var(--dm-area-height,100%);
+  transition:height .18s ease;
+}
 .danmaku-layer.paused .danmaku-item{animation-play-state:paused}
 .danmaku-item{
-  position:absolute;left:100%;white-space:nowrap;font-size:14px;line-height:1.2;font-weight:600;
+  position:absolute;left:100%;white-space:nowrap;font-size:var(--dm-font-size,14px);line-height:1.2;font-weight:600;
+  opacity:var(--dm-opacity,.85);
   text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 4px rgba(0,0,0,.55);
   animation-name:danmakuFly;animation-timing-function:linear;animation-fill-mode:forwards;
   will-change:transform;
+  transition:font-size .18s ease,opacity .18s ease;
 }
 @keyframes danmakuFly{
   from{transform:translateX(0)}

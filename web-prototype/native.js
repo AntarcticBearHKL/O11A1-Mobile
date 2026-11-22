@@ -1544,7 +1544,33 @@
     } catch (_) {}
   }
 
+  function danmakuSettingNumber(value, fallback, min, max) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return fallback;
+    return Math.max(min, Math.min(max, number));
+  }
+
+  function applyDanmakuStyle() {
+    if (!danmakuLayer) return;
+    const settings = state.settings || {};
+    const opacity = danmakuSettingNumber(settings.danmakuOpacity, 85, 0, 100);
+    const size = danmakuSettingNumber(settings.danmakuSize, 100, 50, 150);
+    const speed = danmakuSettingNumber(settings.danmakuSpeed, 100, 50, 200);
+    const areaText = String(settings.danmakuArea || '全屏');
+    const area = areaText.includes('1/3') ? 100 / 3 : areaText.includes('1/2') ? 50 : 100;
+    danmakuLayer.style.display = settings.danmaku ? 'block' : 'none';
+    danmakuLayer.style.setProperty('--dm-opacity', String(opacity / 100));
+    danmakuLayer.style.setProperty('--dm-font-size', `${(14 * size / 100).toFixed(2)}px`);
+    danmakuLayer.style.setProperty('--dm-area-height', `${area.toFixed(2)}%`);
+    const factor = 100 / speed;
+    $$('.danmaku-item', danmakuLayer).forEach((item) => {
+      if (!item.__dmBaseSeconds) return;
+      item.style.animationDuration = `${(item.__dmBaseSeconds * factor).toFixed(2)}s`;
+    });
+  }
+
   function loadDanmaku(cid) {
+    applyDanmakuStyle();
     danmakuItems = [];
     danmakuIndex = 0;
     danmakuLastTime = 0;
@@ -1570,9 +1596,14 @@
     const color = row.color && row.color !== 0xffffff ? '#' + Number(row.color).toString(16).padStart(6, '0') : '#ffffff';
     item.textContent = row.text;
     item.style.color = color;
-    item.style.top = `${8 + (danmakuLane % 8) * 9}%`;
-    const seconds = Math.max(7, Math.min(14, 8 + String(row.text).length * 0.08));
-    item.style.animationDuration = `${seconds}s`;
+    const density = state.settings.danmakuDensity !== false;
+    const laneCount = density ? 8 : 5;
+    const laneStep = density ? 9 : 13;
+    item.style.top = `${8 + (danmakuLane % laneCount) * laneStep}%`;
+    const speed = danmakuSettingNumber(state.settings.danmakuSpeed, 100, 50, 200);
+    const baseSeconds = Math.max(7, Math.min(14, 8 + String(row.text).length * 0.08));
+    item.__dmBaseSeconds = baseSeconds;
+    item.style.animationDuration = `${(baseSeconds * 100 / speed).toFixed(2)}s`;
     danmakuLane += 1;
     item.addEventListener('animationend', () => item.remove());
     danmakuLayer.appendChild(item);
@@ -2631,6 +2662,7 @@
       return mediaItem.key === key;
     },
     onOpen() {
+      applyDanmakuStyle();
       syncHighRefresh();
       loadVideo(currentItem(), Boolean(state.playing));
       requestAmbientSync();
@@ -2660,7 +2692,7 @@
       video.currentTime = video.duration * Math.max(0, Math.min(100, percent)) / 100;
     },
     onSettings() {
-      if (danmakuLayer) danmakuLayer.style.display = state.settings.danmaku ? 'block' : 'none';
+      applyDanmakuStyle();
       syncHighRefresh();
       if (!video.src) return;
       const rate = parseFloat(state.settings.speed || '1');
@@ -3958,6 +3990,7 @@
     follow: followCurrent,
     copyLink: copyCurrentLink,
     screenshot: screenshotCurrent,
+    applyDanmakuStyle,
     playerInfo,
     playerPerf,
     openAccount: openAccountSheet,
