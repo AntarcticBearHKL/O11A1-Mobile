@@ -903,7 +903,8 @@
       void upPage.offsetWidth;
       upPage.classList.add('entering');
       setTimeout(() => upPage.classList.remove('entering'), 430);
-      upPage.scrollTop = 0;
+      const upScroller = $('#upScroll');
+      if (upScroller) upScroller.scrollTop = 0;
       updatePlaylistDock();
       return;
     }

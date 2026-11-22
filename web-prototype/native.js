@@ -55,6 +55,7 @@
     module: host.moduleFeed,
     up: $('#upFeed'),
   };
+  const upScroll = $('#upScroll');
   const pages = { dynamic: 1, messages: 1 };
   const windows = {
     home: { page: 0, cursor: '', hasMore: true, loading: false, lastLoadAt: 0, token: 0, query: '' },
@@ -65,7 +66,6 @@
   const FEED_PREFETCH = 900;
   const more = { dynamic: true, messages: true };
   let upSort = 'pubdate';
-  let upTotal = 0;
   const dynamicFilterNames = ['全部', '视频', '图文'];
   const messageFilterNames = ['回复', '@我', '收到的赞', '私信'];
   const moduleFilterNames = {
@@ -453,7 +453,7 @@
 
   function feedViewport(feed) {
     const scroll = feed === feeds.up
-      ? $('.page[data-page="up"]')
+      ? upScroll
       : feed === feeds.search
         ? $('.page[data-page="search"]')
         : $('#appScroll');
@@ -759,11 +759,7 @@
     if (next !== 'click' && next !== 'pubdate') return;
     if (next === upSort) return;
     upSort = next;
-    upTotal = 0;
-    const count = $('#upSortCount');
-    if (count) count.textContent = '';
-    const page = $('.page[data-page="up"]');
-    if (page) page.scrollTop = 0;
+    if (upScroll) upScroll.scrollTop = 0;
     syncUpSortUI();
     loadUp(1, false);
   }
@@ -819,9 +815,6 @@
       win.loading = false;
       return false;
     }
-    upTotal = Number(result.total) || 0;
-    const countEl = $('#upSortCount');
-    if (countEl) countEl.textContent = upTotal > 0 ? `共 ${countText(upTotal)} 个投稿` : '';
     if (result.name) {
       state.upName = result.name;
       const nameEl = $('#upName');
@@ -885,8 +878,6 @@
     }
     const note = $('#upNote');
     if (note) note.textContent = `${name} · UP 主视频`;
-    const count = $('#upSortCount');
-    if (count) count.textContent = '';
     syncUpSortUI();
     host.showPage('up');
     windows.up.token += 1;
@@ -3882,7 +3873,7 @@
     else if (state.page === 'module') trimFeed(feeds.module);
   });
 
-  const upScroller = $('.page[data-page="up"]');
+  const upScroller = upScroll;
   if (upScroller) upScroller.addEventListener('scroll', () => {
     if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
     if (state.page !== 'up') return;
