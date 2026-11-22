@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Platform, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Brightness from 'expo-brightness';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import { Accelerometer } from 'expo-sensors';
 import { WebView } from 'react-native-webview';
 import { WEBAPP_BUILD, WEBAPP_FILES } from './src/webapp.generated';
 
@@ -348,7 +349,10 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [mockBrightness, setMockBrightness] = useState<number | null>(null);
   const savedMockBrightness = useRef<number | null>(null);
-  const mockWebViewRef = useRef<any>(null);
+  const webViewRef = useRef<any>(null);
+  const tiltSubscription = useRef<{ remove(): void } | null>(null);
+  const tiltWatching = useRef(false);
+  const tiltDirection = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -407,7 +411,7 @@ export default function App() {
       try {
         const value = await Brightness.getBrightnessAsync();
         if (!active) return;
-        mockWebViewRef.current?.injectJavaScript(
+        webViewRef.current?.injectJavaScript(
           `window.__O11A1_BRIGHTNESS=${Math.round(value * 100)};true;`
         );
       } catch (_) {}
@@ -423,10 +427,45 @@ export default function App() {
     };
   }, []);
 
-  const handleMockMessage = async (event: any) => {
+  const stopTiltWatch = () => {
+    if (tiltSubscription.current) {
+      try { tiltSubscription.current.remove(); } catch (_) {}
+      tiltSubscription.current = null;
+    }
+    tiltDirection.current = 0;
+    webViewRef.current?.injectJavaScript('window.__O11A1_NATIVE_TILT=false;true;');
+  };
+
+  const startTiltWatch = () => {
+    if (Platform.OS !== 'ios' || tiltSubscription.current) return;
+    try {
+      Accelerometer.setUpdateInterval(120);
+      tiltSubscription.current = Accelerometer.addListener(({ x }) => {
+        if (!tiltWatching.current || AppState.currentState !== 'active') return;
+        const magnitude = Math.abs(x);
+        let next = tiltDirection.current;
+        if (magnitude >= 0.8) next = x > 0 ? 1 : -1;
+        else if (magnitude <= 0.45) next = 0;
+        if (next === tiltDirection.current) return;
+        tiltDirection.current = next;
+        webViewRef.current?.injectJavaScript(
+          `window.O11A1Host&&window.O11A1Host.setTiltDir(${next});true;`
+        );
+      });
+      webViewRef.current?.injectJavaScript('window.__O11A1_NATIVE_TILT=true;true;');
+    } catch (_) {
+      tiltSubscription.current = null;
+    }
+  };
+
+  const handleWebMessage = async (event: any) => {
     try {
       const message = JSON.parse(event.nativeEvent.data);
-      if (message.type === 'brightness') {
+      if (message.type === 'tilt-watch') {
+        tiltWatching.current = Boolean(message.on);
+        if (tiltWatching.current) startTiltWatch();
+        else stopTiltWatch();
+      } else if (message.type === 'brightness') {
         if (savedMockBrightness.current == null) {
           savedMockBrightness.current = await Brightness.getBrightnessAsync();
         }
@@ -447,6 +486,11 @@ export default function App() {
       }
     } catch (_) {}
   };
+
+  useEffect(() => () => {
+    tiltWatching.current = false;
+    stopTiltWatch();
+  }, []);
 
   useEffect(() => {
     if (!config || !NativeBridge?.enableHighRefresh) return;
@@ -471,7 +515,7 @@ export default function App() {
         <StatusBar hidden />
         <WebView
           key={`mock-${WEBAPP_BUILD}`}
-          ref={mockWebViewRef}
+          ref={webViewRef}
           source={{ html: MOCK_HTML, baseUrl: 'https://o11a1.local/' }}
           style={styles.web}
           containerStyle={styles.web}
@@ -486,7 +530,7 @@ export default function App() {
           scrollEnabled={false}
           setSupportMultipleWindows={false}
           injectedJavaScriptBeforeContentLoaded={`window.__O11A1_BRIGHTNESS=${Math.round(mockBrightness * 100)};`}
-          onMessage={handleMockMessage}
+          onMessage={handleWebMessage}
         />
       </View>
     );
@@ -518,6 +562,7 @@ export default function App() {
     <View style={styles.root}>
       <StatusBar hidden />
       <WebView
+        ref={webViewRef}
         source={{ uri: `http://127.0.0.1:${port}/index.html` }}
         style={styles.web}
         containerStyle={styles.web}
@@ -528,6 +573,7 @@ export default function App() {
         allowsPictureInPictureMediaPlayback={false}
         mediaPlaybackRequiresUserAction={false}
         injectedJavaScriptBeforeContentLoaded={bridgeShim(port, testFlow)}
+        onMessage={handleWebMessage}
         onShouldStartLoadWithRequest={(request) =>
           request.url.startsWith(`http://127.0.0.1:${port}`) || request.url.startsWith('about:')
         }

@@ -324,8 +324,6 @@
   let rateHudTimer = null;
   let playerNoticeTimer = null;
   let gyroBound = false;
-  let gyroPermission = 'ask';
-  let gyroPermissionPending = false;
   let gyroCandidateDir = null;
   let gyroCandidateTimer = null;
 
@@ -2921,7 +2919,14 @@
     }, 360);
   }
 
+  function setTiltDirection(dir) {
+    if (!state.playerOpen || state.locked || state.settings.autoLandscape === false) return;
+    if (psheet && psheet.classList.contains('open')) return;
+    queueGyroOrientation(dir < 0 ? -1 : dir > 0 ? 1 : 0);
+  }
+
   function onDeviceOrientation(event) {
+    if (window.__O11A1_NATIVE_TILT) return;
     if (!state.playerOpen || state.locked || state.settings.autoLandscape === false) return;
     if (psheet && psheet.classList.contains('open')) return;
     if (window.innerWidth > window.innerHeight) return;
@@ -2932,7 +2937,7 @@
     if (magnitude >= 55) next = gamma > 0 ? -1 : 1;
     else if (magnitude <= 28) next = 0;
     if (next === null) return;
-    queueGyroOrientation(next);
+    setTiltDirection(next);
   }
 
   function attachGyro() {
@@ -2941,27 +2946,27 @@
     window.addEventListener('deviceorientation', onDeviceOrientation, true);
   }
 
+  function postTiltWatch(on) {
+    try {
+      if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'tilt-watch', on: Boolean(on) }));
+      }
+    } catch (_) {}
+  }
+
   function startGyro() {
     if (state.settings.autoLandscape === false) return;
+    /* Never request motion permission: opening a video must not show a system
+       permission dialog. The native shell feeds tilt from the accelerometer on
+       platforms where the web sensor APIs are gated; elsewhere the raw
+       deviceorientation event is used when the WebView exposes it. */
+    postTiltWatch(true);
     if (!window.DeviceOrientationEvent) return;
-    const ctor = window.DeviceOrientationEvent;
     attachGyro();
-    if (typeof ctor.requestPermission === 'function' && gyroPermission === 'ask' && !gyroPermissionPending) {
-      gyroPermissionPending = true;
-      Promise.resolve(ctor.requestPermission())
-        .then((result) => {
-          gyroPermission = result === 'granted' ? 'granted' : 'denied';
-        })
-        .catch(() => {
-          gyroPermission = 'ask';
-        })
-        .finally(() => {
-          gyroPermissionPending = false;
-        });
-    }
   }
 
   function stopGyro() {
+    postTiltWatch(false);
     if (gyroBound) {
       window.removeEventListener('deviceorientation', onDeviceOrientation, true);
       gyroBound = false;
@@ -5794,6 +5799,7 @@
     openComments,
     closeVideoDetail,
     openUpFromDetail,
+    setTiltDir: setTiltDirection,
     playerVideo,
     pcPlay,
     setPlayIcon,
@@ -5897,6 +5903,12 @@
     window.dispatchEvent(pointerEvent('pointerup', sideTap.x, sideTap.y, 0));
     await sleep(330);
     results.push(`sideTap=${!playerControls.classList.contains('hidden')}`);
+    window.O11A1Host.setTiltDir(1);
+    await sleep(480);
+    const nativeTilt = state.playerLandscape === true && state.playerLandscapeDir === 1;
+    window.O11A1Host.setTiltDir(0);
+    await sleep(480);
+    results.push(`tiltDir=${nativeTilt && state.playerLandscape === false}`);
     if (typeof DeviceOrientationEvent === 'function') {
       window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', { alpha: 0, beta: 0, gamma: 85 }));
       await sleep(520);

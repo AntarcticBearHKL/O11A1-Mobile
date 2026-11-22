@@ -18,6 +18,7 @@
           "NSAllowsLocalNetworking": true
         },
         "NSLocalNetworkUsageDescription": "O11A1 使用本机回环地址连接 B 站接口并播放视频。",
+        "NSMotionUsageDescription": "O11A1 使用加速度计判断手机方向，用于旋转播放器画面。",
         "UIStatusBarHidden": true,
         "UIViewControllerBasedStatusBarAppearance": false,
         "UIFileSharingEnabled": true,
