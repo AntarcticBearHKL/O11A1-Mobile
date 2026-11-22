@@ -29,6 +29,8 @@
   const playerSettings = $('#playerSettings');
   const playerSettingsCard = $('#playerSettingsCard');
   const playerSettingsScrim = $('#playerSettingsScrim');
+  const playerDrop = $('#playerDrop');
+  const playerDropZones = playerDrop ? $$('.player-drop-zone', playerDrop) : [];
   const pcDanmakuValue = $('#pcDanmakuValue');
   const seekRipple = $('#seekRipple');
   const lockBadge = $('#lockBadge');
@@ -344,6 +346,11 @@
   let playerCollapseTimer = null;
   let playerCollapseToken = 0;
   let playerDockForced = false;
+  let playerDropZone = null;
+  let playerDropHideTimer = null;
+  let playerDropExitToken = 0;
+  let playerDropExitAnim = null;
+  let playerDropControlsVisible = false;
   let panelTransitionGuardUntil = 0;
   let rowSwipe = null;
   let sidebarPicked = null;
@@ -3075,6 +3082,8 @@
     closePlayerSettings({ instant: true });
     cancelPlayerOpenExpansion();
     cancelPlayerCollapse();
+    cancelPlayerDropExit();
+    hidePlayerDrop();
     if (videoDetailOpen) closeVideoDetail({ silent: true });
     if (!wasOpen && (state.page === 'up' || upPage.classList.contains('active'))) {
       closeUpPageFromSwipe();
@@ -3173,6 +3182,122 @@
     player.classList.remove('to-playlist');
   }
 
+  function setPlayerDropZone(zone) {
+    if (playerDropZone === zone) return;
+    const previous = playerDropZone;
+    playerDropZone = zone;
+    playerDropZones.forEach((element) => {
+      element.classList.toggle('hot', Number(element.dataset.dropZone) === zone);
+    });
+    if (previous !== null && zone !== null && previous !== zone && navigator.vibrate) {
+      navigator.vibrate(4);
+    }
+  }
+
+  function showPlayerDrop() {
+    if (!playerDrop) return;
+    clearTimeout(playerDropHideTimer);
+    playerDropHideTimer = null;
+    playerDropControlsVisible = !playerControls.classList.contains('hidden')
+      && !player.classList.contains('ui-hidden');
+    if (playerDropControlsVisible) {
+      playerControls.classList.add('hidden');
+      player.classList.add('ui-hidden');
+      clearTimeout(hideTimer);
+    }
+    playerDropZones.forEach((element) => element.classList.remove('fired', 'armed'));
+    playerDrop.classList.add('show');
+    playerDrop.setAttribute('aria-hidden', 'false');
+  }
+
+  function hidePlayerDrop(delay = 0, options = {}) {
+    if (!playerDrop) return;
+    clearTimeout(playerDropHideTimer);
+    const restoreControls = options.restore === true && playerDropControlsVisible;
+    playerDropControlsVisible = false;
+    const run = () => {
+      playerDropHideTimer = null;
+      playerDrop.classList.remove('show');
+      playerDrop.setAttribute('aria-hidden', 'true');
+      playerDropZones.forEach((element) => element.classList.remove('hot', 'fired', 'armed'));
+      playerDropZone = null;
+      if (restoreControls && state.playerOpen) showControls();
+    };
+    if (delay > 0) playerDropHideTimer = setTimeout(run, delay);
+    else run();
+  }
+
+  function firePlayerDropZone(zone) {
+    playerDropZones.forEach((element) => {
+      const active = Number(element.dataset.dropZone) === zone;
+      element.classList.toggle('hot', active);
+      element.classList.toggle('fired', active);
+    });
+    playerDropZone = zone;
+  }
+
+  function cancelPlayerDropExit() {
+    playerDropExitToken += 1;
+    if (playerDropExitAnim) {
+      try { playerDropExitAnim.cancel(); } catch (_) {}
+      playerDropExitAnim = null;
+    }
+    player.classList.remove('dropping');
+  }
+
+  function closePlayerFromDrop(direction, fromY, scale) {
+    if (!state.playerOpen) return;
+    const token = ++playerDropExitToken;
+    const width = window.innerWidth || 1;
+    const exitX = direction * width * 1.02;
+    const exitRotate = direction * 3.5;
+    const exitScale = Math.max(0.6, scale * 0.8);
+    let finished = false;
+    player.classList.add('dropping');
+    const finish = () => {
+      if (finished || token !== playerDropExitToken) return;
+      finished = true;
+      stopPlayback();
+      player.classList.remove('dropping');
+      if (playerDropExitAnim) {
+        try { playerDropExitAnim.cancel(); } catch (_) {}
+        playerDropExitAnim = null;
+      }
+    };
+    if (typeof player.animate === 'function') {
+      playerDropExitAnim = player.animate([
+        {
+          transform: `translate(0px, ${fromY}px) scale(${scale})`,
+          opacity: 1,
+          borderRadius: '28px',
+        },
+        {
+          transform: `translate(${exitX}px, ${fromY + 28}px) scale(${exitScale}) rotate(${exitRotate}deg)`,
+          opacity: 0,
+          borderRadius: '44px',
+        },
+      ], {
+        duration: 340,
+        easing: 'cubic-bezier(.3,.8,.2,1)',
+        fill: 'forwards',
+      });
+      const done = () => {
+        if (token !== playerDropExitToken) return;
+        finish();
+      };
+      if (playerDropExitAnim.finished && playerDropExitAnim.finished.then) {
+        playerDropExitAnim.finished.then(done).catch(done);
+      }
+      setTimeout(done, 460);
+    } else {
+      player.style.transition = 'transform .34s cubic-bezier(.3,.8,.2,1),opacity .3s ease,border-radius .34s ease';
+      player.style.transform = `translate(${exitX}px, ${fromY + 28}px) scale(${exitScale}) rotate(${exitRotate}deg)`;
+      player.style.opacity = '0';
+      player.style.borderRadius = '44px';
+      setTimeout(finish, 370);
+    }
+  }
+
   function minimizePlayer(fromY = 0, fromScale = 1) {
     if (!state.playerOpen) return;
     playerMediaOpenToken += 1;
@@ -3258,6 +3383,7 @@
         playerDockForced = false;
       }
       absorbPlaylistDock();
+      hidePlayerDrop();
     };
     if (typeof player.animate === 'function' && target && target.width > 0) {
       const midScale = dragScale + (targetScale - dragScale) * 0.9;
@@ -3318,6 +3444,7 @@
     closePlayerSettings({ instant: true });
     cancelPlayerOpenExpansion();
     cancelPlayerCollapse();
+    hidePlayerDrop();
     resetVideoDetail();
     state.playerOpen = false;
     state.miniVisible = false;
@@ -3833,6 +3960,9 @@
       horizontal: 0,
       settingsY: 0,
       lastDy: 0,
+      dropShown: false,
+      dropZone: null,
+      dropArmed: false,
     };
     if (zone !== 'middle' && state.settings.longPressRate) {
       stageGesture.longPressTimer = setTimeout(() => {
@@ -3884,6 +4014,32 @@
     } else if (gesture.mode === 'collapse') {
       const dragY = Math.max(0, localY);
       gesture.collapseY = dragY;
+      if (!state.playerLandscape) {
+        if (!gesture.dropShown && dragY > 16) {
+          gesture.dropShown = true;
+          showPlayerDrop();
+        }
+        if (gesture.dropShown) {
+          let zone = 0;
+          if (dragY > 64 && Math.abs(localX) >= 24) {
+            const third = window.innerWidth / 3;
+            if (event.clientX < third) zone = -1;
+            else if (event.clientX > third * 2) zone = 1;
+          }
+          if (dragY <= 64) zone = null;
+          gesture.dropZone = zone;
+          setPlayerDropZone(zone);
+          if (dragY >= 110 && !gesture.dropArmed) {
+            gesture.dropArmed = true;
+            if (navigator.vibrate) navigator.vibrate(6);
+          } else if (dragY < 104) {
+            gesture.dropArmed = false;
+          }
+          playerDropZones.forEach((element) => {
+            element.classList.toggle('armed', gesture.dropArmed && Number(element.dataset.dropZone) === zone);
+          });
+        }
+      }
       const scale = 1 - Math.min(0.05, dragY / 3000);
       if (state.playerLandscape) {
         player.style.transform = `scale(${scale})`;
@@ -3983,11 +4139,26 @@
     }
 
     if (gesture.mode === 'collapse') {
-      if (gesture.collapseY > 110) {
-        const fromY = state.playerLandscape ? 0 : gesture.collapseY;
-        minimizePlayer(fromY, 1 - Math.min(0.05, gesture.collapseY / 3000));
+      const fromY = state.playerLandscape ? 0 : gesture.collapseY;
+      const scale = 1 - Math.min(0.05, gesture.collapseY / 3000);
+      if (!cancelled && gesture.collapseY > 110) {
+        if (!state.playerLandscape && (gesture.dropZone === -1 || gesture.dropZone === 1)) {
+          firePlayerDropZone(gesture.dropZone);
+          hidePlayerDrop();
+          closePlayerFromDrop(gesture.dropZone, fromY, scale);
+          return;
+        }
+        if (!state.playerLandscape && gesture.dropZone === 0) {
+          firePlayerDropZone(0);
+          hidePlayerDrop();
+          minimizePlayer(fromY, scale);
+          return;
+        }
+        hidePlayerDrop();
+        minimizePlayer(fromY, scale);
         return;
       }
+      hidePlayerDrop(0, { restore: true });
       player.style.transition = 'transform .24s cubic-bezier(.16,1,.3,1), opacity .2s ease, border-radius .2s ease';
       player.style.transform = 'none';
       player.style.opacity = '1';
@@ -5962,10 +6133,34 @@
     results.push(`settings=${settingsOpened && !playerSettingsOpen}`);
 
     await sleep(180);
-    dispatchSwipe('right', 0, 190);
+    const collapseStart = stagePoint('middle');
+    playerStage.dispatchEvent(pointerEvent('pointerdown', collapseStart.x, collapseStart.y, 1));
+    for (let step = 1; step <= 6; step += 1) {
+      window.dispatchEvent(pointerEvent('pointermove', collapseStart.x, collapseStart.y + (190 * step) / 6, 1));
+    }
+    await sleep(90);
+    const dropMiddle = playerDrop.classList.contains('show')
+      && playerDrop.querySelector('.player-drop-zone.hot')?.dataset.dropZone === '0';
+    window.dispatchEvent(pointerEvent('pointerup', collapseStart.x, collapseStart.y + 190, 0));
+    await sleep(560);
+    results.push(`dropZones=${dropMiddle}`);
     results.push(`collapsed=${!state.playerOpen && state.miniVisible}`);
 
-    await sleep(420);
+    await sleep(260);
+    openPlayer({ resume: true });
+    await sleep(650);
+    const closeStart = stagePoint('middle');
+    playerStage.dispatchEvent(pointerEvent('pointerdown', closeStart.x, closeStart.y, 1));
+    for (let step = 1; step <= 6; step += 1) {
+      window.dispatchEvent(pointerEvent('pointermove', closeStart.x - (150 * step) / 6, closeStart.y + (190 * step) / 6, 1));
+    }
+    await sleep(90);
+    const dropLeft = playerDrop.querySelector('.player-drop-zone.hot')?.dataset.dropZone === '-1';
+    window.dispatchEvent(pointerEvent('pointerup', closeStart.x - 150, closeStart.y + 190, 0));
+    await sleep(820);
+    results.push(`dropClose=${dropLeft && !state.playerOpen && !state.miniVisible}`);
+
+    await sleep(260);
     openPlayer({ resume: true });
     await sleep(360);
     dispatchSwipe('middle', 240, 0);
