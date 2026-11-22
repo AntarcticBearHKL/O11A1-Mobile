@@ -1052,46 +1052,43 @@ html.playlist-vt::view-transition-new(root){
 .settings-group:first-of-type{margin-top:8px}
 
 /* ---------- login gate ---------- */
-.page[data-page="login"]{padding:0 24px}
+.page[data-page="login"]{padding:0 28px}
 .page[data-page="login"].active{display:flex;align-items:center;justify-content:center;min-height:100%}
 .login-gate{
-  display:flex;flex-direction:column;align-items:center;gap:9px;
-  width:100%;padding-bottom:44px;
+  width:100%;max-width:380px;padding-bottom:4vh;
 }
 .login-back{
   position:absolute;top:10px;left:8px;z-index:5;
 }
-.login-qr{
-  width:216px;height:216px;border-radius:18px;cursor:pointer;
-  border:1px dashed var(--line-strong);
-  background:
-    repeating-linear-gradient(135deg,#EEF0F5 0 7px,#F9FAFC 7px 14px);
-  display:flex;align-items:center;justify-content:center;
-  box-shadow:0 12px 30px rgba(30,30,36,.06);
-  transition:border-color .15s,transform .1s;
+.login-title{
+  margin:0 0 38px;font-size:31px;line-height:1.16;font-weight:800;
+  letter-spacing:-.035em;color:var(--ink);
 }
-.login-qr:hover{border-color:var(--blue)}
-.login-qr:active{transform:scale(.985)}
-.login-status{font-size:13px;font-weight:700;margin-top:6px;text-align:center}
-.login-note{font-size:10px;line-height:1.6;color:var(--muted);text-align:center;max-width:250px}
-.login-gate .pill-btn{margin-top:6px}
-.login-sms-card{
-  width:100%;max-width:320px;display:flex;flex-direction:column;align-items:center;gap:10px;
-  padding:26px 22px 20px;border:1px solid var(--line);border-radius:24px;
-  background:var(--surface);box-shadow:0 16px 40px rgba(30,30,36,.08);
+.login-form{display:flex;flex-direction:column}
+.login-field{
+  display:flex;align-items:center;height:56px;
+  border-bottom:1px solid var(--line-strong);
+  transition:border-color .18s ease;
 }
-.login-sms-icon{
-  width:58px;height:58px;border-radius:50%;display:grid;place-items:center;
-  background:var(--blue-soft);color:var(--blue);border:1px solid rgba(47,124,246,.25);
-  font-size:24px;font-weight:700;
+.login-field:focus-within{border-bottom-color:var(--blue)}
+.login-input{
+  flex:1;min-width:0;height:100%;border:0;background:none;outline:none;padding:0;
+  font-size:17px;font-weight:600;letter-spacing:.01em;color:var(--ink);
 }
-.login-sms-card b{font-size:20px;letter-spacing:-.01em}
-.login-sms-card p{margin:0;font-size:11.5px;line-height:1.7;color:var(--muted);text-align:center}
-.login-test{
-  margin-top:4px;border:0;background:transparent;color:var(--faint);
-  font-size:10px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;
+.login-input::placeholder{color:var(--faint);font-weight:500;letter-spacing:0}
+.login-code-btn{
+  flex:none;border:0;background:none;padding:0 0 0 14px;margin:0;
+  font-size:13.5px;font-weight:750;line-height:1;letter-spacing:.01em;color:var(--blue);
+  cursor:pointer;white-space:nowrap;transition:color .16s ease,opacity .16s ease;
 }
-.login-cta{background:var(--blue);border-color:var(--blue);color:#fff}
+.login-code-btn:disabled{color:var(--faint);cursor:default}
+.login-code-btn:active:not(:disabled){opacity:.55}
+.login-status{
+  min-height:17px;margin:14px 0 0;font-size:12.5px;line-height:1.35;
+  color:var(--muted);text-align:left;
+}
+.login-status.error{color:var(--coral)}
+.login-status.success{color:var(--green)}
 .app.auth-gate .login-back{display:none}
 
 /* ---------- module settings ---------- */
@@ -2240,13 +2237,6 @@ body.reduce-motion .player-boot-ring{animation:none}
 }
 @keyframes playerLoadingSpin{to{transform:rotate(360deg)}}
 .player-video.video-error .real-video-status{color:#FFB4AC;border-color:rgba(255,116,104,.4);pointer-events:auto;cursor:pointer}
-.login-qr{position:relative;overflow:hidden}
-.login-qr img{
-  position:absolute;inset:6px;width:calc(100% - 12px);height:calc(100% - 12px);
-  object-fit:contain;border-radius:12px;background:#fff;display:none;
-}
-.login-qr.has-real-qr img{display:block}
-.login-qr.has-real-qr .ph-label{display:none}
 .comment-avatar{width:34px;height:34px;flex:none;border-radius:50%;object-fit:cover;background:var(--surface-2)}
 .pl-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 
@@ -2509,10 +2499,6 @@ body[data-theme="dark"] .playlist-dock{
 
 body[data-theme="dark"] .pd-meta{color:var(--muted)}
 
-body[data-theme="dark"] .login-qr{background:#fff}
-body[data-theme="dark"] .login-sms-card{background:var(--surface);border-color:var(--line)}
-body[data-theme="dark"] .login-sms-icon{background:var(--blue-soft);border-color:rgba(84,167,255,.3)}
-body[data-theme="dark"] .login-note{color:var(--muted)}
 body[data-theme="dark"] .real-video-status{background:rgba(6,8,12,.72)}
 body[data-theme="dark"] .native-empty{color:var(--muted)}
 body[data-theme="dark"] .comment-text small{color:var(--faint)}

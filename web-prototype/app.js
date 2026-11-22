@@ -118,6 +118,9 @@
   const dynamicFilter = $('#dynamicFilter');
   const messageFilter = $('#messageFilter');
   const loginStatus = $('#loginStatus');
+  const loginPhone = $('#loginPhone');
+  const loginCode = $('#loginCode');
+  const loginCodeBtn = $('#loginCodeBtn');
   const searchClear = $('#searchClear');
   const protoDrawer = $('#protoDrawer');
   const protoBackdrop = $('#protoBackdrop');
@@ -840,31 +843,84 @@
     }, 320);
   }
 
-  function loginSucceeded() {
+  /* ---------- login ---------- */
+
+  let loginRequested = false;
+  let smsPollTimer = null;
+
+  function loginDigits(value, max) {
+    return String(value == null ? '' : value).replace(/\D/g, '').slice(0, max);
+  }
+
+  function loginPhoneValue() {
+    return loginPhone ? loginPhone.value.trim() : '';
+  }
+
+  function loginPhoneValid() {
+    return /^1[3-9]\d{9}$/.test(loginPhoneValue());
+  }
+
+  function setLoginStatus(text, tone) {
+    if (!loginStatus) return;
+    loginStatus.textContent = text || '';
+    loginStatus.className = 'login-status'
+      + (tone === 'error' ? ' error' : tone === 'success' ? ' success' : '');
+  }
+
+  function nativeLoginCall(name, args) {
+    const native = window.O11A1Native;
+    if (!native || typeof native[name] !== 'function') {
+      return { ok: false, error: '当前环境不支持短信登录' };
+    }
+    try {
+      const raw = native[name].apply(native, args);
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      return parsed && typeof parsed === 'object' ? parsed : { ok: false, error: '返回数据异常' };
+    } catch (_) {
+      return { ok: false, error: '请求失败，请稍后重试' };
+    }
+  }
+
+  function resetLoginForm() {
+    loginRequested = false;
+    if (loginPhone) loginPhone.value = '';
+    if (loginCode) loginCode.value = '';
+    setLoginStatus('');
+  }
+
+  function loginSucceeded(options = {}) {
     if (!state.loggedIn) {
       state.loggedIn = true;
       app.classList.remove('auth-gate');
       save();
     }
-    loginStatus.textContent = '登录成功 · 正在进入首页…';
+    if (!options.silent) setLoginStatus('登录成功', 'success');
     setTimeout(() => {
       if (state.loggedIn) showPage('home');
-    }, 600);
+      resetLoginForm();
+    }, options.immediate ? 0 : 600);
   }
 
-  let smsPollTimer = null;
-  function openSmsLogin() {
+  function enterLocalTest() {
+    state.loggedIn = true;
+    app.classList.remove('auth-gate');
+    save();
+    resetLoginForm();
+    showPage('home');
+  }
+
+  function openOfficialLogin(phone) {
     if (!window.O11A1Native || typeof window.O11A1Native.openWebLogin !== 'function') {
-      loginStatus.textContent = '当前版本不支持短信登录';
-      return;
+      setLoginStatus('当前环境不支持短信登录', 'error');
+      return false;
     }
     let result;
-    try { result = JSON.parse(window.O11A1Native.openWebLogin()); } catch (_) { result = { ok: false }; }
+    try { result = JSON.parse(window.O11A1Native.openWebLogin(phone || '')); } catch (_) { result = { ok: false }; }
     if (!result || !result.ok) {
-      loginStatus.textContent = result && result.error ? result.error : '打开短信登录失败';
-      return;
+      setLoginStatus(result && result.error ? result.error : '打开官方登录失败', 'error');
+      return false;
     }
-    loginStatus.textContent = '已打开 B 站短信登录页…';
+    setLoginStatus('请在官方页面完成验证');
     clearInterval(smsPollTimer);
     let attempts = 0;
     smsPollTimer = setInterval(() => {
@@ -874,20 +930,56 @@
         smsPollTimer = null;
         return;
       }
-      let account = null;
-      try { account = JSON.parse(window.O11A1Native.account()); } catch (_) {}
+      const account = nativeLoginCall('account', []);
       if (account && account.ok && account.loggedIn) {
         clearInterval(smsPollTimer);
         smsPollTimer = null;
-        loginSucceeded();
+        loginSucceeded({ silent: true });
         return;
       }
       if (attempts > 120) {
         clearInterval(smsPollTimer);
         smsPollTimer = null;
-        loginStatus.textContent = '还没有检测到登录 · 可以重新打开短信登录';
+        setLoginStatus('');
       }
     }, 1500);
+    return true;
+  }
+
+  function requestLoginCode() {
+    if (!loginPhoneValid()) {
+      setLoginStatus('请输入正确手机号', 'error');
+      if (loginPhone) loginPhone.focus();
+      return;
+    }
+    loginRequested = true;
+    if (!openOfficialLogin(loginPhoneValue())) {
+      loginRequested = false;
+      return;
+    }
+    if (loginCodeBtn) {
+      loginCodeBtn.disabled = true;
+      loginCodeBtn.textContent = '官方验证中';
+    }
+    setTimeout(() => {
+      if (!state.loggedIn && loginCodeBtn) {
+        loginCodeBtn.disabled = false;
+        loginCodeBtn.textContent = '获取验证码';
+      }
+    }, 2500);
+  }
+
+  function submitLoginCode() {
+    if (!loginCode) return;
+    const code = loginCode.value;
+    if (code.length !== 6) return;
+    const phone = loginPhoneValue();
+    if (code === '999999' && !phone && !loginRequested) {
+      enterLocalTest();
+      return;
+    }
+    loginCode.value = '';
+    setLoginStatus('请在官方页面完成验证');
   }
 
   function logout() {
@@ -903,7 +995,7 @@
     save();
     updateNavActive();
     showPage('login');
-    loginStatus.textContent = '已退出登录 · 短信验证码登录';
+    resetLoginForm();
   }
 
   function showPage(page, navId) {
@@ -1005,7 +1097,7 @@
     }
     if (page === 'login') {
       state.navActive = '';
-      loginStatus.textContent = state.loggedIn ? '已登录 · 可重新登录' : '短信验证码登录';
+      setLoginStatus('');
     } else if (navId !== undefined && navId !== null) {
       state.navActive = navId;
     } else if (PAGE_NAV[page]) {
@@ -5164,9 +5256,34 @@
 
   $('#accountCard').addEventListener('click', () => showPage('login'));
   myModuleRow.addEventListener('click', openModuleSheet);
-  const loginSms = $('#loginSms');
-  if (loginSms) loginSms.addEventListener('click', openSmsLogin);
-  $('#loginCta').addEventListener('click', loginSucceeded);
+  if (loginPhone) {
+    loginPhone.addEventListener('input', () => {
+      loginPhone.value = loginDigits(loginPhone.value, 11);
+      loginRequested = false;
+      if (loginCode) loginCode.value = '';
+      setLoginStatus('');
+    });
+    loginPhone.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        if (loginCode) loginCode.focus();
+      }
+    });
+  }
+  if (loginCode) {
+    loginCode.addEventListener('input', () => {
+      loginCode.value = loginDigits(loginCode.value, 6);
+      if (loginStatus && loginStatus.classList.contains('error')) setLoginStatus('');
+      if (loginCode.value.length === 6) submitLoginCode();
+    });
+    loginCode.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        submitLoginCode();
+      }
+    });
+  }
+  if (loginCodeBtn) loginCodeBtn.addEventListener('click', requestLoginCode);
 
   dynamicFilter.addEventListener('click', () => {
     state.dynamicFilterIndex = (state.dynamicFilterIndex + 1) % DYNAMIC_FILTERS.length;

@@ -491,8 +491,9 @@ final class O11A1LocalServer {
       data = o11a1Data(["ok": true, "v": value])
     case "webLogin":
       let client = self.client
+      let phone = query["phone"] ?? ""
       DispatchQueue.main.async {
-        O11A1WebLogin.present { header in
+        O11A1WebLogin.present(phone: phone) { header in
           client.importCookieHeader(header)
         }
       }

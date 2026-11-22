@@ -232,10 +232,12 @@ final class WebAppBridge {
     }
 
     @JavascriptInterface
-    public String openWebLogin() {
+    public String openWebLogin(String phone) {
         JSONObject out = new JSONObject();
         try {
-            activity.startActivity(new android.content.Intent(activity, WebLoginActivity.class));
+            android.content.Intent intent = new android.content.Intent(activity, WebLoginActivity.class);
+            intent.putExtra("phone", phone == null ? "" : phone);
+            activity.startActivity(intent);
             out.put("ok", true);
             out.put("opened", true);
         } catch (Throwable error) {

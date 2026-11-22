@@ -8,12 +8,14 @@ final class O11A1WebLogin: NSObject, WKNavigationDelegate {
   private let controller: UIViewController
   private let webView: WKWebView
   private let onImport: (String) -> Void
+  private let phone: String
   private var timer: Timer?
   private var finished = false
   private var initialSess = ""
   private var initialReady = false
 
-  private init(onImport: @escaping (String) -> Void) {
+  private init(phone: String, onImport: @escaping (String) -> Void) {
+    self.phone = phone.filter { $0.isNumber }
     self.onImport = onImport
     controller = UIViewController()
     let config = WKWebViewConfiguration()
@@ -82,10 +84,10 @@ final class O11A1WebLogin: NSObject, WKNavigationDelegate {
     }
   }
 
-  static func present(onImport: @escaping (String) -> Void) {
+  static func present(phone: String = "", onImport: @escaping (String) -> Void) {
     guard let top = topViewController() else { return }
     if top.presentedViewController != nil { return }
-    let login = O11A1WebLogin(onImport: onImport)
+    let login = O11A1WebLogin(phone: phone, onImport: onImport)
     active = login
     top.present(login.controller, animated: true)
   }
@@ -115,6 +117,23 @@ final class O11A1WebLogin: NSObject, WKNavigationDelegate {
   private func injectSmsTab() {
     let js = """
     (function(){
+      var phone='\(phone)';
+      function inputFor(hint){
+        var all=document.querySelectorAll('input');
+        for(var i=0;i<all.length;i++){ if((all[i].placeholder||'').indexOf(hint)>=0) return all[i]; }
+        return null;
+      }
+      function fillPhone(){
+        var input=inputFor('手机号');
+        if(!input) return false;
+        if(phone && input.value!==phone){
+          var setter=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
+          setter.call(input,phone);
+          input.dispatchEvent(new Event('input',{bubbles:true}));
+          input.dispatchEvent(new Event('change',{bubbles:true}));
+        }
+        return true;
+      }
       function clickSms(){
         var all=document.querySelectorAll('div,span,button,a,p');
         for(var i=0;i<all.length;i++){
@@ -123,10 +142,34 @@ final class O11A1WebLogin: NSObject, WKNavigationDelegate {
         }
         return false;
       }
-      if(!clickSms()){
-        var n=0;
-        var timer=setInterval(function(){ n++; if(clickSms()||n>24) clearInterval(timer); },400);
+      function submitCode(e){
+        var t=e.target;
+        if(!t || t.tagName!=='INPUT' || (t.placeholder||'').indexOf('验证码')<0) return;
+        var v=t.value||'';
+        if(v.length<6){ t.dataset.o11a1=''; return; }
+        if(v.length!==6 || t.dataset.o11a1==='1') return;
+        t.dataset.o11a1='1';
+        setTimeout(function(){
+          var box=document.querySelector('.sns-bind-btn');
+          if(box){ (box.querySelector('button')||box).click(); }
+          else {
+            var all=document.querySelectorAll('button');
+            for(var i=0;i<all.length;i++){
+              var x=(all[i].textContent||'').trim();
+              if(x==='登录'||x==='验证登录'){ all[i].click(); break; }
+            }
+          }
+          setTimeout(function(){ t.dataset.o11a1=''; },2200);
+        },120);
       }
+      document.addEventListener('input',submitCode,true);
+      var tries=0;
+      var timer=setInterval(function(){
+        tries++;
+        var sms=clickSms();
+        if(sms) fillPhone();
+        if(tries>40 || (sms && (!phone || fillPhone()))) clearInterval(timer);
+      },400);
     })();
     """
     webView.evaluateJavaScript(js, completionHandler: nil)
