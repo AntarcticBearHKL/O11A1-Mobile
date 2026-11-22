@@ -373,6 +373,9 @@
   let dockSearchPullTimer = null;
   let suppressDockSearchClickUntil = 0;
   let playlistDrag = null;
+  let playlistRowPress = null;
+  let playlistRowReorder = null;
+  let playlistRowReorderSuppressClickUntil = 0;
   let toolbarDrag = null;
   let mockFeedLoading = false;
   let mockFeedLoadedAt = 0;
@@ -1469,7 +1472,7 @@
   /* ---------- playlist (floating dock + page) ---------- */
   function playlistItemMarkup(item, removable) {
     return `
-      <span class="pl-thumb">${item.pic ? `<img src="${escapeHTML(item.pic)}" alt="">` : '<span class="ph-label">封面</span>'}</span>
+      <span class="pl-thumb">${item.pic ? `<img src="${escapeHTML(item.pic)}" alt="" draggable="false">` : '<span class="ph-label">封面</span>'}</span>
       <span class="pl-copy">
         <span class="pl-title">${escapeHTML(item.title)}</span>
         <span class="pl-meta">${escapeHTML(item.meta)}</span>
@@ -1532,6 +1535,7 @@
       row.innerHTML = playlistItemMarkup(item, true);
       const open = () => openPlaylistItem(index, row);
       row.addEventListener('click', (event) => {
+        if (Date.now() < playlistRowReorderSuppressClickUntil) return;
         if (event.target.closest('.pl-remove')) return;
         open();
       });
@@ -1827,6 +1831,7 @@
       row.innerHTML = playlistItemMarkup(item, true);
       const openItem = () => openPlaylistItem(index, row);
       row.addEventListener('click', (event) => {
+        if (Date.now() < playlistRowReorderSuppressClickUntil) return;
         if (event.target.closest('.pl-remove')) return;
         openItem();
       });
@@ -1864,6 +1869,218 @@
     });
     playlistPageList.appendChild(clear);
   }
+
+  /* ---------- playlist row long-press reorder ---------- */
+  const PLAYLIST_ROW_HOLD_MS = 380;
+  const PLAYLIST_ROW_HOLD_SLOP = 10;
+
+  function cancelPlaylistRowPress() {
+    if (!playlistRowPress) return;
+    clearTimeout(playlistRowPress.timer);
+    playlistRowPress = null;
+  }
+
+  function handlePlaylistRowPointerDown(event) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (playlistRowReorder) return;
+    const list = event.currentTarget;
+    const row = event.target.closest('.playlist-page-item');
+    if (!row || row.parentElement !== list) return;
+    if (event.target.closest('.pl-remove, button, a, input, textarea')) return;
+    cancelPlaylistRowPress();
+    const press = {
+      id: event.pointerId,
+      list,
+      row,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastY: event.clientY,
+      timer: 0,
+    };
+    press.timer = setTimeout(() => {
+      if (playlistRowPress !== press) return;
+      startPlaylistRowReorder(press);
+    }, PLAYLIST_ROW_HOLD_MS);
+    playlistRowPress = press;
+  }
+
+  function startPlaylistRowReorder(press) {
+    playlistRowPress = null;
+    if (!press.row.isConnected || playlistRowReorder) return;
+    const rows = Array.from(press.list.querySelectorAll('.playlist-page-item'));
+    const startIndex = rows.indexOf(press.row);
+    if (startIndex < 0) return;
+    const rect = press.row.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return;
+    const rowInfo = rows.map((row) => {
+      const bounds = row.getBoundingClientRect();
+      return { el: row, top: bounds.top, height: bounds.height };
+    });
+    const ghost = press.row.cloneNode(true);
+    ghost.classList.add('reorder-ghost');
+    ghost.removeAttribute('role');
+    ghost.removeAttribute('tabindex');
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.style.position = 'fixed';
+    ghost.style.left = `${rect.left}px`;
+    ghost.style.top = `${rect.top}px`;
+    ghost.style.width = `${rect.width}px`;
+    ghost.style.height = `${rect.height}px`;
+    ghost.style.margin = '0';
+    document.body.appendChild(ghost);
+    press.row.classList.add('reorder-source');
+    press.list.classList.add('reordering');
+    document.body.classList.add('playlist-reordering');
+    const scrollEl = press.list === dockPlaylistList ? dockPlaylistBody : appScroll;
+    playlistRowReorder = {
+      id: press.id,
+      list: press.list,
+      row: press.row,
+      item: state.playlist[startIndex] || null,
+      startIndex,
+      targetIndex: startIndex,
+      rows: rowInfo,
+      rowHeight: rect.height,
+      ghost,
+      startY: press.startY,
+      lastClientY: press.lastY,
+      scrollEl,
+      scrollStart: scrollEl ? scrollEl.scrollTop : 0,
+      scrollSpeed: 0,
+      raf: 0,
+    };
+    playlistDrag = null;
+    resetPlaylistPageDrag();
+    dockDrag = null;
+    dockBodyTouch = null;
+    playlistDock.classList.remove('dragging');
+    playlistDock.style.height = '';
+    playlistDock.style.borderTopLeftRadius = '';
+    playlistDock.style.borderTopRightRadius = '';
+    playlistDock.style.boxShadow = '';
+    if (navigator.vibrate) {
+      try { navigator.vibrate(8); } catch (_) {}
+    }
+    updatePlaylistRowReorder(press.lastY);
+  }
+
+  function updatePlaylistRowReorder(clientY) {
+    const drag = playlistRowReorder;
+    if (!drag) return;
+    if (!drag.row.isConnected || !drag.list.isConnected) {
+      finishPlaylistRowReorder(false);
+      return;
+    }
+    drag.lastClientY = clientY;
+    drag.ghost.style.top = `${drag.rows[drag.startIndex].top + (clientY - drag.startY)}px`;
+    const scrollDelta = drag.scrollEl ? drag.scrollEl.scrollTop - drag.scrollStart : 0;
+    let target = drag.startIndex;
+    drag.rows.forEach((info, index) => {
+      if (index === drag.startIndex) return;
+      const mid = info.top - scrollDelta + info.height / 2;
+      if (index < drag.startIndex && clientY < mid) target = Math.min(target, index);
+      else if (index > drag.startIndex && clientY > mid) target = Math.max(target, index);
+    });
+    drag.targetIndex = target;
+    drag.rows.forEach((info, index) => {
+      if (index === drag.startIndex) return;
+      let shift = 0;
+      if (target < drag.startIndex && index >= target && index < drag.startIndex) shift = drag.rowHeight;
+      else if (target > drag.startIndex && index > drag.startIndex && index <= target) shift = -drag.rowHeight;
+      const next = shift ? `translateY(${shift}px)` : '';
+      if (info.el.style.transform !== next) info.el.style.transform = next;
+    });
+  }
+
+  function playlistRowScrollSpeed(clientY) {
+    const drag = playlistRowReorder;
+    if (!drag || !drag.scrollEl) return 0;
+    const bounds = drag.scrollEl.getBoundingClientRect();
+    if (bounds.height < 1) return 0;
+    const edge = Math.min(64, Math.max(28, bounds.height * 0.12));
+    if (clientY < bounds.top + edge) {
+      return -Math.min(12, Math.max(2, Math.ceil((bounds.top + edge - clientY) / 5)));
+    }
+    if (clientY > bounds.bottom - edge) {
+      return Math.min(12, Math.max(2, Math.ceil((clientY - (bounds.bottom - edge)) / 5)));
+    }
+    return 0;
+  }
+
+  function runPlaylistRowScroll() {
+    const drag = playlistRowReorder;
+    if (!drag) return;
+    drag.raf = 0;
+    if (!drag.scrollSpeed || !drag.scrollEl) return;
+    const before = drag.scrollEl.scrollTop;
+    drag.scrollEl.scrollTop = before + drag.scrollSpeed;
+    if (drag.scrollEl.scrollTop !== before) updatePlaylistRowReorder(drag.lastClientY);
+    drag.raf = requestAnimationFrame(runPlaylistRowScroll);
+  }
+
+  function finishPlaylistRowReorder(commit) {
+    const drag = playlistRowReorder;
+    if (!drag) return;
+    playlistRowReorder = null;
+    if (drag.raf) cancelAnimationFrame(drag.raf);
+    drag.ghost.remove();
+    drag.list.classList.remove('reordering');
+    drag.rows.forEach((info) => {
+      info.el.style.transform = '';
+    });
+    drag.row.classList.remove('reorder-source');
+    document.body.classList.remove('playlist-reordering');
+    playlistRowReorderSuppressClickUntil = Date.now() + 460;
+    suppressPlaylistClickUntil = Math.max(suppressPlaylistClickUntil, playlistRowReorderSuppressClickUntil);
+    suppressDockClickUntil = Math.max(suppressDockClickUntil, playlistRowReorderSuppressClickUntil);
+    if (!commit) return;
+    const from = drag.startIndex;
+    const to = drag.targetIndex;
+    if (from === to) return;
+    if (!drag.item || state.playlist[from] !== drag.item) return;
+    const moved = state.playlist.splice(from, 1)[0];
+    if (!moved) return;
+    state.playlist.splice(to, 0, moved);
+    if (state.currentIndex === from) state.currentIndex = to;
+    else if (from < state.currentIndex && to >= state.currentIndex) state.currentIndex -= 1;
+    else if (from > state.currentIndex && to <= state.currentIndex) state.currentIndex += 1;
+    save();
+    refreshPlaylistPage();
+  }
+
+  window.addEventListener('pointermove', (event) => {
+    if (playlistRowReorder && event.pointerId === playlistRowReorder.id) {
+      if (event.cancelable) event.preventDefault();
+      updatePlaylistRowReorder(event.clientY);
+      const speed = playlistRowScrollSpeed(event.clientY);
+      playlistRowReorder.scrollSpeed = speed;
+      if (speed && !playlistRowReorder.raf) playlistRowReorder.raf = requestAnimationFrame(runPlaylistRowScroll);
+      return;
+    }
+    if (!playlistRowPress || event.pointerId !== playlistRowPress.id) return;
+    const dx = event.clientX - playlistRowPress.startX;
+    const dy = event.clientY - playlistRowPress.startY;
+    if (Math.abs(dx) > PLAYLIST_ROW_HOLD_SLOP || Math.abs(dy) > PLAYLIST_ROW_HOLD_SLOP) {
+      cancelPlaylistRowPress();
+      return;
+    }
+    playlistRowPress.lastY = event.clientY;
+  }, { passive: false });
+
+  window.addEventListener('pointerup', (event) => {
+    if (playlistRowPress && event.pointerId === playlistRowPress.id) cancelPlaylistRowPress();
+    if (playlistRowReorder && event.pointerId === playlistRowReorder.id) finishPlaylistRowReorder(true);
+  });
+
+  window.addEventListener('pointercancel', (event) => {
+    if (playlistRowPress && event.pointerId === playlistRowPress.id) cancelPlaylistRowPress();
+    if (playlistRowReorder && event.pointerId === playlistRowReorder.id) finishPlaylistRowReorder(false);
+  });
+
+  window.addEventListener('touchmove', (event) => {
+    if (!playlistRowReorder) return;
+    if (event.cancelable) event.preventDefault();
+  }, { passive: false });
 
   function resetPlaylistPageDrag() {
     if (!playlistPage) return;
@@ -5040,6 +5257,13 @@
     closeSidebar();
   });
   playlistBack.addEventListener('click', () => closePlaylistPage(true));
+  [playlistPageList, dockPlaylistList].forEach((list) => {
+    if (!list) return;
+    list.addEventListener('pointerdown', handlePlaylistRowPointerDown);
+    list.addEventListener('contextmenu', (event) => {
+      if (event.target.closest('.playlist-page-item')) event.preventDefault();
+    });
+  });
   playlistPage.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (!playlistPage.classList.contains('active')) return;
@@ -6342,6 +6566,46 @@
     window.dispatchEvent(pointerEvent('pointerup', grabX, grabY + 140, 0));
     await sleep(520);
     results.push(`playlistSwipe=${playlistOpened && state.page !== 'playlist'}`);
+
+    const reorderBackup = state.playlist.slice();
+    const reorderCurrentBackup = state.currentIndex;
+    if (state.playlist.length < 4) {
+      for (let index = state.playlist.length; index < 4; index += 1) {
+        addToPlaylist(`排序自测 ${index + 1}`, 'UP · 00:30', `selftest:reorder:${index}`, { duration: '00:30', owner: 'UP' });
+      }
+    }
+    openPlaylistPage();
+    await sleep(480);
+    const reorderRows = $$('#playlistPageList .playlist-page-item');
+    let rowReorder = false;
+    if (reorderRows.length >= 3) {
+      const reorderFrom = reorderRows[0];
+      const reorderTo = reorderRows[2];
+      const fromRect = reorderFrom.getBoundingClientRect();
+      const toRect = reorderTo.getBoundingClientRect();
+      const reorderX = fromRect.left + fromRect.width * 0.5;
+      const reorderY = fromRect.top + fromRect.height * 0.5;
+      const reorderTargetY = toRect.top + toRect.height * 0.6;
+      const reorderBefore = state.playlist.map((item) => item.title).join('|');
+      reorderFrom.dispatchEvent(pointerEvent('pointerdown', reorderX, reorderY, 1));
+      await sleep(480);
+      const reorderLifted = Boolean($('.reorder-ghost'));
+      window.dispatchEvent(pointerEvent('pointermove', reorderX, reorderTargetY, 1));
+      await sleep(140);
+      window.dispatchEvent(pointerEvent('pointerup', reorderX, reorderTargetY, 0));
+      await sleep(420);
+      rowReorder = reorderLifted
+        && !$('.reorder-ghost')
+        && state.playlist.map((item) => item.title).join('|') !== reorderBefore;
+    }
+    results.push(`rowReorder=${rowReorder}`);
+    state.playlist = reorderBackup;
+    state.currentIndex = Math.min(reorderCurrentBackup, Math.max(0, state.playlist.length - 1));
+    updatePlayerLabels();
+    updatePlaylistCounts();
+    save();
+    closePlaylistPage();
+    await sleep(460);
 
     const rect = appScroll.getBoundingClientRect();
     const startX = rect.left + rect.width * 0.5;
