@@ -11,6 +11,7 @@
   const playerPauseRing = $('#playerPauseRing');
   const playerStage = $('#playerStage');
   const playerRotor = $('#playerRotor');
+  const playerBody = $('.player-body');
   const playerControls = $('#playerControls');
   const playerTitle = $('#playerTitle');
   const playerSub = $('#playerSub');
@@ -347,6 +348,7 @@
   let playerCollapseTimer = null;
   let playerCollapseToken = 0;
   let playerDockForced = false;
+  let panelTransitionGuardUntil = 0;
   let rowSwipe = null;
   let sidebarPicked = null;
   let menuSwipeStart = null;
@@ -2326,6 +2328,54 @@
     // Playback continues without a persistent mini card; the playlist dock and page own playback state.
   }
 
+  function setPlayerRecede(side, amount, options = {}) {
+    if (!playerBody) return;
+    const p = Math.max(0, Math.min(1, Number(amount) || 0));
+    const restoreTransition = options.instant === true;
+    if (restoreTransition) playerBody.style.transition = 'none';
+    if (options.dragging) player.classList.add('panel-dragging');
+    else player.classList.remove('panel-dragging');
+    if (p <= 0.001) {
+      player.classList.remove('panel-shifted', 'panel-left', 'panel-right');
+      playerBody.style.transformOrigin = '';
+      playerBody.style.transform = '';
+      playerBody.style.borderRadius = '';
+      playerBody.style.boxShadow = '';
+      playerBody.style.setProperty('--player-dim', '0');
+      if (restoreTransition) {
+        requestAnimationFrame(() => { playerBody.style.transition = ''; });
+      }
+      return;
+    }
+    if (side !== 'left' && side !== 'right') return;
+    const dir = side === 'left' ? 1 : -1;
+    player.classList.add('panel-shifted');
+    player.classList.toggle('panel-left', side === 'left');
+    player.classList.toggle('panel-right', side === 'right');
+    playerBody.style.transformOrigin = side === 'left' ? 'left center' : 'right center';
+    playerBody.style.transform = `translate3d(${(p * 9 * dir).toFixed(2)}%,0,0) scale(${(1 - p * 0.09).toFixed(4)}) rotateY(${(p * 4 * dir).toFixed(2)}deg)`;
+    playerBody.style.borderRadius = `${(p * 26).toFixed(1)}px`;
+    playerBody.style.boxShadow = `0 ${Math.round(18 * p)}px ${Math.round(56 * p)}px rgba(0,0,0,${(p * 0.34).toFixed(2)})`;
+    playerBody.style.setProperty('--player-dim', (p * 0.28).toFixed(3));
+    if (restoreTransition) {
+      requestAnimationFrame(() => { playerBody.style.transition = ''; });
+    }
+  }
+
+  function guardPanelTransition(ms = 480) {
+    panelTransitionGuardUntil = Date.now() + ms;
+  }
+
+  function panelTransitionActive() {
+    if (!commentsPanel || !videoDetailPanel) return false;
+    return commentsPanel.classList.contains('open')
+      || commentsPanel.classList.contains('peeking')
+      || commentsPanel.classList.contains('closing')
+      || videoDetailOpen
+      || videoDetailPanel.classList.contains('peeking')
+      || videoDetailPanel.classList.contains('closing');
+  }
+
   function showMiniPlayer() {
     if (!state.playlist.length) return;
     state.miniVisible = true;
@@ -3194,6 +3244,7 @@
     videoDetailPanel.classList.remove('closing', 'peeking', 'dragging');
     videoDetailPanel.style.transition = '';
     videoDetailPanel.setAttribute('aria-hidden', 'false');
+    setPlayerRecede('left', 1);
     if (canRenderCached) {
       native.renderVideoDetail();
     } else if (videoDetailBody) {
@@ -3225,6 +3276,7 @@
   function cancelVideoDetailPeek() {
     if (!videoDetailPanel || videoDetailOpen
       || !videoDetailPanel.classList.contains('peeking')) return;
+    setPlayerRecede('left', 0);
     videoDetailPanel.classList.remove('peeking');
     videoDetailPanel.classList.add('closing');
     videoDetailPanel.setAttribute('aria-hidden', 'true');
@@ -3240,6 +3292,9 @@
 
   function closeVideoDetail(options = {}) {
     if (!videoDetailPanel || !videoDetailOpen) return;
+    guardPanelTransition();
+    cancelCommentsPeek();
+    setPlayerRecede('left', 0);
     videoDetailOpen = false;
     videoDetailSwipe = null;
     clearTimeout(videoDetailRenderTimer);
@@ -3301,6 +3356,9 @@
     if (event.cancelable) event.preventDefault();
     gesture.dx = Math.min(0, dx);
     videoDetailPanel.style.transform = `translate3d(${gesture.dx}px,0,0)`;
+    const width = videoDetailPanel.getBoundingClientRect().width || 1;
+    const closed = Math.min(1, Math.max(0, -gesture.dx / width));
+    setPlayerRecede('left', 1 - closed, { dragging: true });
   }
 
   function endVideoDetailSwipe() {
@@ -3314,6 +3372,7 @@
     }
     videoDetailPanel.style.transition = 'transform .3s cubic-bezier(.16,1,.3,1)';
     videoDetailPanel.style.transform = '';
+    setPlayerRecede('left', 1);
     setTimeout(() => {
       if (videoDetailOpen) {
         videoDetailPanel.style.transition = '';
@@ -3329,6 +3388,7 @@
     clearTimeout(videoDetailRenderTimer);
     videoDetailCloseTimer = null;
     videoDetailRenderTimer = null;
+    setPlayerRecede('', 0, { instant: true });
     if (!videoDetailPanel) return;
     videoDetailPanel.classList.remove('open', 'peeking', 'closing', 'dragging');
     videoDetailPanel.style.transition = '';
@@ -3355,6 +3415,7 @@
       commentsPanel.classList.add('open');
     }
     player.classList.add('comments-open');
+    setPlayerRecede('right', 1);
     swipeHint.classList.remove('show');
     if (window.O11A1NativeData && typeof window.O11A1NativeData.onComments === 'function') {
       window.O11A1NativeData.onComments(undefined, { opening: true });
@@ -3372,12 +3433,16 @@
     commentsPanel.setAttribute('aria-hidden', 'true');
     commentsPanel.inert = true;
     player.classList.remove('comments-open');
+    setPlayerRecede('', 0, { instant: true });
     swipeHint.classList.remove('show');
   }
 
   function closeComments(options = {}) {
     const wasOpen = commentsPanel.classList.contains('open') || commentsPanel.classList.contains('peeking');
     if (!wasOpen) return;
+    guardPanelTransition();
+    cancelVideoDetailPeek();
+    setPlayerRecede('right', 0);
     commentsPanel.inert = true;
     commentsPanel.classList.remove('peeking', 'dragging');
     commentsPanel.classList.add('closing');
@@ -3401,6 +3466,7 @@
 
   function cancelCommentsPeek() {
     if (!commentsPanel.classList.contains('peeking')) return;
+    setPlayerRecede('right', 0);
     commentsPanel.classList.remove('peeking', 'dragging');
     commentsPanel.classList.add('closing');
     commentsPanel.style.transform = '';
@@ -3436,7 +3502,7 @@
     if (!state.playerOpen || state.locked) return;
     if (event.button !== undefined && event.button !== 0) return;
     if (event.target.closest('.player-controls, .lock-badge, button, input, textarea')) return;
-    if (commentsPanel.classList.contains('open') || videoDetailOpen) return;
+    if (panelTransitionActive()) return;
     clearTimeout(hideTimer);
     clearTimeout(stageTapTimer);
     stageTapTimer = null;
@@ -3517,6 +3583,10 @@
       player.style.borderRadius = `${Math.min(28, dragY * 0.16)}px`;
     } else if (gesture.mode === 'horizontal') {
       gesture.horizontal = localX;
+      if (Date.now() < panelTransitionGuardUntil) {
+        gesture.mode = 'none';
+        return;
+      }
       const rect = playerStage.getBoundingClientRect();
       const localWidth = state.playerLandscape ? rect.height : rect.width;
       if (localX < 0 && state.settings.swipeComments) {
@@ -3525,6 +3595,7 @@
         commentsPanel.setAttribute('aria-hidden', 'false');
         commentsPanel.inert = true;
         commentsPanel.style.transform = `translateX(${(1 - progress) * 100}%)`;
+        setPlayerRecede('right', progress, { dragging: true });
         player.classList.add('comments-open');
         swipeHint.textContent = '‹ 松开查看评论';
         swipeHint.classList.remove('left');
@@ -3535,6 +3606,7 @@
         videoDetailPanel.setAttribute('aria-hidden', 'false');
         videoDetailPanel.inert = true;
         videoDetailPanel.style.transform = `translateX(${-(1 - progress) * 100}%)`;
+        setPlayerRecede('left', progress, { dragging: true });
         swipeHint.textContent = '‹ 松开查看详情';
         swipeHint.classList.add('left');
         swipeHint.classList.toggle('show', localX > 46);
@@ -3667,6 +3739,7 @@
     const width = commentsPanel.getBoundingClientRect().width || 1;
     const progress = Math.min(1, Math.max(0, dx / (width * 0.75)));
     commentsPanel.style.transform = `translateX(${progress * 100}%)`;
+    setPlayerRecede('right', 1 - progress, { dragging: true });
   }
 
   function endCommentsGesture() {
@@ -3676,7 +3749,10 @@
     if (!gesture.dragging) return;
     commentsPanel.classList.remove('dragging');
     if (gesture.dx > 90) closeComments();
-    else commentsPanel.style.transform = '';
+    else {
+      commentsPanel.style.transform = '';
+      setPlayerRecede('right', 1);
+    }
   }
 
   /* ---------- sheets ---------- */
