@@ -509,7 +509,7 @@ body[data-theme="dark"] .page-top.search-results-top{box-shadow:0 1px 0 rgba(0,0
   display:none;overflow-y:auto;overflow-x:hidden;
   padding:0 18px calc(116px + env(safe-area-inset-bottom));
   background:var(--paper);touch-action:pan-y;overscroll-behavior:contain;
-  will-change:transform;scrollbar-width:none;
+  will-change:transform;scrollbar-width:none;overflow-anchor:none;
 }
 .page[data-page="search"]::-webkit-scrollbar{display:none}
 .page[data-page="search"].active{
@@ -860,6 +860,7 @@ body[data-theme="dark"] .up-page{
   flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;
   padding:calc(env(safe-area-inset-top) + 10px) 18px 18px;
   overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:none;
+  overflow-anchor:none;
 }
 .up-scroll::-webkit-scrollbar{display:none}
 .up-bottom{

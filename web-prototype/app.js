@@ -1095,34 +1095,53 @@
   }
 
   function trimMockFeed(feed) {
+    if (activeFeed() !== feed) return;
     const pages = Array.isArray(feed.__chunkPages) ? feed.__chunkPages : [];
-    while (pages.length > 2) {
-      const oldPage = pages[0];
-      const oldRows = mockChunkNodes(feed, oldPage);
-      if (!oldRows.length) {
-        pages.shift();
+    if (pages.length <= 2) return;
+    const viewportTop = appScroll.getBoundingClientRect().top;
+    const removablePages = [];
+    const removableRows = [];
+    for (let index = 0; index < pages.length - 2; index += 1) {
+      const page = pages[index];
+      const rows = mockChunkNodes(feed, page);
+      if (!rows.length) {
+        removablePages.push(page);
         continue;
       }
-      const first = oldRows[0];
-      const last = oldRows[oldRows.length - 1];
-      const viewportTop = appScroll.getBoundingClientRect().top;
+      const last = rows[rows.length - 1];
       if (last.getBoundingClientRect().bottom > viewportTop + 4) break;
-      const anchor = topVisibleMockRow(feed, oldRows);
-      const anchorTop = anchor ? anchor.getBoundingClientRect().top : 0;
-      const oldHeight = last.getBoundingClientRect().bottom - first.getBoundingClientRect().top;
-      oldRows.forEach((row) => row.remove());
-      if (anchor) {
-        const afterTop = anchor.getBoundingClientRect().top;
-        if (afterTop !== anchorTop) {
-          window.__o11a1ScrollAdjust = Date.now();
-          appScroll.scrollTop = Math.max(0, appScroll.scrollTop + (afterTop - anchorTop));
-        }
-      } else if (oldHeight > 0) {
-        window.__o11a1ScrollAdjust = Date.now();
-        appScroll.scrollTop = Math.max(0, appScroll.scrollTop - oldHeight);
-      }
-      pages.shift();
+      removablePages.push(page);
+      rows.forEach((row) => removableRows.push(row));
     }
+    if (!removablePages.length) return;
+    const anchor = topVisibleMockRow(feed, removableRows);
+    const anchorTop = anchor ? anchor.getBoundingClientRect().top : 0;
+    const first = removableRows[0];
+    const last = removableRows[removableRows.length - 1];
+    const oldHeight = first && last
+      ? last.getBoundingClientRect().bottom - first.getBoundingClientRect().top
+      : 0;
+    removableRows.forEach((row) => row.remove());
+    feed.__chunkPages = pages.filter((page) => !removablePages.includes(page));
+    if (anchor) {
+      const afterTop = anchor.getBoundingClientRect().top;
+      if (afterTop !== anchorTop) {
+        window.__o11a1ScrollAdjust = Date.now();
+        appScroll.scrollTop = Math.max(0, appScroll.scrollTop + (afterTop - anchorTop));
+      }
+    } else if (oldHeight > 0) {
+      window.__o11a1ScrollAdjust = Date.now();
+      appScroll.scrollTop = Math.max(0, appScroll.scrollTop - oldHeight);
+    }
+  }
+
+  function scheduleMockTrim(feed) {
+    if (!feed) return;
+    clearTimeout(feed.__trimTimer);
+    feed.__trimTimer = setTimeout(() => {
+      feed.__trimTimer = null;
+      trimMockFeed(feed);
+    }, 280);
   }
 
   function appendMockFeedChunk(feed, page) {
@@ -1156,7 +1175,7 @@
       realRows.forEach((row) => feed.appendChild(row));
     }
     feed.__chunkPages.push(next);
-    trimMockFeed(feed);
+    scheduleMockTrim(feed);
   }
 
   function maybeAppendMockFeed() {
@@ -5670,7 +5689,7 @@
     if (document.body.classList.contains('native-app')) return;
     maybeAppendMockFeed();
     const feed = activeFeed();
-    if (feed) trimMockFeed(feed);
+    if (feed) scheduleMockTrim(feed);
   });
 
   function resetSearchDrag() {
@@ -6397,10 +6416,22 @@
     const rowsBefore = $$('#homeFeed .video-row').length;
     appScroll.scrollTop = appScroll.scrollHeight;
     appScroll.dispatchEvent(new Event('scroll'));
-    await sleep(900);
+    await sleep(140);
+    const feedAnchorRow = $$('#homeFeed .feed-item:not(.feed-skeleton)')
+      .find((row) => row.getBoundingClientRect().bottom > appScroll.getBoundingClientRect().top + 1);
+    const feedAnchorTitle = feedAnchorRow ? feedAnchorRow.querySelector('.real-title')?.textContent : '';
+    const feedAnchorTop = feedAnchorRow ? feedAnchorRow.getBoundingClientRect().top : 0;
+    await sleep(820);
+    const feedAnchorAfter = feedAnchorTitle
+      ? $$('#homeFeed .feed-item:not(.feed-skeleton)')
+        .find((row) => row.querySelector('.real-title')?.textContent === feedAnchorTitle)
+      : null;
+    const feedAnchor = Boolean(feedAnchorAfter
+      && Math.abs(feedAnchorAfter.getBoundingClientRect().top - feedAnchorTop) < 3);
     const chunksAfter = Array.from(new Set($$('#homeFeed [data-chunk]').map((row) => row.dataset.chunk)));
     const rowsAfter = $$('#homeFeed .video-row').length;
     results.push(`feedWindow=${chunksAfter.length === 2 && rowsAfter > rowsBefore}`);
+    results.push(`feedAnchor=${feedAnchor}`);
 
     appScroll.scrollTop = appScroll.scrollHeight;
     appScroll.dispatchEvent(new Event('scroll'));
