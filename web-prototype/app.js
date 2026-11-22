@@ -12,14 +12,10 @@
   const playerRotor = $('#playerRotor');
   const playerBody = $('.player-body');
   const playerControls = $('#playerControls');
-  const playerTitle = $('#playerTitle');
-  const playerSub = $('#playerSub');
   const pcPlay = $('#pcPlay');
   const pcTime = $('#pcTime');
   const pcQuality = $('#pcQuality');
   const pcQualityValue = $('#pcQualityValue');
-  const pcSpeed = $('#pcSpeed');
-  const pcSpeedValue = $('#pcSpeedValue');
   const pcInterp = $('#pcInterp');
   const pcInterpValue = $('#pcInterpValue');
   const pcEnhance = $('#pcEnhance');
@@ -27,11 +23,6 @@
   const pcDanmaku = $('#pcDanmaku');
   const pcLoop = $('#pcLoop');
   const pcLoopValue = $('#pcLoopValue');
-  const pcSide = $('#pcSide');
-  const pcSettings = $('#pcSettings');
-  const pcShot = $('#pcShot');
-  const pcShotValue = $('#pcShotValue');
-  const pcFullscreen = $('#pcFullscreen');
   const progressBar = $('#progressBar');
   const wheelStrip = $('#wheelStrip');
   const pcFrames = $('#pcFrames');
@@ -42,8 +33,6 @@
   const playerSettingsCard = $('#playerSettingsCard');
   const playerSettingsScrim = $('#playerSettingsScrim');
   const pcDanmakuValue = $('#pcDanmakuValue');
-  const pcFullscreenValue = $('#pcFullscreenValue');
-  const psPlaylist = $('#psPlaylist');
   const seekRipple = $('#seekRipple');
   const lockBadge = $('#lockBadge');
   const rateHud = $('#rateHud');
@@ -2309,18 +2298,10 @@
   }
 
   function updatePlayerLabels() {
-    const item = state.playlist[state.currentIndex];
-    playerTitle.textContent = item ? item.title : '暂无播放项';
-    const nativeSuffix = window.O11A1Native ? '' : ' · 占位';
-    const qualitySuffix = item && item.offlineUrl ? '' : ` · ${state.settings.quality}`;
-    playerSub.textContent = `${item ? item.meta : '占位'}${qualitySuffix}${nativeSuffix}`;
     pcQualityValue.textContent = state.settings.quality;
-    pcSpeedValue.textContent = state.settings.speed || '1.0×';
     pcInterpValue.textContent = state.settings.interp;
     pcEnhanceValue.textContent = state.settings.enhance;
-    pcDanmaku.classList.toggle('on', state.settings.danmaku);
     if (pcDanmakuValue) pcDanmakuValue.textContent = state.settings.danmaku ? '开' : '关';
-    if (pcFullscreenValue) pcFullscreenValue.textContent = document.fullscreenElement ? '退出' : '画面';
     pcLoopValue.textContent = state.settings.loop;
     setProgress(state.progress);
     updatePlaylistDock();
@@ -3037,8 +3018,6 @@
     if (document.fullscreenElement && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
     }
-    pcFullscreen.classList.remove('on');
-    pcFullscreen.title = '全屏';
     if (window.O11A1Media && typeof window.O11A1Media.onMinimize === 'function') {
       window.O11A1Media.onMinimize();
     }
@@ -3078,8 +3057,6 @@
     if (document.fullscreenElement && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
     }
-    pcFullscreen.classList.remove('on');
-    pcFullscreen.title = '全屏';
     if (window.O11A1Media && typeof window.O11A1Media.onStop === 'function') {
       window.O11A1Media.onStop();
     }
@@ -3213,17 +3190,10 @@
   function toggleFullscreen() {
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
-      pcFullscreen.classList.remove('on');
-      pcFullscreen.title = '全屏';
-      if (pcFullscreenValue) pcFullscreenValue.textContent = '画面';
       return;
     }
     if (document.documentElement.requestFullscreen) {
-      document.documentElement.requestFullscreen().then(() => {
-        pcFullscreen.classList.add('on');
-        pcFullscreen.title = '退出全屏';
-        if (pcFullscreenValue) pcFullscreenValue.textContent = '退出';
-      }).catch(() => {});
+      document.documentElement.requestFullscreen().catch(() => {});
     }
   }
 
@@ -3944,11 +3914,23 @@
     if (key === 'ArrowRight') { event.preventDefault(); seekRelative(5); return; }
     if (lower === 'f') { event.preventDefault(); toggleFullscreen(); return; }
     if (lower === 'c') { event.preventDefault(); commentsPanel.classList.contains('open') ? closeComments() : openComments(); return; }
-    if (lower === 'd') { event.preventDefault(); pcDanmaku.click(); return; }
+    if (lower === 'd') {
+      event.preventDefault();
+      state.settings.danmaku = !state.settings.danmaku;
+      updatePlayerLabels();
+      save();
+      return;
+    }
     if (lower === 'l') { event.preventDefault(); state.locked ? unlockPlayer() : lockPlayer(); return; }
     if (key === '[') { event.preventDefault(); changeSpeed(-1); return; }
     if (key === ']') { event.preventDefault(); changeSpeed(1); return; }
-    if (lower === 'p') { event.preventDefault(); pcShot.click(); return; }
+    if (lower === 'p') {
+      event.preventDefault();
+      if (window.O11A1NativeData && typeof window.O11A1NativeData.screenshot === 'function') {
+        window.O11A1NativeData.screenshot();
+      }
+      return;
+    }
     if (lower === 'n') { event.preventDefault(); stepTrack(1); return; }
     if (lower === 'b') { event.preventDefault(); stepTrack(-1); return; }
     if (/^[1-6]$/.test(key)) {
@@ -4585,35 +4567,11 @@
 
   /* player */
   pcDanmaku.addEventListener('click', () => {
-    state.settings.danmaku = !state.settings.danmaku;
-    updatePlayerLabels();
-    save();
+    openSettingsSheet('settings-danmaku');
   });
   pcLoop.addEventListener('click', cycleLoop);
-  pcSide.addEventListener('click', openPlayerSideSheet);
-  pcSettings.addEventListener('click', openPlayerMoreSheet);
-  pcShot.addEventListener('click', () => {
-    let ok = false;
-    if (window.O11A1NativeData && typeof window.O11A1NativeData.screenshot === 'function') {
-      ok = window.O11A1NativeData.screenshot() === '已保存';
-    }
-    state.shot = ok;
-    pcShotValue.textContent = ok ? '已存' : '失败';
-    pcShot.classList.toggle('done', ok);
-    setTimeout(() => {
-      pcShotValue.textContent = '当前帧';
-      pcShot.classList.remove('done');
-    }, 900);
-  });
-  pcFullscreen.addEventListener('click', toggleFullscreen);
   lockBadge.addEventListener('click', unlockPlayer);
 
-  if (psPlaylist) {
-    psPlaylist.addEventListener('click', () => {
-      closePlayerSettings();
-      openPlaylistPage();
-    });
-  }
   if (playerSettingsScrim) {
     playerSettingsScrim.addEventListener('click', () => closePlayerSettings());
   }
@@ -5269,13 +5227,6 @@
   psheetBackdrop.addEventListener('click', closeSheet);
   psheetClose.addEventListener('click', closeSheet);
 
-  document.addEventListener('fullscreenchange', () => {
-    const on = Boolean(document.fullscreenElement);
-    pcFullscreen.classList.toggle('on', on);
-    pcFullscreen.title = on ? '退出全屏' : '全屏';
-    if (pcFullscreenValue) pcFullscreenValue.textContent = on ? '退出' : '画面';
-  });
-
   /* keyboard */
   document.addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
@@ -5367,8 +5318,6 @@
     closeVideoDetail,
     openUpFromDetail,
     playerVideo,
-    playerTitle,
-    playerSub,
     pcPlay,
     setPlayIcon,
     pcTime,

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=107">
+  <link rel="stylesheet" href="./styles.css?v=108">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -374,27 +374,23 @@
       <div class="player-settings-scrim" id="playerSettingsScrim"></div>
       <section class="player-settings-card" id="playerSettingsCard" role="dialog" aria-label="播放设置">
         <span class="player-settings-grab" aria-hidden="true"></span>
-        <header class="player-settings-head">
-          <div class="player-settings-title">
-            <b id="playerTitle">队列视频占位 01</b>
-            <small id="playerSub">UP 占位 · 1080P60 · 占位</small>
-          </div>
-          <small class="player-settings-tip">上滑打开 · 下滑关闭</small>
-        </header>
-        <div class="player-settings-grid">
-          <button class="pc-tool" data-sheet="quality" id="pcQuality" type="button"><span class="pc-tool-label">画质</span><span class="pc-tool-value" id="pcQualityValue">1080P60</span></button>
-          <button class="pc-tool" data-sheet="speed" id="pcSpeed" type="button"><span class="pc-tool-label">倍速</span><span class="pc-tool-value" id="pcSpeedValue">1.0×</span></button>
-          <button class="pc-tool" data-sheet="interp" id="pcInterp" type="button"><span class="pc-tool-label">插帧</span><span class="pc-tool-value" id="pcInterpValue">120</span></button>
-          <button class="pc-tool" data-sheet="enhance" id="pcEnhance" type="button"><span class="pc-tool-label">增强</span><span class="pc-tool-value" id="pcEnhanceValue">CAS</span></button>
-          <button class="pc-tool" id="pcLoop" type="button"><span class="pc-tool-label">播放</span><span class="pc-tool-value" id="pcLoopValue">循环</span></button>
-          <button class="pc-tool" id="pcSide" type="button"><span class="pc-tool-label">面板</span><span class="pc-tool-value">信息</span></button>
-          <button class="pc-tool" id="pcSettings" type="button"><span class="pc-tool-label">设置</span><span class="pc-tool-value">更多</span></button>
-          <button class="pc-tool" id="pcShot" type="button"><span class="pc-tool-label">截图</span><span class="pc-tool-value" id="pcShotValue">当前帧</span></button>
-          <button class="pc-tool" id="pcDanmaku" type="button" aria-label="弹幕开关"><span class="pc-tool-label">弹幕</span><span class="pc-tool-value" id="pcDanmakuValue">开</span></button>
-          <button class="pc-tool" id="pcFullscreen" type="button"><span class="pc-tool-label">全屏</span><span class="pc-tool-value" id="pcFullscreenValue">画面</span></button>
-          <button class="pc-tool" id="psPlaylist" type="button"><span class="pc-tool-label">播放列表</span><span class="pc-tool-value">打开</span></button>
+        <div class="player-settings-list">
+          <button class="pc-row" data-sheet="quality" id="pcQuality" type="button">
+            <span class="pc-row-label">画质</span><span class="pc-row-value" id="pcQualityValue">1080P60</span>
+          </button>
+          <button class="pc-row" data-sheet="interp" id="pcInterp" type="button">
+            <span class="pc-row-label">插帧</span><span class="pc-row-value" id="pcInterpValue">120</span>
+          </button>
+          <button class="pc-row" data-sheet="enhance" id="pcEnhance" type="button">
+            <span class="pc-row-label">增强</span><span class="pc-row-value" id="pcEnhanceValue">CAS</span>
+          </button>
+          <button class="pc-row" id="pcDanmaku" type="button">
+            <span class="pc-row-label">弹幕设置</span><span class="pc-row-value" id="pcDanmakuValue">开</span>
+          </button>
+          <button class="pc-row" id="pcLoop" type="button">
+            <span class="pc-row-label">循环模式</span><span class="pc-row-value" id="pcLoopValue">循环</span>
+          </button>
         </div>
-        <p class="player-settings-note">全屏任意位置下滑收起 · 点击空白处也可关闭</p>
       </section>
     </div>
 
@@ -471,8 +467,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=107"></script>
-  <script src="./app.js?v=107"></script>
-  <script src="./native.js?v=107"></script>
+  <script src="./vendor/hls.min.js?v=108"></script>
+  <script src="./app.js?v=108"></script>
+  <script src="./native.js?v=108"></script>
 </body>
 </html>
