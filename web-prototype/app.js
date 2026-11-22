@@ -8,6 +8,7 @@
   const homeFeed = $('#homeFeed');
   const moduleFeed = $('#moduleFeed');
   const player = $('#player');
+  const playerPauseRing = $('#playerPauseRing');
   const playerTop = $('.player-top');
   const playerStage = $('#playerStage');
   const playerControls = $('#playerControls');
@@ -340,6 +341,7 @@
   let playerOpenFlyerTimer = null;
   let playerCollapseAnim = null;
   let playerCollapseRadiusAnim = null;
+  let playerPauseRingAnim = null;
   let playerCollapseTimer = null;
   let playerCollapseToken = 0;
   let playerDockForced = false;
@@ -2159,6 +2161,7 @@
   }
 
   function setPlayIcon(playing) {
+    player.classList.toggle('paused', playing !== true);
     if (!pcPlay) return;
     pcPlay.classList.toggle('playing', playing === true);
     pcPlay.setAttribute('aria-label', playing ? '暂停' : '播放');
@@ -2445,6 +2448,14 @@
       try { playerCollapseRadiusAnim.cancel(); } catch (_) {}
       playerCollapseRadiusAnim = null;
     }
+    if (playerPauseRingAnim) {
+      try { playerPauseRingAnim.cancel(); } catch (_) {}
+      playerPauseRingAnim = null;
+    }
+    if (playerPauseRing) {
+      playerPauseRing.style.borderWidth = '';
+      playerPauseRing.style.transition = '';
+    }
     player.style.borderRadius = '';
     if (playerDockForced) {
       playlistDock.style.transition = '';
@@ -2519,6 +2530,14 @@
         try { playerCollapseRadiusAnim.cancel(); } catch (_) {}
         playerCollapseRadiusAnim = null;
       }
+      if (playerPauseRingAnim) {
+        try { playerPauseRingAnim.cancel(); } catch (_) {}
+        playerPauseRingAnim = null;
+      }
+      if (playerPauseRing) {
+        playerPauseRing.style.borderWidth = '';
+        playerPauseRing.style.transition = '';
+      }
       player.classList.remove('open', 'ui-hidden', 'collapsing', 'to-playlist', 'dragging');
       player.setAttribute('aria-hidden', 'true');
       player.inert = true;
@@ -2538,6 +2557,12 @@
     };
     if (typeof player.animate === 'function' && target && target.width > 0) {
       const midScale = dragScale + (targetScale - dragScale) * 0.9;
+      if (playerPauseRing && player.classList.contains('paused')) {
+        playerPauseRingAnim = playerPauseRing.animate([
+          { borderWidth: `${2 / Math.max(0.2, dragScale)}px` },
+          { borderWidth: `${2 / Math.max(0.06, targetScale)}px` },
+        ], { duration: 540, easing: 'linear', fill: 'forwards' });
+      }
       playerCollapseRadiusAnim = player.animate([
         { borderRadius: `${dragRadius}px` },
         { borderRadius: '140px' },
@@ -2576,6 +2601,10 @@
         : 'translateY(105%) scale(.94)';
       player.style.opacity = '0';
       player.style.borderRadius = '140px';
+      if (playerPauseRing && player.classList.contains('paused')) {
+        playerPauseRing.style.transition = 'border-width .54s linear';
+        playerPauseRing.style.borderWidth = `${2 / Math.max(0.06, targetScale)}px`;
+      }
       playerCollapseTimer = setTimeout(complete, 650);
     }
     if (document.fullscreenElement && document.exitFullscreen) {
