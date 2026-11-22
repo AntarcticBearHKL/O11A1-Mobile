@@ -1344,7 +1344,7 @@ body.grid .grid-overlay{display:block}
   background:rgba(255,255,255,.14);
   transition:background .1s ease,opacity .1s ease;
 }
-.grid-cell.on{background:var(--heat,#54A7FF)}
+.grid-cell.on{background:var(--blue,#54A7FF)}
 .grid-progress.dragging .grid-cell{opacity:.88}
 .precision-wheel{
   position:absolute;left:8px;right:8px;top:38px;bottom:4px;height:auto;overflow:hidden;
@@ -1387,7 +1387,7 @@ body.grid .grid-overlay{display:block}
 }
 .seek-bubble.show{opacity:1;transform:translate(-50%,0)}
 body[data-theme="light"] .grid-cell{background:rgba(0,0,0,.12)}
-body[data-theme="light"] .grid-progress .grid-cell.on{background:var(--heat,#2F7CF6)}
+body[data-theme="light"] .grid-progress .grid-cell.on{background:var(--blue,#2F7CF6)}
 @media (max-width:380px){
   .player-controls{height:98px}
 }

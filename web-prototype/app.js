@@ -2588,8 +2588,6 @@
     return { total, current };
   }
 
-  const GRID_HEAT = ['#FF5A5F', '#FF8A4D', '#F2C24E', '#5BC8D8', '#3E8EF7'];
-
   function initGridProgress() {
     if (!gridProgress || gridCells.length) return;
     const fragment = document.createDocumentFragment();
@@ -2612,13 +2610,6 @@
     gridCells.forEach((cell, index) => {
       const active = percent > 0 && index < Math.ceil(filled - 1e-6);
       cell.classList.toggle('on', active);
-      if (!active) {
-        cell.style.removeProperty('--heat');
-        return;
-      }
-      const behind = Math.max(0, filled - (index + 1));
-      const heat = behind < 1 ? 0 : behind < 3 ? 1 : behind < 6 ? 2 : behind < 10 ? 3 : 4;
-      cell.style.setProperty('--heat', GRID_HEAT[heat]);
     });
   }
 
@@ -3548,16 +3539,17 @@
     showControls();
   }
 
-  function togglePlay() {
+  function togglePlay(options = {}) {
+    const reveal = options.reveal !== false;
     if (window.O11A1Media && typeof window.O11A1Media.togglePlay === 'function'
       && window.O11A1Media.togglePlay()) {
-      if (state.playerOpen) showControls();
+      if (state.playerOpen && reveal) showControls();
       return;
     }
     state.playing = !state.playing;
     setPlayIcon(state.playing);
     updateMiniPlayer();
-    if (state.playerOpen) showControls();
+    if (state.playerOpen && reveal) showControls();
   }
 
   function stepTrack(delta) {
@@ -4136,12 +4128,17 @@
 
   function handleStageTap(zone) {
     const now = Date.now();
-    if (lastStageTap.zone === zone && now - lastStageTap.time < 300) {
+    if (lastStageTap.zone === zone && now - lastStageTap.time < 280) {
       lastStageTap = { time: 0, zone: '' };
       clearTimeout(stageTapTimer);
       stageTapTimer = null;
-      if (zone === 'middle') togglePlay();
-      else toggleStageControls();
+      if (zone === 'middle') {
+        const controlsHidden = playerControls.classList.contains('hidden')
+          || player.classList.contains('ui-hidden');
+        togglePlay({ reveal: !controlsHidden });
+      } else {
+        toggleStageControls();
+      }
       return;
     }
     lastStageTap = { time: now, zone };
@@ -4150,7 +4147,7 @@
       stageTapTimer = null;
       lastStageTap = { time: 0, zone: '' };
       toggleStageControls();
-    }, 260);
+    }, 320);
   }
 
   function toggleStageControls() {
@@ -6486,6 +6483,18 @@
     await sleep(2300);
     results.push(`toolbarHide=${tapShown && playerControls.classList.contains('hidden')}`);
     results.push(`tapToggle=${tapHidden && tapShown}`);
+    playerStage.dispatchEvent(pointerEvent('pointerdown', tap.x, tap.y, 1));
+    window.dispatchEvent(pointerEvent('pointerup', tap.x, tap.y, 0));
+    await sleep(100);
+    playerStage.dispatchEvent(pointerEvent('pointerdown', tap.x, tap.y, 1));
+    window.dispatchEvent(pointerEvent('pointerup', tap.x, tap.y, 0));
+    await sleep(380);
+    const doubleKeptHidden = playerControls.classList.contains('hidden');
+    playerStage.dispatchEvent(pointerEvent('pointerdown', tap.x, tap.y, 1));
+    window.dispatchEvent(pointerEvent('pointerup', tap.x, tap.y, 0));
+    await sleep(420);
+    const singleAfterDouble = !playerControls.classList.contains('hidden');
+    results.push(`doubleTapSingle=${doubleKeptHidden && singleAfterDouble}`);
     showControls();
     await sleep(40);
     setProgress(20, false);
@@ -6516,6 +6525,13 @@
     window.dispatchEvent(pointerEvent('pointerup', gridTestX + gridStep, gridTestY - 160, 0));
     await sleep(60);
     results.push(`grid=${gridTest.children.length === 36 && Math.abs(gridFlat - 45) < 1.2 && gridLifted > 20 && gridLifted - 20 < 12}`);
+    const litCells = Array.from(gridTest.querySelectorAll('.grid-cell.on'));
+    const litColors = new Set(litCells.map((cell) => getComputedStyle(cell).backgroundColor));
+    const litColor = litColors.size === 1 ? Array.from(litColors)[0] : '';
+    const rgbMatch = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/.exec(litColor);
+    results.push(`gridBlue=${Boolean(rgbMatch)
+      && Number(rgbMatch[3]) > Number(rgbMatch[1])
+      && Number(rgbMatch[3]) > Number(rgbMatch[2])}`);
     const wheelTestRect = wheelTest.getBoundingClientRect();
     const needleTestRect = $('.wheel-needle').getBoundingClientRect();
     const bandTestRect = $('.wheel-band').getBoundingClientRect();
