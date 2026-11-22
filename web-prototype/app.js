@@ -1579,16 +1579,19 @@
     if (pdClear) pdClear.disabled = count === 0;
     if (!count) resetDockClear();
     if (!item) {
-      if (pdNow) pdNow.textContent = '播放列表';
+      if (pdNow) {
+        pdNow.textContent = '等待播放';
+        pdNow.dataset.state = 'waiting';
+      }
       pdTitle.textContent = '暂无播放内容';
       pdMeta.textContent = '左滑视频加入';
       pdProgress.style.width = '0%';
       return;
     }
     if (pdNow) {
-      pdNow.textContent = state.playing
-        ? '正在播放'
-        : state.progress > 0 ? '已暂停' : '待播放';
+      const status = state.playing ? 'playing' : state.progress > 0 ? 'paused' : 'waiting';
+      pdNow.textContent = status === 'playing' ? '正在播放' : status === 'paused' ? '暂停播放' : '等待播放';
+      pdNow.dataset.state = status;
     }
     pdTitle.textContent = item.title || '视频';
     pdMeta.textContent = playlistOwnerName(item) || 'UP 主';
@@ -5463,9 +5466,9 @@
     if (!dockDrag.moved) return;
     if (!playlistDock.classList.contains('dragging')) playlistDock.classList.add('dragging');
     const target = dockContentTarget();
-    const startContent = dockDrag.expanded ? target : 88;
-    const content = Math.max(88, Math.min(target, startContent - dy));
-    const progress = (content - 88) / Math.max(1, target - 88);
+    const startContent = dockDrag.expanded ? target : 96;
+    const content = Math.max(96, Math.min(target, startContent - dy));
+    const progress = (content - 96) / Math.max(1, target - 96);
     playlistDock.style.height = `calc(${content.toFixed(1)}px + env(safe-area-inset-bottom))`;
     const radius = 24 + progress * 10;
     playlistDock.style.borderTopLeftRadius = `${radius.toFixed(1)}px`;

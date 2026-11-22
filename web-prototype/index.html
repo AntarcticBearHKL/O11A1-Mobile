@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=143">
+  <link rel="stylesheet" href="./styles.css?v=144">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -221,7 +221,7 @@
       <div class="playlist-dock" id="playlistDock" role="button" tabindex="0" aria-hidden="true" inert>
         <div class="pd-head">
           <div class="pd-collapsed" id="pdCollapsed">
-            <span class="pd-now" id="pdNow">正在播放</span>
+            <span class="pd-now" id="pdNow" data-state="waiting">等待播放</span>
             <b id="pdTitle">播放列表</b>
             <small id="pdMeta">0 项</small>
           </div>
@@ -503,8 +503,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=143"></script>
-  <script src="./app.js?v=143"></script>
-  <script src="./native.js?v=143"></script>
+  <script src="./vendor/hls.min.js?v=144"></script>
+  <script src="./app.js?v=144"></script>
+  <script src="./native.js?v=144"></script>
 </body>
 </html>
