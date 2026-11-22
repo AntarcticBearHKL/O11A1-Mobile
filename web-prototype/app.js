@@ -661,11 +661,15 @@
   function resetSearchResultsDrag() {
     if (!searchResultsPage) return;
     searchResultsPage.classList.remove('dragging');
+    searchResultsPage.classList.add('settling');
     searchResultsPage.style.transition = 'transform .32s cubic-bezier(.16,1,.3,1)';
     searchResultsPage.style.transform = '';
     searchResultsPage.style.boxShadow = '';
     setTimeout(() => {
-      if (!searchResultsPage.classList.contains('dragging')) searchResultsPage.style.transition = '';
+      if (!searchResultsPage.classList.contains('dragging')) {
+        searchResultsPage.style.transition = '';
+        searchResultsPage.classList.remove('settling');
+      }
     }, 340);
   }
 
@@ -675,15 +679,17 @@
       return;
     }
     searchResultsPage.classList.remove('dragging');
-    searchResultsPage.style.transition = 'transform .3s cubic-bezier(.16,1,.3,1)';
+    searchResultsPage.classList.add('settling');
+    searchResultsPage.style.transition = 'transform .32s cubic-bezier(.22,1,.36,1)';
     searchResultsPage.style.transform = 'translate3d(105%,0,0)';
-    searchResultsPage.style.boxShadow = '';
+    searchResultsPage.style.boxShadow = '-18px 0 46px rgba(10,12,20,.18)';
     setTimeout(() => {
       closeSearch();
+      searchResultsPage.classList.remove('settling');
       searchResultsPage.style.transition = '';
       searchResultsPage.style.transform = '';
       searchResultsPage.style.boxShadow = '';
-    }, 300);
+    }, 320);
   }
 
   function loginSucceeded() {
@@ -767,29 +773,79 @@
       app.classList.toggle('auth-gate', !state.loggedIn);
       $$('.page').forEach((section) => {
         if (section === upPage) return;
+        if (section === searchResultsPage) return;
         section.classList.toggle('active', section.dataset.page === base);
       });
       app.dataset.page = 'up';
       document.body.classList.toggle('search-mode', false);
       if (typeof updateDebugHud === 'function') updateDebugHud();
-      upPage.classList.remove('up-dragging');
+      upPage.style.zIndex = '48';
+      if (searchResultsPage) searchResultsPage.style.zIndex = '46';
+      if (searchResultsPage && base !== 'search') {
+        searchResultsPage.classList.remove('active', 'dragging', 'settling', 'entering');
+        searchResultsPage.style.transition = '';
+        searchResultsPage.style.transform = '';
+        searchResultsPage.style.opacity = '';
+        searchResultsPage.style.boxShadow = '';
+      }
+      upPage.classList.remove('up-dragging', 'up-settling', 'entering');
       upPage.style.transition = '';
       upPage.style.transform = '';
       upPage.style.opacity = '';
       upPage.style.boxShadow = '';
       upPage.classList.add('active');
+      void upPage.offsetWidth;
+      upPage.classList.add('entering');
+      setTimeout(() => upPage.classList.remove('entering'), 360);
       upPage.scrollTop = 0;
+      updatePlaylistDock();
+      return;
+    }
+    if (page === 'search' && searchResultsPage) {
+      const base = state.searchReturn && state.searchReturn !== 'search'
+        ? state.searchReturn
+        : (previousPage !== 'search' ? previousPage : 'home');
+      state.page = 'search';
+      app.classList.toggle('auth-gate', !state.loggedIn);
+      $$('.page').forEach((section) => {
+        if (section === searchResultsPage) return;
+        section.classList.toggle('active', section.dataset.page === base);
+      });
+      app.dataset.page = 'search';
+      document.body.classList.toggle('search-mode', false);
+      if (typeof updateDebugHud === 'function') updateDebugHud();
+      searchResultsPage.style.zIndex = '48';
+      if (upPage) upPage.style.zIndex = '45';
+      searchResultsPage.classList.remove('dragging', 'settling', 'entering');
+      searchResultsPage.style.transition = '';
+      searchResultsPage.style.transform = '';
+      searchResultsPage.style.opacity = '';
+      searchResultsPage.style.boxShadow = '';
+      searchResultsPage.classList.add('active');
+      void searchResultsPage.offsetWidth;
+      searchResultsPage.classList.add('entering');
+      setTimeout(() => searchResultsPage.classList.remove('entering'), 380);
+      searchResultsPage.scrollTop = 0;
       updatePlaylistDock();
       return;
     }
     const returningToBase = previousPage === 'up'
       && page === (state.upReturn || 'home');
+    const returningFromSearch = previousPage === 'search'
+      && page === (state.searchReturn || 'home');
     if (previousPage === 'up' && upPage) {
-      upPage.classList.remove('active', 'up-dragging');
+      upPage.classList.remove('active', 'up-dragging', 'up-settling', 'entering');
       upPage.style.transition = '';
       upPage.style.transform = '';
       upPage.style.opacity = '';
       upPage.style.boxShadow = '';
+    }
+    if (previousPage === 'search' && searchResultsPage) {
+      searchResultsPage.classList.remove('active', 'dragging', 'settling', 'entering');
+      searchResultsPage.style.transition = '';
+      searchResultsPage.style.transform = '';
+      searchResultsPage.style.opacity = '';
+      searchResultsPage.style.boxShadow = '';
     }
     state.page = page;
     app.classList.toggle('auth-gate', !state.loggedIn);
@@ -812,7 +868,7 @@
     }
     updateNavActive();
     updatePlaylistDock();
-    if (!returningToBase) appScroll.scrollTop = 0;
+    if (!returningToBase && !returningFromSearch) appScroll.scrollTop = 0;
     if (page === 'search-home') {
       setTimeout(() => searchInput.focus(), 120);
     }
@@ -1683,11 +1739,15 @@
   function resetUpPageDrag() {
     if (!upPage) return;
     upPage.classList.remove('up-dragging');
+    upPage.classList.add('up-settling');
     upPage.style.transition = 'transform .3s cubic-bezier(.16,1,.3,1)';
     upPage.style.transform = '';
     upPage.style.boxShadow = '';
     setTimeout(() => {
-      if (!upPage.classList.contains('up-dragging')) upPage.style.transition = '';
+      if (!upPage.classList.contains('up-dragging')) {
+        upPage.style.transition = '';
+        upPage.classList.remove('up-settling');
+      }
     }, 320);
   }
 
@@ -1697,12 +1757,17 @@
       return;
     }
     upPage.classList.remove('up-dragging');
-    upPage.style.transition = 'transform .3s cubic-bezier(.16,1,.3,1)';
+    upPage.classList.add('up-settling');
+    upPage.style.transition = 'transform .32s cubic-bezier(.22,1,.36,1)';
     upPage.style.transform = 'translate3d(105%,0,0)';
     upPage.style.boxShadow = '-18px 0 46px rgba(10,12,20,.18)';
     setTimeout(() => {
       showPage(state.upReturn || 'home', state.upReturnNav || undefined);
-    }, 300);
+      upPage.classList.remove('up-settling');
+      upPage.style.transition = '';
+      upPage.style.transform = '';
+      upPage.style.boxShadow = '';
+    }, 320);
   }
 
   function triggerRowAction(wrapper, action) {
@@ -3954,6 +4019,7 @@
 
   appScroll.addEventListener('pointerdown', (event) => startFeedGesture(event, 'scroll'));
   if (upPage) upPage.addEventListener('pointerdown', (event) => startFeedGesture(event, 'up'));
+  if (searchResultsPage) searchResultsPage.addEventListener('pointerdown', (event) => startFeedGesture(event, 'search'));
   window.addEventListener('pointermove', (event) => {
     if (!rowSwipe || event.pointerId !== rowSwipe.id) return;
     const dx = event.clientX - rowSwipe.x;

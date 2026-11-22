@@ -299,7 +299,11 @@
       const oldHeight = firstOld && lastOld
         ? lastOld.getBoundingClientRect().bottom - firstOld.getBoundingClientRect().top
         : 0;
-      const scroll = feed === feeds.up ? $('.page[data-page="up"]') : $('#appScroll');
+      const scroll = feed === feeds.up
+        ? $('.page[data-page="up"]')
+        : feed === feeds.search
+          ? $('.page[data-page="search"]')
+          : $('#appScroll');
       const isActive = (feed === feeds.home && state.page === 'home')
         || (feed === feeds.search && state.page === 'search')
         || (feed === feeds.module && state.page === 'module')
@@ -2783,7 +2787,7 @@
   if (appScroll) appScroll.addEventListener('scroll', () => {
     if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
     if (appScroll.scrollTop + appScroll.clientHeight < appScroll.scrollHeight - FEED_PREFETCH) return;
-    if (state.page === 'home' || state.page === 'search' || state.page === 'module') {
+    if (state.page === 'home' || state.page === 'module') {
       requestFeedPage(state.page);
     }
     if (state.page === 'dynamic' && more.dynamic) {
@@ -2804,6 +2808,14 @@
     if (state.page !== 'up') return;
     if (upScroller.scrollTop + upScroller.clientHeight < upScroller.scrollHeight - FEED_PREFETCH) return;
     requestFeedPage('up');
+  });
+
+  const searchScroller = $('.page[data-page="search"]');
+  if (searchScroller) searchScroller.addEventListener('scroll', () => {
+    if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
+    if (state.page !== 'search') return;
+    if (searchScroller.scrollTop + searchScroller.clientHeight < searchScroller.scrollHeight - FEED_PREFETCH) return;
+    requestFeedPage('search');
   });
 
   const pageObserver = new MutationObserver(() => {
