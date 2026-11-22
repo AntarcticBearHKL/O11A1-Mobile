@@ -344,7 +344,7 @@ body[data-theme="dark"] .feed-skeleton::after{
   background:linear-gradient(90deg,rgba(0,95,184,.58) 0%,rgba(0,95,184,.74) 52%,rgba(0,95,184,.96) 100%);
   color:#fff;text-align:right;
   text-shadow:0 1px 10px rgba(0,20,50,.35);
-  transition:opacity .12s ease;
+  transition:opacity .22s ease;
 }
 .feed-item.swiping .row-swipe-mask{transition:none}
 .row-swipe-mask[data-action="up"]{
@@ -824,17 +824,12 @@ html.playlist-vt::view-transition-new(root){
 .playlist-page-item.on .pl-title{color:var(--blue)}
 .playlist-page-item .pl-remove{margin-left:auto}
 .playlist-clear{margin-top:6px}
-.video-row.row-queued{animation:rowQueued .5s cubic-bezier(.22,1,.36,1)}
-@keyframes rowQueued{
-  0%{box-shadow:inset 0 0 0 999px rgba(47,124,246,.12)}
-  55%{box-shadow:inset 0 0 0 999px rgba(47,124,246,.05)}
-  100%{box-shadow:inset 0 0 0 999px transparent}
-}
 .playlist-fly{
   position:fixed!important;z-index:500;pointer-events:none;margin:0!important;
-  border-style:solid!important;border-color:rgba(255,255,255,.6)!important;
+  border:0!important;
   will-change:transform,opacity;transform-origin:50% 50%;
 }
+.playlist-fly::after{display:none!important}
 .player-open-flyer{
   position:fixed!important;z-index:500;display:block!important;overflow:hidden;
   pointer-events:none;margin:0!important;padding:0!important;border:0!important;
@@ -848,7 +843,6 @@ html.playlist-vt::view-transition-new(root){
 .player-open-flyer .live-badge,
 .player-open-flyer .row-progress,
 .player-open-flyer .row-swipe-mask{display:none!important}
-.video-row.row-flying .row-thumb{opacity:.16;transform:scale(.96);transition:opacity .16s ease,transform .2s ease}
 
 /* ---------- dynamic / messages list ---------- */
 .list-placeholder{padding:0 0 20px}

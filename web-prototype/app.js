@@ -1395,11 +1395,10 @@
       else absorbPlaylistDock();
       return;
     }
+    const sourceRadius = getComputedStyle(thumb).borderRadius || '0px';
     const flyer = thumb.cloneNode(true);
     flyer.querySelectorAll('.ph-label, .dur-ph').forEach((node) => node.remove());
     flyer.classList.add('playlist-fly');
-    row.classList.add('row-flying');
-    setTimeout(() => row.classList.remove('row-flying'), 620);
     flyer.style.left = `${start.left}px`;
     flyer.style.top = `${start.top}px`;
     flyer.style.width = `${start.width}px`;
@@ -1413,7 +1412,7 @@
       {
         transform: 'translate3d(0,0,0) scale(1)',
         opacity: 1,
-        borderRadius: '14px',
+        borderRadius: sourceRadius,
         boxShadow: '0 14px 34px rgba(20,20,30,.22)',
       },
       {
@@ -1426,7 +1425,7 @@
       {
         transform: `translate3d(${dx}px, ${dy}px,0) scale(${scale})`,
         opacity: 0,
-        borderRadius: '11px',
+        borderRadius: '12px',
         boxShadow: '0 8px 20px rgba(47,124,246,.24)',
       },
     ], {
@@ -1691,10 +1690,6 @@
     } else {
       addToPlaylist(feedRowTitle(row), 'UP 占位 · 左滑加入', feedRowKey(row));
     }
-    row.classList.remove('row-queued');
-    void row.offsetWidth;
-    row.classList.add('row-queued');
-    setTimeout(() => row.classList.remove('row-queued'), 520);
     flyRowToPlaylist(row);
   }
 
@@ -1818,6 +1813,8 @@
     if (mask) {
       mask.classList.add('armed', 'fired');
       mask.classList.toggle('armed-up', action === 'up');
+      wrapper.classList.remove('swiping');
+      mask.style.opacity = '0';
     }
     if (action === 'queue') addFeedRowToPlaylist(row);
     else if (action === 'up') openUpPageForRow(row);
