@@ -16,8 +16,6 @@
   const playerSub = $('#playerSub');
   const pcPlay = $('#pcPlay');
   const pcTime = $('#pcTime');
-  const pcMute = $('#pcMute');
-  const pcVolume = $('#pcVolume');
   const pcQuality = $('#pcQuality');
   const pcQualityValue = $('#pcQualityValue');
   const pcSpeed = $('#pcSpeed');
@@ -39,13 +37,6 @@
   const progressThumb = $('.progress-thumb', playerControls);
   const seekRipple = $('#seekRipple');
   const lockBadge = $('#lockBadge');
-  const brightnessHud = $('#brightnessHud');
-  const brightnessFill = $('#brightnessFill');
-  const brightnessValue = $('#brightnessValue');
-  const volumeHud = $('#volumeHud');
-  const volumeFill = $('#volumeFill');
-  const volumeValue = $('#volumeValue');
-  const volumeNote = $('#volumeNote');
   const rateHud = $('#rateHud');
   const rateValue = $('#rateValue');
   const rateLabel = $('#rateLabel');
@@ -215,10 +206,8 @@
 
     doubleSeek: true,
     longPress2x: true,
-    swipeBrightness: true,
     doubleFullscreen: true,
     longPressRate: true,
-    swipeLevel: true,
     middleCollapse: true,
     swipeComments: true,
 
@@ -270,8 +259,6 @@
     progress: 0,
     duration: 0,
     streamInfo: { videoBitrate: 0, audioBitrate: 0, sourceWidth: 0, sourceHeight: 0, netBps: 0, netAt: 0, direct: false },
-    brightness: Number.isFinite(loaded?.brightness) ? Math.max(0, Math.min(100, loaded.brightness)) : 100,
-    volume: Number.isFinite(loaded?.volume) ? Math.max(0, Math.min(100, loaded.volume)) : 80,
     landscapeHome: loaded?.landscapeHome === true,
     fav: false,
     coin: false,
@@ -322,7 +309,6 @@
   let stageGesture = null;
   let stageTapTimer = null;
   let lastStageTap = { time: 0, zone: '' };
-  let levelHudTimer = null;
   let rateHudTimer = null;
   let rotateHudTimer = null;
   let gyroBound = false;
@@ -360,7 +346,6 @@
   let dockDrag = null;
   let dockAbsorbTimer = null;
   let playlistDrag = null;
-  let lastVolume = state.volume || 80;
   let toolbarDrag = null;
   let mockFeedLoading = false;
   let mockFeedLoadedAt = 0;
@@ -487,8 +472,6 @@
         settings: state.settings,
         navAllVisible: state.navAllVisible,
         navSelected: state.navSelected,
-        brightness: state.brightness,
-        volume: state.volume,
         landscapeHome: state.landscapeHome,
         bgStyleVersion: 2,
       }));
@@ -767,7 +750,6 @@
 
   function logout() {
     state.loggedIn = false;
-    restoreNativeBrightness();
     if (window.O11A1Native && typeof window.O11A1Native.logout === 'function') {
       try { window.O11A1Native.logout(); } catch (_) {}
     }
@@ -2246,11 +2228,6 @@
     pcPlay.setAttribute('aria-label', playing ? '暂停' : '播放');
   }
 
-  function setMuteIcon(muted) {
-    pcMute.classList.toggle('muted', muted === true);
-    pcMute.setAttribute('aria-label', muted ? '取消静音' : '静音');
-  }
-
   function updatePlayerLabels() {
     const item = state.playlist[state.currentIndex];
     playerTitle.textContent = item ? item.title : '暂无播放项';
@@ -2263,8 +2240,6 @@
     pcEnhanceValue.textContent = state.settings.enhance;
     pcDanmaku.classList.toggle('on', state.settings.danmaku);
     pcLoopValue.textContent = state.settings.loop;
-    pcVolume.value = String(state.volume);
-    setMuteIcon(state.volume === 0);
     setProgress(state.progress);
     updatePlaylistDock();
     if (window.O11A1Media && typeof window.O11A1Media.onSettings === 'function') {
@@ -2533,11 +2508,6 @@
     updatePlaylistDock();
     closeSheet();
     resetComments();
-    applyBrightness(state.brightness);
-    applyVolume(state.volume);
-    syncNativeBrightness();
-    syncNativeVolume();
-    hideLevelHuds(0);
     hideRateHud(0);
     rotateHud.classList.remove('show');
     showControls();
@@ -2587,7 +2557,6 @@
     state.playerOpen = false;
     state.locked = false;
     stopGyro();
-    restoreNativeBrightness();
     clearTimeout(hideTimer);
     const dragY = Number.isFinite(fromY) ? Math.max(0, fromY) : 0;
     const dragScale = Number.isFinite(fromScale) ? Math.min(1, Math.max(0.8, fromScale)) : 1;
@@ -2601,7 +2570,6 @@
     player.inert = true;
     lockBadge.classList.remove('show');
     resetComments();
-    hideLevelHuds(0);
     hideRateHud(0);
     rotateHud.classList.remove('show');
     closeSheet();
@@ -2741,7 +2709,6 @@
     state.locked = false;
     stopGyro();
     setPlayerOrientation(false, { silent: true });
-    restoreNativeBrightness();
     clearTimeout(hideTimer);
     hideMiniPlayer();
     if (player.contains(document.activeElement)) document.activeElement.blur();
@@ -2757,7 +2724,6 @@
     lockBadge.classList.remove('show');
     updatePlaylistDock();
     resetComments();
-    hideLevelHuds(0);
     hideRateHud(0);
     rotateHud.classList.remove('show');
     setPlayIcon(false);
@@ -2780,7 +2746,6 @@
     playerControls.classList.add('hidden');
     lockBadge.classList.add('show');
     resetComments();
-    hideLevelHuds(0);
     hideRateHud(0);
     rotateHud.classList.remove('show');
     closeSheet();
@@ -2910,82 +2875,6 @@
         pcFullscreen.title = '退出全屏';
       }).catch(() => {});
     }
-  }
-
-  /* ---------- brightness / volume ---------- */
-  function clampPercent(value) {
-    return Math.max(0, Math.min(100, Math.round(value)));
-  }
-
-  function applyBrightness(value, persist, nativeApply = false) {
-    state.brightness = clampPercent(value);
-    brightnessValue.textContent = `${state.brightness}%`;
-    brightnessFill.style.height = `${state.brightness}%`;
-    if (nativeApply && state.playerOpen && window.O11A1Native
-      && typeof window.O11A1Native.setBrightness === 'function') {
-      try { window.O11A1Native.setBrightness(state.brightness); } catch (_) {}
-    }
-    if (persist) save();
-  }
-
-  function syncNativeBrightness() {
-    if (!window.O11A1Native || typeof window.O11A1Native.brightness !== 'function') return;
-    try {
-      const value = Number(window.O11A1Native.brightness());
-      if (Number.isFinite(value) && value > 0) applyBrightness(value, false);
-    } catch (_) {}
-  }
-
-  function restoreNativeBrightness() {
-    if (window.O11A1Native && typeof window.O11A1Native.restoreBrightness === 'function') {
-      try { window.O11A1Native.restoreBrightness(); } catch (_) {}
-    }
-  }
-
-  function applyVolume(value, persist, nativeApply = false) {
-    state.volume = clampPercent(value);
-    if (state.volume > 0) lastVolume = state.volume;
-    volumeValue.textContent = `${state.volume}%`;
-    volumeFill.style.height = `${state.volume}%`;
-    pcVolume.value = String(state.volume);
-    setMuteIcon(state.volume === 0);
-    if (nativeApply && state.playerOpen && window.O11A1Native) {
-      if (typeof window.O11A1Native.setVolume === 'function') {
-        try { window.O11A1Native.setVolume(state.volume); } catch (_) {}
-        if (volumeNote) volumeNote.hidden = true;
-      } else if (volumeNote) {
-        volumeNote.hidden = false;
-      }
-    }
-    if (persist) save();
-  }
-
-  function syncNativeVolume() {
-    if (!window.O11A1Native || typeof window.O11A1Native.volume !== 'function') return;
-    try {
-      const value = Number(window.O11A1Native.volume());
-      if (Number.isFinite(value) && value >= 0) applyVolume(value, false);
-    } catch (_) {}
-  }
-
-  function showLevelHud(hud) {
-    clearTimeout(levelHudTimer);
-    levelHudTimer = null;
-    brightnessHud.classList.toggle('show', hud === brightnessHud);
-    volumeHud.classList.toggle('show', hud === volumeHud);
-    brightnessHud.setAttribute('aria-hidden', hud === brightnessHud ? 'false' : 'true');
-    volumeHud.setAttribute('aria-hidden', hud === volumeHud ? 'false' : 'true');
-  }
-
-  function hideLevelHuds(delay = 0) {
-    clearTimeout(levelHudTimer);
-    levelHudTimer = setTimeout(() => {
-      levelHudTimer = null;
-      brightnessHud.classList.remove('show');
-      volumeHud.classList.remove('show');
-      brightnessHud.setAttribute('aria-hidden', 'true');
-      volumeHud.setAttribute('aria-hidden', 'true');
-    }, delay);
   }
 
   function showRateHud(direction) {
@@ -3327,13 +3216,6 @@
           gesture.mode = 'none';
           return;
         }
-      } else if (state.settings.swipeLevel) {
-        gesture.mode = 'level';
-        if (gesture.zone === 'left') syncNativeBrightness();
-        else syncNativeVolume();
-        gesture.startBrightness = state.brightness;
-        gesture.startVolume = state.volume;
-        showLevelHud(gesture.zone === 'left' ? brightnessHud : volumeHud);
       } else {
         return;
       }
@@ -3350,12 +3232,6 @@
       }
       player.style.opacity = '1';
       player.style.borderRadius = `${Math.min(28, dragY * 0.16)}px`;
-    } else if (gesture.mode === 'level') {
-      const rect = playerStage.getBoundingClientRect();
-      const localHeight = state.playerLandscape ? rect.width : rect.height;
-      const delta = (-localY / Math.max(1, localHeight)) * 140;
-      if (gesture.zone === 'left') applyBrightness(gesture.startBrightness + delta, false, true);
-      else applyVolume(gesture.startVolume + delta, false, true);
     } else if (gesture.mode === 'horizontal') {
       gesture.horizontal = localX;
       const rect = playerStage.getBoundingClientRect();
@@ -3458,10 +3334,6 @@
           player.style.borderRadius = '';
         }
       }, 260);
-    } else if (gesture.mode === 'level') {
-      hideLevelHuds(700);
-      showControls();
-      save();
     } else if (gesture.mode === 'horizontal') {
       if (gesture.horizontal > 70) {
         cancelCommentsPeek();
@@ -3583,8 +3455,6 @@
   const KEYBOARD_MAP = [
     ['空格 / K', '播放 / 暂停'],
     ['← / →', '快退 / 快进 5 秒'],
-    ['↑ / ↓', '音量 +5 / -5'],
-    ['M', '静音切换'],
     ['F', '全屏 / 还原'],
     ['C', '打开 / 关闭评论'],
     ['D', '弹幕开关'],
@@ -3656,9 +3526,6 @@
     }
     if (key === 'ArrowLeft') { event.preventDefault(); seekRelative(-5); return; }
     if (key === 'ArrowRight') { event.preventDefault(); seekRelative(5); return; }
-    if (key === 'ArrowUp') { event.preventDefault(); applyVolume(Math.min(100, state.volume + 5), true, true); return; }
-    if (key === 'ArrowDown') { event.preventDefault(); applyVolume(Math.max(0, state.volume - 5), true, true); return; }
-    if (lower === 'm') { event.preventDefault(); pcMute.click(); return; }
     if (lower === 'f') { event.preventDefault(); toggleFullscreen(); return; }
     if (lower === 'c') { event.preventDefault(); commentsPanel.classList.contains('open') ? closeComments() : openComments(); return; }
     if (lower === 'd') { event.preventDefault(); pcDanmaku.click(); return; }
@@ -3679,23 +3546,6 @@
     }
   }
   window.addEventListener('keydown', handlePlayerKey);
-  window.addEventListener('pagehide', restoreNativeBrightness);
-  window.addEventListener('pageshow', () => {
-    syncNativeBrightness();
-    syncNativeVolume();
-  });
-  window.addEventListener('focus', () => {
-    syncNativeBrightness();
-    syncNativeVolume();
-  });
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      restoreNativeBrightness();
-    } else {
-      syncNativeBrightness();
-      syncNativeVolume();
-    }
-  });
 
   function openPlayerMoreSheet() {
     openSheet('播放器', '所有改动即时生效 · 无弹窗提示', (body) => {
@@ -3928,12 +3778,11 @@
       },
       'settings-gesture': {
         title: '手势',
-        sub: '三区分工：中间下滑收起、上滑横竖屏，左右系统亮度/系统音量，双击中间播放/暂停，长按左右减速/加速',
+        sub: '中间下滑收起、双击播放/暂停，左右长按减速/加速；陀螺仪自动横屏，亮度与音量交给系统控制',
         rows: [
           { type: 'switch', label: '中间下滑 收起播放器', key: 'middleCollapse' },
-          { type: 'static', label: '中间上滑', value: '横屏 / 竖屏切换' },
+          { type: 'static', label: '陀螺仪', value: '自动横屏 / 竖屏' },
           { type: 'static', label: '单击画面', value: '显示工具栏 · 1 秒后自动隐藏' },
-          { type: 'switch', label: '左右上下滑 系统亮度 / 系统音量', key: 'swipeLevel' },
           { type: 'switch', label: '左滑 全屏评论', key: 'swipeComments' },
           { type: 'switch', label: '长按左 / 右 减速 / 加速', key: 'longPressRate' },
           { type: 'static', label: '进度条', value: '横向拖动 seek' },
@@ -3972,16 +3821,14 @@
       },
       'settings-shortcuts': {
         title: '快捷键',
-        sub: '桌面端 11 项播放器快捷键；外接键盘全部可用',
+        sub: '桌面端播放器快捷键；外接键盘可用',
         rows: [
           { type: 'static', label: '播放 / 暂停', value: '空格 / K' },
           { type: 'static', label: '全屏 / 还原', value: 'F / 双击画面' },
           { type: 'static', label: '快退 / 快进', value: '← / →' },
-          { type: 'static', label: '音量', value: '↑ / ↓' },
-          { type: 'static', label: '静音', value: 'M' },
           { type: 'static', label: '弹幕 / 评论 / 锁定', value: 'D / C / L' },
           { type: 'static', label: '画质 / 倍速', value: '1–6 / [ ]' },
-          { type: 'action', label: '全部 14 项映射', value: '打开', run: () => { openKeyboardSheet(); return '已打开'; } },
+          { type: 'action', label: '全部快捷键映射', value: '打开', run: () => { openKeyboardSheet(); return '已打开'; } },
           { type: 'action', label: '恢复默认', value: '', run: () => '键盘映射固定为默认' },
         ],
       },
@@ -4324,12 +4171,6 @@
   $('#playerBack').addEventListener('click', minimizePlayer);
   $('#playerQueue').addEventListener('click', openPlaylistPage);
   $('#playerMore').addEventListener('click', openPlayerMoreSheet);
-  pcMute.addEventListener('click', () => {
-    if (state.volume > 0) applyVolume(0, true, true);
-    else applyVolume(lastVolume || 80, true, true);
-  });
-  pcVolume.addEventListener('input', () => applyVolume(Number(pcVolume.value), false, true));
-  pcVolume.addEventListener('change', () => applyVolume(Number(pcVolume.value), true, true));
   pcDanmaku.addEventListener('click', () => {
     state.settings.danmaku = !state.settings.danmaku;
     updatePlayerLabels();
@@ -5068,7 +4909,6 @@
     setProgress,
     togglePlay,
     stepTrack,
-    applyVolume,
     resetInteractionState,
     openSheet,
     actionRow,
@@ -5086,7 +4926,6 @@
     pcPlay,
     setPlayIcon,
     pcTime,
-    pcVolume,
     pdTitle,
     pdMeta,
     pdProgress,
@@ -5113,9 +4952,6 @@
   renderHotSearches();
   updateSearch();
   syncLandscape();
-  applyBrightness(state.brightness);
-  applyVolume(state.volume);
-  hideLevelHuds(0);
   initDebugHud();
   showPage(state.loggedIn ? 'home' : 'login');
 
@@ -5180,10 +5016,8 @@
     }
     results.push(`gate=${gate}`);
 
-    window.__O11A1_BRIGHTNESS = 63;
     openPlayer();
     await sleep(80);
-    results.push(`brightnessSync=${state.brightness === 63}`);
     if (typeof DeviceOrientationEvent === 'function') {
       window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', { alpha: 0, beta: 0, gamma: 85 }));
       await sleep(520);
@@ -5194,16 +5028,6 @@
     } else {
       results.push('gyro=skip');
     }
-    window.__O11A1_BRIGHTNESS = 50;
-    applyBrightness(50);
-    applyVolume(40);
-    await sleep(120);
-    dispatchSwipe('left', 0, -140);
-    results.push(`brightness=${state.brightness}`);
-
-    await sleep(120);
-    dispatchSwipe('right', 0, 140);
-    results.push(`volume=${state.volume}`);
 
     await sleep(140);
     dispatchSwipe('middle', 0, -150);
@@ -5388,8 +5212,6 @@
 
   const reviewParams = new URLSearchParams(window.location.search);
   const demo = reviewParams.get('demo');
-  syncNativeBrightness();
-  syncNativeVolume();
   if (window.O11A1Native && typeof window.O11A1Native.setOrientation === 'function') {
     try { window.O11A1Native.setOrientation('portrait'); } catch (_) {}
   }
@@ -5423,22 +5245,11 @@
       const row = $('#homeFeed .video-row');
       if (row) addFeedRowToPlaylist(row);
     }, 700);
-  } else if (demo === 'brightness' || demo === 'volume' || demo === 'rate') {
+  } else if (demo === 'rate') {
     openPlayer();
     setTimeout(() => {
-      if (demo === 'brightness') {
-        applyBrightness(42);
-        showLevelHud(brightnessHud);
-        hideLevelHuds(9000);
-      } else if (demo === 'volume') {
-        applyVolume(64);
-        showLevelHud(volumeHud);
-        hideLevelHuds(9000);
-      } else if (demo === 'rate') {
-        applyBrightness(74);
-        showRateHud('right');
-        hideRateHud(9000);
-      }
+      showRateHud('right');
+      hideRateHud(9000);
     }, 220);
   }
   if (reviewParams.has('selftest')) setTimeout(runGestureSelfTest, 400);

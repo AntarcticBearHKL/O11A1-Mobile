@@ -307,10 +307,10 @@
     </div>
     <div class="drawer-label">PLAYER GESTURES</div>
     <div class="drawer-tokens">
-      <div><span>中间 ↓ / ↑</span><b>收起 / 工具栏</b></div>
-      <div><span>左 / 右 上下滑</span><b>亮度 / 音量</b></div>
+      <div><span>中间 ↓</span><b>收起</b></div>
+      <div><span>中间双击</span><b>播放 / 暂停</b></div>
+      <div><span>陀螺仪</span><b>自动横屏</b></div>
       <div><span>左滑</span><b>全屏评论</b></div>
-      <div><span>左 / 右 双击</span><b>旋转屏幕</b></div>
       <div><span>左 / 右 长按</span><b>减速 / 加速</b></div>
     </div>
     <p class="drawer-note">全部内容为占位；视频区域不加载媒体。iOS / Android 只切换玻璃材质，布局完全一致。</p>
@@ -353,13 +353,6 @@
             <div class="pc-main">
               <span class="pc-time" id="pcTime">00:00 / 24:00</span>
               <span class="pc-spacer"></span>
-              <button class="pc-icon" id="pcMute" title="静音" aria-label="静音">
-                <svg class="pc-ico pc-ico-volume" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 8.6a5 5 0 010 6.8M18.5 6.2a8.5 8.5 0 010 11.6"/></svg>
-                <svg class="pc-ico pc-ico-muted" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="m16 9 5 6M21 9l-5 6"/></svg>
-              </button>
-              <div class="pc-volume">
-                <input id="pcVolume" type="range" min="0" max="100" value="80" aria-label="音量">
-              </div>
               <button class="pc-icon" id="pcDanmaku" title="弹幕开关" aria-label="弹幕开关">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="13" rx="2"/><path d="M7 9h10M7 12.5h6"/></svg>
               </button>
@@ -381,17 +374,6 @@
           <div class="seek-ripple" id="seekRipple">+10s</div>
           <div class="lock-badge" id="lockBadge">已锁定 · 点击解锁</div>
 
-          <div class="level-hud left" id="brightnessHud" aria-hidden="true">
-            <span class="level-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg></span>
-            <span class="level-track"><i id="brightnessFill"></i></span>
-            <span class="level-value"><b id="brightnessValue">100%</b><small>屏幕亮度</small></span>
-          </div>
-          <div class="level-hud right" id="volumeHud" aria-hidden="true">
-            <span class="level-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 8.6a5 5 0 010 6.8M18.5 6.2a8.5 8.5 0 010 11.6"/></svg></span>
-            <span class="level-track"><i id="volumeFill"></i></span>
-            <span class="level-value"><b id="volumeValue">80%</b><small>系统音量</small></span>
-            <em class="level-note" id="volumeNote" hidden>Expo Go 不能调系统音量<br>请用实体音量键，原生包可用</em>
-          </div>
           <div class="rate-hud" id="rateHud">
             <b id="rateValue">2.0×</b>
             <small id="rateLabel">快放中 · 松开恢复</small>
