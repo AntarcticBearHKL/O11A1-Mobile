@@ -334,9 +334,8 @@
   let videoDetailCloseTimer = null;
   let videoDetailRenderTimer = null;
   let pendingPlayerOrigin = null;
-  let playerOpenFlyer = null;
-  let playerOpenFlyerAnim = null;
-  let playerOpenFlyerTimer = null;
+  let playerOpenWindowAnim = null;
+  let playerOpenWindowTimer = null;
   let playerCollapseAnim = null;
   let playerCollapseRadiusAnim = null;
   let playerPauseRingAnim = null;
@@ -2250,112 +2249,67 @@
   }
 
   function cancelPlayerOpenExpansion() {
-    clearTimeout(playerOpenFlyerTimer);
-    playerOpenFlyerTimer = null;
-    if (playerOpenFlyerAnim) {
-      try { playerOpenFlyerAnim.cancel(); } catch (_) {}
-      playerOpenFlyerAnim = null;
+    clearTimeout(playerOpenWindowTimer);
+    playerOpenWindowTimer = null;
+    if (playerOpenWindowAnim) {
+      try { playerOpenWindowAnim.cancel(); } catch (_) {}
+      playerOpenWindowAnim = null;
     }
-    if (playerOpenFlyer) {
-      try { playerOpenFlyer.remove(); } catch (_) {}
-      playerOpenFlyer = null;
-    }
+    player.classList.remove('window-opening');
+    player.style.pointerEvents = '';
+    player.style.transform = '';
+    player.style.borderRadius = '';
   }
 
-  function expandPlayerFromOrigin(origin) {
-    const thumb = origin && origin.thumb;
-    const start = origin && origin.rect;
-    const fadeInFallback = () => {
-      player.style.animation = 'none';
-      player.style.transition = 'opacity .22s ease';
-      player.style.opacity = '1';
+  function expandPlayerWindowFromOrigin(origin) {
+    const source = origin && origin.rect;
+    const finish = () => {
+      clearTimeout(playerOpenWindowTimer);
+      playerOpenWindowTimer = null;
+      player.classList.remove('window-opening');
       player.style.pointerEvents = '';
-      setTimeout(() => {
-        if (!playerOpenFlyer) {
-          player.style.transition = '';
-          player.style.opacity = '';
-        }
-      }, 260);
+      player.style.transform = '';
+      player.style.borderRadius = '';
+      if (playerOpenWindowAnim) {
+        try { playerOpenWindowAnim.cancel(); } catch (_) {}
+        playerOpenWindowAnim = null;
+      }
     };
-    if (!thumb || !start || !start.width || !start.height
-      || typeof thumb.cloneNode !== 'function'
+    if (!source || !source.width || !source.height
+      || typeof player.animate !== 'function'
       || document.body.classList.contains('reduce-motion')) {
-      fadeInFallback();
+      finish();
       return;
     }
     const base = player.getBoundingClientRect();
     if (!base.width || !base.height) {
-      fadeInFallback();
+      finish();
       return;
     }
-    let flyer;
-    try {
-      flyer = thumb.cloneNode(true);
-      flyer.querySelectorAll('.dur-ph, .ph-label, .live-badge, .row-progress, .row-swipe-mask').forEach((node) => node.remove());
-      flyer.classList.add('player-open-flyer');
-      flyer.style.left = `${start.left}px`;
-      flyer.style.top = `${start.top}px`;
-      flyer.style.width = `${start.width}px`;
-      flyer.style.height = `${start.height}px`;
-      flyer.style.borderRadius = origin.radius || '0px';
-      document.body.appendChild(flyer);
-    } catch (_) {
-      if (flyer) flyer.remove();
-      fadeInFallback();
-      return;
-    }
-    playerOpenFlyer = flyer;
-    if (typeof flyer.animate !== 'function') {
-      flyer.remove();
-      playerOpenFlyer = null;
-      fadeInFallback();
-      return;
-    }
+    const scaleX = source.width / base.width;
+    const scaleY = source.height / base.height;
+    const dx = source.left + source.width / 2 - (base.left + base.width / 2);
+    const dy = source.top + source.height / 2 - (base.top + base.height / 2);
     let completed = false;
-    const finish = () => {
-      if (completed || playerOpenFlyer !== flyer) return;
+    const complete = () => {
+      if (completed) return;
       completed = true;
-      clearTimeout(playerOpenFlyerTimer);
-      playerOpenFlyerTimer = null;
-      player.style.transition = 'opacity .18s ease';
-      player.style.opacity = '1';
-      player.style.pointerEvents = '';
-      const fade = flyer.animate([
-        { opacity: 1 },
-        { opacity: 0 },
-      ], { duration: 180, easing: 'ease-out', fill: 'forwards' });
-      const done = () => {
-        if (playerOpenFlyer !== flyer) return;
-        flyer.remove();
-        playerOpenFlyer = null;
-        playerOpenFlyerAnim = null;
-        player.style.transition = '';
-        player.style.opacity = '';
-        player.style.pointerEvents = '';
-      };
-      if (fade.finished && fade.finished.then) fade.finished.then(done).catch(done);
-      else setTimeout(done, 200);
+      finish();
     };
-    playerOpenFlyerAnim = flyer.animate([
+    playerOpenWindowAnim = player.animate([
       {
-        left: `${start.left}px`,
-        top: `${start.top}px`,
-        width: `${start.width}px`,
-        height: `${start.height}px`,
+        transform: `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`,
         borderRadius: origin.radius || '0px',
-        opacity: 1,
       },
       {
-        left: `${base.left}px`,
-        top: `${base.top}px`,
-        width: `${base.width}px`,
-        height: `${base.height}px`,
+        transform: 'translate(0, 0) scale(1, 1)',
         borderRadius: '0px',
-        opacity: 1,
       },
-    ], { duration: 480, easing: 'cubic-bezier(.22,.61,.36,1)', fill: 'forwards' });
-    playerOpenFlyerAnim.finished.then(finish).catch(() => {});
-    playerOpenFlyerTimer = setTimeout(finish, 700);
+    ], { duration: 400, easing: 'cubic-bezier(.22,.61,.36,1)', fill: 'forwards' });
+    if (playerOpenWindowAnim.finished && playerOpenWindowAnim.finished.then) {
+      playerOpenWindowAnim.finished.then(complete).catch(() => {});
+    }
+    playerOpenWindowTimer = setTimeout(complete, 520);
   }
 
   function openPlayer(options = {}) {
@@ -2391,15 +2345,15 @@
     player.style.transform = '';
     player.style.opacity = '';
     player.style.pointerEvents = '';
-    player.classList.remove('dragging', 'collapsing');
-    player.classList.add('open');
-    const expandFromRow = Boolean(!wasOpen && origin && origin.thumb
+    player.classList.remove('dragging', 'collapsing', 'window-opening');
+    const expandFromRow = Boolean(!wasOpen && origin && origin.rect
       && !document.body.classList.contains('reduce-motion'));
     if (expandFromRow) {
+      player.classList.add('window-opening');
       player.style.animation = 'none';
-      player.style.opacity = '0';
       player.style.pointerEvents = 'none';
     }
+    player.classList.add('open');
     player.setAttribute('aria-hidden', 'false');
     player.inert = false;
     player.classList.remove('ui-hidden');
@@ -2415,7 +2369,7 @@
     hideRateHud(0);
     rotateHud.classList.remove('show');
     showControls();
-    if (expandFromRow) expandPlayerFromOrigin(origin);
+    if (expandFromRow) expandPlayerWindowFromOrigin(origin);
     if (window.O11A1Media && typeof window.O11A1Media.onOpen === 'function') {
       window.O11A1Media.onOpen();
     }
