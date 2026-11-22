@@ -3941,7 +3941,7 @@
     stageTapTimer = setTimeout(() => {
       stageTapTimer = null;
       lastStageTap = { time: 0, zone: '' };
-      showControls();
+      toggleStageControls();
     }, 260);
   }
 
@@ -5647,6 +5647,9 @@
   player.addEventListener('pointerdown', (event) => {
     if (!state.playerOpen || commentsPanel.classList.contains('open')) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
+    /* Only interactions with the visible toolbar keep it awake; a tap on the
+       video itself must fall through to the show/hide toggle. */
+    if (!event.target.closest('.player-controls')) return;
     showControls();
   }, true);
   player.addEventListener('pointermove', (event) => {
@@ -5895,13 +5898,13 @@
     results.push(`gate=${gate}`);
 
     openPlayer();
-    await sleep(80);
+    await sleep(1000);
     playerControls.classList.add('hidden');
     player.classList.add('ui-hidden');
     const sideTap = stagePoint('left');
     playerStage.dispatchEvent(pointerEvent('pointerdown', sideTap.x, sideTap.y, 1));
     window.dispatchEvent(pointerEvent('pointerup', sideTap.x, sideTap.y, 0));
-    await sleep(330);
+    await sleep(420);
     results.push(`sideTap=${!playerControls.classList.contains('hidden')}`);
     window.O11A1Host.setTiltDir(1);
     await sleep(480);
@@ -5999,10 +6002,15 @@
     const tap = stagePoint('middle');
     playerStage.dispatchEvent(pointerEvent('pointerdown', tap.x, tap.y, 1));
     window.dispatchEvent(pointerEvent('pointerup', tap.x, tap.y, 0));
-    await sleep(80);
-    const toolbarShown = !playerControls.classList.contains('hidden');
+    await sleep(420);
+    const tapHidden = playerControls.classList.contains('hidden');
+    playerStage.dispatchEvent(pointerEvent('pointerdown', tap.x, tap.y, 1));
+    window.dispatchEvent(pointerEvent('pointerup', tap.x, tap.y, 0));
+    await sleep(420);
+    const tapShown = !playerControls.classList.contains('hidden');
     await sleep(2300);
-    results.push(`toolbarHide=${toolbarShown && playerControls.classList.contains('hidden')}`);
+    results.push(`toolbarHide=${tapShown && playerControls.classList.contains('hidden')}`);
+    results.push(`tapToggle=${tapHidden && tapShown}`);
     showControls();
     await sleep(40);
     setProgress(20, false);
