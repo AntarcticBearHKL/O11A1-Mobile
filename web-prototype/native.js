@@ -78,6 +78,7 @@
   const moduleZones = [1, 3, 4, 36];
   let searchTimer = null;
   let accountInfo = null;
+  let accountFetchedAt = 0;
 
   // The delivered design starts with three demo queue rows. In the real app those are cleared.
   if (state.playlist.length && state.playlist.every((item) => !item.bvid && !item.epId && !item.roomId)) {
@@ -207,6 +208,143 @@
       fragment.appendChild(row);
     }
     feed.appendChild(fragment);
+  }
+
+  const loadingTokens = Object.create(null);
+
+  function deferLoading(key, paint, run) {
+    const token = (loadingTokens[key] || 0) + 1;
+    loadingTokens[key] = token;
+    paint();
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (loadingTokens[key] !== token) return;
+        try {
+          run();
+        } catch (error) {
+          log('deferred load failed ' + error);
+        }
+      }, 36);
+    });
+  }
+
+  function showInitialFeedSkeleton(feed, count = 8) {
+    if (!feed) return;
+    feed.__nativeItems = [];
+    feed.__chunkPages = [];
+    feed.__chunkItems = {};
+    feed.innerHTML = '';
+    setTail(feed, 'idle');
+    showFeedSkeleton(feed, 1, count);
+  }
+
+  function showDynamicSkeleton(count = 4) {
+    const feed = $('#dynamicFeed');
+    if (!feed) return;
+    feed.innerHTML = Array.from({ length: Math.max(1, count) }, () => `
+      <article class="dynamic-card skeleton-card" aria-hidden="true">
+        <div class="dynamic-head">
+          <span class="skeleton-avatar"></span>
+          <div><span class="skeleton-line w30"></span><span class="skeleton-line w20"></span></div>
+        </div>
+        <span class="skeleton-line w90"></span>
+        <span class="skeleton-line w65"></span>
+        <div class="skeleton-media"></div>
+      </article>`).join('');
+    const empty = $('#dynamicEmpty');
+    if (empty) empty.hidden = true;
+  }
+
+  function showMessageSkeleton(count = 5) {
+    const feed = $('#messageFeed');
+    if (!feed) return;
+    feed.innerHTML = Array.from({ length: Math.max(1, count) }, () => `
+      <div class="message-row skeleton-message" aria-hidden="true">
+        <span class="skeleton-avatar"></span>
+        <div class="message-copy">
+          <span class="skeleton-line w30"></span>
+          <span class="skeleton-line w80"></span>
+          <span class="skeleton-line w40"></span>
+        </div>
+      </div>`).join('');
+    const empty = $('#messageEmpty');
+    if (empty) empty.hidden = true;
+  }
+
+  function clearMoreSkeletons(feed) {
+    if (!feed) return;
+    feed.querySelectorAll('[data-more-skeleton]').forEach((node) => node.remove());
+  }
+
+  function appendDynamicSkeleton() {
+    const feed = $('#dynamicFeed');
+    if (!feed) return;
+    clearMoreSkeletons(feed);
+    const card = document.createElement('article');
+    card.className = 'dynamic-card skeleton-card';
+    card.dataset.moreSkeleton = '1';
+    card.setAttribute('aria-hidden', 'true');
+    card.innerHTML = `
+      <div class="dynamic-head">
+        <span class="skeleton-avatar"></span>
+        <div><span class="skeleton-line w30"></span><span class="skeleton-line w20"></span></div>
+      </div>
+      <span class="skeleton-line w80"></span>
+      <div class="skeleton-media"></div>`;
+    feed.appendChild(card);
+  }
+
+  function appendMessageSkeleton() {
+    const feed = $('#messageFeed');
+    if (!feed) return;
+    clearMoreSkeletons(feed);
+    const row = document.createElement('div');
+    row.className = 'message-row skeleton-message';
+    row.dataset.moreSkeleton = '1';
+    row.setAttribute('aria-hidden', 'true');
+    row.innerHTML = `
+      <span class="skeleton-avatar"></span>
+      <div class="message-copy">
+        <span class="skeleton-line w30"></span>
+        <span class="skeleton-line w80"></span>
+      </div>`;
+    feed.appendChild(row);
+  }
+
+  function showAccountSkeleton() {
+    const card = $('#accountCard');
+    if (!card) return;
+    card.classList.add('is-loading');
+    card.innerHTML = `
+      <span class="skeleton-avatar lg"></span>
+      <span class="account-copy"><span class="skeleton-line w40"></span><span class="skeleton-line w65"></span></span>
+      <span class="skeleton-chip"></span>`;
+  }
+
+  function showMemberSkeleton() {
+    const feed = feeds.module;
+    if (!feed) return;
+    feed.innerHTML = `
+      <div class="special-page" aria-hidden="true">
+        <div class="member-card skeleton-card">
+          <span class="skeleton-line w30"></span>
+          <span class="skeleton-line w60"></span>
+          <span class="skeleton-line w80"></span>
+        </div>
+        <div class="special-title"><span class="skeleton-line w20"></span></div>
+        <div class="task-list">
+          ${Array.from({ length: 4 }, () => `
+            <div class="task-row">
+              <span class="skeleton-avatar"></span>
+              <span class="task-copy"><span class="skeleton-line w30"></span><span class="skeleton-line w55"></span></span>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  function sheetSkeletonMarkup(count = 6) {
+    return `<div class="sheet-skeleton" aria-hidden="true">${Array.from({ length: Math.max(1, count) }, () => `
+      <div class="sheet-skeleton-row"><span class="skeleton-line w30"></span><span class="skeleton-line w55 sheet-skeleton-value"></span></div>`).join('')}</div>`;
   }
 
   function renderEmpty(feed, title, detail, actionLabel, action) {
@@ -514,11 +652,18 @@
     };
   }
 
-  function loadHome(page, append) {
+  function loadHome(page, append, immediate) {
     const module = state.modules.find((mod) => mod.id === state.moduleId && mod.on);
     const name = module ? module.name : '推荐';
     const kind = moduleKind(name);
     const win = windows.home;
+    if (!append && !immediate) {
+      deferLoading('home', () => {
+        showInitialFeedSkeleton(feeds.home, 8);
+        setNote('正在加载…');
+      }, () => loadHome(1, false, true));
+      return true;
+    }
     const appendPage = Boolean(append) && win.name === name;
     if (!appendPage) {
       win.token += 1;
@@ -542,11 +687,19 @@
     return result.ok;
   }
 
-  function loadModule(page, append) {
+  function loadModule(page, append, immediate) {
     const name = state.moduleName || '推荐';
     const kind = moduleKind(name);
     const win = windows.module;
     const filter = $('#moduleFilter');
+    if (!append && !immediate && kind.special !== 'downloads' && kind.special !== 'fish') {
+      deferLoading('module', () => {
+        if (kind.special === 'member') showMemberSkeleton();
+        else showInitialFeedSkeleton(feeds.module, 8);
+        if (filter) filter.textContent = kind.label || name;
+      }, () => loadModule(1, false, true));
+      return true;
+    }
     if (filter) filter.textContent = kind.label || name;
     const appendPage = Boolean(append) && win.name === name;
     if (!appendPage) {
@@ -592,10 +745,18 @@
     return result.ok;
   }
 
-  function loadUp(page, append) {
+  function loadUp(page, append, immediate) {
     const feed = feeds.up;
     const win = windows.up;
     if (!feed) return false;
+    if (!append && !immediate) {
+      deferLoading('up', () => {
+        showInitialFeedSkeleton(feed, 8);
+        const note = $('#upNote');
+        if (note) note.textContent = '正在加载…';
+      }, () => loadUp(1, false, true));
+      return true;
+    }
     const appendPage = Boolean(append) && win.page > 0;
     if (!appendPage) {
       win.token += 1;
@@ -871,7 +1032,7 @@
   });
 
   /* ---------- member center ---------- */
-  function renderMember() {
+  function renderMember(immediate) {
     const feed = feeds.module;
     if (!state.loggedIn) {
       renderEmpty(feed, '登录后查看会员任务', '短信登录后同步大会员状态与每日经验。', '去登录', () => host.showPage('login'));
@@ -881,7 +1042,10 @@
       renderEmpty(feed, '当前版本不支持会员中心', '');
       return;
     }
-    feed.innerHTML = '<div class="native-empty">正在读取会员中心…</div>';
+    if (!immediate) {
+      deferLoading('member', showMemberSkeleton, () => renderMember(true));
+      return;
+    }
     const result = call('memberCenter');
     if (!result.ok) {
       renderEmpty(feed, result.needLogin ? '登录已失效' : '会员中心加载失败', result.error || '', result.needLogin ? '去登录' : '重试', result.needLogin ? () => host.showPage('login') : renderMember);
@@ -997,9 +1161,17 @@
     });
   }
 
-  function loadSearch(query, page, append) {
+  function loadSearch(query, page, append, immediate) {
     const win = windows.search;
     const appendPage = Boolean(append) && win.query === query;
+    if (!appendPage && !immediate) {
+      host.searchResultsLabel.textContent = query ? `“${query}”的视频` : '热门视频';
+      host.searchEmpty.hidden = true;
+      deferLoading('search', () => {
+        showInitialFeedSkeleton(feeds.search, 10);
+      }, () => loadSearch(query, 1, false, true));
+      return true;
+    }
     if (!appendPage) {
       win.token += 1;
       win.page = 0;
@@ -3069,6 +3241,7 @@
   function renderAccount() {
     const card = $('#accountCard');
     if (!card) return;
+    card.classList.remove('is-loading');
     if (accountInfo && accountInfo.loggedIn) {
       card.innerHTML = `
         ${accountInfo.face ? `<img class="account-avatar" src="${attr(accountInfo.face)}" alt="" referrerpolicy="no-referrer">` : '<span class="avatar-ph lg"></span>'}
@@ -3098,12 +3271,21 @@
     }
   }
 
-  function loadAccount() {
+  function loadAccount(immediate) {
     if (typeof bridge.account !== 'function') {
       renderAccount();
       return;
     }
+    if (!immediate) {
+      if (accountInfo && accountInfo.loggedIn && Date.now() - accountFetchedAt < 30000) {
+        renderAccount();
+        return;
+      }
+      deferLoading('account', showAccountSkeleton, () => loadAccount(true));
+      return;
+    }
     const result = call('account');
+    accountFetchedAt = Date.now();
     accountInfo = result && result.ok ? result : {
       loggedIn: false,
       name: '',
@@ -3209,7 +3391,7 @@
     document.body.appendChild(viewer);
   }
 
-  function loadDynamic(page, append) {
+  function loadDynamic(page, append, immediate) {
     if (!state.loggedIn) {
       renderEmpty($('#dynamicFeed'), '登录后查看动态', '短信登录后同步关注动态。', '去登录', () => host.showPage('login'));
       return true;
@@ -3218,8 +3400,17 @@
       renderEmpty($('#dynamicFeed'), '当前版本不支持动态', '');
       return true;
     }
+    if (!append && !immediate) {
+      deferLoading('dynamic', () => showDynamicSkeleton(4), () => loadDynamic(1, false, true));
+      return true;
+    }
+    if (append && !immediate) {
+      deferLoading('dynamic-more', appendDynamicSkeleton, () => loadDynamic(page || 1, true, true));
+      return true;
+    }
     const filter = ['all', 'video', 'image'][Math.max(0, Number(state.dynamicFilterIndex) || 0) % 3];
     const result = call('dynamicFeed', page || 1, filter);
+    clearMoreSkeletons($('#dynamicFeed'));
     if (!result.ok) {
       renderEmpty($('#dynamicFeed'), result.needLogin ? '登录后查看动态' : '动态加载失败', result.needLogin ? '短信登录后同步关注动态。' : (result.error || ''), result.needLogin ? '去登录' : '重试', result.needLogin ? () => host.showPage('login') : () => loadDynamic(1, false));
       return true;
@@ -3249,7 +3440,7 @@
     if (empty) empty.hidden = true;
   }
 
-  function loadMessages(page, append) {
+  function loadMessages(page, append, immediate) {
     if (!state.loggedIn) {
       renderEmpty($('#messageFeed'), '登录后查看消息', '短信登录后同步回复、@ 和点赞。', '去登录', () => host.showPage('login'));
       return true;
@@ -3263,8 +3454,17 @@
       renderEmpty($('#messageFeed'), '当前版本不支持消息', '');
       return true;
     }
+    if (!append && !immediate) {
+      deferLoading('messages', () => showMessageSkeleton(5), () => loadMessages(1, false, true));
+      return true;
+    }
+    if (append && !immediate) {
+      deferLoading('messages-more', appendMessageSkeleton, () => loadMessages(page || 1, true, true));
+      return true;
+    }
     const filter = ['reply', 'at', 'like'][index];
     const result = call('messages', page || 1, filter);
+    clearMoreSkeletons($('#messageFeed'));
     if (!result.ok) {
       renderEmpty($('#messageFeed'), result.needLogin ? '登录后查看消息' : '消息加载失败', result.needLogin ? '短信登录后同步回复、@ 和点赞。' : (result.error || ''), result.needLogin ? '去登录' : '重试', result.needLogin ? () => host.showPage('login') : () => loadMessages(1, false));
       return true;
@@ -3277,15 +3477,7 @@
   }
 
   /* ---------- player info / actions ---------- */
-  function playerInfo() {
-    const item = currentItem();
-    if (!item) {
-      host.openSheet('信息', '当前没有播放项', (body) => {
-        host.actionRow(body, '返回', '', () => host.closeSheet());
-      });
-      return;
-    }
-    const detail = readVideoInfo(item) || { ok: false };
+  function renderPlayerInfoSheet(item, detail) {
     const stat = detail.stat || {};
     const owner = detail.owner || item.owner || 'UP 主';
     const title = detail.title || item.title || '视频';
@@ -3322,6 +3514,32 @@
           return '打开播放列表';
         });
       }
+    });
+  }
+
+  function playerInfo() {
+    const item = currentItem();
+    if (!item) {
+      host.openSheet('信息', '当前没有播放项', (body) => {
+        host.actionRow(body, '返回', '', () => host.closeSheet());
+      });
+      return;
+    }
+    const cached = readVideoInfo(item, { cachedOnly: true });
+    if (cached) {
+      renderPlayerInfoSheet(item, cached);
+      return;
+    }
+    host.openSheet('信息', '正在加载视频信息…', (body) => {
+      body.innerHTML = sheetSkeletonMarkup(6);
+    });
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const sheet = document.getElementById('psheet');
+        if (!sheet || !sheet.classList.contains('open')) return;
+        const detail = readVideoInfo(item) || { ok: false };
+        renderPlayerInfoSheet(item, detail);
+      }, 36);
     });
   }
 
@@ -3467,12 +3685,12 @@
     if (state.page === 'home' || state.page === 'module') {
       requestFeedPage(state.page);
     }
-    if (state.page === 'dynamic' && more.dynamic) {
+    if (state.page === 'dynamic' && more.dynamic && $('#dynamicFeed .dynamic-card:not(.skeleton-card)')) {
       more.dynamic = false;
       pages.dynamic += 1;
       if (loadDynamic(pages.dynamic, true) && $('#dynamicFeed').querySelector('.native-empty')) more.dynamic = false;
     }
-    if (state.page === 'messages' && more.messages) {
+    if (state.page === 'messages' && more.messages && $('#messageFeed .message-row:not(.skeleton-message)')) {
       more.messages = false;
       pages.messages += 1;
       if (loadMessages(pages.messages, true) && $('#messageFeed').querySelector('.native-empty')) more.messages = false;
