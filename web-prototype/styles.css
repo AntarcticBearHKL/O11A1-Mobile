@@ -303,7 +303,8 @@ body[data-theme="dark"] .feed-skeleton::after{
   background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.05) 45%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.05) 55%,transparent 100%);
 }
 @keyframes feedSkelShimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
-.page[data-page="home"]{padding-top:0}
+.page[data-page="home"]{padding-top:0;padding-left:4px;padding-right:4px}
+.page[data-page="home"] .video-row{padding-left:8px;padding-right:8px}
 
 .icon-btn{
   width:38px;height:38px;border:0;border-radius:12px;background:transparent;
@@ -1655,7 +1656,7 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
 .app.landscape .app-scroll{top:0}
 .app.landscape .top-glass{height:calc(env(safe-area-inset-top) + 24px)}
 .app.landscape .page{padding:0 26px calc(94px + env(safe-area-inset-bottom))}
-.app.landscape .page[data-page="home"]{padding-top:calc(env(safe-area-inset-top) * .5 + 4px)}
+.app.landscape .page[data-page="home"]{padding-top:calc(env(safe-area-inset-top) * .5 + 4px);padding-left:4px;padding-right:4px}
 .app.landscape .page[data-page="search"],
 .app.landscape .page[data-page="search-home"]{
   padding:calc(env(safe-area-inset-top) + 10px) max(26px,env(safe-area-inset-right)) 24px max(26px,env(safe-area-inset-left));
