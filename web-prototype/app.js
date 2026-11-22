@@ -64,11 +64,6 @@
   const feedDebugHz = $('#feedDebugHz');
   const feedDebugFps = $('#feedDebugFps');
   const videoDebug = $('#videoDebug');
-  const dbgDisplay = $('#dbgDisplay');
-  const dbgRender = $('#dbgRender');
-  const dbgDecode = $('#dbgDecode');
-  const dbgDrop = $('#dbgDrop');
-  const dbgBitrate = $('#dbgBitrate');
   const postCanvas = $('#postCanvas');
   const psheet = $('#psheet');
   const psheetBackdrop = $('#psheetBackdrop');
@@ -271,6 +266,7 @@
     playerLandscape: false,
     progress: 0,
     duration: 0,
+    streamInfo: { videoBitrate: 0, audioBitrate: 0, sourceWidth: 0, sourceHeight: 0, netBps: 0, netAt: 0, direct: false },
     brightness: Number.isFinite(loaded?.brightness) ? Math.max(0, Math.min(100, loaded.brightness)) : 100,
     volume: Number.isFinite(loaded?.volume) ? Math.max(0, Math.min(100, loaded.volume)) : 80,
     landscapeHome: loaded?.landscapeHome === true,
@@ -1911,6 +1907,7 @@
     compositorHz: 0,
     feedFps: 0,
     videoFps: 0,
+    videoPresentFps: 0,
     decodeFps: 0,
     dropped: 0,
     avGap: null,
@@ -1935,14 +1932,6 @@
       if (d < distance) { distance = d; best = rate; }
     });
     return Math.abs(best - value) <= 6 ? best : Math.round(value);
-  }
-
-  function targetFps() {
-    const interp = state.settings.interp;
-    if (interp === '60' || interp === '90' || interp === '120') {
-      return Math.min(Number(interp) || 60, debugState.nativeHz || debugState.displayHz || Number(interp) || 60);
-    }
-    return debugState.nativeHz || debugState.displayHz || 60;
   }
 
   function sampleVideoQuality() {
@@ -2002,6 +1991,47 @@
     }
   }
 
+  function formatDebugBitrate(bps) {
+    const value = Math.max(0, Number(bps) || 0);
+    if (value === 0) return '—';
+    if (value >= 1000000) return `${(value / 1000000).toFixed(2)} Mbps`;
+    if (value >= 1000) return `${Math.round(value / 1000)} kbps`;
+    return `${Math.round(value)} bps`;
+  }
+
+  function debugDurationText(seconds) {
+    if (!Number.isFinite(seconds)) return '—';
+    if (seconds < 60) return `${Math.max(0, seconds).toFixed(1)} s`;
+    const total = Math.round(seconds);
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const rest = total % 60;
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+    }
+    return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+  }
+
+  function debugBufferedAhead() {
+    if (!realVideo || realVideo.readyState === 0) return null;
+    try {
+      const ranges = realVideo.buffered;
+      if (!ranges || !ranges.length) return 0;
+      const current = realVideo.currentTime;
+      let best = 0;
+      for (let index = 0; index < ranges.length; index += 1) {
+        const start = ranges.start(index);
+        const end = ranges.end(index);
+        if (end < current) continue;
+        if (start > current + 1) break;
+        best = Math.max(best, end - current);
+      }
+      return best;
+    } catch (_) {
+      return null;
+    }
+  }
+
   function updateDebugHud() {
     const feedVisible = state.settings.feedDebug !== false
       && ['home', 'search', 'module'].includes(state.page);
@@ -2011,23 +2041,59 @@
     videoDebug.hidden = !playerVisible;
     if (!feedVisible && !playerVisible) return;
     const hz = debugState.nativeHz || debugState.displayHz;
-    const target = Math.round(targetFps());
-    const render = Math.round(debugState.videoFps);
     feedDebugHz.textContent = `${hz ? hz.toFixed(1) : '—'} Hz`;
     feedDebugFps.textContent = `${(debugState.compositorHz || debugState.feedFps).toFixed(1)} fps`;
-    dbgDisplay.textContent = `${hz ? hz.toFixed(1) : '—'} Hz`;
-    dbgRender.textContent = `${target || '—'} / ${render}`;
-    const decode = debugFrame.decodeFps > 0 ? debugFrame.decodeFps.toFixed(1) : '—';
-    const size = realVideo.videoWidth ? `${realVideo.videoWidth}×${realVideo.videoHeight}` : '—';
-    dbgDecode.textContent = `${decode} fps · ${size}`;
-    const av = debugState.avGap === null ? '—' : `${Math.round(debugState.avGap)} ms`;
-    dbgDrop.textContent = `${debugState.dropped} · ${av}`;
-    dbgBitrate.textContent = `${debugState.bitrate || 0} kbps`;
-    dbgRender.classList.toggle('warn', render > 0 && target > 0 && render < target * 0.8);
-    dbgDecode.classList.toggle('bad', debugState.dropped > 10);
-    dbgDrop.classList.toggle('bad', debugState.dropped > 10);
-    dbgDrop.classList.toggle('warn', debugState.avGap !== null && debugState.avGap > 220);
-    dbgBitrate.classList.toggle('warn', debugState.bitrate > 20000);
+    if (!playerVisible) return;
+
+    const fps = debugState.videoPresentFps || 0;
+    const frameMs = fps > 0.5 ? 1000 / fps : 0;
+    const danmakuOn = state.settings.danmaku !== false;
+    const danmakuActive = danmakuOn && !realVideo.paused && !realVideo.ended
+      && Boolean(playerVideo.querySelector('.danmaku-item'));
+    const danmakuFps = danmakuActive ? (debugState.feedFps || debugState.compositorHz || 0) : 0;
+    const uiFps = debugState.feedFps || debugState.compositorHz || 0;
+
+    const info = state.streamInfo || {};
+    const videoW = Number(realVideo.videoWidth) || 0;
+    const videoH = Number(realVideo.videoHeight) || 0;
+    const sourceW = Number(info.sourceWidth) || videoW;
+    const sourceH = Number(info.sourceHeight) || videoH;
+    const screenW = Math.round((window.screen && window.screen.width ? window.screen.width : window.innerWidth)
+      * (window.devicePixelRatio || 1));
+    const screenH = Math.round((window.screen && window.screen.height ? window.screen.height : window.innerHeight)
+      * (window.devicePixelRatio || 1));
+    const dimensions = (width, height) => (width > 0 && height > 0 ? `${width}×${height}` : '—×—');
+    const resolution = `源${dimensions(sourceW, sourceH)}/解${dimensions(videoW, videoH)}/屏${screenW}×${screenH}`;
+
+    const directNet = Number(info.netBps) || 0;
+    const directFresh = directNet > 0 && performance.now() - (Number(info.netAt) || 0) < 2500;
+    const netBps = info.direct
+      ? (directFresh ? directNet : 0)
+      : Math.max(0, Number(debugState.bitrate) || 0) * 1000;
+    const videoBps = Number(info.videoBitrate) || 0;
+    const audioBps = Number(info.audioBitrate) || 0;
+    const totalBps = videoBps + audioBps;
+    let network = '— / —';
+    if (netBps > 0) {
+      network = totalBps > 0
+        ? `${formatDebugBitrate(netBps)} / ${formatDebugBitrate(videoBps)} (${(netBps / totalBps).toFixed(1)}×)`
+        : `${formatDebugBitrate(netBps)} / —`;
+    } else if (totalBps > 0) {
+      network = `— / ${formatDebugBitrate(videoBps)}`;
+    }
+
+    const buffered = debugBufferedAhead();
+    const bufferText = buffered === null ? '—' : debugDurationText(buffered);
+
+    videoDebug.textContent = [
+      `画面帧率  ${fps.toFixed(1)} · ${frameMs.toFixed(1)} ms`,
+      `弹幕帧率  ${danmakuFps.toFixed(1)}`,
+      `界面帧率  ${uiFps.toFixed(1)}`,
+      `分辨率    ${resolution}`,
+      `网络      ${network}`,
+      `缓冲长度  ${bufferText}`,
+      `下集预载  —`,
+    ].join('\n');
   }
 
   function initDebugHud() {
@@ -2081,6 +2147,9 @@
           && (!debugFrame.decodeFps || debugFrame.decodeFps < debugState.videoFps * 0.35)) {
           debugFrame.decodeFps = debugFrame.rvfcCount;
         }
+        debugState.videoPresentFps = debugFrame.rvfcCount > 0
+          ? debugFrame.rvfcCount
+          : (realVideo.paused || realVideo.ended ? 0 : debugState.videoFps);
         debugFrame.rvfcCount = 0;
         updateDebugHud();
       }

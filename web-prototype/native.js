@@ -22,6 +22,33 @@
     try { return parse(bridge[name](...args)); } catch (error) { return { ok: false, error: String(error) }; }
   };
 
+  let netBytes = 0;
+  let netAt = 0;
+  function resetNetMeter() {
+    netBytes = 0;
+    netAt = 0;
+    if (state.streamInfo) {
+      state.streamInfo.netBps = 0;
+      state.streamInfo.netAt = 0;
+    }
+  }
+  function addNetBytes(count) {
+    const bytes = Number(count) || 0;
+    if (bytes <= 0) return;
+    const now = performance.now();
+    if (!netAt) netAt = now;
+    netBytes += bytes;
+    const elapsed = now - netAt;
+    if (elapsed >= 500) {
+      if (state.streamInfo) {
+        state.streamInfo.netBps = Math.round(netBytes * 8 / (elapsed / 1000));
+        state.streamInfo.netAt = now;
+      }
+      netBytes = 0;
+      netAt = now;
+    }
+  }
+
   const feeds = {
     home: host.homeFeed,
     search: host.searchResults,
@@ -1538,6 +1565,7 @@
           if (totalMatch) total = Number(totalMatch[1]);
           const value = new Uint8Array(await response.arrayBuffer());
           if (!value.length) break;
+          addNetBytes(value.length);
           await appendDashChunk(buffer, value, state);
           appended += value.length;
           offset += value.length;
@@ -1603,6 +1631,16 @@
       loadVideo(item, autoplay, false);
       return;
     }
+    state.streamInfo = {
+      videoBitrate: Number(videoTrack.bandwidth) || 0,
+      audioBitrate: Number(audioTrack.bandwidth) || 0,
+      sourceWidth: Number(videoTrack.width) || 0,
+      sourceHeight: Number(videoTrack.height) || 0,
+      netBps: 0,
+      netAt: 0,
+      direct: true,
+    };
+    resetNetMeter();
     const videoMime = trackMime(videoTrack, false);
     const audioMime = trackMime(audioTrack, true);
     if (!supportsMime(videoMime) || !supportsMime(audioMime)) {
@@ -1666,6 +1704,8 @@
   }
 
   function loadVideo(item, autoplay, allowDash = true) {
+    state.streamInfo = { videoBitrate: 0, audioBitrate: 0, sourceWidth: 0, sourceHeight: 0, netBps: 0, netAt: 0, direct: false };
+    resetNetMeter();
     if (!item) {
       clearVideo();
       return;
