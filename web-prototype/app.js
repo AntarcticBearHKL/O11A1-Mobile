@@ -58,9 +58,6 @@
   const videoDetailPanel = $('#videoDetailPanel');
   const videoDetailScroll = $('#videoDetailScroll');
   const videoDetailBody = $('#videoDetailBody');
-  const videoDetailClose = $('#videoDetailClose');
-  const detailPlaylistTarget = $('#detailPlaylistTarget');
-  const detailPlaylistCount = $('#detailPlaylistCount');
   const playerVideo = $('#playerVideo');
   const realVideo = $('#realVideo');
   const feedDebug = $('#feedDebug');
@@ -333,6 +330,7 @@
   let commentsGesture = null;
   let commentsCloseTimer = null;
   let videoDetailOpen = false;
+  let videoDetailSwipe = null;
   let videoDetailCloseTimer = null;
   let videoDetailRenderTimer = null;
   let pendingPlayerOrigin = null;
@@ -1315,20 +1313,6 @@
 
   function updatePlaylistCounts() {
     updatePlaylistDock();
-    syncDetailPlaylistCount();
-  }
-
-  function syncDetailPlaylistCount() {
-    if (detailPlaylistCount) detailPlaylistCount.textContent = String(state.playlist.length);
-  }
-
-  function pulseDetailPlaylist() {
-    if (!detailPlaylistTarget || !videoDetailOpen) return;
-    syncDetailPlaylistCount();
-    detailPlaylistTarget.classList.remove('absorbing');
-    void detailPlaylistTarget.offsetWidth;
-    detailPlaylistTarget.classList.add('absorbing');
-    setTimeout(() => detailPlaylistTarget.classList.remove('absorbing'), 620);
   }
 
   function updatePlaylistDock() {
@@ -1380,19 +1364,24 @@
   function flyRowToPlaylist(row) {
     const thumb = row ? row.querySelector('.row-thumb') : null;
     const dockVisible = playlistDock.classList.contains('show');
-    const detailTarget = videoDetailOpen && detailPlaylistTarget ? detailPlaylistTarget : null;
-    const targetVisible = Boolean(detailTarget) || dockVisible;
-    if (!thumb || !targetVisible || document.body.classList.contains('reduce-motion')
+    const detailOpen = videoDetailOpen;
+    const useDock = dockVisible && !detailOpen;
+    if (!thumb || (!useDock && !detailOpen) || document.body.classList.contains('reduce-motion')
       || typeof thumb.animate !== 'function') {
-      if (detailTarget) pulseDetailPlaylist();
-      else absorbPlaylistDock();
+      if (useDock) absorbPlaylistDock();
       return;
     }
     const start = thumb.getBoundingClientRect();
-    const end = (detailTarget || pdThumb).getBoundingClientRect();
+    const end = useDock
+      ? pdThumb.getBoundingClientRect()
+      : {
+        left: window.innerWidth / 2 - 30,
+        top: window.innerHeight - 54,
+        width: 60,
+        height: 60,
+      };
     if (!start.width || !end.width) {
-      if (detailTarget) pulseDetailPlaylist();
-      else absorbPlaylistDock();
+      if (useDock) absorbPlaylistDock();
       return;
     }
     const sourceRadius = getComputedStyle(thumb).borderRadius || '0px';
@@ -1434,8 +1423,7 @@
     });
     flight.finished.then(() => flyer.remove()).catch(() => flyer.remove());
     setTimeout(() => {
-      if (detailTarget) pulseDetailPlaylist();
-      else absorbPlaylistDock();
+      if (useDock) absorbPlaylistDock();
     }, 430);
   }
 
@@ -2912,7 +2900,8 @@
     clearTimeout(videoDetailRenderTimer);
     videoDetailOpen = true;
     videoDetailPanel.inert = false;
-    videoDetailPanel.classList.remove('closing', 'peeking');
+    videoDetailPanel.classList.remove('closing', 'peeking', 'dragging');
+    videoDetailPanel.style.transition = '';
     videoDetailPanel.setAttribute('aria-hidden', 'false');
     if (fromPeek) {
       videoDetailPanel.classList.add('open');
@@ -2923,7 +2912,6 @@
     }
     if (videoDetailBody) videoDetailBody.innerHTML = detailSkeletonMarkup;
     videoDetailScroll.scrollTop = 0;
-    syncDetailPlaylistCount();
     swipeHint.classList.remove('show', 'left');
     clearTimeout(hideTimer);
     playerControls.classList.add('hidden');
@@ -2933,7 +2921,6 @@
       if (!videoDetailOpen) return;
       if (window.O11A1NativeData && typeof window.O11A1NativeData.renderVideoDetail === 'function') {
         window.O11A1NativeData.renderVideoDetail();
-        syncDetailPlaylistCount();
       }
     }, 320);
   }
@@ -2957,10 +2944,11 @@
   function closeVideoDetail(options = {}) {
     if (!videoDetailPanel || !videoDetailOpen) return;
     videoDetailOpen = false;
+    videoDetailSwipe = null;
     clearTimeout(videoDetailRenderTimer);
     videoDetailRenderTimer = null;
     videoDetailPanel.inert = true;
-    videoDetailPanel.classList.remove('open', 'peeking');
+    videoDetailPanel.classList.remove('open', 'peeking', 'dragging');
     videoDetailPanel.classList.add('closing');
     videoDetailPanel.setAttribute('aria-hidden', 'true');
     videoDetailPanel.style.transform = 'translateX(calc(-100% - 18px))';
@@ -2968,6 +2956,7 @@
     videoDetailCloseTimer = setTimeout(() => {
       videoDetailCloseTimer = null;
       videoDetailPanel.classList.remove('closing');
+      videoDetailPanel.style.transition = '';
       videoDetailPanel.style.transform = '';
     }, 420);
     if (!options.silent) {
@@ -2985,14 +2974,67 @@
     }
   }
 
+  function startVideoDetailSwipe(event) {
+    if (!videoDetailOpen || !videoDetailPanel) return;
+    if (event.button !== undefined && event.button !== 0) return;
+    if (event.target.closest('.video-row, button, input, textarea, a')) return;
+    videoDetailSwipe = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      dx: 0,
+      dragging: false,
+    };
+  }
+
+  function moveVideoDetailSwipe(event) {
+    const gesture = videoDetailSwipe;
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    const dx = event.clientX - gesture.startX;
+    const dy = event.clientY - gesture.startY;
+    if (!gesture.dragging) {
+      if (Math.hypot(dx, dy) < 10) return;
+      if (dx < 0 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        gesture.dragging = true;
+        videoDetailPanel.classList.add('dragging');
+      } else {
+        return;
+      }
+    }
+    if (event.cancelable) event.preventDefault();
+    gesture.dx = Math.min(0, dx);
+    videoDetailPanel.style.transform = `translate3d(${gesture.dx}px,0,0)`;
+  }
+
+  function endVideoDetailSwipe() {
+    const gesture = videoDetailSwipe;
+    videoDetailSwipe = null;
+    if (!gesture || !gesture.dragging) return;
+    videoDetailPanel.classList.remove('dragging');
+    if (gesture.dx < -90) {
+      closeVideoDetail();
+      return;
+    }
+    videoDetailPanel.style.transition = 'transform .3s cubic-bezier(.16,1,.3,1)';
+    videoDetailPanel.style.transform = '';
+    setTimeout(() => {
+      if (videoDetailOpen) {
+        videoDetailPanel.style.transition = '';
+        videoDetailPanel.style.transform = '';
+      }
+    }, 320);
+  }
+
   function resetVideoDetail() {
     videoDetailOpen = false;
+    videoDetailSwipe = null;
     clearTimeout(videoDetailCloseTimer);
     clearTimeout(videoDetailRenderTimer);
     videoDetailCloseTimer = null;
     videoDetailRenderTimer = null;
     if (!videoDetailPanel) return;
-    videoDetailPanel.classList.remove('open', 'peeking', 'closing');
+    videoDetailPanel.classList.remove('open', 'peeking', 'closing', 'dragging');
+    videoDetailPanel.style.transition = '';
     videoDetailPanel.style.transform = '';
     videoDetailPanel.setAttribute('aria-hidden', 'true');
     videoDetailPanel.inert = true;
@@ -4760,13 +4802,8 @@
   });
 
   commentsPanel.addEventListener('pointerdown', startCommentsGesture);
-  if (videoDetailClose) {
-    videoDetailClose.addEventListener('click', (event) => {
-      event.stopPropagation();
-      closeVideoDetail();
-    });
-  }
   if (videoDetailPanel) {
+    videoDetailPanel.addEventListener('pointerdown', startVideoDetailSwipe);
     videoDetailPanel.addEventListener('click', (event) => {
       if (Date.now() < suppressFeedClickUntil) return;
       if (!event.target.closest('.video-row')) return;
@@ -4775,6 +4812,9 @@
       }, 40);
     }, true);
   }
+  window.addEventListener('pointermove', moveVideoDetailSwipe);
+  window.addEventListener('pointerup', endVideoDetailSwipe);
+  window.addEventListener('pointercancel', endVideoDetailSwipe);
   window.addEventListener('pointermove', moveCommentsGesture);
   window.addEventListener('pointerup', endCommentsGesture);
   window.addEventListener('pointercancel', endCommentsGesture);
@@ -5021,8 +5061,15 @@
     await sleep(650);
     results.push(`detail=${videoDetailPanel.classList.contains('open')}`);
     results.push(`detailRows=${videoDetailBody.querySelectorAll('.feed-item').length >= 4}`);
-    videoDetailClose.click();
-    await sleep(460);
+    const detailRect = videoDetailPanel.getBoundingClientRect();
+    const detailStartX = detailRect.left + detailRect.width * 0.62;
+    const detailStartY = detailRect.top + 120;
+    videoDetailPanel.dispatchEvent(pointerEvent('pointerdown', detailStartX, detailStartY, 1));
+    for (let step = 1; step <= 6; step += 1) {
+      window.dispatchEvent(pointerEvent('pointermove', detailStartX - (150 * step) / 6, detailStartY, 1));
+    }
+    window.dispatchEvent(pointerEvent('pointerup', detailStartX - 150, detailStartY, 0));
+    await sleep(500);
     results.push(`detailClose=${!videoDetailPanel.classList.contains('open')}`);
     dispatchSwipe('middle', -240, 0);
     results.push(`comments=${commentsPanel.classList.contains('open')}`);

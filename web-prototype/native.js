@@ -2568,9 +2568,9 @@
     });
     let related = [];
     if (typeof bridge.popular === 'function') {
-      const result = call('popular', 1, 12);
+      const result = call('popular', 1, 50);
       const items = result && result.ok && Array.isArray(result.items) ? result.items : [];
-      related = items.filter((row) => !bvid || row.bvid !== bvid).slice(0, 6);
+      related = items.filter((row) => !bvid || row.bvid !== bvid);
     }
     const longDesc = desc.length > 90;
     body.innerHTML = `
