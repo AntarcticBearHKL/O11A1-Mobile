@@ -680,6 +680,7 @@
   const previewUrlCache = new Map();
   const previewPending = new Set();
   const previewWarmPending = new Set();
+  const playerWarmPending = new Set();
   const PREVIEW_URL_TTL = 10 * 60 * 1000;
   let previewVideo = null;
   let previewRow = null;
@@ -832,6 +833,7 @@
     if (!thumb) return;
     stopPreviewPreload();
     preloadRow = row;
+    prewarmPlayerUrl(item);
     const url = previewUrlFor(item);
     if (!url) return;
     const video = createPreviewVideo(true);    video.src = url;
@@ -869,28 +871,36 @@
       }
     }
     const previousVideo = previewVideo;
-    if (previousVideo) {
+    let retired = false;
+    const retire = () => {
+      if (retired || !previousVideo) return;
+      retired = true;
+      try { previousVideo.pause(); } catch (_) {}
       setTimeout(() => {
-        try { previousVideo.pause(); } catch (_) {}
-        setTimeout(() => {
-          previousVideo.removeAttribute('src');
-          try { previousVideo.load(); } catch (_) {}
-          if (previousVideo.parentNode) previousVideo.parentNode.removeChild(previousVideo);
-        }, 320);
-      }, 650);
-    }
+        previousVideo.removeAttribute('src');
+        try { previousVideo.load(); } catch (_) {}
+        if (previousVideo.parentNode) previousVideo.parentNode.removeChild(previousVideo);
+      }, 320);
+    };
     previewVideo = video;
     previewRow = row;
     row.classList.add('preview-active');
     thumb.appendChild(video);
     video.classList.remove('preview-preload');
-    video.classList.add('show');
     thumb.querySelectorAll('.preview-muted, .preview-progress').forEach((node) => node.remove());
     previewProgressFill = attachPreviewOverlays(thumb);
-    thumb.classList.remove('preview-loading');
-    video.currentTime = 0;
+    const reveal = () => {
+      thumb.classList.remove('preview-loading');
+      video.classList.add('show');
+      retire();
+    };
+    video.addEventListener('playing', reveal, { once: true });
+    thumb.classList.add('preview-loading');
     try { video.playbackRate = previewPlaybackRate(); } catch (_) {}
     video.play().catch(() => {});
+    requestAnimationFrame(reveal);
+    prewarmPlayerUrl(row.__nativeItem);
+    setTimeout(retire, 3000);
     return true;
   }
 
@@ -1050,7 +1060,8 @@
     warmPreviewPrefix(item);
   }
 
-  function previewUrlFor(item) {    const key = `${item.bvid}:${item.cid || 0}`;
+  function previewUrlFor(item) {
+    const key = `${item.bvid}:${item.cid || 0}`;
     const cached = previewUrlCache.get(key);
     if (cached && Date.now() - cached.at < PREVIEW_URL_TTL) return cached.url;
     if (typeof bridge.previewCached === 'function') {
@@ -1072,6 +1083,22 @@
     if (url) previewUrlCache.set(key, { url, at: Date.now() });
     else previewUrlCache.delete(key);
     return url;
+  }
+
+  function prewarmPlayerUrl(item) {
+    if (!item || item.live || item.epId || !item.bvid) return;
+    const qn = qualityQn(state.settings.quality);
+    const key = `${item.bvid}:${item.cid || 0}:${qn}`;
+    if (playerWarmPending.has(key)) return;
+    playerWarmPending.add(key);
+    setTimeout(() => playerWarmPending.delete(key), 60000);
+    try {
+      if (qn > 64) {
+        if (typeof bridge.prewarmDash === 'function') bridge.prewarmDash(item.bvid, item.cid || 0, 120);
+      } else if (typeof bridge.prewarmQuality === 'function') {
+        bridge.prewarmQuality(item.bvid, item.cid || 0, qn);
+      }
+    } catch (_) {}
   }
 
   function updateFeedPreview(feed) {
@@ -1102,16 +1129,19 @@
           previewRow = row;
           row.classList.add('preview-active');
           video.src = url;
-          video.classList.add('show');
           thumb.appendChild(video);
           previewProgressFill = attachPreviewOverlays(thumb);
           thumb.classList.add('preview-loading');
-          const ready = () => thumb.classList.remove('preview-loading');
-          video.addEventListener('canplay', ready, { once: true });
-          video.addEventListener('playing', ready, { once: true });
+          const reveal = () => {
+            thumb.classList.remove('preview-loading');
+            video.classList.add('show');
+          };
+          video.addEventListener('canplay', reveal, { once: true });
+          video.addEventListener('playing', reveal, { once: true });
           video.currentTime = 0;
           try { video.playbackRate = previewPlaybackRate(); } catch (_) {}
-          video.play().catch(ready);
+          video.play().catch(() => {});
+          prewarmPlayerUrl(item);
           return;
         }
       }

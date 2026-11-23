@@ -254,10 +254,8 @@ final class BiliApi {
             out.put("ok", true);
             out.put("cid", cid);
             out.put("url", proxy.localUrl(remote, backup, prefetchPreview));
-            if (prefetchPreview) {
-                out.put("remote", remote);
-                out.put("backupRemote", backup);
-            }
+            out.put("remote", remote);
+            if (!backup.isEmpty()) out.put("backupRemote", backup);
             out.put("quality", quality);
             out.put("qualityLabel", qualityLabel(quality));
             out.put("available", availableQualities(data, quality));

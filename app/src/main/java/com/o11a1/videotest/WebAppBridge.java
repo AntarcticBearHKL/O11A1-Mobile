@@ -44,10 +44,20 @@ final class WebAppBridge {
     private final StreamProxy proxy;
     private final CookieStore cookies;
     private static final long PREVIEW_URL_TTL = 10 * 60 * 1000L;
+    private static final long QUALITY_URL_TTL = 4 * 60 * 1000L;
     private final ConcurrentHashMap<String, PreviewEntry> previewUrls = new ConcurrentHashMap<>();
     private final Set<String> previewsLoading = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<String, PreviewEntry> qualityInfos = new ConcurrentHashMap<>();
+    private final Set<String> qualityLoading = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<String, PreviewEntry> dashInfos = new ConcurrentHashMap<>();
+    private final Set<String> dashLoading = ConcurrentHashMap.newKeySet();
     private final ExecutorService previewPool = Executors.newFixedThreadPool(2, runnable -> {
         Thread thread = new Thread(runnable, "o11a1-preview");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private final ExecutorService qualityPool = Executors.newFixedThreadPool(2, runnable -> {
+        Thread thread = new Thread(runnable, "o11a1-quality");
         thread.setDaemon(true);
         return thread;
     });
@@ -424,7 +434,61 @@ final class WebAppBridge {
 
     @JavascriptInterface
     public String playQuality(String bvid, long cid, int qn) {
-        return runExtra(() -> api.playQuality(bvid, cid, qn).toString());
+        String key = bvid + ":" + cid + ":" + qn;
+        PreviewEntry cached = qualityInfos.get(key);
+        if (cached != null && System.currentTimeMillis() - cached.at < QUALITY_URL_TTL) {
+            return cached.json;
+        }
+        String value = runExtra(() -> api.playQuality(bvid, cid, qn).toString());
+        cacheQuality(key, value);
+        return value;
+    }
+
+    @JavascriptInterface
+    public void prewarmQuality(String bvid, long cid, int qn) {
+        String key = bvid + ":" + cid + ":" + qn;
+        PreviewEntry cached = qualityInfos.get(key);
+        if (cached != null && System.currentTimeMillis() - cached.at < QUALITY_URL_TTL) return;
+        if (!qualityLoading.add(key)) return;
+        qualityPool.execute(() -> {
+            try {
+                JSONObject json = api.playQuality(bvid, cid, qn);
+                cacheQuality(key, json.toString());
+            } catch (Throwable error) {
+                Log.w(TAG, "quality prewarm failed " + bvid, error);
+            } finally {
+                qualityLoading.remove(key);
+            }
+        });
+    }
+
+    private void cacheQuality(String key, String json) {
+        if (key == null || json == null) return;
+        try {
+            JSONObject parsed = new JSONObject(json);
+            if (!parsed.optBoolean("ok", false)) return;
+        } catch (Throwable ignored) {
+            return;
+        }
+        qualityInfos.put(key, new PreviewEntry(json, System.currentTimeMillis()));
+        if (qualityInfos.size() > 48) {
+            long cutoff = System.currentTimeMillis() - QUALITY_URL_TTL;
+            for (Map.Entry<String, PreviewEntry> entry : qualityInfos.entrySet()) {
+                if (entry.getValue().at < cutoff) qualityInfos.remove(entry.getKey());
+            }
+            while (qualityInfos.size() > 48) {
+                String oldest = null;
+                long oldestAt = Long.MAX_VALUE;
+                for (Map.Entry<String, PreviewEntry> entry : qualityInfos.entrySet()) {
+                    if (entry.getValue().at < oldestAt) {
+                        oldestAt = entry.getValue().at;
+                        oldest = entry.getKey();
+                    }
+                }
+                if (oldest == null) break;
+                qualityInfos.remove(oldest);
+            }
+        }
     }
 
     @JavascriptInterface
@@ -452,6 +516,10 @@ final class WebAppBridge {
         api.logout();
         previewUrls.clear();
         previewsLoading.clear();
+        qualityInfos.clear();
+        qualityLoading.clear();
+        dashInfos.clear();
+        dashLoading.clear();
         try {
             CookieManager manager = CookieManager.getInstance();
             manager.removeAllCookies(null);
@@ -571,7 +639,61 @@ final class WebAppBridge {
 
     @JavascriptInterface
     public String dash(String bvid, long cid, int qn) {
-        return runExtra(() -> extras.dash(bvid, cid, qn).toString(), 25);
+        String key = bvid + ":" + cid + ":" + qn;
+        PreviewEntry cached = dashInfos.get(key);
+        if (cached != null && System.currentTimeMillis() - cached.at < QUALITY_URL_TTL) {
+            return cached.json;
+        }
+        String value = runExtra(() -> extras.dash(bvid, cid, qn).toString(), 25);
+        cacheDash(key, value);
+        return value;
+    }
+
+    @JavascriptInterface
+    public void prewarmDash(String bvid, long cid, int qn) {
+        String key = bvid + ":" + cid + ":" + qn;
+        PreviewEntry cached = dashInfos.get(key);
+        if (cached != null && System.currentTimeMillis() - cached.at < QUALITY_URL_TTL) return;
+        if (!dashLoading.add(key)) return;
+        qualityPool.execute(() -> {
+            try {
+                String value = extras.dash(bvid, cid, qn).toString();
+                cacheDash(key, value);
+            } catch (Throwable error) {
+                Log.w(TAG, "dash prewarm failed " + bvid, error);
+            } finally {
+                dashLoading.remove(key);
+            }
+        });
+    }
+
+    private void cacheDash(String key, String json) {
+        if (key == null || json == null) return;
+        try {
+            JSONObject parsed = new JSONObject(json);
+            if (!parsed.optBoolean("ok", false)) return;
+        } catch (Throwable ignored) {
+            return;
+        }
+        dashInfos.put(key, new PreviewEntry(json, System.currentTimeMillis()));
+        if (dashInfos.size() > 24) {
+            long cutoff = System.currentTimeMillis() - QUALITY_URL_TTL;
+            for (Map.Entry<String, PreviewEntry> entry : dashInfos.entrySet()) {
+                if (entry.getValue().at < cutoff) dashInfos.remove(entry.getKey());
+            }
+            while (dashInfos.size() > 24) {
+                String oldest = null;
+                long oldestAt = Long.MAX_VALUE;
+                for (Map.Entry<String, PreviewEntry> entry : dashInfos.entrySet()) {
+                    if (entry.getValue().at < oldestAt) {
+                        oldestAt = entry.getValue().at;
+                        oldest = entry.getKey();
+                    }
+                }
+                if (oldest == null) break;
+                dashInfos.remove(oldest);
+            }
+        }
     }
 
     @JavascriptInterface

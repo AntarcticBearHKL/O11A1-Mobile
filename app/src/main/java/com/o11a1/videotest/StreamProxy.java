@@ -34,7 +34,8 @@ final class StreamProxy {
     private static final String TAG = "O11A1Proxy";
     private static final String UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36";
     private static final String DESKTOP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-    private static final long MEDIA_CHUNK = 1024 * 1024;
+    private static final long MEDIA_CHUNK = 4L * 1024 * 1024;
+    private static final long PREVIEW_CHUNK = 1024 * 1024;
     private final CookieStore cookies;
     private final ServerSocket server;
     private final ExecutorService pool = Executors.newCachedThreadPool();
@@ -312,7 +313,7 @@ final class StreamProxy {
         }
     }
 
-    private static String boundedRange(String range) {
+    private static String boundedRange(String range, boolean preview) {
         if (range == null) return null;
         String value = range.trim();
         if (!value.startsWith("bytes=")) return value;
@@ -323,7 +324,8 @@ final class StreamProxy {
         if (!endText.isEmpty() || !startText.matches("\\d+")) return value;
         try {
             long start = Long.parseLong(startText);
-            return "bytes=" + start + "-" + (start + MEDIA_CHUNK - 1);
+            long chunk = preview ? PREVIEW_CHUNK : MEDIA_CHUNK;
+            return "bytes=" + start + "-" + (start + chunk - 1);
         } catch (Throwable ignored) {
             return value;
         }
@@ -371,19 +373,7 @@ final class StreamProxy {
         HttpURLConnection connection = null;
         try {
             String range = clientHeaders.get("range");
-            String upstreamRange = boundedRange(range);
-            if (range != null) {
-                PrefixEntry prefix = prefixes.get(prefixKey(remotes));
-                if (prefix != null && System.currentTimeMillis() - prefix.at < PREFIX_TTL) {
-                    long[] parsed = parseRange(range);
-                    long start = parsed == null ? 0 : parsed[0];
-                    long end = parsed == null ? -1 : parsed[1];
-                    if (start < prefix.data.length) {
-                        servePrefix(socket, prefix, start, end, method);
-                        return;
-                    }
-                }
-            }
+            String upstreamRange = boundedRange(range, preview);
             int code = -1;
             String selectedRemote = null;
             String contentType = null;
@@ -396,12 +386,12 @@ final class StreamProxy {
                     connection = (HttpURLConnection) new URL(remote).openConnection();
                     connection.setInstanceFollowRedirects(true);
                     connection.setConnectTimeout(3000);
-                    connection.setReadTimeout(7000);
+                    connection.setReadTimeout(12000);
                     connection.setRequestMethod("HEAD".equals(method) ? "HEAD" : "GET");
                     connection.setRequestProperty("User-Agent", mediaUserAgent(remote));
                     connection.setRequestProperty("Referer", "https://www.bilibili.com/");
                     connection.setRequestProperty("Accept", "*/*");
-                    connection.setRequestProperty("Cache-Control", "no-cache");
+                    connection.setRequestProperty("Accept-Encoding", "identity");
                     if (upstreamRange != null) connection.setRequestProperty("Range", upstreamRange);
                     try {
                         code = connection.getResponseCode();
@@ -448,7 +438,7 @@ final class StreamProxy {
                 InputStream in = connection.getInputStream();
                 if (in != null) {
                     try (InputStream input = new BufferedInputStream(in)) {
-                        byte[] buffer = new byte[32 * 1024];
+                        byte[] buffer = new byte[128 * 1024];
                         int read;
                         while ((read = input.read(buffer)) >= 0) {
                             out.write(buffer, 0, read);
