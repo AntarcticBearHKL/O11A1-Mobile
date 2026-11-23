@@ -66,8 +66,8 @@
   };
   const FEED_PREFETCH = 900;
   const FEED_BLOCK_SIZE = 10;
-  const FEED_WINDOW_BLOCKS = 3;
-  const FEED_SCROLL_IDLE = 220;
+  const FEED_WINDOW_BLOCKS = 2;
+  const FEED_SCROLL_IDLE = 900;
   const DASH_PLAYBACK = true;
   let lastFeedScrollAt = 0;
   const more = { dynamic: true, messages: true };
@@ -635,7 +635,7 @@
   function feedIsBusy(feed) {
     const fw = feed && feed.__feedWindow;
     if (!fw) return false;
-    if (fw.touchActive && Date.now() - fw.touchActiveAt < 4000) return true;
+    if (fw.touchActive && Date.now() - fw.touchActiveAt < 1200) return true;
     return Date.now() - (fw.lastScrollAt || 0) < FEED_SCROLL_IDLE;
   }
 
@@ -678,6 +678,8 @@
 
   /* ---------- inline focused-card preview ---------- */
   const previewUrlCache = new Map();
+  const previewPending = new Set();
+  const previewWarmPending = new Set();
   const PREVIEW_URL_TTL = 10 * 60 * 1000;
   let previewVideo = null;
   let previewRow = null;
@@ -687,6 +689,11 @@
   let lastPreviewProgress = null;
   let pendingMediaStart = null;
   let promotedPreview = null;
+  let preloadVideo = null;
+  let preloadRow = null;
+  let preloadReady = false;
+  let preloadStartedAt = 0;
+  let previewCommitTimer = null;
 
   function mediaKeyFor(item) {
     if (!item) return '';
@@ -704,10 +711,9 @@
     return progress.time;
   }
 
-  function ensurePreviewVideo() {
-    if (previewVideo) return previewVideo;
+  function createPreviewVideo(preload) {
     const video = document.createElement('video');
-    video.className = 'feed-preview-video';
+    video.className = preload ? 'feed-preview-video preview-preload' : 'feed-preview-video';
     video.muted = true;
     video.defaultMuted = true;
     video.loop = true;
@@ -725,7 +731,7 @@
         maybeFinishPromotedPreview();
         return;
       }
-      if (!previewProgressFill || !video.duration) return;
+      if (video !== previewVideo || !previewProgressFill || !video.duration) return;
       previewProgressFill.style.transform = `scaleX(${Math.min(1, Math.max(0, video.currentTime / video.duration))})`;
     });
     video.addEventListener('play', () => {
@@ -740,12 +746,51 @@
       host.setPlayIcon(false);
       host.updatePlaylistDock();
     });
-    previewVideo = video;
+    video.addEventListener('error', () => {
+      if (promotedPreview && promotedPreview.video === video) return;
+      if (video === preloadVideo) stopPreviewPreload();
+      else if (previewVideo === video) stopFeedPreview();
+    });
     return video;
+  }
+
+  function ensurePreviewVideo() {
+    if (previewVideo) return previewVideo;
+    previewVideo = createPreviewVideo(false);
+    return previewVideo;
+  }
+
+  function attachPreviewOverlays(thumb) {
+    const muted = document.createElement('span');
+    muted.className = 'preview-muted';
+    muted.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.4L12 5.8v12.4L7.4 14.5H4z"/><path d="m16.5 9.5 5 5M21.5 9.5l-5 5"/></svg>';
+    const progress = document.createElement('span');
+    progress.className = 'preview-progress';
+    const fill = document.createElement('span');
+    progress.appendChild(fill);
+    thumb.appendChild(muted);
+    thumb.appendChild(progress);
+    return fill;
+  }
+
+  function stopPreviewPreload() {
+    clearTimeout(previewCommitTimer);
+    previewCommitTimer = null;
+    preloadReady = false;
+    preloadRow = null;
+    preloadStartedAt = 0;
+    if (!preloadVideo) return;
+    const video = preloadVideo;
+    preloadVideo = null;
+    try { video.pause(); } catch (_) {}
+    video.removeAttribute('src');
+    try { video.load(); } catch (_) {}
+    if (video.parentNode) video.parentNode.removeChild(video);
   }
 
   function stopFeedPreview() {
     if (promotedPreview) return;
+    stopPreviewPreload();
     previewToken += 1;
     clearTimeout(previewTimer);
     previewTimer = null;
@@ -773,6 +818,113 @@
     previewVideo.removeAttribute('src');
     try { previewVideo.load(); } catch (_) {}
     if (previewVideo.parentNode) previewVideo.parentNode.removeChild(previewVideo);
+    previewVideo = null;
+    previewProgressFill = null;
+  }
+
+  function startPreviewPreload(feed, row) {
+    if (window.__O11A1_NO_PRELOAD) return;
+    if (!row || row === previewRow) return;
+    if (preloadRow === row && preloadVideo) return;
+    const item = row.__nativeItem;
+    if (!item || item.live || !item.bvid) return;
+    const thumb = row.querySelector('.row-thumb');
+    if (!thumb) return;
+    stopPreviewPreload();
+    preloadRow = row;
+    const url = previewUrlFor(item);
+    if (!url) return;
+    const video = createPreviewVideo(true);    video.src = url;
+    video.load();
+    thumb.appendChild(video);
+    preloadVideo = video;
+    preloadStartedAt = Date.now();
+    preloadReady = video.readyState >= 2;
+    try { video.playbackRate = 0.5; } catch (_) {}
+    video.play().catch(() => {});
+    const ready = () => {
+      if (preloadVideo === video && video.readyState >= 2) preloadReady = true;
+    };
+    video.addEventListener('loadeddata', ready, { once: true });
+    video.addEventListener('canplay', ready, { once: true });
+  }
+
+  function commitPreview(feed, row) {
+    if (!row || row === previewRow) return true;
+    if (!preloadVideo || preloadRow !== row || !preloadReady) return false;
+    const thumb = row.querySelector('.row-thumb');
+    if (!thumb) return false;
+    const video = preloadVideo;
+    preloadVideo = null;
+    preloadRow = null;
+    preloadReady = false;
+    clearTimeout(previewCommitTimer);
+    previewCommitTimer = null;
+    if (previewRow) {
+      previewRow.classList.remove('preview-active');
+      const oldThumb = previewRow.querySelector('.row-thumb');
+      if (oldThumb) {
+        oldThumb.classList.remove('preview-loading');
+        oldThumb.querySelectorAll('.preview-muted, .preview-progress').forEach((node) => node.remove());
+      }
+    }
+    const previousVideo = previewVideo;
+    if (previousVideo) {
+      setTimeout(() => {
+        try { previousVideo.pause(); } catch (_) {}
+        setTimeout(() => {
+          previousVideo.removeAttribute('src');
+          try { previousVideo.load(); } catch (_) {}
+          if (previousVideo.parentNode) previousVideo.parentNode.removeChild(previousVideo);
+        }, 320);
+      }, 650);
+    }
+    previewVideo = video;
+    previewRow = row;
+    row.classList.add('preview-active');
+    thumb.appendChild(video);
+    video.classList.remove('preview-preload');
+    video.classList.add('show');
+    thumb.querySelectorAll('.preview-muted, .preview-progress').forEach((node) => node.remove());
+    previewProgressFill = attachPreviewOverlays(thumb);
+    thumb.classList.remove('preview-loading');
+    video.currentTime = 0;
+    try { video.playbackRate = previewPlaybackRate(); } catch (_) {}
+    video.play().catch(() => {});
+    return true;
+  }
+
+  function schedulePreviewCommit(feed, row) {
+    clearTimeout(previewCommitTimer);
+    let tries = 0;
+    const attempt = () => {
+      previewCommitTimer = null;
+      const view = feedViewport(feed);
+      if (!view.isActive || state.playerOpen || state.miniVisible) {
+        stopPreviewPreload();
+        return;
+      }
+      const focus = feedFocusRow(feed, view.scroll);
+      if (!focus || focus === previewRow) {
+        if (preloadRow && preloadRow !== previewRow) stopPreviewPreload();
+        return;
+      }
+      if (focus !== row) {
+        startPreviewPreload(feed, focus);
+        schedulePreviewCommit(feed, focus);
+        return;
+      }
+      if (preloadRow !== row || !preloadVideo) startPreviewPreload(feed, row);
+      if (!preloadReady && preloadVideo && preloadVideo.readyState >= 2) preloadReady = true;
+      if (preloadReady && commitPreview(feed, row)) return;
+      tries += 1;
+      if (tries > 24) {
+        stopPreviewPreload();
+        return;
+      }
+      previewCommitTimer = setTimeout(attempt, 220);
+    };
+    previewCommitTimer = setTimeout(attempt, 120);
   }
 
   function promoteFeedPreview(thumb) {
@@ -785,6 +937,7 @@
     previewToken += 1;
     clearTimeout(previewTimer);
     previewTimer = null;
+    stopPreviewPreload();
     const time = Number(previewVideo.currentTime) || 0;
     previewRow.classList.remove('preview-active');
     previewRow.querySelectorAll('.preview-muted, .preview-progress').forEach((node) => node.remove());
@@ -799,19 +952,22 @@
     previewVideo.volume = 1;
     previewVideo.loop = false;
     previewVideo.controls = false;
+    previewVideo.playbackRate = 1;
     playerVideo.appendChild(previewVideo);
     playerVideo.classList.add('promoted-preview');
+    const promotedVideo = previewVideo;
+    previewVideo = null;
     const key = mediaKeyFor(item);
-    promotedPreview = { video: previewVideo, key, time };
+    promotedPreview = { video: promotedVideo, key, time };
     pendingMediaStart = time > 0.25 ? { key, time } : pendingMediaStart;
     try { video.muted = true; video.pause(); } catch (_) {}
-    if (Number.isFinite(previewVideo.duration) && previewVideo.duration > 0) {
-      state.duration = previewVideo.duration;
-      state.progress = time / previewVideo.duration * 100;
+    if (Number.isFinite(promotedVideo.duration) && promotedVideo.duration > 0) {
+      state.duration = promotedVideo.duration;
+      state.progress = time / promotedVideo.duration * 100;
       host.setProgress(state.progress);
       host.updatePlaylistDock();
     }
-    previewVideo.play().catch(() => {});
+    promotedVideo.play().catch(() => {});
     return true;
   }
 
@@ -874,13 +1030,47 @@
     });
   }
 
-  function previewUrlFor(item) {
+  function warmPreviewPrefix(item) {
+    if (!item || !item.bvid || typeof bridge.previewWarm !== 'function') return;
     const key = `${item.bvid}:${item.cid || 0}`;
+    if (previewWarmPending.has(key)) return;
+    previewWarmPending.add(key);
+    setTimeout(() => previewWarmPending.delete(key), 30000);
+    try { bridge.previewWarm(item.bvid, item.cid || 0); } catch (_) {}
+  }
+
+  function warmFocusPreview(feed) {
+    if (!feed || state.playerOpen || state.miniVisible) return;
+    const view = feedViewport(feed);
+    if (!view.isActive) return;
+    const row = feedFocusRow(feed, view.scroll);
+    if (!row || row === previewRow) return;
+    const item = row.__nativeItem;
+    if (!item || item.live || !item.bvid) return;
+    warmPreviewPrefix(item);
+  }
+
+  function previewUrlFor(item) {    const key = `${item.bvid}:${item.cid || 0}`;
     const cached = previewUrlCache.get(key);
     if (cached && Date.now() - cached.at < PREVIEW_URL_TTL) return cached.url;
+    if (typeof bridge.previewCached === 'function') {
+      const cachedResult = call('previewCached', item.bvid, item.cid || 0);
+      const cachedUrl = cachedResult && cachedResult.ok ? String(cachedResult.url || '') : '';
+      if (cachedUrl) {
+        previewUrlCache.set(key, { url: cachedUrl, at: Date.now() });
+        return cachedUrl;
+      }
+      if (!previewPending.has(key) && typeof bridge.prewarmPreviews === 'function') {
+        previewPending.add(key);
+        setTimeout(() => previewPending.delete(key), 2500);
+        try { bridge.prewarmPreviews(JSON.stringify([{ bvid: item.bvid, cid: Number(item.cid) || 0 }])); } catch (_) {}
+      }
+      return '';
+    }
     const result = call('playLow', item.bvid, item.cid || 0);
     const url = result && result.ok ? String(result.url || '') : '';
-    previewUrlCache.set(key, { url, at: Date.now() });
+    if (url) previewUrlCache.set(key, { url, at: Date.now() });
+    else previewUrlCache.delete(key);
     return url;
   }
 
@@ -889,57 +1079,68 @@
     if (previewRow && !document.contains(previewRow)) stopFeedPreview();
     const view = feedViewport(feed);
     const paused = state.playerOpen
+      || state.miniVisible
       || host.app.classList.contains('sidebar-open')
       || (state.searchOpen && feed !== feeds.search);
     if (!view.isActive || paused) {
       if (previewRow && feed.contains(previewRow)) stopFeedPreview();
+      stopPreviewPreload();
       return;
     }
+    if (previewVideo && !promotedPreview) setPreviewPlaybackRate(1);
     const row = feedFocusRow(feed, view.scroll);
     if (!row || row === previewRow) return;
-    stopFeedPreview();
     const item = row.__nativeItem;
     if (!item || item.live || !item.bvid) return;
-    const thumb = row.querySelector('.row-thumb');
-    if (!thumb) return;
-    previewRow = row;
-    row.classList.add('preview-active');
-    const token = ++previewToken;
-    clearTimeout(previewTimer);
-    previewTimer = setTimeout(() => {
-      previewTimer = null;
-      if (token !== previewToken || !previewRow || !document.contains(row)) return;
-      const url = previewUrlFor(item);
-      if (!url || token !== previewToken) return;
-      const video = ensurePreviewVideo();
-      video.currentTime = 0;
-      video.src = url;
-      video.classList.add('show');
-      thumb.appendChild(video);
-      const muted = document.createElement('span');
-      muted.className = 'preview-muted';
-      muted.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.4L12 5.8v12.4L7.4 14.5H4z"/><path d="m16.5 9.5 5 5M21.5 9.5l-5 5"/></svg>';
-      const progress = document.createElement('span');
-      progress.className = 'preview-progress';
-      const fill = document.createElement('span');
-      progress.appendChild(fill);
-      thumb.appendChild(muted);
-      thumb.appendChild(progress);
-      previewProgressFill = fill;
-      thumb.classList.add('preview-loading');
-      const ready = () => thumb.classList.remove('preview-loading');
-      video.addEventListener('canplay', ready, { once: true });
-      video.addEventListener('playing', ready, { once: true });
-      video.addEventListener('error', () => {
-        ready();
-        video.classList.remove('show');
-        muted.remove();
-        progress.remove();
-      }, { once: true });
-      const attempt = video.play();
-      if (attempt && attempt.catch) attempt.catch(ready);
-    }, 80);
+    if (!previewVideo && !preloadVideo) {
+      const thumb = row.querySelector('.row-thumb');
+      if (thumb) {
+        const url = previewUrlFor(item);
+        if (url) {
+          stopPreviewPreload();
+          const video = ensurePreviewVideo();
+          previewRow = row;
+          row.classList.add('preview-active');
+          video.src = url;
+          video.classList.add('show');
+          thumb.appendChild(video);
+          previewProgressFill = attachPreviewOverlays(thumb);
+          thumb.classList.add('preview-loading');
+          const ready = () => thumb.classList.remove('preview-loading');
+          video.addEventListener('canplay', ready, { once: true });
+          video.addEventListener('playing', ready, { once: true });
+          video.currentTime = 0;
+          try { video.playbackRate = previewPlaybackRate(); } catch (_) {}
+          video.play().catch(ready);
+          return;
+        }
+      }
+    }
+    if (preloadRow !== row) startPreviewPreload(feed, row);
+    schedulePreviewCommit(feed, row);
   }
+
+  setInterval(() => {
+    if (document.hidden || state.playerOpen || state.miniVisible) return;
+    const feed = state.page === 'home'
+      ? feeds.home
+      : state.page === 'module'
+        ? feeds.module
+        : state.searchOpen
+          ? feeds.search
+          : state.page === 'up'
+            ? feeds.up
+            : null;
+    if (!feed) return;
+    if (previewRow && !document.contains(previewRow)) previewRow = null;
+    if (previewRow && previewVideo && previewVideo.src) return;
+    if (previewRow) stopFeedPreview();
+    if (preloadVideo && Date.now() - preloadStartedAt > 3000) stopPreviewPreload();
+    if (previewCommitTimer || preloadVideo) return;
+    const view = feedViewport(feed);
+    if (!view.isActive || feedIsBusy(feed)) return;
+    updateFeedPreview(feed);
+  }, 1200);
 
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) return;
@@ -952,6 +1153,22 @@
 
   if (host) {
     host.stopFeedPreview = stopFeedPreview;
+    host.previewDebug = () => ({
+      previewRow: previewRow && previewRow.__nativeItem ? previewRow.__nativeItem.bvid : null,
+      previewState: previewVideo ? previewVideo.readyState : -1,
+      previewTime: previewVideo ? Number(previewVideo.currentTime) : 0,
+      preloadRow: preloadRow && preloadRow.__nativeItem ? preloadRow.__nativeItem.bvid : null,
+      preloadState: preloadVideo ? preloadVideo.readyState : -1,
+      preloadReady,
+      timer: Boolean(previewCommitTimer),
+      lastScrollAgo: Date.now() - lastFeedScrollAt,
+      homeBusy: feeds.home ? feedIsBusy(feeds.home) : null,
+      homeTouch: feeds.home && feeds.home.__feedWindow ? feeds.home.__feedWindow.touchActive : null,
+      homeScrollAgo: feeds.home && feeds.home.__feedWindow && feeds.home.__feedWindow.lastScrollAt
+        ? Date.now() - feeds.home.__feedWindow.lastScrollAt : null,
+      homeBlocks: feeds.home && feeds.home.__feedWindow ? feeds.home.__feedWindow.blocks.length : -1,
+      homeQueue: feeds.home && feeds.home.__feedWindow ? feeds.home.__feedWindow.queue.length : -1,
+    });
     host.promoteFeedPreview = promoteFeedPreview;
     host.updateFeedPreview = (feed) => {
       if (feed) {
@@ -972,6 +1189,7 @@
     const block = fw.blocks[0];
     if (!block) return false;
     if (previewRow && block.nodes.includes(previewRow)) stopFeedPreview();
+    if (preloadRow && block.nodes.includes(preloadRow)) stopPreviewPreload();
     const anchor = scroll ? topVisibleRow(feed, scroll, block.nodes) : null;
     const anchorTop = anchor ? anchor.getBoundingClientRect().top : 0;
     const first = block.nodes[0];
@@ -1046,7 +1264,7 @@
     clearTimeout(fw.scrollTimer);
     fw.scrollTimer = setTimeout(() => {
       fw.scrollTimer = null;
-      if (fw.touchActive && Date.now() - fw.touchActiveAt < 4000) {
+      if (fw.touchActive && Date.now() - fw.touchActiveAt < 1200) {
         scheduleWindowSettle(feed, 180);
         return;
       }
@@ -1061,11 +1279,22 @@
     }, delay);
   }
 
+  function setPreviewPlaybackRate(rate) {
+    if (!previewVideo || promotedPreview) return;
+    try { previewVideo.playbackRate = rate; } catch (_) {}
+  }
+
+  function previewPlaybackRate() {
+    return Date.now() - lastFeedScrollAt < 450 ? 0.5 : 1;
+  }
+
   function scheduleWindowUpdate(feed) {
     if (!feed) return;
+    stopPreviewPreload();
     const now = Date.now();
     lastFeedScrollAt = now;
     feedWindowState(feed).lastScrollAt = now;
+    setPreviewPlaybackRate(0.5);
     scheduleWindowSettle(feed);
   }
 

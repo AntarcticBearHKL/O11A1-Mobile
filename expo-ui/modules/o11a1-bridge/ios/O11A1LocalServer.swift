@@ -328,6 +328,18 @@ final class O11A1LocalServer {
         }
       }
       data = o11a1Data(["ok": true])
+    case "previewCached":
+      let cachedBvid = query["bvid"] ?? ""
+      let cachedCid = o11a1Int64(query["cid"] ?? "0")
+      let cachedKey = "\(cachedBvid):\(cachedCid)"
+      lock.lock()
+      let cachedEntry = previewCache[cachedKey]
+      lock.unlock()
+      if let cachedEntry = cachedEntry, Date().timeIntervalSince(cachedEntry.at) < 600 {
+        data = cachedEntry.data
+      } else {
+        data = o11a1Data(["ok": false, "missing": true])
+      }
     case "playLow":
       let lowBvid = query["bvid"] ?? ""
       let lowCid = o11a1Int64(query["cid"] ?? "0")

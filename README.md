@@ -63,7 +63,7 @@ npx expo start --tunnel
 - **同步桥**：注入 `window.O11A1Native`，通过同步 XHR 调本地 `/api/*`，与 Android 的 `WebAppBridge` API 完全一致，包括 UP 主空间 `space`（先请求旧版空间接口，失败时再用 WBI 签名请求新版接口，并补全 UP 名字、头像和粉丝数）；`native.js` 不需要分叉。
 - **真实数据**：Swift `O11A1BiliClient` 直接请求 B 站热门、搜索、分页 cid、playurl、评论、弹幕、导航登录态、账户资料、收藏夹、历史、关注动态、动态、消息、排行榜、番剧/影视索引、番剧选集、直播推荐与直播地址、分区、视频详情；Cookie 持久化到 UserDefaults。
 - **真实登录**：应用内打开 B 站官方登录页（手机号 / 密码 / 扫码等方式由官方页面提供）；登录成功后读取 WebKit Cookie 并保存 `SESSDATA` 等 Cookie；退出登录同时清理原生 Cookie 与 WKWebView Cookie，下次打开官方页保持未登录。
-- **真实播放**：progressive MP4 优先 720P，失败回退 480P / 360P；本地 `/media` 代理补 Referer/UA、转发 Range，按 8MB 分块返回 206；主 CDN 失败自动试备用 CDN；番剧通过 `pgc/player/web/playurl` 播放并一次加入整季选集；直播使用原生 HLS。1080P 及以下默认走 progressive；DASH 仅在用户选择 720P 以上画质时启用，避免默认播放进入 MSE 长时间缓冲和 seek。
+- **真实播放**：progressive MP4 优先 720P，失败回退 480P / 360P；本地 `/media` 代理补 Referer/UA、转发 Range，按 1MB 分块返回 206；主 CDN 失败自动试备用 CDN；番剧通过 `pgc/player/web/playurl` 播放并一次加入整季选集；直播使用原生 HLS。1080P 及以下默认走 progressive；DASH 仅在用户选择 720P 以上画质时启用，避免默认播放进入 MSE 长时间缓冲和 seek。
 - **播放器**：与 Android 共用同一套 V2 播放器 UI、三区手势、评论、弹幕、播放列表、刷新和登录 gate；视频信息/性能面板、截图、复制链接、收藏/投币/关注/弹幕发送会调用真实接口（未登录时内联提示）；外接键盘映射、深色主题、全屏评论楼中楼/三段窗口无限列表、会员任务、AI 养鱼全部共用 web 实现。
 - **构建**：GitHub Actions `ios-unsigned`（macOS）每次 push 生成未签名 IPA + 模拟器 zip；成功后发布到 Releases。
 - **下载**：
@@ -140,8 +140,9 @@ npx expo start --tunnel
 
 两端统一使用系统 WebView 媒体层硬解，V2 播放器只有一个 `<video>`，不再保留第二套 MediaCodec / VideoToolbox / Metal 测试播放器。
 
-- **渐进优先**：默认 720P；480P / 720P / 1080P 走 progressive MP4，不进入 MSE。1080P 以上（4K / 1080P+ / 60fps）当前不默认启用 DASH，避免 MSE 缓冲、seek 和双解码在移动端造成长时间等待；画质面板只列出 progressive 实际返回的清晰度。
-- **DASH 可选**：代码保留 DASH 拉流和 MSE 路径（`DASH_PLAYBACK` 开关），`.m4s` 代理自动切换桌面 UA 以通过 CDN 校验；需要 4K / 1080P+ 时再打开，并注意缓冲配额与 seek 行为。
+- **渐进优先**：默认 720P；480P / 720P 走 progressive MP4，不进入 MSE。1080P 及以上（1080P / 1080P+ / 4K）由 DASH 提供，只在用户主动选择时启用，避免默认播放进入 MSE 长时间缓冲和 seek；画质面板只列出当前视频实际存在的清晰度。
+- **DASH 可选**：代码保留 DASH 拉流和 MSE 路径，`.m4s` 代理自动切换桌面 UA 以通过 CDN 校验；选择 720P 以上画质时使用，并注意缓冲配额与 seek 行为。
+- **预览续播**：信息流中心 2/3 区域的视频获得预览播放权；滚动期间不切换、不暂停当前预览，滚动停止约 900ms 后才预载并切换新的中心视频。滚动时预览降到 0.5 倍速以降低软解码压力，停止后恢复 1 倍速；切换时旧预览保持播放直到新预览真正开始，避免空白和一播一停。
 - **CDN 容错**：媒体代理的同一个本地播放地址同时携带主 CDN 和备用 CDN，主地址返回 403 / 404 时自动用备用地址重试同一段 Range，并记住失效地址，避免部分视频因主 CDN 拒绝而显示「播放失败」。
 - **画质列表**：来自 progressive `accept_quality`，只显示当前视频实际可用的清晰度；切换画质保留当前播放进度，不会把列表缩回单一项。
 - **不做逐帧后处理**：移除插帧、CAS、Anime4K、环境模糊画布和所有逐帧 canvas/WebGL 读回；视频区域使用纯黑背景，避免持续 GPU 模糊。界面调试信息保留：视频流右上角显示刷新率 / 帧率，播放器内显示画面 / 弹幕 / 界面帧率、分辨率、网络、缓冲和下集预载。

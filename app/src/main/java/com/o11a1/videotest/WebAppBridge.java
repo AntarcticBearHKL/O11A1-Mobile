@@ -334,6 +334,29 @@ final class WebAppBridge {
     }
 
     @JavascriptInterface
+    public String previewCached(String bvid, long cid) {
+        String key = bvid + ":" + cid;
+        PreviewEntry cached = previewUrls.get(key);
+        if (cached != null && System.currentTimeMillis() - cached.at < PREVIEW_URL_TTL) {
+            return cached.json;
+        }
+        return "{\"ok\":false,\"missing\":true}";
+    }
+
+    @JavascriptInterface
+    public void previewWarm(String bvid, long cid) {
+        String key = bvid + ":" + cid;
+        PreviewEntry entry = previewUrls.get(key);
+        if (entry == null || System.currentTimeMillis() - entry.at >= PREVIEW_URL_TTL) return;
+        try {
+            JSONObject json = new JSONObject(entry.json);
+            String remote = json.optString("remote", "");
+            String backup = json.optString("backupRemote", "");
+            if (!remote.isEmpty()) proxy.prefetchPreview(remote, backup);
+        } catch (Throwable ignored) {}
+    }
+
+    @JavascriptInterface
     public String playLow(String bvid, long cid) {
         String key = bvid + ":" + cid;
         PreviewEntry cached = previewUrls.get(key);

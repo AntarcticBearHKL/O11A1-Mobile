@@ -2921,6 +2921,7 @@ body[data-theme="light"] .my-page{
   transition:opacity .25s ease;
 }
 .feed-preview-video.show{opacity:1}
+.feed-preview-video.preview-preload{opacity:0!important}
 .row-thumb.preview-loading::after{
   content:"";position:absolute;left:50%;top:50%;z-index:4;
   width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;

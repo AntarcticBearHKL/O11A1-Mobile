@@ -110,17 +110,17 @@ final class BiliApi {
     }
 
     JSONObject play(String bvid, long cid) {
-        return playWithQns(bvid, cid, new int[]{64, 32, 16});
+        return playWithQns(bvid, cid, new int[]{64, 32, 16}, false);
     }
 
     JSONObject playLow(String bvid, long cid) {
-        return playWithQns(bvid, cid, new int[]{16});
+        return playWithQns(bvid, cid, new int[]{16}, true);
     }
 
     JSONObject playQuality(String bvid, long cid, int qn) {
         if (qn <= 0) qn = 32;
-        if (qn == 16) return playWithQns(bvid, cid, new int[]{16});
-        return playWithQns(bvid, cid, qualityLadder(qn));
+        if (qn == 16) return playWithQns(bvid, cid, new int[]{16}, false);
+        return playWithQns(bvid, cid, qualityLadder(qn), false);
     }
 
     static int[] qualityLadder(int qn) {
@@ -138,7 +138,7 @@ final class BiliApi {
     }
 
     JSONObject playQns(String bvid, long cid, int[] qns) {
-        return playWithQns(bvid, cid, qns);
+        return playWithQns(bvid, cid, qns, false);
     }
 
     long resolveCid(String bvid) {
@@ -210,7 +210,7 @@ final class BiliApi {
         return out;
     }
 
-    private JSONObject playWithQns(String bvid, long cid, int[] qns) {
+    private JSONObject playWithQns(String bvid, long cid, int[] qns, boolean prefetchPreview) {
         JSONObject out = new JSONObject();
         try {
             Log.i(TAG, "play request bvid=" + bvid + " cid=" + cid + " cookie=" + cookies.header().length());
@@ -253,7 +253,11 @@ final class BiliApi {
             int quality = data.optInt("quality", 16);
             out.put("ok", true);
             out.put("cid", cid);
-            out.put("url", proxy.localUrl(remote, backup));
+            out.put("url", proxy.localUrl(remote, backup, prefetchPreview));
+            if (prefetchPreview) {
+                out.put("remote", remote);
+                out.put("backupRemote", backup);
+            }
             out.put("quality", quality);
             out.put("qualityLabel", qualityLabel(quality));
             out.put("available", availableQualities(data, quality));
