@@ -73,7 +73,8 @@
   const playlistPage = $('.page[data-page="playlist"]');
   const upPage = $('.page[data-page="up"]');
   const pdCollapsed = $('#pdCollapsed');
-  const pdNow = $('#pdNow');
+  const pdDisc = $('#pdDisc');
+  const pdDiscArt = $('#pdDiscArt');
   const pdTitle = $('#pdTitle');
   const pdMeta = $('#pdMeta');
   const pdProgress = $('#pdProgress');
@@ -1641,6 +1642,37 @@
     clearPlaylist();
   }
 
+  function setPlaylistDisc(item) {
+    const src = item ? (item.pic || item.cover || '') : '';
+    if (pdDisc) {
+      pdDisc.classList.toggle('playing', Boolean(item && state.playing));
+    }
+    if (!pdDiscArt) return;
+    if (!src) {
+      pdDiscArt.hidden = true;
+      pdDiscArt.removeAttribute('src');
+      pdDiscArt.dataset.src = '';
+      return;
+    }
+    if (pdDiscArt.dataset.src === src) {
+      if (pdDiscArt.complete && pdDiscArt.naturalWidth) pdDiscArt.hidden = false;
+      return;
+    }
+    pdDiscArt.dataset.src = src;
+    pdDiscArt.hidden = true;
+    pdDiscArt.src = src;
+    if (pdDiscArt.complete && pdDiscArt.naturalWidth) pdDiscArt.hidden = false;
+  }
+
+  if (pdDiscArt) {
+    pdDiscArt.addEventListener('load', () => {
+      if (pdDiscArt.dataset.src) pdDiscArt.hidden = false;
+    });
+    pdDiscArt.addEventListener('error', () => {
+      pdDiscArt.hidden = true;
+    });
+  }
+
   function updatePlaylistDock() {
     const count = state.playlist.length;
     const item = state.playlist[state.currentIndex];
@@ -1659,23 +1691,16 @@
     if (pdClear) pdClear.disabled = count === 0;
     if (!count) resetDockClear();
     if (!item) {
-      if (pdNow) {
-        pdNow.textContent = '等待播放';
-        pdNow.dataset.state = 'waiting';
-      }
       pdTitle.textContent = '暂无播放内容';
       pdMeta.textContent = '左滑视频加入';
       pdProgress.style.width = '0%';
+      setPlaylistDisc(null);
       return;
-    }
-    if (pdNow) {
-      const status = state.playing ? 'playing' : state.progress > 0 ? 'paused' : 'waiting';
-      pdNow.textContent = status === 'playing' ? '正在播放' : status === 'paused' ? '暂停播放' : '等待播放';
-      pdNow.dataset.state = status;
     }
     pdTitle.textContent = item.title || '视频';
     pdMeta.textContent = playlistOwnerName(item) || 'UP 主';
     pdProgress.style.width = `${state.progress}%`;
+    setPlaylistDisc(item);
   }
 
   function pulsePlaylistDock() {
@@ -2654,6 +2679,9 @@
   /* ---------- player ---------- */
   function setPlayIcon(playing) {
     player.classList.toggle('paused', playing !== true);
+    if (pdDisc) {
+      pdDisc.classList.toggle('playing', playing === true && Boolean(state.playlist[state.currentIndex]));
+    }
     if (!pcPlay) return;
     pcPlay.classList.toggle('playing', playing === true);
     pcPlay.setAttribute('aria-label', playing ? '暂停' : '播放');
