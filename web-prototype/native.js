@@ -442,6 +442,9 @@
         label: '',
         fillTimer: null,
         frame: 0,
+        scrollTimer: null,
+        touchActive: false,
+        touchActiveAt: 0,
       };
     }
     return feed.__feedWindow;
@@ -452,6 +455,7 @@
     const previous = feed.__feedWindow;
     if (previous) {
       clearTimeout(previous.fillTimer);
+      clearTimeout(previous.scrollTimer);
       if (previous.frame) cancelAnimationFrame(previous.frame);
     }
     feed.__feedWindow = {
@@ -463,6 +467,9 @@
       label: '',
       fillTimer: null,
       frame: 0,
+      scrollTimer: null,
+      touchActive: false,
+      touchActiveAt: 0,
     };
     feed.__nativeItems = [];
     feed.__chunkPages = [];
@@ -666,15 +673,33 @@
     requestFeedPage(feedKey(feed), false);
   }
 
-  function scheduleWindowUpdate(feed) {
+  function scheduleWindowSettle(feed, delay = 110) {
     if (!feed) return;
     const fw = feedWindowState(feed);
-    if (fw.frame) return;
-    fw.frame = requestAnimationFrame(() => {
-      fw.frame = 0;
+    clearTimeout(fw.scrollTimer);
+    fw.scrollTimer = setTimeout(() => {
+      fw.scrollTimer = null;
+      if (fw.touchActive && Date.now() - fw.touchActiveAt < 4000) {
+        scheduleWindowSettle(feed, 180);
+        return;
+      }
+      fw.touchActive = false;
       maybeAdvanceWindow(feed);
       maybePrefetchWindow(feed);
-    });
+    }, delay);
+  }
+
+  function scheduleWindowUpdate(feed) {
+    if (!feed) return;
+    scheduleWindowSettle(feed);
+  }
+
+  function setFeedTouch(feed, active) {
+    if (!feed) return;
+    const fw = feedWindowState(feed);
+    fw.touchActive = Boolean(active);
+    if (active) fw.touchActiveAt = Date.now();
+    else scheduleWindowSettle(feed, 60);
   }
 
   function scheduleBufferFill(feed) {
@@ -713,7 +738,7 @@
     if (label) fw.label = label;
     for (let index = 0; index < items.length; index += 1) fw.queue.push(items[index]);
     renderWindowBlocks(feed);
-    maybeAdvanceWindow(feed);
+    scheduleWindowSettle(feed);
     scheduleBufferFill(feed);
   }
 
@@ -1455,7 +1480,6 @@
     if (!force && fw && fw.queue.length >= FEED_BLOCK_SIZE) return;
     const now = Date.now();
     if (!force && win.nextRetryAt && now < win.nextRetryAt) return;
-    if (!force && now - (win.lastLoadAt || 0) < 800) return;
     if (!feed.querySelector('.real-row')) return;
     const next = win.page + 1;
     const token = win.token;
@@ -1492,7 +1516,7 @@
       }
       win.nextRetryAt = 0;
       renderWindowBlocks(feed);
-      maybeAdvanceWindow(feed);
+      scheduleWindowSettle(feed);
       scheduleBufferFill(feed);
     }, 220);
   }
@@ -3679,6 +3703,30 @@
     if (searchScroller.scrollTop + searchScroller.clientHeight < searchScroller.scrollHeight - FEED_PREFETCH) return;
     requestFeedPage('search');
   });
+
+  function trackFeedTouch(scroll, feedFor) {
+    if (!scroll) return;
+    let touchedFeed = null;
+    const down = () => {
+      touchedFeed = feedFor();
+      setFeedTouch(touchedFeed, true);
+    };
+    const up = () => {
+      if (touchedFeed) setFeedTouch(touchedFeed, false);
+      touchedFeed = null;
+    };
+    scroll.addEventListener('pointerdown', down, { passive: true });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  }
+
+  trackFeedTouch(appScroll, () => {
+    if (state.page === 'home') return feeds.home;
+    if (state.page === 'module') return feeds.module;
+    return null;
+  });
+  trackFeedTouch(upScroller, () => feeds.up);
+  trackFeedTouch(searchScroller, () => feeds.search);
 
   const pageObserver = new MutationObserver(() => {
     if (state.page === 'home') {
