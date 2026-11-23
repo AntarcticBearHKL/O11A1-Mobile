@@ -44,8 +44,6 @@
   const videoDetailBody = $('#videoDetailBody');
   const playerVideo = $('#playerVideo');
   const realVideo = $('#realVideo');
-  const playerBoot = $('#playerBoot');
-  const playerBootText = $('#playerBootText');
   const feedDebug = $('#feedDebug');
   const feedDebugHz = $('#feedDebugHz');
   const feedDebugFps = $('#feedDebugFps');
@@ -3649,6 +3647,8 @@
     player.style.pointerEvents = '';
     player.style.transform = '';
     player.style.borderRadius = '';
+    player.style.animation = '';
+    playerRotor.style.backgroundImage = '';
   }
 
   function expandPlayerWindowFromOrigin(origin) {
@@ -3660,6 +3660,8 @@
       player.style.pointerEvents = '';
       player.style.transform = '';
       player.style.borderRadius = '';
+      player.style.animation = '';
+      playerRotor.style.backgroundImage = '';
       if (playerOpenWindowAnim) {
         try { playerOpenWindowAnim.cancel(); } catch (_) {}
         playerOpenWindowAnim = null;
@@ -3702,31 +3704,14 @@
     playerOpenWindowTimer = setTimeout(complete, 520);
   }
 
-  function showPlayerBoot(text) {
-    if (!playerBoot || !playerVideo) return;
-    if (playerBootText) playerBootText.textContent = text || '正在打开视频…';
-    playerVideo.classList.add('booting');
-    playerBoot.setAttribute('aria-hidden', 'false');
-  }
-
-  function hidePlayerBoot() {
-    if (!playerVideo || !playerVideo.classList.contains('booting')) return;
-    playerVideo.classList.remove('booting');
-    if (playerBoot) playerBoot.setAttribute('aria-hidden', 'true');
-  }
-
-  ['loadeddata', 'playing', 'error'].forEach((type) => {
-    realVideo.addEventListener(type, hidePlayerBoot);
-  });
-
   function openPlayer(options = {}) {
+    const origin = pendingPlayerOrigin;
+    pendingPlayerOrigin = null;
     stopFeedPreview();
     if (!state.loggedIn) {
       showPage('login');
       return;
     }
-    const origin = pendingPlayerOrigin;
-    pendingPlayerOrigin = null;
     const wasOpen = state.playerOpen;
     const openToken = ++playerMediaOpenToken;
     clearTimeout(playerMediaOpenTimer);
@@ -3760,8 +3745,6 @@
     const mediaReady = hasMediaApi && typeof mediaApi.isCurrentReady === 'function'
       ? Boolean(mediaApi.isCurrentReady())
       : !hasMediaApi;
-    if (hasMediaApi && !mediaReady) showPlayerBoot('正在打开视频…');
-    else hidePlayerBoot();
     setPlayIcon(state.playing);
     updatePlayerLabels();
     player.style.animation = '';
@@ -3770,11 +3753,18 @@
     player.style.opacity = '';
     player.style.pointerEvents = '';
     player.classList.remove('dragging', 'collapsing', 'window-opening');
-    const expandFromRow = false;
+    playerRotor.style.backgroundImage = '';
+    const expandFromRow = !wasOpen && Boolean(origin && origin.rect && origin.rect.width && origin.rect.height);
     if (expandFromRow) {
       player.classList.add('window-opening');
       player.style.animation = 'none';
       player.style.pointerEvents = 'none';
+      if (origin.image) {
+        playerRotor.style.backgroundImage = `url("${String(origin.image).replace(/"/g, '%22')}")`;
+        playerRotor.style.backgroundSize = 'cover';
+        playerRotor.style.backgroundPosition = 'center';
+        playerRotor.style.backgroundRepeat = 'no-repeat';
+      }
     }
     player.classList.add('open');
     player.setAttribute('aria-hidden', 'false');
@@ -3980,7 +3970,6 @@
     state.playerOpen = false;
     app.classList.remove('player-open');
     state.locked = false;
-    hidePlayerBoot();
     stopGyro();
     clearTimeout(hideTimer);
     const dragY = Number.isFinite(fromY) ? Math.max(0, fromY) : 0;
@@ -4122,7 +4111,6 @@
     state.playing = false;
     state.progress = 0;
     state.locked = false;
-    hidePlayerBoot();
     stopGyro();
     setPlayerOrientation(false, { silent: true });
     clearTimeout(hideTimer);
@@ -6302,10 +6290,12 @@
     if (!thumb) return;
     const rect = thumb.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
+    const image = thumb.querySelector('img');
     const origin = {
       thumb,
       rect,
       radius: getComputedStyle(thumb).borderRadius || '0px',
+      image: image ? (image.currentSrc || image.src || '') : '',
       time: Date.now(),
     };
     pendingPlayerOrigin = origin;
@@ -6756,7 +6746,6 @@
     stopPlayback,
     updatePlayerLabels,
     updatePlaylistDock,
-    hidePlayerBoot,
     updatePlaylistCounts,
     showPlayerNotice,
     addToPlaylist,

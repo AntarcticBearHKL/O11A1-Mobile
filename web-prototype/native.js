@@ -636,6 +636,24 @@
   let previewTimer = null;
   let previewProgressFill = null;
   let previewHoverTimer = null;
+  let lastPreviewProgress = null;
+  let pendingMediaStart = null;
+
+  function mediaKeyFor(item) {
+    if (!item) return '';
+    if (item.key) return String(item.key);
+    if (item.epId) return `ep:${item.epId}`;
+    if (item.roomId) return `live:${item.roomId}`;
+    return item.bvid ? `bvid:${item.bvid}` : '';
+  }
+
+  function takePreviewStart(item) {
+    const progress = lastPreviewProgress;
+    lastPreviewProgress = null;
+    if (!progress || Date.now() - progress.at > 5000) return 0;
+    if (mediaKeyFor(item) !== progress.key) return 0;
+    return progress.time;
+  }
 
   function ensurePreviewVideo() {
     if (previewVideo) return previewVideo;
@@ -663,6 +681,14 @@
     clearTimeout(previewHoverTimer);
     previewTimer = null;
     previewHoverTimer = null;
+    if (previewRow && previewVideo) {
+      const item = previewRow.__nativeItem;
+      const key = mediaKeyFor(item);
+      const time = Number(previewVideo.currentTime) || 0;
+      if (key && time > 0.25) {
+        lastPreviewProgress = { key, time, at: Date.now() };
+      }
+    }
     if (previewRow) {
       previewRow.classList.remove('preview-active');
       const thumb = previewRow.querySelector('.row-thumb');
@@ -1533,6 +1559,7 @@
   function playItem(item) {
     if (!item) return;
     stopFeedPreview();
+    const previewStart = takePreviewStart(item);
     if (item.live) { playLive(item); return; }
     if (item.seasonId && !item.epId) { playSeason(item); return; }
     const key = item.epId ? `ep:${item.epId}` : item.roomId ? `live:${item.roomId}` : `bvid:${item.bvid}`;
@@ -1548,8 +1575,11 @@
       state.playlist[index] = Object.assign({}, state.playlist[index], item, { key });
     }
     host.setCurrent(index);
+    pendingMediaStart = previewStart > 0.25 ? { key, time: previewStart } : null;
     state.duration = 0;
-    state.progress = 0;
+    state.progress = pendingMediaStart && Number(item.durationSec) > 0
+      ? Math.min(100, previewStart / Number(item.durationSec) * 100)
+      : 0;
     state.playing = true;
     host.save();
     host.updatePlayerLabels();
@@ -1645,7 +1675,6 @@
     status.textContent = text || '';
     playerVideo.classList.toggle('video-loading', mode === 'loading');
     playerVideo.classList.toggle('video-error', mode === 'error');
-    if (mode !== 'loading' && host.hidePlayerBoot) host.hidePlayerBoot();
   }
 
   function danmakuSettingNumber(value, fallback, min, max) {
@@ -1914,6 +1943,7 @@
     destroyHls();
     destroyDash();
     closeLiveDanmaku();
+    pendingMediaStart = null;
     mediaItem = null;
     mediaBackup = '';
     mediaTriedBackup = false;
@@ -1930,7 +1960,6 @@
       video.load();
     } catch (_) {}
     playerVideo.classList.remove('has-video', 'video-loading', 'video-error');
-    if (host.hidePlayerBoot) host.hidePlayerBoot();
     if (player) player.classList.remove('live-player');
     if (status) status.textContent = '';
   }
@@ -2343,6 +2372,32 @@
     }
   }
 
+  function applyPendingMediaStart() {
+    const pending = pendingMediaStart;
+    if (!pending) return;
+    if (!mediaItem || mediaKeyFor(mediaItem) !== pending.key) {
+      pendingMediaStart = null;
+      return;
+    }
+    if (!video.readyState) return;
+    const duration = Number(video.duration);
+    const target = Number.isFinite(duration) && duration > 0
+      ? Math.min(pending.time, Math.max(0, duration - 0.5))
+      : pending.time;
+    if (!(target > 0.25)) {
+      pendingMediaStart = null;
+      return;
+    }
+    try {
+      if (Math.abs(video.currentTime - target) > 0.3) video.currentTime = target;
+      if (Number.isFinite(duration) && duration > 0) {
+        state.progress = target / duration * 100;
+        host.setProgress(state.progress);
+      }
+      pendingMediaStart = null;
+    } catch (_) {}
+  }
+
   function loadVideo(item, autoplay, allowDash = true) {
     state.streamInfo = { videoBitrate: 0, audioBitrate: 0, sourceWidth: 0, sourceHeight: 0, frameRate: 0, netBps: 0, netAt: 0, direct: false };
     state.availableQualities = [];
@@ -2360,7 +2415,8 @@
       return;
     }
     const key = item.epId ? `ep:${item.epId}` : `bvid:${item.bvid}`;
-    if (mediaItem && mediaItem.key === key && video.src) {
+    if (mediaItem && mediaKeyFor(mediaItem) === key && video.src) {
+      applyPendingMediaStart();
       if (autoplay) video.play().catch(() => {});
       return;
     }
@@ -2436,9 +2492,12 @@
 
   video.addEventListener('loadedmetadata', () => {
     state.duration = Number.isFinite(video.duration) ? video.duration : 0;
+    applyPendingMediaStart();
     if (state.duration > 0 && !mediaLive) host.setProgress(video.currentTime / state.duration * 100);
     playerVideo.classList.remove('video-loading');
   });
+  video.addEventListener('canplay', applyPendingMediaStart);
+  video.addEventListener('playing', applyPendingMediaStart);
   video.addEventListener('timeupdate', () => {
     if (mediaLive) return;
     if (!video.duration || !Number.isFinite(video.duration)) return;

@@ -2513,23 +2513,6 @@ body[data-theme="dark"] .video-row.real-row .row-thumb{background:#1A202A}
   border:1px solid rgba(255,255,255,.18);font-size:10.5px;font-weight:700;
   opacity:0;pointer-events:none;transition:opacity .2s ease;white-space:nowrap;
 }
-.player-boot{
-  position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
-  background:var(--paper);color:var(--muted);pointer-events:none;
-  opacity:0;visibility:hidden;transition:opacity .24s ease,visibility 0s linear .24s;
-}
-.player-video.booting .player-boot{
-  opacity:1;visibility:visible;
-  transition:opacity .2s ease,visibility 0s;
-}
-.player-video.booting .player-controls{opacity:0!important;pointer-events:none!important}
-.player-boot-ring{
-  width:30px;height:30px;border:2px solid var(--line-strong);border-top-color:var(--blue);
-  border-radius:50%;animation:playerBootSpin .75s linear infinite;
-}
-.player-boot b{font-size:11px;font-weight:650;letter-spacing:.02em}
-@keyframes playerBootSpin{to{transform:rotate(360deg)}}
-body.reduce-motion .player-boot-ring{animation:none}
 .real-video-status:empty{display:none}
 .danmaku-layer{
   position:absolute;left:0;right:0;top:0;bottom:auto;z-index:2;pointer-events:none;overflow:hidden;
@@ -2942,10 +2925,15 @@ body[data-theme="light"] .my-page{
 }
 .preview-muted svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 .preview-progress{
-  position:absolute;left:0;right:0;bottom:0;z-index:4;height:3px;
-  background:rgba(255,255,255,.28);
+  position:absolute;left:0;right:0;bottom:0;z-index:4;height:4px;
+  background:rgba(255,255,255,.36);
+  box-shadow:0 -1px 0 rgba(0,0,0,.16);
 }
-.preview-progress span{display:block;height:100%;width:0;background:#ff2d2d}
+.preview-progress span{
+  display:block;height:100%;width:0;background:#ff3b30;
+  box-shadow:0 0 6px rgba(255,59,48,.65);
+  transition:width .16s linear;
+}
 
 /* feed skeleton cards */
 .skel-row .row-copy{padding-top:12px}
