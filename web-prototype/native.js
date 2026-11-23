@@ -64,6 +64,8 @@
     up: { page: 0, cursor: '', hasMore: true, loading: false, lastLoadAt: 0, token: 0, name: '' },
   };
   const FEED_PREFETCH = 900;
+  const FEED_BLOCK_SIZE = 10;
+  const FEED_WINDOW_BLOCKS = 3;
   const more = { dynamic: true, messages: true };
   let upSort = 'pubdate';
   const dynamicFilterNames = ['全部', '视频', '图文'];
@@ -232,9 +234,7 @@
 
   function showInitialFeedSkeleton(feed, count = 8) {
     if (!feed) return;
-    feed.__nativeItems = [];
-    feed.__chunkPages = [];
-    feed.__chunkItems = {};
+    resetFeedWindow(feed);
     feed.innerHTML = '';
     setTail(feed, 'idle');
     showFeedSkeleton(feed, 1, count);
@@ -350,9 +350,7 @@
   }
 
   function renderEmpty(feed, title, detail, actionLabel, action) {
-    feed.__nativeItems = [];
-    feed.__chunkPages = [];
-    feed.__chunkItems = {};
+    resetFeedWindow(feed);
     feed.innerHTML = `
       <div class="native-empty">
         <b>${esc(title || '暂无内容')}</b>
@@ -426,33 +424,135 @@
     const wrapper = document.createElement('div');
     wrapper.className = 'feed-item';
     wrapper.dataset.chunk = String(page);
+    wrapper.dataset.block = String(page);
+    wrapper.dataset.start = String(index);
     wrapper.__nativeItem = item;
     wrapper.appendChild(row);
     return wrapper;
   }
 
-  function renderRows(feed, items, label, page) {
-    const chunk = page || 1;
-    feed.__nativeItems = items.slice();
-    feed.__chunkPages = [chunk];
-    feed.__chunkItems = { [chunk]: items.slice() };
-    const realRows = items.map((item, index) => buildRow(item, label, chunk, index));
-    const skeletons = $$(`.feed-skeleton[data-skeleton-page="${chunk}"]`, feed);
-    if (skeletons.length) {
-      realRows.forEach((row, index) => {
-        const skeleton = skeletons[index];
-        row.classList.add('feed-reveal');
-        setTimeout(() => row.classList.remove('feed-reveal'), 240);
-        if (skeleton && skeleton.isConnected) skeleton.replaceWith(row);
-        else feed.appendChild(row);
-      });
-      skeletons.slice(realRows.length).forEach((skeleton) => skeleton.remove());
-      return;
+  function feedWindowState(feed) {
+    if (!feed.__feedWindow) {
+      feed.__feedWindow = {
+        blocks: [],
+        queue: [],
+        nextBlockId: 0,
+        nextItemIndex: 0,
+        firstItemIndex: 0,
+        label: '',
+        fillTimer: null,
+        frame: 0,
+      };
     }
-    feed.innerHTML = '';
+    return feed.__feedWindow;
+  }
+
+  function resetFeedWindow(feed) {
+    if (!feed) return;
+    const previous = feed.__feedWindow;
+    if (previous) {
+      clearTimeout(previous.fillTimer);
+      if (previous.frame) cancelAnimationFrame(previous.frame);
+    }
+    feed.__feedWindow = {
+      blocks: [],
+      queue: [],
+      nextBlockId: 0,
+      nextItemIndex: 0,
+      firstItemIndex: 0,
+      label: '',
+      fillTimer: null,
+      frame: 0,
+    };
+    feed.__nativeItems = [];
+    feed.__chunkPages = [];
+    feed.__chunkItems = {};
+  }
+
+  function syncWindowItems(feed) {
+    const fw = feed.__feedWindow;
+    feed.__nativeItems = fw ? fw.blocks.flatMap((block) => block.items) : [];
+  }
+
+  function releaseWindowBlock(block) {
+    if (!block) return;
+    block.nodes.forEach((node) => {
+      const row = node.querySelector ? node.querySelector('.video-row') : null;
+      const image = node.querySelector ? node.querySelector('img') : null;
+      if (image) {
+        image.removeAttribute('src');
+        image.removeAttribute('srcset');
+      }
+      node.__nativeItem = null;
+      if (row) row.__nativeItem = null;
+      if (node.remove) node.remove();
+    });
+    block.nodes.length = 0;
+    block.items.length = 0;
+  }
+
+  function appendWindowBlock(feed) {
+    const fw = feed.__feedWindow;
+    if (!fw) return null;
+    const win = windows[feedKey(feed)];
+    if (!win) return null;
+    const remaining = fw.queue.length;
+    if (!remaining) return null;
+    if (remaining < FEED_BLOCK_SIZE && win.hasMore) return null;
+    const take = Math.min(FEED_BLOCK_SIZE, remaining);
+    const items = fw.queue.splice(0, take);
+    const blockId = fw.nextBlockId;
+    fw.nextBlockId += 1;
+    const startIndex = fw.nextItemIndex;
+    fw.nextItemIndex += take;
+    const nodes = items.map((item, index) => buildRow(
+      item,
+      fw.label,
+      blockId,
+      startIndex + index,
+    ));
     const fragment = document.createDocumentFragment();
-    realRows.forEach((row) => fragment.appendChild(row));
+    nodes.forEach((node) => fragment.appendChild(node));
     feed.appendChild(fragment);
+    const block = {
+      id: blockId,
+      items,
+      nodes,
+      startIndex,
+      endIndex: startIndex + take,
+    };
+    fw.blocks.push(block);
+    return block;
+  }
+
+  function renderWindowBlocks(feed) {
+    const fw = feed.__feedWindow;
+    if (!fw) return;
+    const win = windows[feedKey(feed)];
+    if (!win) return;
+    while (fw.blocks.length < FEED_WINDOW_BLOCKS) {
+      if (fw.queue.length >= FEED_BLOCK_SIZE) {
+        appendWindowBlock(feed);
+        continue;
+      }
+      if (!win.hasMore && fw.queue.length > 0) {
+        appendWindowBlock(feed);
+        continue;
+      }
+      break;
+    }
+    syncWindowItems(feed);
+  }
+
+  function renderRows(feed, items, label, page) {
+    clearFeedSkeletons(feed);
+    resetFeedWindow(feed);
+    feed.innerHTML = '';
+    const fw = feed.__feedWindow;
+    fw.label = label || '';
+    for (let index = 0; index < items.length; index += 1) fw.queue.push(items[index]);
+    renderWindowBlocks(feed);
+    scheduleBufferFill(feed);
   }
 
   function feedViewport(feed) {
@@ -480,83 +580,141 @@
     return null;
   }
 
-  function trimFeed(feed) {
-    const { scroll, isActive } = feedViewport(feed);
-    if (!isActive) return;
-    const pages = Array.isArray(feed.__chunkPages) ? feed.__chunkPages : [];
-    if (pages.length <= 2) return;
-    const viewportTop = scroll ? scroll.getBoundingClientRect().top : 0;
-    const removablePages = [];
-    const removableRows = [];
-    for (let index = 0; index < pages.length - 2; index += 1) {
-      const page = pages[index];
-      const rows = $$(`[data-chunk="${page}"]`, feed);
-      if (!rows.length) {
-        removablePages.push(page);
-        continue;
-      }
-      const last = rows[rows.length - 1];
-      // Keep the chunk that touches the viewport; everything above it can go.
-      if (last.getBoundingClientRect().bottom > viewportTop + 4) break;
-      removablePages.push(page);
-      rows.forEach((row) => removableRows.push(row));
+  function feedFocusRow(feed, scroll) {
+    if (!scroll) return null;
+    const viewport = scroll.getBoundingClientRect();
+    const focusY = viewport.top + viewport.height * 0.5;
+    const rows = $$('.feed-item:not(.feed-skeleton)', feed);
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      if (row.getBoundingClientRect().bottom > focusY) return row;
     }
-    if (!removablePages.length) return;
-    const anchor = scroll ? topVisibleRow(feed, scroll, removableRows) : null;
+    return rows.length ? rows[rows.length - 1] : null;
+  }
+
+  function trimFirstWindowBlock(feed) {
+    const fw = feed.__feedWindow;
+    if (!fw || fw.blocks.length <= FEED_WINDOW_BLOCKS) return false;
+    const { scroll } = feedViewport(feed);
+    const block = fw.blocks[0];
+    if (!block) return false;
+    const anchor = scroll ? topVisibleRow(feed, scroll, block.nodes) : null;
     const anchorTop = anchor ? anchor.getBoundingClientRect().top : 0;
-    const first = removableRows[0];
-    const last = removableRows[removableRows.length - 1];
-    const oldHeight = first && last
+    const first = block.nodes[0];
+    const last = block.nodes[block.nodes.length - 1];
+    const removedHeight = first && last
       ? last.getBoundingClientRect().bottom - first.getBoundingClientRect().top
       : 0;
-    removableRows.forEach((row) => row.remove());
-    removablePages.forEach((page) => { delete feed.__chunkItems[page]; });
-    feed.__chunkPages = pages.filter((page) => !removablePages.includes(page));
+    releaseWindowBlock(block);
+    fw.blocks.shift();
+    fw.firstItemIndex = block.endIndex;
+    syncWindowItems(feed);
     if (scroll) {
       if (anchor) {
         const afterTop = anchor.getBoundingClientRect().top;
-        if (afterTop !== anchorTop) {
+        const delta = afterTop - anchorTop;
+        if (delta) {
           window.__o11a1ScrollAdjust = Date.now();
-          scroll.scrollTop = Math.max(0, scroll.scrollTop + (afterTop - anchorTop));
+          scroll.scrollTop = Math.max(0, scroll.scrollTop + delta);
         }
-      } else if (oldHeight > 0) {
+      } else if (removedHeight > 0) {
         window.__o11a1ScrollAdjust = Date.now();
-        scroll.scrollTop = Math.max(0, scroll.scrollTop - oldHeight);
+        scroll.scrollTop = Math.max(0, scroll.scrollTop - removedHeight);
       }
     }
-    feed.__nativeItems = feed.__chunkPages.flatMap((pageNo) => feed.__chunkItems[pageNo] || []);
+    return true;
   }
-  function scheduleTrim(feed) {
+
+  function maybeAdvanceWindow(feed) {
+    const fw = feed.__feedWindow;
+    if (!fw) return;
+    const view = feedViewport(feed);
+    if (!view.isActive) return;
+    renderWindowBlocks(feed);
+    if (fw.blocks.length < FEED_WINDOW_BLOCKS) return;
+    const focus = feedFocusRow(feed, view.scroll);
+    if (!focus) return;
+    const activeBlock = Number(focus.dataset.block);
+    if (!Number.isFinite(activeBlock)) return;
+    const firstId = fw.blocks[0].id;
+    if (activeBlock < firstId + (FEED_WINDOW_BLOCKS - 1)) return;
+    const top = topVisibleRow(feed, view.scroll);
+    const topBlock = top ? Number(top.dataset.block) : -1;
+    if (topBlock < firstId + 1) return;
+    const win = windows[feedKey(feed)];
+    if (!win) return;
+    const canAppend = fw.queue.length >= FEED_BLOCK_SIZE
+      || (!win.hasMore && fw.queue.length > 0);
+    if (canAppend) {
+      appendWindowBlock(feed);
+      trimFirstWindowBlock(feed);
+      syncWindowItems(feed);
+      scheduleBufferFill(feed);
+      return;
+    }
+    if (win.hasMore) requestFeedPage(feedKey(feed), false);
+  }
+
+  function maybePrefetchWindow(feed) {
+    const fw = feed.__feedWindow;
+    const win = windows[feedKey(feed)];
+    const view = feedViewport(feed);
+    if (!fw || !win || !view.isActive || !view.scroll || !win.hasMore || win.loading) return;
+    if (fw.queue.length >= FEED_BLOCK_SIZE) return;
+    if (view.scroll.scrollTop + view.scroll.clientHeight
+      < view.scroll.scrollHeight - FEED_PREFETCH) return;
+    requestFeedPage(feedKey(feed), false);
+  }
+
+  function scheduleWindowUpdate(feed) {
     if (!feed) return;
-    clearTimeout(feed.__trimTimer);
-    feed.__trimTimer = setTimeout(() => {
-      feed.__trimTimer = null;
-      trimFeed(feed);
-    }, 280);
+    const fw = feedWindowState(feed);
+    if (fw.frame) return;
+    fw.frame = requestAnimationFrame(() => {
+      fw.frame = 0;
+      maybeAdvanceWindow(feed);
+      maybePrefetchWindow(feed);
+    });
+  }
+
+  function scheduleBufferFill(feed) {
+    if (!feed) return;
+    const fw = feed.__feedWindow;
+    if (!fw) return;
+    clearTimeout(fw.fillTimer);
+    fw.fillTimer = setTimeout(() => {
+      fw.fillTimer = null;
+      const win = windows[feedKey(feed)];
+      const view = feedViewport(feed);
+      if (!win || !view.isActive || !win.hasMore || win.loading) return;
+      if (fw.queue.length >= FEED_BLOCK_SIZE) return;
+      if (fw.blocks.length < FEED_WINDOW_BLOCKS) {
+        requestFeedPage(feedKey(feed), false);
+        return;
+      }
+      if (!view.scroll) return;
+      const focus = feedFocusRow(feed, view.scroll);
+      const activeBlock = focus ? Number(focus.dataset.block) : -1;
+      const nearBottom = view.scroll.scrollTop + view.scroll.clientHeight
+        >= view.scroll.scrollHeight - FEED_PREFETCH;
+      if (nearBottom || activeBlock >= fw.blocks[0].id + 1) {
+        requestFeedPage(feedKey(feed), false);
+      }
+    }, 180);
   }
 
   function appendRows(feed, items, label, page) {
-    const chunk = page || 1;
-    feed.__chunkPages = feed.__chunkPages || [];
-    feed.__chunkItems = feed.__chunkItems || {};
-    if (!feed.__chunkPages.includes(chunk)) feed.__chunkPages.push(chunk);
-    feed.__chunkItems[chunk] = items.slice();
-    const realRows = items.map((item, index) => buildRow(item, label, chunk, index));
-    const skeletons = $$(`.feed-skeleton[data-skeleton-page="${chunk}"]`, feed);
-    if (skeletons.length) {
-      realRows.forEach((row, index) => {
-        const skeleton = skeletons[index];
-        if (skeleton && skeleton.isConnected) skeleton.replaceWith(row);
-        else feed.appendChild(row);
-      });
-      skeletons.slice(realRows.length).forEach((skeleton) => skeleton.remove());
-    } else {
-      const fragment = document.createDocumentFragment();
-      realRows.forEach((row) => fragment.appendChild(row));
-      feed.appendChild(fragment);
+    if (!feed) return;
+    const fw = feed.__feedWindow;
+    if (!fw) {
+      renderRows(feed, items, label, page);
+      return;
     }
-    scheduleTrim(feed);
-    feed.__nativeItems = feed.__chunkPages.flatMap((pageNo) => feed.__chunkItems[pageNo] || []);
+    if (label) fw.label = label;
+    for (let index = 0; index < items.length; index += 1) fw.queue.push(items[index]);
+    renderWindowBlocks(feed);
+    maybeAdvanceWindow(feed);
+    scheduleBufferFill(feed);
   }
 
   function feedResult(api, args) {
@@ -695,11 +853,12 @@
       win.page = pageNo;
       win.cursor = result.next || '';
       win.hasMore = result.hasMore !== false;
-      setNote(`${result.title || kind.label} · 触底加载 · 保留最近两段`);
+      setNote(`${result.title || kind.label} · 触底加载 · 每块 10 条 · 保留 3 块`);
     } else {
       setNote(`${result.title || kind.label} · 加载失败`);
     }
     win.loading = false;
+    renderWindowBlocks(feeds.home);
     return result.ok;
   }
 
@@ -758,6 +917,7 @@
       win.hasMore = result.hasMore !== false;
     }
     win.loading = false;
+    renderWindowBlocks(feeds.module);
     return result.ok;
   }
 
@@ -860,6 +1020,7 @@
     win.page = pageNo;
     win.hasMore = result.hasMore !== false;
     win.loading = false;
+    renderWindowBlocks(feed);
     setTail(feed, 'idle');
     const note = $('#upNote');
     if (note) note.textContent = `${state.upName || 'UP 主'} · ${upSort === 'click' ? '播放量' : '新发布'} · 触底加载`;
@@ -984,6 +1145,7 @@
   function renderDownloads() {
     stopDownloadPolling();
     const feed = feeds.module;
+    resetFeedWindow(feed);
     const current = currentItem();
     const supported = typeof bridge.downloadStart === 'function';
     feed.innerHTML = `
@@ -1095,6 +1257,7 @@
   /* ---------- member center ---------- */
   function renderMember(immediate) {
     const feed = feeds.module;
+    resetFeedWindow(feed);
     if (!state.loggedIn) {
       renderEmpty(feed, '登录后查看会员任务', '登录后同步大会员状态与每日经验。', '去登录', () => host.showPage('login'));
       return;
@@ -1158,6 +1321,7 @@
 
   function renderFish() {
     const feed = feeds.module;
+    resetFeedWindow(feed);
     const config = fishConfig();
     feed.innerHTML = `
       <div class="special-page fish-page">
@@ -1275,6 +1439,7 @@
     win.page = pageNo;
     win.hasMore = hasMore;
     win.loading = false;
+    renderWindowBlocks(feeds.search);
     host.searchResultsLabel.textContent = query ? `“${query}”的视频` : '热门视频';
     host.searchEmpty.hidden = true;
     return true;
@@ -1285,42 +1450,50 @@
     const feed = feeds[key];
     if (!win || !feed) return;
     if (!force && (win.loading || !win.hasMore)) return;
+    if (win.page < 1) return;
+    const fw = feed.__feedWindow;
+    if (!force && fw && fw.queue.length >= FEED_BLOCK_SIZE) return;
     const now = Date.now();
+    if (!force && win.nextRetryAt && now < win.nextRetryAt) return;
     if (!force && now - (win.lastLoadAt || 0) < 800) return;
     if (!feed.querySelector('.real-row')) return;
-    if (win.page < 1) return;
     const next = win.page + 1;
     const token = win.token;
     win.lastLoadAt = now;
     win.loading = true;
-    setTail(feed, 'idle');
-    showFeedSkeleton(feed, next, 20);
+    setTail(feed, 'loading', '正在加载下一段…');
+    clearTimeout(win.loadTimer);
     win.loadTimer = setTimeout(() => {
       win.loadTimer = null;
       if (win.token !== token) {
         win.loading = false;
-        clearFeedSkeletons(feed, next);
         return;
       }
       if (state.page !== key && !(key === 'search' && state.searchOpen)) {
         win.loading = false;
-        clearFeedSkeletons(feed, next);
         setTail(feed, 'idle');
         return;
       }
-      const pages = Array.isArray(feed.__chunkPages) ? feed.__chunkPages : [];
-      const oldest = pages.length ? Math.min(...pages) : 0;
-      if (win.page >= next || (oldest && next < oldest)) {
+      if (win.page >= next) {
         win.loading = false;
-        clearFeedSkeletons(feed, next);
         setTail(feed, 'idle');
         return;
       }
-      if (key === 'home') loadHome(next, true);
-      else if (key === 'search') loadSearch(host.searchInput.value.trim(), next, true);
-      else if (key === 'up') loadUp(next, true);
-      else loadModule(next, true);
-      clearFeedSkeletons(feed, next);
+      let loaded = false;
+      if (key === 'home') loaded = loadHome(next, true);
+      else if (key === 'search') loaded = loadSearch(host.searchInput.value.trim(), next, true);
+      else if (key === 'up') loaded = loadUp(next, true);
+      else loaded = loadModule(next, true);
+      win.loading = false;
+      if (!loaded) {
+        win.hasMore = false;
+        win.nextRetryAt = Date.now() + 5000;
+        return;
+      }
+      win.nextRetryAt = 0;
+      renderWindowBlocks(feed);
+      maybeAdvanceWindow(feed);
+      scheduleBufferFill(feed);
     }, 220);
   }
 
@@ -3471,8 +3644,8 @@
   const appScroll = $('#appScroll');
   if (appScroll) appScroll.addEventListener('scroll', () => {
     if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
-    if (state.page === 'home') scheduleTrim(feeds.home);
-    else if (state.page === 'module') scheduleTrim(feeds.module);
+    if (state.page === 'home') scheduleWindowUpdate(feeds.home);
+    else if (state.page === 'module') scheduleWindowUpdate(feeds.module);
     if (appScroll.scrollTop + appScroll.clientHeight < appScroll.scrollHeight - FEED_PREFETCH) return;
     if (state.page === 'home' || state.page === 'module') {
       requestFeedPage(state.page);
@@ -3493,7 +3666,7 @@
   if (upScroller) upScroller.addEventListener('scroll', () => {
     if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
     if (state.page !== 'up') return;
-    scheduleTrim(feeds.up);
+    scheduleWindowUpdate(feeds.up);
     if (upScroller.scrollTop + upScroller.clientHeight < upScroller.scrollHeight - FEED_PREFETCH) return;
     requestFeedPage('up');
   });
@@ -3502,7 +3675,7 @@
   if (searchScroller) searchScroller.addEventListener('scroll', () => {
     if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
     if (!state.searchOpen) return;
-    scheduleTrim(feeds.search);
+    scheduleWindowUpdate(feeds.search);
     if (searchScroller.scrollTop + searchScroller.clientHeight < searchScroller.scrollHeight - FEED_PREFETCH) return;
     requestFeedPage('search');
   });

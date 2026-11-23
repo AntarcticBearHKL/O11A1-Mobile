@@ -6844,32 +6844,56 @@
     await sleep(420);
     results.push(`upBack=${state.page === 'home'}`);
 
-    const chunksBefore = Array.from(new Set($$('#homeFeed [data-chunk]').map((row) => row.dataset.chunk)));
-    const rowsBefore = $$('#homeFeed .video-row').length;
-    appScroll.scrollTop = appScroll.scrollHeight;
+    const feedViewHeight = appScroll.style.height;
+    const feedViewBottom = appScroll.style.bottom;
+    if (window.innerHeight > 1100) {
+      appScroll.style.bottom = 'auto';
+      appScroll.style.height = '844px';
+    }
+    for (let wait = 0; wait < 30; wait += 1) {
+      if ($('#homeFeed [data-block="2"]')) break;
+      await sleep(100);
+    }
+    const blocksBefore = Array.from(new Set($$('#homeFeed [data-block]').map((row) => row.dataset.block)));
+    const blockTwo = $('#homeFeed [data-block="2"]');
+    const blockTwoTop = blockTwo
+      ? blockTwo.getBoundingClientRect().top - appScroll.getBoundingClientRect().top + appScroll.scrollTop
+      : appScroll.scrollHeight;
+    appScroll.scrollTop = blockTwoTop;
     appScroll.dispatchEvent(new Event('scroll'));
-    await sleep(140);
     const feedAnchorRow = $$('#homeFeed .feed-item:not(.feed-skeleton)')
       .find((row) => row.getBoundingClientRect().bottom > appScroll.getBoundingClientRect().top + 1);
     const feedAnchorTitle = feedAnchorRow ? feedAnchorRow.querySelector('.real-title')?.textContent : '';
     const feedAnchorTop = feedAnchorRow ? feedAnchorRow.getBoundingClientRect().top : 0;
-    await sleep(820);
+    await sleep(700);
     const feedAnchorAfter = feedAnchorTitle
       ? $$('#homeFeed .feed-item:not(.feed-skeleton)')
         .find((row) => row.querySelector('.real-title')?.textContent === feedAnchorTitle)
       : null;
     const feedAnchor = Boolean(feedAnchorAfter
       && Math.abs(feedAnchorAfter.getBoundingClientRect().top - feedAnchorTop) < 3);
-    const chunksAfter = Array.from(new Set($$('#homeFeed [data-chunk]').map((row) => row.dataset.chunk)));
-    const rowsAfter = $$('#homeFeed .video-row').length;
-    results.push(`feedWindow=${chunksAfter.length === 2 && rowsAfter > rowsBefore}`);
+    const blocksAfter = Array.from(new Set($$('#homeFeed [data-block]').map((row) => row.dataset.block)));
+    const rowsAfter = $$('#homeFeed .feed-item:not(.feed-skeleton)').length;
+    results.push(`feedWindow=${blocksBefore.length === 3 && blocksBefore[0] === '0'
+      && blocksAfter.length === 3 && !blocksAfter.includes('0')
+      && rowsAfter >= 20 && rowsAfter <= 30}`);
     results.push(`feedAnchor=${feedAnchor}`);
 
-    appScroll.scrollTop = appScroll.scrollHeight;
-    appScroll.dispatchEvent(new Event('scroll'));
     await sleep(900);
-    const chunksNext = Array.from(new Set($$('#homeFeed [data-chunk]').map((row) => row.dataset.chunk)));
-    results.push(`feedSlide=${chunksNext.length === 2 && !chunksNext.includes(chunksBefore[0] || '1')}`);
+    const blockThree = $('#homeFeed [data-block="3"]');
+    const blockThreeTop = blockThree
+      ? blockThree.getBoundingClientRect().top - appScroll.getBoundingClientRect().top + appScroll.scrollTop
+      : appScroll.scrollHeight;
+    appScroll.scrollTop = blockThreeTop;
+    appScroll.dispatchEvent(new Event('scroll'));
+    await sleep(700);
+    const blocksNext = Array.from(new Set($$('#homeFeed [data-block]').map((row) => row.dataset.block)));
+    const rowsNext = $$('#homeFeed .feed-item:not(.feed-skeleton)').length;
+    results.push(`feedSlide=${blocksNext.length === 3 && rowsNext >= 20 && rowsNext <= 30
+      && Number(blocksNext[0]) > Number(blocksAfter[0])}`);
+    appScroll.style.height = feedViewHeight;
+    appScroll.style.bottom = feedViewBottom;
+    appScroll.dispatchEvent(new Event('scroll'));
 
     const sideStartX = appScroll.getBoundingClientRect().left + 60;
     const sideStartY = appScroll.getBoundingClientRect().top + appScroll.getBoundingClientRect().height * 0.5;
