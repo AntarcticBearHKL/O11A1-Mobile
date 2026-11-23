@@ -3786,6 +3786,14 @@
     player.style.pointerEvents = '';
     player.classList.remove('dragging', 'collapsing', 'window-opening', 'promoting-preview');
     playerRotor.style.backgroundImage = '';
+    if (playerVideo) {
+      playerVideo.style.backgroundImage = origin && origin.image
+        ? `url("${String(origin.image).replace(/"/g, '%22')}")`
+        : '';
+      playerVideo.style.backgroundSize = 'cover';
+      playerVideo.style.backgroundPosition = 'center';
+      playerVideo.style.backgroundRepeat = 'no-repeat';
+    }
     const expandFromRow = !wasOpen && Boolean(origin && origin.rect && origin.rect.width && origin.rect.height);
     if (expandFromRow) {
       player.classList.add('window-opening');

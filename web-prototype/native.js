@@ -3145,6 +3145,7 @@
     tickDanmaku(video.currentTime);
   });
   video.addEventListener('play', () => {
+    if (playerVideo) playerVideo.style.backgroundImage = '';
     state.playing = true;
     host.setPlayIcon(true);
     host.updatePlaylistDock();
