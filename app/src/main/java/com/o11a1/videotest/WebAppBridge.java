@@ -207,6 +207,20 @@ final class WebAppBridge {
     }
 
     @JavascriptInterface
+    public int displayHz() {
+        try {
+            return Math.round(activity.getWindowManager().getDefaultDisplay().getRefreshRate());
+        } catch (Throwable error) {
+            return 0;
+        }
+    }
+
+    @JavascriptInterface
+    public double compositorFps() {
+        return displayHz();
+    }
+
+    @JavascriptInterface
     public String openWebLogin() {
         JSONObject out = new JSONObject();
         try {

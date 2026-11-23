@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Display;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.ConsoleMessage;
@@ -30,6 +31,7 @@ public final class MainActivity extends Activity {
         getWindow().setBackgroundDrawable(
             new android.graphics.drawable.ColorDrawable(Color.rgb(250, 250, 252)));
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        applyMaxRefreshRate();
         hideSystemUi();
         if (Build.VERSION.SDK_INT >= 28) {
             getWindow().getAttributes().layoutInDisplayCutoutMode =
@@ -89,10 +91,44 @@ public final class MainActivity extends Activity {
         });
 
         setContentView(webView);
-        webView.loadUrl("file:///android_asset/web/index.html?v=198");
+        webView.loadUrl("file:///android_asset/web/index.html?v=199");
         Thread warm = new Thread(() -> cookies.ensureBuvid(), "o11a1-buvid");
         warm.setDaemon(true);
         warm.start();
+    }
+
+    private void applyMaxRefreshRate() {
+        try {
+            Display display = getWindowManager().getDefaultDisplay();
+            Display.Mode current = display.getMode();
+            Display.Mode best = null;
+            float bestRate = 0f;
+            if (Build.VERSION.SDK_INT >= 23) {
+                for (Display.Mode mode : display.getSupportedModes()) {
+                    if (mode.getPhysicalWidth() != current.getPhysicalWidth()
+                        || mode.getPhysicalHeight() != current.getPhysicalHeight()) {
+                        continue;
+                    }
+                    float rate = mode.getRefreshRate();
+                    if (rate <= 120.5f && rate > bestRate + 0.05f) {
+                        bestRate = rate;
+                        best = mode;
+                    }
+                }
+            }
+            WindowManager.LayoutParams attrs = getWindow().getAttributes();
+            if (best != null) {
+                if (attrs.preferredDisplayModeId != best.getModeId()) {
+                    attrs.preferredDisplayModeId = best.getModeId();
+                }
+                attrs.preferredRefreshRate = best.getRefreshRate();
+            } else {
+                attrs.preferredRefreshRate = Math.min(120f, display.getRefreshRate());
+            }
+            getWindow().setAttributes(attrs);
+        } catch (Throwable error) {
+            Log.w(TAG, "max refresh rate unavailable", error);
+        }
     }
 
     private void hideSystemUi() {
@@ -108,7 +144,10 @@ public final class MainActivity extends Activity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) hideSystemUi();
+        if (hasFocus) {
+            applyMaxRefreshRate();
+            hideSystemUi();
+        }
     }
 
     @Override
@@ -125,6 +164,7 @@ public final class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         if (cookieStore != null) cookieStore.reload();
+        applyMaxRefreshRate();
         hideSystemUi();
         if (webView != null) webView.onResume();
     }

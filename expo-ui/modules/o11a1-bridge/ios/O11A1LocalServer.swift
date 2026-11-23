@@ -339,6 +339,12 @@ final class O11A1LocalServer {
       )
     case "mediaStats":
       data = o11a1Data(["ok": true, "bytes": mediaBytes, "requests": mediaRequests])
+    case "displayHz":
+      data = o11a1Data([
+        "ok": true,
+        "hz": O11A1HighRefresh.shared.maxHz(),
+        "fps": O11A1HighRefresh.shared.compositorFps()
+      ])
     case "danmaku":
       data = client.danmaku(cid: o11a1Int64(query["cid"] ?? "0"))
     case "account":

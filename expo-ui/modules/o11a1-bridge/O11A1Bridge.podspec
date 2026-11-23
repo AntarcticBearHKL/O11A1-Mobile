@@ -9,7 +9,7 @@ Pod::Spec.new do |s|
   s.source           = { :git => 'https://github.com/AntarcticBearHKL/O11A1-Mobile.git', :tag => s.version.to_s }
   s.source_files     = 'ios/**/*.{swift,h,m,mm}'
   s.dependency 'ExpoModulesCore'
-  s.frameworks       = 'Foundation', 'Network', 'UIKit', 'CoreImage'
+  s.frameworks       = 'Foundation', 'Network', 'UIKit', 'CoreImage', 'WebKit', 'QuartzCore'
   s.libraries        = 'compression'
   s.swift_version    = '5.0'
   s.static_framework = true

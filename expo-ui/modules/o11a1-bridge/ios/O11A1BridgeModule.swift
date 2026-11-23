@@ -8,7 +8,10 @@ public final class O11A1BridgeModule: Module {
     Name("O11A1Bridge")
 
     AsyncFunction("start") { (files: [String: String]) -> Int in
-      DispatchQueue.main.async { O11A1Orientation.apply("portrait") }
+      DispatchQueue.main.async {
+        O11A1Orientation.apply("portrait")
+        O11A1HighRefresh.shared.enable()
+      }
       if let existing = self.server {
         return existing.port
       }
