@@ -2824,7 +2824,7 @@ body[data-theme="light"] .my-page{
 .row-thumb,
 .video-row.real-row .row-thumb{
   position:relative;width:100%;height:auto;aspect-ratio:16/9;flex:none;
-  align-self:stretch;border:0;border-radius:12px;overflow:hidden;
+  align-self:stretch;border:0;border-radius:0;overflow:hidden;
   background:#E4E7EC;
 }
 .row-thumb::before{content:none}
@@ -2914,4 +2914,4 @@ body[data-theme="light"] .my-page{
 .skel-row .row-copy{padding-top:12px}
 .skel-row .row-text{gap:7px;padding-top:3px}
 .skel-row .skeleton-line{height:10px;border-radius:5px}
-.skel-thumb{position:relative;width:100%;height:auto;aspect-ratio:16/9;border-radius:12px}
+.skel-thumb{position:relative;width:100%;height:auto;aspect-ratio:16/9;border-radius:0}
