@@ -1925,7 +1925,7 @@
   }
 
   function qualityQn(value) {
-    const map = { '4K': 120, '1080P60': 116, '1080P+': 112, '1080P': 80, '720P': 64, '480P': 32, '360P': 16, '仅音频': 16 };
+    const map = { '4K': 120, '1080P60': 116, '1080P+': 112, '1080P': 80, '720P60': 74, '720P': 64, '480P': 32, '360P': 16, '仅音频': 16 };
     return map[value] || 64;
   }
 
@@ -2394,9 +2394,14 @@
       const entry = currentItem();
       if (entry) entry.cid = result.cid;
     }
+    const availableLabels = Array.isArray(result.available)
+      ? result.available.filter(Boolean)
+      : [];
+    state.availableQualities = availableLabels.length
+      ? availableLabels
+      : (result.qualityLabel ? [result.qualityLabel] : []);
     if (result.qualityLabel) {
       state.settings.quality = result.qualityLabel;
-      state.availableQualities = [result.qualityLabel];
       host.updatePlayerLabels();
       showQualityFallback(requestedQuality, result.qualityLabel);
     }
@@ -3327,7 +3332,13 @@
     }
     if (loggedIn) {
       if (name) name.textContent = accountInfo.name || 'B 站用户';
-      if (meta) meta.textContent = `UID ${accountInfo.mid || ''} · Lv${accountInfo.level || 0}${accountInfo.follower ? ` · ${countText(accountInfo.follower)} 粉丝` : ''}`;
+      if (meta) {
+        const bits = [`UID ${accountInfo.mid || ''}`, `Lv${accountInfo.level || 0}`];
+        if (accountInfo.follower) bits.push(`${countText(accountInfo.follower)} 粉丝`);
+        if (accountInfo.following) bits.push(`${countText(accountInfo.following)} 关注`);
+        if (accountInfo.coins != null) bits.push(`${accountInfo.coins} 硬币`);
+        meta.textContent = bits.join(' · ');
+      }
       if (action) {
         action.hidden = false;
         action.textContent = accountInfo.vip ? (accountInfo.vipLabel || '大会员') : '账户';
@@ -3724,6 +3735,15 @@
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
+    if (!state.loggedIn && !(accountInfo && accountInfo.loggedIn)) {
+      host.showPage('login');
+      return;
+    }
+    openAccountSheet();
+  });
+  const accountCard = $('.my-account-card');
+  if (accountCard) accountCard.addEventListener('click', (event) => {
+    if (event.target.closest('#myAccountAction')) return;
     if (!state.loggedIn && !(accountInfo && accountInfo.loggedIn)) {
       host.showPage('login');
       return;

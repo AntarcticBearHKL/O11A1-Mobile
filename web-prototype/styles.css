@@ -1753,6 +1753,9 @@ body[data-theme="light"] .grid-progress .grid-cell.on{background:var(--blue,#2F7
 .player-settings .pc-choice:active{transform:scale(.97)}
 .player-settings .pc-choice.on{background:var(--ps-accent);color:#fff;font-weight:700}
 .player-settings .pc-choice.on::after{display:none}
+.player-settings .pc-choice:disabled,
+.choice-btn:disabled{opacity:.32;cursor:not-allowed;filter:grayscale(1)}
+.player-settings .pc-choice:disabled:active{transform:none}
 .player-settings .pc-group.open #pcDanmakuPanel{
   display:flex;flex-direction:column;gap:0;
   padding:0 12px 10px;border-top:1px solid var(--ps-line);
@@ -2796,6 +2799,10 @@ body[data-theme="light"] .my-page{
   box-shadow:0 12px 32px rgba(10,12,20,.22);
 }
 .app.my-dragging .app-main{transition:none}
+
+#distractionSettings .sheet-row{min-height:56px;padding:0 4px;border-bottom:1px solid var(--line);border-radius:0}
+#distractionSettings .sheet-row:last-child{border-bottom:0}
+#distractionSettings .sr-label{font-size:14px;color:var(--ink)}
 
 /* ---------- YouTube-style full-width video cards ---------- */
 .feed{display:flex;flex-direction:column;gap:0;padding:0 0 calc(18px + env(safe-area-inset-bottom))}

@@ -694,6 +694,18 @@ final class BiliExtras {
             }
             out.put("quality", quality);
             out.put("qualityLabel", qualityLabel(quality));
+            JSONArray available = new JSONArray();
+            JSONArray accept = result.optJSONArray("accept_quality");
+            if (accept != null) {
+                for (int i = 0; i < accept.length(); i += 1) {
+                    int availableQn = accept.optInt(i, 0);
+                    if (availableQn <= 0) continue;
+                    String label = qualityLabel(availableQn);
+                    if (!label.isEmpty()) available.put(label);
+                }
+            }
+            if (available.length() == 0) available.put(qualityLabel(quality));
+            out.put("available", available);
             out.put("format", result.optString("format", "mp4"));
             out.put("pgc", true);
             return out;

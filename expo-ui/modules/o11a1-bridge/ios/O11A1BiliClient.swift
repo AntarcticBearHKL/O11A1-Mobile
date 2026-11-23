@@ -422,6 +422,11 @@ final class O11A1BiliClient {
       "qualityLabel": o11a1QualityLabel(quality),
       "format": o11a1String(data["format"])
     ]
+    if let accept = data["accept_quality"] as? [Any] {
+      let labels = accept.map { o11a1QualityLabel(o11a1Int($0)) }.filter { !$0.isEmpty && $0 != "0P" }
+      if !labels.isEmpty { output["available"] = labels }
+    }
+    if output["available"] == nil { output["available"] = [o11a1QualityLabel(quality)] }
     if !backupToken.isEmpty { output["backup"] = "\(base)/media?u=\(backupToken)" }
     return o11a1Data(output)
   }
@@ -1103,6 +1108,11 @@ final class O11A1BiliClient {
       "format": o11a1String(result["format"]),
       "pgc": true
     ]
+    if let accept = result["accept_quality"] as? [Any] {
+      let labels = accept.map { o11a1QualityLabel(o11a1Int($0)) }.filter { !$0.isEmpty }
+      if !labels.isEmpty { output["available"] = labels }
+    }
+    if output["available"] == nil { output["available"] = [o11a1QualityLabel(quality)] }
     if let backups = first["backup_url"] as? [String], let backup = backups.first, !backup.isEmpty {
       output["backup"] = "http://127.0.0.1:\(port)/media?u=\(token(for: [backup]))"
     }
@@ -1770,6 +1780,11 @@ final class O11A1BiliClient {
       "audio": audioRows
     ]
     if let accept = data["accept_quality"] { output["acceptQuality"] = accept }
+    if let accept = data["accept_quality"] as? [Any] {
+      let labels = accept.map { o11a1QualityLabel(o11a1Int($0)) }.filter { !$0.isEmpty }
+      if !labels.isEmpty { output["available"] = labels }
+    }
+    if output["available"] == nil { output["available"] = [o11a1QualityLabel(quality)] }
     return o11a1Data(output)
   }
 

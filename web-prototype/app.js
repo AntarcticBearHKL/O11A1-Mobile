@@ -15,7 +15,6 @@
   const pcPlay = $('#pcPlay');
   const pcQuality = $('#pcQuality');
   const pcQualityValue = $('#pcQualityValue');
-  const pcDanmaku = $('#pcDanmaku');
   const pcLoop = $('#pcLoop');
   const pcLoopValue = $('#pcLoopValue');
   const progressBar = $('#progressBar');
@@ -27,7 +26,6 @@
   const playerSettingsScrim = $('#playerSettingsScrim');
   const playerDrop = $('#playerDrop');
   const playerDropZones = playerDrop ? $$('.player-drop-zone', playerDrop) : [];
-  const pcDanmakuValue = $('#pcDanmakuValue');
   const seekRipple = $('#seekRipple');
   const lockBadge = $('#lockBadge');
   const rateHud = $('#rateHud');
@@ -417,12 +415,17 @@
       options: [
         { label: '4K 超清', value: '4K', meta: '大会员' },
         { label: '1080P60', value: '1080P60', meta: '高帧率' },
+        { label: '1080P 高码', value: '1080P+' },
         { label: '1080P 高清', value: '1080P' },
+        { label: '720P60', value: '720P60' },
         { label: '720P', value: '720P' },
         { label: '480P', value: '480P' },
         { label: '仅音频', value: '仅音频' },
       ],
       selected: () => state.settings.quality,
+      available: () => (Array.isArray(state.availableQualities) && state.availableQualities.length
+        ? state.availableQualities
+        : null),
       apply: (value) => {
         state.settings.quality = value;
         updatePlayerLabels();
@@ -460,37 +463,29 @@
       panel: $('#pcQualityPanel'),
       data: sheetData.quality,
     },
-    danmaku: {
-      group: $('#pcDanmakuGroup'),
-      row: $('#pcDanmaku'),
-      panel: $('#pcDanmakuPanel'),
-      data: null,
-    },
   };
   const pcOpenPanels = new Set();
 
   function renderPcChoicePanel(panel, data) {
     if (!panel || !data) return;
     panel.innerHTML = '';
+    const available = typeof data.available === 'function' ? data.available() : null;
     data.options.forEach((option) => {
+      const blocked = Array.isArray(available) && available.length > 0
+        && !available.includes(option.value)
+        && option.value !== data.selected();
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = `pc-choice${data.selected() === option.value ? ' on' : ''}`;
+      button.className = `pc-choice${data.selected() === option.value ? ' on' : ''}${blocked ? ' off' : ''}`;
       button.textContent = option.label;
+      button.disabled = blocked;
+      if (blocked) button.title = '当前视频不支持该画质';
       button.addEventListener('click', () => {
         data.apply(option.value);
         renderPcChoicePanel(panel, data);
       });
       panel.appendChild(button);
     });
-  }
-
-  function renderPcDanmakuPanel(panel) {
-    if (!panel) return;
-    panel.innerHTML = '';
-    settingsDefinition('settings-danmaku').rows
-      .filter((row) => row.type !== 'static')
-      .forEach((row) => panel.appendChild(buildSettingRow(row)));
   }
 
   function setPcPanel(name) {
@@ -502,8 +497,7 @@
       config.group.classList.toggle('open', open);
       config.row.setAttribute('aria-expanded', open ? 'true' : 'false');
       if (!open) return;
-      if (key === 'danmaku') renderPcDanmakuPanel(config.panel);
-      else renderPcChoicePanel(config.panel, config.data);
+      renderPcChoicePanel(config.panel, config.data);
     });
   }
 
@@ -1454,7 +1448,19 @@
     });
 
     const enabledCount = visibleModules.filter((mod) => mod.on).length;
-    moduleCount.textContent = `已启用 ${enabledCount} / ${visibleModules.length} 个模块 · 首页模块 sheet 即可切换`;
+    moduleCount.textContent = `已启用 ${enabledCount} / ${visibleModules.length} 个模块`;
+    renderDistractionSettings();
+  }
+
+  function renderDistractionSettings() {
+    const box = $('#distractionSettings');
+    if (!box) return;
+    const def = settingsDefinition('settings-distraction');
+    box.innerHTML = '';
+    if (!def) return;
+    def.rows
+      .filter((row) => row.type !== 'static')
+      .forEach((row) => box.appendChild(buildSettingRow(row)));
   }
 
   /* ---------- hidden entries (fish off for now) ---------- */
@@ -2778,7 +2784,6 @@
   }
 
   function applyDanmakuSettings() {
-    if (pcDanmakuValue) pcDanmakuValue.textContent = state.settings.danmaku ? '开' : '关';
     if (window.O11A1NativeData && typeof window.O11A1NativeData.applyDanmakuStyle === 'function') {
       try {
         window.O11A1NativeData.applyDanmakuStyle();
@@ -2792,7 +2797,6 @@
 
   function updatePlayerLabels() {
     pcQualityValue.textContent = state.settings.quality;
-    if (pcDanmakuValue) pcDanmakuValue.textContent = state.settings.danmaku ? '开' : '关';
     pcLoopValue.textContent = state.settings.loop;
     setProgress(state.progress);
     updatePlaylistDock();
@@ -4835,6 +4839,8 @@
     if (/^[1-6]$/.test(key)) {
       event.preventDefault();
       const quality = ['4K', '1080P60', '1080P', '720P', '480P', '仅音频'][Number(key) - 1];
+      if (Array.isArray(state.availableQualities) && state.availableQualities.length
+        && !state.availableQualities.includes(quality)) return;
       state.settings.quality = quality;
       save();
       updatePlayerLabels();
@@ -4848,9 +4854,6 @@
     openSheet('播放器', '所有改动即时生效 · 无弹窗提示', (body) => {
       actionRow(body, '播放设置', '画质 / 硬解 / 默认', () => {
         openSettingsSheet('settings-playback');
-      });
-      actionRow(body, '弹幕设置', state.settings.danmaku ? '开' : '关', () => {
-        openSettingsSheet('settings-danmaku');
       });
       actionRow(body, '循环模式', state.settings.loop, () => {
         const list = ['循环', '继续', '下一分P', '暂停'];
@@ -4960,10 +4963,13 @@
       const line = document.createElement('div');
       line.className = 'choice-line';
       row.options.forEach((option) => {
+        const blocked = typeof row.available === 'function' && row.available(option) === false;
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = `choice-btn${state.settings[row.key] === option ? ' on' : ''}`;
+        button.className = `choice-btn${state.settings[row.key] === option ? ' on' : ''}${blocked ? ' off' : ''}`;
         button.textContent = option;
+        button.disabled = blocked;
+        if (blocked) button.title = '当前视频不支持该画质';
         button.addEventListener('click', () => {
           state.settings[row.key] = option;
           $$('.choice-btn', line).forEach((item) => item.classList.toggle('on', item === button));
@@ -5031,29 +5037,18 @@
   }
 
   function settingsDefinition(id) {
-    const nativeAccount = (window.O11A1NativeData && window.O11A1NativeData.accountInfo) || {};
     const definitions = {
       'settings-playback': {
         title: '播放',
         sub: '画质修改后写回全局设置；默认 720P，系统硬解优先',
         rows: [
           { type: 'choice', label: '默认画质', key: 'defaultQuality', options: ['最高', '2160P', '1440P', '1080P', '720P', '480P', '360P'] },
-          { type: 'choice', label: '当前画质', key: 'quality', options: ['4K', '1080P60', '1080P', '720P', '480P', '仅音频'], onChange: updatePlayerLabels },
+          { type: 'choice', label: '当前画质', key: 'quality', options: ['4K', '1080P60', '1080P+', '1080P', '720P60', '720P', '480P', '仅音频'], available: (option) => {
+            const list = state.availableQualities;
+            return !Array.isArray(list) || !list.length || list.includes(option) || option === state.settings.quality;
+          }, onChange: updatePlayerLabels },
           { type: 'switch', label: '陀螺仪自动横屏', key: 'autoLandscape', onChange: () => { if (state.settings.autoLandscape) { if (state.playerOpen) startGyro(); } else { stopGyro(); setPlayerOrientation(false); } } },
           { type: 'static', label: '解码策略', value: '系统硬解 · 渐进优先 · 60Hz' },
-        ],
-      },
-      'settings-danmaku': {
-        title: '弹幕',
-        sub: '实时生效，现有弹幕不清空；屏蔽规则在「我的 → 屏蔽」',
-        rows: [
-          { type: 'switch', label: '弹幕显示', key: 'danmaku', onChange: applyDanmakuSettings },
-          { type: 'slider', label: '不透明度', key: 'danmakuOpacity', min: 0, max: 100, unit: '%', onChange: applyDanmakuSettings },
-          { type: 'slider', label: '字号', key: 'danmakuSize', min: 50, max: 150, unit: '%', onChange: applyDanmakuSettings },
-          { type: 'slider', label: '速度', key: 'danmakuSpeed', min: 50, max: 200, step: 10, format: (v) => `${(v / 100).toFixed(1)}×`, onChange: applyDanmakuSettings },
-          { type: 'choice', label: '显示区域', key: 'danmakuArea', options: ['全屏', '1/2 屏', '1/3 屏'], onChange: applyDanmakuSettings },
-          { type: 'switch', label: '分布密度', key: 'danmakuDensity', onChange: applyDanmakuSettings },
-          { type: 'static', label: '弹幕节拍', value: 'CSS 动画 · 跟随显示刷新' },
         ],
       },
       'settings-appearance': {
@@ -5090,26 +5085,6 @@
           { type: 'static', label: '应用范围', value: '首页 / 底栏 / 搜索' },
         ],
       },
-      'settings-account': {
-        title: '账户',
-        sub: 'B 站官方登录 · 头像 / 昵称 / UID / 等级',
-        rows: [
-          { type: 'static', label: '昵称', value: nativeAccount.name || '未登录' },
-          { type: 'static', label: 'UID', value: nativeAccount.mid ? String(nativeAccount.mid) : '—' },
-          { type: 'static', label: '等级', value: nativeAccount.loggedIn ? `Lv${nativeAccount.level || 0}` : '—' },
-          { type: 'static', label: '大会员', value: nativeAccount.vip ? (nativeAccount.vipLabel || '大会员') : '未开通' },
-          { type: 'action', label: 'B 站登录', value: state.loggedIn ? '已登录' : '未登录', run: () => { closeSheet(); showPage('login'); return '打开登录'; } },
-          { type: 'action', label: '打开账户页', value: '账户 / 经验 / 权益', run: () => {
-            if (window.O11A1NativeData && typeof window.O11A1NativeData.openAccount === 'function') {
-              closeSheet();
-              window.O11A1NativeData.openAccount();
-              return '已打开';
-            }
-            return '账户页';
-          } },
-          { type: 'action', label: '退出登录', value: '', run: () => { logout(); return '已退出'; } },
-        ],
-      },
       'settings-shortcuts': {
         title: '快捷键',
         sub: '桌面端播放器快捷键；外接键盘可用',
@@ -5121,16 +5096,6 @@
           { type: 'static', label: '画质 / 倍速', value: '1–6 / [ ]' },
           { type: 'action', label: '全部快捷键映射', value: '打开', run: () => { openKeyboardSheet(); return '已打开'; } },
           { type: 'action', label: '恢复默认', value: '', run: () => '键盘映射固定为默认' },
-        ],
-      },
-      'settings-system': {
-        title: '系统',
-        sub: '移动端只保留适用的项；开机自启 / 托盘仅桌面',
-        rows: [
-          { type: 'switch', label: '开机自启', key: 'autostart' },
-          { type: 'switch', label: '关闭到托盘', key: 'closeToTray' },
-          { type: 'switch', label: '自动检查更新', key: 'autoUpdate' },
-          { type: 'action', label: '版本', value: '0.2.0 · native', run: () => '当前为测试版' },
         ],
       },
       'settings-block': {
@@ -5440,7 +5405,6 @@
 
   /* player */
   pcQuality.addEventListener('click', () => setPcPanel('quality'));
-  pcDanmaku.addEventListener('click', () => setPcPanel('danmaku'));
   pcLoop.addEventListener('click', cycleLoop);
   lockBadge.addEventListener('click', unlockPlayer);
 

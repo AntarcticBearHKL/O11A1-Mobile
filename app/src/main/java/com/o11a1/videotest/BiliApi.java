@@ -181,10 +181,28 @@ final class BiliApi {
             }
             out.put("quality", quality);
             out.put("qualityLabel", qualityLabel(quality));
+            out.put("available", availableQualities(data, quality));
             out.put("format", data.optString("format", "mp4"));
         } catch (Throwable error) {
             out = error(error);
         }
+        return out;
+    }
+
+    private static JSONArray availableQualities(JSONObject data, int quality) {
+        java.util.LinkedHashSet<String> labels = new java.util.LinkedHashSet<>();
+        JSONArray accept = data == null ? null : data.optJSONArray("accept_quality");
+        if (accept != null) {
+            for (int i = 0; i < accept.length(); i += 1) {
+                int qn = accept.optInt(i, 0);
+                if (qn <= 0) continue;
+                String label = qualityLabel(qn);
+                if (!label.isEmpty()) labels.add(label);
+            }
+        }
+        if (labels.isEmpty()) labels.add(qualityLabel(quality));
+        JSONArray out = new JSONArray();
+        for (String label : labels) out.put(label);
         return out;
     }
 
@@ -224,6 +242,7 @@ final class BiliApi {
             out.put("url", proxy.localUrl(remote));
             out.put("quality", quality);
             out.put("qualityLabel", qualityLabel(quality));
+            out.put("available", availableQualities(data, quality));
             out.put("format", data.optString("format", "mp4"));
         } catch (Throwable error) {
             Log.w(TAG, "play failed", error);
