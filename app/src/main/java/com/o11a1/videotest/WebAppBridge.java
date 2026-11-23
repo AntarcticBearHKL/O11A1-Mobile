@@ -154,6 +154,11 @@ final class WebAppBridge {
     }
 
     @JavascriptInterface
+    public String related(String bvid) {
+        return runExtra(() -> extras.related(bvid).toString());
+    }
+
+    @JavascriptInterface
     public String like(long aid, boolean on) {
         return runExtra(() -> extras.like(aid, on).toString());
     }

@@ -282,6 +282,19 @@ const MOCK_BRIDGE = `
     comments: function (aid, page, sort) { page = page || 1; return JSON.stringify({ ok: true, items: comments(page), count: 48, page: page, hasMore: page < 8 }); },
     commentsReplies: function () { return JSON.stringify({ ok: true, items: replies(), count: 5, page: 1 }); },
     videoInfo: function (bvid) { return JSON.stringify({ ok: true, bvid: bvid || 'BVmock', aid: 9000, cid: 8000, mid: 10001, owner: 'O11A1 UI', ownerFace: cover('UP'), title: 'UI 调试视频信息', desc: '这是 UI 调试模式的视频简介。', pic: cover('信息'), duration: '12:34', durationSec: 754, stat: { view: 12000, danmaku: 123, reply: 45, favorite: 67, coin: 89, share: 10, like: 100 }, pages: [{ cid: 8000, page: 1, title: 'P1', duration: 754 }] }); },
+    related: function (bvid) {
+      bvid = String(bvid || '');
+      var seed = 0;
+      for (var i = 0; i < bvid.length; i += 1) seed = (seed * 31 + bvid.charCodeAt(i)) >>> 0;
+      var list = items('相关', 20, (seed % 9) + 1);
+      for (var r = 0; r < list.length; r += 1) {
+        list[r].bvid = 'BVrel' + (seed % 9000) + 'R' + r;
+        list[r].aid = 30000 + (seed % 9000) + r;
+        list[r].title = '相关推荐 · UI 视频 ' + (r + 1);
+        list[r].pic = cover('相关' + (seed % 90) + r);
+      }
+      return JSON.stringify({ ok: true, bvid: bvid, items: list });
+    },
     like: function () { return JSON.stringify({ ok: false, needLogin: true, error: 'UI 调试模式不写入账号' }); },
     favorite: function () { return JSON.stringify({ ok: false, needLogin: true, error: 'UI 调试模式不写入账号' }); },
     coin: function () { return JSON.stringify({ ok: false, needLogin: true, error: 'UI 调试模式不写入账号' }); },

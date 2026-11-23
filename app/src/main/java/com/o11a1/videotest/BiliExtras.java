@@ -947,6 +947,35 @@ final class BiliExtras {
         return out;
     }
 
+    JSONObject related(String bvid) {
+        JSONObject out = new JSONObject();
+        try {
+            String id = bvid == null ? "" : bvid.trim();
+            if (id.isEmpty()) throw new IllegalArgumentException("missing bvid");
+            JSONObject json = fetch("https://api.bilibili.com/x/web-interface/archive/related?bvid=" + id);
+            int code = json.optInt("code", 0);
+            JSONArray list = json.optJSONArray("data");
+            if (code != 0) {
+                out.put("ok", false);
+                out.put("error", json.optString("message", "相关推荐加载失败"));
+                return out;
+            }
+            JSONArray items = new JSONArray();
+            if (list != null) {
+                for (int i = 0; i < list.length(); i += 1) {
+                    JSONObject item = list.optJSONObject(i);
+                    if (item != null) items.put(video(item));
+                }
+            }
+            out.put("ok", true);
+            out.put("bvid", id);
+            out.put("items", items);
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out;
+    }
+
     /* ---------- writes ---------- */
 
     JSONObject like(long aid, boolean on) {
@@ -1368,6 +1397,7 @@ final class BiliExtras {
             out.put("owner", name);
             out.put("duration", duration(item.optInt("duration", 0)));
             out.put("durationSec", item.optInt("duration", 0));
+            out.put("pubdate", item.optLong("pubdate", 0));
             out.put("play", play);
             out.put("playText", count(play));
             out.put("desc", strip(item.optString("desc", "")));

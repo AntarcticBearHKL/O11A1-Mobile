@@ -6510,6 +6510,24 @@
     results.push(`collapsed=${!state.playerOpen && state.miniVisible}`);
 
     await sleep(260);
+    const detailSeedRow = $('#homeFeed .video-row');
+    const detailSeedItem = detailSeedRow ? detailSeedRow.__nativeItem : null;
+    const detailCurrent = state.playlist[state.currentIndex];
+    if (detailSeedItem && detailCurrent && !detailCurrent.bvid) {
+      Object.assign(detailCurrent, {
+        bvid: detailSeedItem.bvid,
+        aid: detailSeedItem.aid,
+        cid: detailSeedItem.cid,
+        mid: detailSeedItem.mid,
+        title: detailSeedItem.title,
+        owner: detailSeedItem.owner,
+        pic: detailSeedItem.pic,
+        duration: detailSeedItem.duration,
+        durationSec: detailSeedItem.durationSec,
+      });
+      updatePlayerLabels();
+      save();
+    }
     openPlayer({ resume: true });
     await sleep(360);
     dispatchSwipe('middle', 240, 0);
