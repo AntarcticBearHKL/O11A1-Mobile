@@ -492,8 +492,9 @@
   }
 
   function setPcPanel(name) {
-    if (pcOpenPanels.has(name)) pcOpenPanels.delete(name);
-    else pcOpenPanels.add(name);
+    const opening = !pcOpenPanels.has(name);
+    pcOpenPanels.clear();
+    if (opening) pcOpenPanels.add(name);
     Object.entries(pcPanels).forEach(([key, config]) => {
       const open = pcOpenPanels.has(key);
       config.group.classList.toggle('open', open);
