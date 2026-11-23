@@ -4683,7 +4683,9 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录';
+  if (loginNote) loginNote.innerHTML = window.O11A1_MOCK_LOGIN
+    ? '当前为模拟登录，不会请求 B 站短信接口<br>任意 4-8 位数字验证码均可登录'
+    : '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

@@ -963,6 +963,10 @@
   let loginCaptchaPhone = '';
   let loginCountdownTimer = null;
   let loginSending = false;
+  /* Development login simulator: never calls Bilibili's captcha/SMS endpoints.
+     Set to false to use the real native SMS flow. */
+  const MOCK_LOGIN = true;
+  window.O11A1_MOCK_LOGIN = MOCK_LOGIN;
 
   function loginCountryCode() {
     const value = loginCid ? loginCid.value.replace(/\D/g, '') : '86';
@@ -1006,11 +1010,23 @@
       setLoginStatus('请输入正确的手机号', 'error');
       return;
     }
+    const cid = loginCountryCode();
+    if (MOCK_LOGIN) {
+      setLoginSending(true, '正在模拟安全验证…');
+      setTimeout(() => {
+        setLoginSending(false);
+        loginCaptchaKey = 'mock-' + Date.now().toString(36);
+        loginCaptchaPhone = `${cid}:${phone}`;
+        setLoginStatus('模拟验证码已发送，请输入任意 4-8 位数字', 'success');
+        startLoginCountdown(60);
+        if (loginCode) loginCode.focus();
+      }, 450);
+      return;
+    }
     if (typeof window.O11A1Native?.sendSmsCode !== 'function') {
       setLoginStatus('当前环境不支持原生短信登录', 'error');
       return;
     }
-    const cid = loginCountryCode();
     setLoginSending(true, '正在准备 B 站安全验证…');
     requestAnimationFrame(() => setTimeout(() => {
       const result = nativeLoginCall('sendSmsCode', [phone, cid]);
@@ -1023,11 +1039,28 @@
         setLoginSending(true, '请在安全验证窗口完成验证…');
         return;
       }
-      setLoginSending(false);
-      setLoginStatus('验证码已发送，请在 5 分钟内输入', 'success');
-      startLoginCountdown(60);
-      if (loginCode) loginCode.focus();
+      applySmsCodeResult(result);
     }, 40));
+  }
+
+  function applySmsCodeResult(value) {
+    setLoginSending(false);
+    if (!value || !value.ok) {
+      setLoginStatus(value?.error || (value?.cancelled ? '已取消安全验证' : '短信发送失败'), 'error');
+      return false;
+    }
+    const phone = value.tel || loginPhoneValue();
+    const cid = value.cid || loginCountryCode();
+    loginCaptchaKey = value.captchaKey || '';
+    loginCaptchaPhone = `${cid}:${phone}`;
+    if (!loginCaptchaKey) {
+      setLoginStatus('验证码已发送，但未返回登录凭据，请重新获取', 'error');
+      return false;
+    }
+    setLoginStatus('验证码已发送，请在 5 分钟内输入', 'success');
+    startLoginCountdown(60);
+    if (loginCode) loginCode.focus();
+    return true;
   }
 
   window.O11A1Login = {
@@ -1038,18 +1071,7 @@
       } catch (_) {
         value = null;
       }
-      setLoginSending(false);
-      if (!value || !value.ok) {
-        setLoginStatus(value?.error || (value?.cancelled ? '已取消安全验证' : '短信发送失败'), 'error');
-        return;
-      }
-      const phone = value.tel || loginPhoneValue();
-      const cid = value.cid || loginCountryCode();
-      loginCaptchaKey = value.captchaKey || '';
-      loginCaptchaPhone = `${cid}:${phone}`;
-      setLoginStatus('验证码已发送，请在 5 分钟内输入', 'success');
-      startLoginCountdown(60);
-      if (loginCode) loginCode.focus();
+      applySmsCodeResult(value);
     },
   };
 
@@ -1068,6 +1090,18 @@
     }
     if (!loginCaptchaKey || loginCaptchaPhone !== `${cid}:${phone}`) {
       setLoginStatus('请先获取当前手机号的短信验证码', 'error');
+      return;
+    }
+    if (MOCK_LOGIN) {
+      if (!/^\d{4,8}$/.test(code)) {
+        setLoginStatus('模拟登录请输入 4-8 位数字验证码', 'error');
+        return;
+      }
+      setLoginSending(true, '正在模拟登录…');
+      setTimeout(() => {
+        setLoginSending(false);
+        loginSucceeded();
+      }, 500);
       return;
     }
     setLoginSending(true, '正在登录…');
