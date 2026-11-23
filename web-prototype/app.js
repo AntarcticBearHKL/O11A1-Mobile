@@ -3430,6 +3430,7 @@
       clearTimeout(hideTimer);
     }
     playerDropZones.forEach((element) => element.classList.remove('fired', 'armed'));
+    playerDrop.style.setProperty('--drop-opacity', '0.4');
     playerDrop.classList.add('show');
     playerDrop.setAttribute('aria-hidden', 'false');
   }
@@ -3444,6 +3445,7 @@
       playerDrop.classList.remove('show');
       playerDrop.setAttribute('aria-hidden', 'true');
       playerDropZones.forEach((element) => element.classList.remove('hot', 'fired', 'armed'));
+      playerDrop.style.removeProperty('--drop-opacity');
       playerDropZone = null;
       if (restoreControls && state.playerOpen) showControls();
     };
@@ -3471,11 +3473,14 @@
 
   function closePlayerFromDrop(direction, fromY, scale) {
     if (!state.playerOpen) return;
+    app.classList.remove('player-open');
     const token = ++playerDropExitToken;
     const closingItem = state.playlist[state.currentIndex] || null;
     const width = window.innerWidth || 1;
-    const exitX = direction * width * 1.02;
-    const exitRotate = direction * 3.5;
+    const sideways = direction === -1 || direction === 1;
+    const exitX = sideways ? direction * width * 1.02 : 0;
+    const exitY = sideways ? fromY + 28 : fromY + (window.innerHeight || 1) * 1.02;
+    const exitRotate = sideways ? direction * 3.5 : 0;
     const exitScale = Math.max(0.6, scale * 0.8);
     let finished = false;
     player.classList.add('dropping');
@@ -3501,7 +3506,7 @@
           borderRadius: '28px',
         },
         {
-          transform: `translate(${exitX}px, ${fromY + 28}px) scale(${exitScale}) rotate(${exitRotate}deg)`,
+          transform: `translate(${exitX}px, ${exitY}px) scale(${exitScale}) rotate(${exitRotate}deg)`,
           opacity: 0,
           borderRadius: '44px',
         },
@@ -3520,7 +3525,7 @@
       setTimeout(done, 460);
     } else {
       player.style.transition = 'transform .34s cubic-bezier(.3,.8,.2,1),opacity .3s ease,border-radius .34s ease';
-      player.style.transform = `translate(${exitX}px, ${fromY + 28}px) scale(${exitScale}) rotate(${exitRotate}deg)`;
+      player.style.transform = `translate(${exitX}px, ${exitY}px) scale(${exitScale}) rotate(${exitRotate}deg)`;
       player.style.opacity = '0';
       player.style.borderRadius = '44px';
       setTimeout(finish, 370);
@@ -4251,17 +4256,18 @@
           gesture.dropShown = true;
           showPlayerDrop();
         }
-        if (gesture.dropShown) {
+        if (gesture.dropShown && playerDrop) {
+          const width = window.innerWidth || 1;
+          const sideReach = Math.max(34, width * 0.11);
           let zone = 0;
-          if (dragY > 64) {
-            const width = window.innerWidth || 1;
-            const side = width * 2 / 9;
-            if (event.clientX < side) zone = -1;
-            else if (event.clientX > width - side) zone = 1;
+          if (dragY > 48) {
+            if (localX <= -sideReach) zone = -1;
+            else if (localX >= sideReach) zone = 1;
           }
-          if (dragY <= 64) zone = null;
           gesture.dropZone = zone;
           setPlayerDropZone(zone);
+          const strength = Math.min(1, dragY / 132);
+          playerDrop.style.setProperty('--drop-opacity', (0.4 + 0.6 * strength).toFixed(3));
           if (dragY >= 110 && !gesture.dropArmed) {
             gesture.dropArmed = true;
             if (navigator.vibrate) navigator.vibrate(6);
@@ -4380,16 +4386,12 @@
       const fromY = state.playerLandscape ? 0 : gesture.collapseY;
       const scale = 1 - Math.min(0.05, gesture.collapseY / 3000);
       if (!cancelled && gesture.collapseY > 110) {
-        if (!state.playerLandscape && (gesture.dropZone === -1 || gesture.dropZone === 1)) {
-          firePlayerDropZone(gesture.dropZone);
+        if (!state.playerLandscape && gesture.dropShown) {
+          const zone = gesture.dropZone === -1 || gesture.dropZone === 1 ? gesture.dropZone : 0;
+          firePlayerDropZone(zone);
           hidePlayerDrop();
-          closePlayerFromDrop(gesture.dropZone, fromY, scale);
-          return;
-        }
-        if (!state.playerLandscape && gesture.dropZone === 0) {
-          firePlayerDropZone(0);
-          hidePlayerDrop();
-          minimizePlayer(fromY, scale);
+          if (zone === 0) closePlayerFromDrop(0, fromY, scale);
+          else minimizePlayer(fromY, scale);
           return;
         }
         hidePlayerDrop();
@@ -6471,12 +6473,12 @@
       window.dispatchEvent(pointerEvent('pointermove', collapseStart.x, collapseStart.y + (190 * step) / 6, 1));
     }
     await sleep(90);
-    const dropMiddle = playerDrop.classList.contains('show')
+    const dropDown = playerDrop.classList.contains('show')
       && playerDrop.querySelector('.player-drop-zone.hot')?.dataset.dropZone === '0';
     window.dispatchEvent(pointerEvent('pointerup', collapseStart.x, collapseStart.y + 190, 0));
-    await sleep(560);
-    results.push(`dropZones=${dropMiddle}`);
-    results.push(`collapsed=${!state.playerOpen && state.miniVisible}`);
+    await sleep(620);
+    results.push(`dropDown=${dropDown}`);
+    results.push(`dropCloseDown=${!state.playerOpen && !state.miniVisible}`);
 
     await sleep(260);
     openPlayer({ resume: true });
@@ -6489,8 +6491,9 @@
     await sleep(90);
     const dropLeft = playerDrop.querySelector('.player-drop-zone.hot')?.dataset.dropZone === '-1';
     window.dispatchEvent(pointerEvent('pointerup', closeStart.x - 150, closeStart.y + 190, 0));
-    await sleep(820);
-    results.push(`dropClose=${dropLeft && !state.playerOpen && !state.miniVisible}`);
+    await sleep(900);
+    results.push(`dropZones=${dropLeft}`);
+    results.push(`collapsed=${!state.playerOpen && state.miniVisible}`);
 
     await sleep(260);
     openPlayer({ resume: true });

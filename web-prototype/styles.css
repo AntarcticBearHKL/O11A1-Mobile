@@ -1587,11 +1587,9 @@ body[data-theme="light"] .grid-progress .grid-cell.on{background:var(--blue,#2F7
   .player-controls{height:98px}
 }
 
-/* ---------- player drag drop zones ---------- */
+/* ---------- player drag light edges ---------- */
 .player-drop{
-  position:fixed;left:0;right:0;bottom:0;z-index:301;
-  height:20vh;height:20dvh;
-  display:flex;align-items:stretch;pointer-events:none;
+  position:fixed;inset:0;z-index:301;pointer-events:none;
   opacity:0;visibility:hidden;
   transition:opacity .24s ease,visibility 0s linear .24s;
   will-change:opacity;
@@ -1599,42 +1597,59 @@ body[data-theme="light"] .grid-progress .grid-cell.on{background:var(--blue,#2F7
 .player-drop.show{opacity:1;visibility:visible;transition:opacity .18s ease,visibility 0s}
 .player-drop-zone{
   --zone:255,74,84;
-  position:relative;flex:0 0 22.222222%;height:100%;min-width:0;
-  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
-  padding:0 4px calc(22px + env(safe-area-inset-bottom));
-  color:#fff;text-align:center;
-  transform:translateY(14px);
-  transition:transform .28s cubic-bezier(.16,1,.3,1);
+  position:absolute;inset:0;pointer-events:none;
+  opacity:0;mix-blend-mode:screen;
+  transition:opacity .24s ease,filter .2s ease;
+  will-change:opacity;
 }
-.player-drop-zone.background{--zone:64,140,255;flex-basis:55.555556%}
-.player-drop.show .player-drop-zone{transform:none}
-.player-drop-zone + .player-drop-zone{box-shadow:inset 1px 0 0 rgba(255,255,255,.08)}
-.player-drop-zone::before{
-  content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
-  background:linear-gradient(180deg,rgba(var(--zone),0) 0%,rgba(var(--zone),.05) 32%,rgba(var(--zone),.34) 68%,rgba(var(--zone),.8) 100%);
-  opacity:.7;transition:opacity .18s ease,filter .18s ease;
+.player-drop-zone.playlist{--zone:64,140,255}
+.player-drop-zone.hot{opacity:var(--drop-opacity,1)}
+.player-drop-zone.armed{filter:saturate(1.12) brightness(1.1)}
+.player-drop-zone[data-drop-zone="0"]{
+  background:
+    radial-gradient(126% 66% at 50% 108%,
+      rgba(var(--zone),.58) 0%,
+      rgba(var(--zone),.34) 27%,
+      rgba(var(--zone),.12) 51%,
+      rgba(var(--zone),0) 74%),
+    linear-gradient(0deg,
+      rgba(var(--zone),.36) 0%,
+      rgba(var(--zone),.13) 13%,
+      rgba(var(--zone),0) 32%);
+  box-shadow:
+    inset 0 -78px 140px -62px rgba(var(--zone),.62),
+    inset 0 -22px 46px -14px rgba(var(--zone),.36);
 }
-.player-drop-zone.hot::before{opacity:1;filter:saturate(1.24) brightness(1.08)}
-.player-drop-zone.fired::before{opacity:1;filter:saturate(1.35) brightness(1.22)}
-.player-drop-zone::after{
-  content:"";position:absolute;left:0;right:0;bottom:0;height:78%;z-index:0;
-  background:radial-gradient(80% 100% at 50% 100%,rgba(var(--zone),.5),transparent 74%);
-  opacity:0;transition:opacity .18s ease;pointer-events:none;
+.player-drop-zone[data-drop-zone="-1"]{
+  background:
+    radial-gradient(60% 96% at -10% 50%,
+      rgba(var(--zone),.54) 0%,
+      rgba(var(--zone),.28) 35%,
+      rgba(var(--zone),.09) 59%,
+      rgba(var(--zone),0) 74%),
+    linear-gradient(90deg,
+      rgba(var(--zone),.34) 0%,
+      rgba(var(--zone),.12) 15%,
+      rgba(var(--zone),0) 33%);
+  box-shadow:
+    inset 86px 0 150px -70px rgba(var(--zone),.6),
+    inset 24px 0 52px -18px rgba(var(--zone),.34);
 }
-.player-drop-zone.hot::after,
-.player-drop-zone.fired::after,
-.player-drop-zone.armed::after{opacity:1}
-.player-drop-zone b{
-  position:relative;z-index:1;
-  font-size:clamp(13px,3.8vw,15px);font-weight:750;line-height:1;
-  white-space:nowrap;color:rgba(255,255,255,.9);
-  text-shadow:0 1px 10px rgba(0,0,0,.28);
-  transform:translateY(5px);opacity:.86;
-  transition:opacity .18s ease,transform .18s ease,text-shadow .18s ease;
+.player-drop-zone[data-drop-zone="1"]{
+  background:
+    radial-gradient(60% 96% at 110% 50%,
+      rgba(var(--zone),.54) 0%,
+      rgba(var(--zone),.28) 35%,
+      rgba(var(--zone),.09) 59%,
+      rgba(var(--zone),0) 74%),
+    linear-gradient(270deg,
+      rgba(var(--zone),.34) 0%,
+      rgba(var(--zone),.12) 15%,
+      rgba(var(--zone),0) 33%);
+  box-shadow:
+    inset -86px 0 150px -70px rgba(var(--zone),.6),
+    inset -24px 0 52px -18px rgba(var(--zone),.34);
 }
-.player-drop-zone.hot b,
-.player-drop-zone.fired b{opacity:1;transform:none}
-.player-drop-zone.armed b{text-shadow:0 1px 12px rgba(0,0,0,.3),0 0 18px rgba(255,255,255,.38)}
 .player.dropping{pointer-events:none}
 
 /* settings drawer */

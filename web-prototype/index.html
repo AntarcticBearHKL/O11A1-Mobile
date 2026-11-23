@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=169">
-  <link rel="stylesheet" href="./fonts.css?v=169">
+  <link rel="stylesheet" href="./styles.css?v=170">
+  <link rel="stylesheet" href="./fonts.css?v=170">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -428,11 +428,11 @@
     </div>
   </div>
 
-  <!-- 下拉播放器：底部独立投放条，左 2/9 / 中 5/9 / 右 2/9 -->
+  <!-- 下拉播放器：向下关闭视频，向下后左右放回播放列表 -->
   <div class="player-drop" id="playerDrop" aria-hidden="true">
-    <div class="player-drop-zone close" data-drop-zone="-1"><b>关闭视频</b></div>
-    <div class="player-drop-zone background" data-drop-zone="0"><b>进入后台</b></div>
-    <div class="player-drop-zone close" data-drop-zone="1"><b>关闭视频</b></div>
+    <div class="player-drop-zone close" data-drop-zone="0"></div>
+    <div class="player-drop-zone playlist" data-drop-zone="-1"></div>
+    <div class="player-drop-zone playlist" data-drop-zone="1"></div>
   </div>
 
   <!-- UP 主主页：从右侧滑入，覆盖播放器 -->
@@ -468,8 +468,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=169"></script>
-  <script src="./app.js?v=169"></script>
-  <script src="./native.js?v=169"></script>
+  <script src="./vendor/hls.min.js?v=170"></script>
+  <script src="./app.js?v=170"></script>
+  <script src="./native.js?v=170"></script>
 </body>
 </html>
