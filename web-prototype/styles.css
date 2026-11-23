@@ -2808,7 +2808,27 @@ body[data-theme="light"] .my-page{
 }
 .search-fab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round}
 .search-fab:active{transform:scale(.94)}
-.app.auth-gate .search-fab{display:none}
+.queue-fab{
+  position:absolute;right:74px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:60;
+  width:46px;height:46px;border-radius:50%;
+  display:grid;place-items:center;cursor:pointer;
+  border:1px solid var(--glass-border);background:var(--glass-bg);
+  color:var(--ink);box-shadow:var(--glass-shadow);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+  transition:transform .12s ease,background .15s ease;
+}
+.queue-fab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.queue-fab:active{transform:scale(.94)}
+.queue-fab-count{
+  position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 4px;
+  display:grid;place-items:center;border-radius:999px;
+  background:var(--blue);color:#fff;font-size:9.5px;font-weight:800;line-height:1;
+  border:2px solid var(--paper);
+}
+.queue-fab-count[hidden]{display:none}
+.app.auth-gate .search-fab,
+.app.auth-gate .queue-fab,
+.app[data-page="playlist"] .queue-fab{display:none}
 
 /* the bottom playlist dock is retired; search lives in the floating button */
 .playlist-dock{display:none!important}
