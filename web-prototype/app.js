@@ -563,7 +563,7 @@
     const style = document.body.style;
     document.body.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
-    style.setProperty('--wallpaper-opacity', (0.22 + (100 - bg) / 100 * 0.78).toFixed(3));
+    style.setProperty('--wallpaper-opacity', (0.12 + (100 - bg) / 100 * 0.78).toFixed(3));
     style.setProperty('--wallpaper-blur', `${(bgBlur / 100 * 60).toFixed(1)}px`);
     style.setProperty('--glass-blur', `blur(${(glass / 100 * 30).toFixed(1)}px) saturate(${dark ? 1.25 : 1.6})`);
     style.setProperty('--topbar-blur', `blur(${(glass / 100 * 26).toFixed(1)}px) saturate(1.5)`);
@@ -571,25 +571,25 @@
     const sheetAlpha = 0.62 + (100 - glass) / 100 * 0.3;
     if (dark) {
       style.setProperty('--glass-bg', ios
-        ? `linear-gradient(135deg,rgba(28,34,46,${(glassAlpha + 0.02).toFixed(2)}),rgba(16,20,28,${(glassAlpha - 0.14).toFixed(2)}))`
-        : `rgba(18,22,30,${glassAlpha.toFixed(2)})`);
-      style.setProperty('--glass-border', 'rgba(120,140,170,.22)');
-      style.setProperty('--sheet-bg', `rgba(20,24,32,${sheetAlpha.toFixed(2)})`);
-      style.setProperty('--sheet-border', 'rgba(120,140,170,.22)');
-      style.setProperty('--topbar-bg', `linear-gradient(180deg,rgba(11,13,18,${(sheetAlpha + 0.04).toFixed(2)}),rgba(11,13,18,${(sheetAlpha - 0.28).toFixed(2)}))`);
-      style.setProperty('--topbar-border', 'rgba(120,140,170,.16)');
+        ? `linear-gradient(135deg,rgba(24,25,30,${(glassAlpha + 0.02).toFixed(2)}),rgba(15,16,19,${(glassAlpha - 0.14).toFixed(2)}))`
+        : `rgba(24,25,30,${glassAlpha.toFixed(2)})`);
+      style.setProperty('--glass-border', 'rgba(255,255,255,.10)');
+      style.setProperty('--sheet-bg', `rgba(24,25,30,${sheetAlpha.toFixed(2)})`);
+      style.setProperty('--sheet-border', 'rgba(255,255,255,.10)');
+      style.setProperty('--topbar-bg', `linear-gradient(180deg,rgba(15,16,19,${(sheetAlpha + 0.04).toFixed(2)}),rgba(15,16,19,${(sheetAlpha - 0.28).toFixed(2)}))`);
+      style.setProperty('--topbar-border', 'rgba(255,255,255,.08)');
     } else {
       style.setProperty('--glass-bg', ios
-        ? `linear-gradient(135deg,rgba(255,255,255,${(glassAlpha + 0.16).toFixed(2)}),rgba(255,255,255,${(glassAlpha - 0.12).toFixed(2)}))`
-        : `rgba(250,250,252,${glassAlpha.toFixed(2)})`);
-      style.setProperty('--glass-border', 'rgba(0,0,0,.08)');
-      style.setProperty('--sheet-bg', `rgba(255,255,255,${sheetAlpha.toFixed(2)})`);
-      style.setProperty('--sheet-border', 'rgba(0,0,0,.08)');
-      style.setProperty('--topbar-bg', `linear-gradient(180deg,rgba(250,250,252,${(sheetAlpha + 0.04).toFixed(2)}),rgba(250,250,252,${(sheetAlpha - 0.3).toFixed(2)}))`);
-      style.setProperty('--topbar-border', 'rgba(0,0,0,.06)');
+        ? `linear-gradient(135deg,rgba(255,252,246,${(glassAlpha + 0.16).toFixed(2)}),rgba(255,252,246,${(glassAlpha - 0.12).toFixed(2)}))`
+        : `rgba(255,252,246,${glassAlpha.toFixed(2)})`);
+      style.setProperty('--glass-border', 'rgba(31,28,23,.10)');
+      style.setProperty('--sheet-bg', `rgba(255,252,246,${sheetAlpha.toFixed(2)})`);
+      style.setProperty('--sheet-border', 'rgba(31,28,23,.10)');
+      style.setProperty('--topbar-bg', `linear-gradient(180deg,rgba(243,239,231,${(sheetAlpha + 0.04).toFixed(2)}),rgba(243,239,231,${(sheetAlpha - 0.3).toFixed(2)}))`);
+      style.setProperty('--topbar-border', 'rgba(31,28,23,.08)');
     }
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', dark ? '#0B0D12' : '#FAFAFC');
+    if (meta) meta.setAttribute('content', dark ? '#0F1013' : '#F3EFE7');
   }
 
   if (window.matchMedia) {

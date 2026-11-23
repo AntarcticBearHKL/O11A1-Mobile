@@ -47,7 +47,7 @@ public final class MainActivity extends Activity {
         WebAppBridge bridge = new WebAppBridge(this, api, proxy, cookies);
 
         webView = new WebView(this);
-        webView.setBackgroundColor(Color.rgb(250, 250, 252));
+        webView.setBackgroundColor(Color.rgb(243, 239, 231));
         webView.setLongClickable(false);
         webView.setHapticFeedbackEnabled(false);
 
@@ -89,7 +89,7 @@ public final class MainActivity extends Activity {
         });
 
         setContentView(webView);
-        webView.loadUrl("file:///android_asset/web/index.html?v=161");
+        webView.loadUrl("file:///android_asset/web/index.html?v=162");
         Thread warm = new Thread(() -> cookies.ensureBuvid(), "o11a1-buvid");
         warm.setDaemon(true);
         warm.start();
