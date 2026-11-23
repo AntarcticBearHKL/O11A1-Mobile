@@ -94,6 +94,7 @@
   const dockPlaylistList = $('#dockPlaylistList');
   const playlistPageList = $('#playlistPageList');
   const playlistPageCount = $('#playlistPageCount');
+  const playlistPageHint = $('.playlist-page-hint');
   const playlistBack = $('#playlistBack');
   const moduleSettings = $('#moduleSettings');
   const moduleCount = $('#moduleCount');
@@ -376,6 +377,8 @@
   let suppressDockSearchClickUntil = 0;
   let playlistDrag = null;
   let playlistRowPress = null;
+  let playlistRowSwipe = null;
+  let playlistRowSwipeSuppressClickUntil = 0;
   let playlistRowReorder = null;
   let playlistRowReorderSuppressClickUntil = 0;
   let toolbarDrag = null;
@@ -1485,14 +1488,28 @@
   }
 
   /* ---------- playlist (floating dock + page) ---------- */
-  function playlistItemMarkup(item, removable) {
+  function playlistItemMarkup(item, index) {
+    const number = String(index + 1).padStart(2, '0');
+    const current = index === state.currentIndex;
+    const meta = item.meta || [item.owner, item.duration].filter(Boolean).join(' · ');
     return `
-      <span class="pl-thumb">${item.pic ? `<img src="${escapeHTML(item.pic)}" alt="" draggable="false">` : '<span class="ph-label">封面</span>'}</span>
-      <span class="pl-copy">
-        <span class="pl-title">${escapeHTML(item.title)}</span>
-        <span class="pl-meta">${escapeHTML(item.meta)}</span>
-      </span>
-      ${removable ? '<button class="pl-remove" type="button" title="移出播放列表">×</button>' : ''}`;
+      <span class="pl-queue">${number}</span>
+      <span class="pl-swipe-track">
+        <span class="pl-swipe-bg" aria-hidden="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1.2 13h9.6L18 7"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>
+          <b>删除</b>
+        </span>
+        <span class="pl-swipe-content">
+          <span class="pl-thumb">${item.pic ? `<img src="${escapeHTML(item.pic)}" alt="" draggable="false">` : '<span class="ph-label">封面</span>'}</span>
+          <span class="pl-copy">
+            <span class="pl-title">${escapeHTML(item.title || '视频')}</span>
+            <span class="pl-meta">
+              <span class="pl-meta-text">${escapeHTML(meta)}</span>
+              ${current ? '<span class="pl-now">当前</span>' : ''}
+            </span>
+          </span>
+        </span>
+      </span>`;
   }
 
   function setDockExpanded(expanded) {
@@ -1551,25 +1568,23 @@
       row.className = `playlist-page-item${index === state.currentIndex ? ' on' : ''}`;
       row.setAttribute('role', 'button');
       row.tabIndex = 0;
-      row.innerHTML = playlistItemMarkup(item, true);
+      row.innerHTML = playlistItemMarkup(item, index);
       const open = () => openPlaylistItem(index, row);
       row.addEventListener('click', (event) => {
         if (Date.now() < playlistRowReorderSuppressClickUntil) return;
-        if (event.target.closest('.pl-remove')) return;
+        if (Date.now() < playlistRowSwipeSuppressClickUntil) return;
         open();
       });
       row.addEventListener('keydown', (event) => {
+        if (event.key === 'Delete') {
+          event.preventDefault();
+          removeFromPlaylist(index);
+          return;
+        }
         if (event.key !== 'Enter' && event.key !== ' ') return;
         event.preventDefault();
         open();
       });
-      const remove = $('.pl-remove', row);
-      if (remove) {
-        remove.addEventListener('click', (event) => {
-          event.stopPropagation();
-          removeFromPlaylist(index);
-        });
-      }
       dockPlaylistList.appendChild(row);
     });
   }
@@ -1828,6 +1843,7 @@
     clearArmed = false;
     clearTimeout(clearTimer);
     playlistPageCount.textContent = `${count} 项`;
+    if (playlistPageHint) playlistPageHint.hidden = count === 0;
     playlistPageList.innerHTML = '';
     if (!count) {
       const empty = document.createElement('div');
@@ -1847,22 +1863,22 @@
       row.className = `playlist-page-item${index === state.currentIndex ? ' on' : ''}`;
       row.setAttribute('role', 'button');
       row.tabIndex = 0;
-      row.innerHTML = playlistItemMarkup(item, true);
+      row.innerHTML = playlistItemMarkup(item, index);
       const openItem = () => openPlaylistItem(index, row);
       row.addEventListener('click', (event) => {
         if (Date.now() < playlistRowReorderSuppressClickUntil) return;
-        if (event.target.closest('.pl-remove')) return;
+        if (Date.now() < playlistRowSwipeSuppressClickUntil) return;
         openItem();
       });
       row.addEventListener('keydown', (event) => {
+        if (event.key === 'Delete') {
+          event.preventDefault();
+          removeFromPlaylist(index);
+          return;
+        }
         if (event.key !== 'Enter' && event.key !== ' ') return;
         event.preventDefault();
         openItem();
-      });
-      const remove = $('.pl-remove', row);
-      remove.addEventListener('click', (event) => {
-        event.stopPropagation();
-        removeFromPlaylist(index);
       });
       playlistPageList.appendChild(row);
     });
@@ -1892,11 +1908,50 @@
   /* ---------- playlist row long-press reorder ---------- */
   const PLAYLIST_ROW_HOLD_MS = 380;
   const PLAYLIST_ROW_HOLD_SLOP = 10;
+  const PLAYLIST_SWIPE_ARM = 58;
+  const PLAYLIST_SWIPE_MAX = 96;
 
   function cancelPlaylistRowPress() {
     if (!playlistRowPress) return;
     clearTimeout(playlistRowPress.timer);
     playlistRowPress = null;
+  }
+
+  function resetPlaylistRowSwipe(swipe = playlistRowSwipe) {
+    if (!swipe) return;
+    if (swipe.content) swipe.content.style.transform = '';
+    if (swipe.row) {
+      swipe.row.classList.remove('pl-swiping');
+      swipe.row.style.removeProperty('--pl-swipe');
+      swipe.row.style.removeProperty('--pl-swipe-px');
+    }
+    if (playlistRowSwipe === swipe) playlistRowSwipe = null;
+  }
+
+  function updatePlaylistRowSwipe(swipe) {
+    if (!swipe || !swipe.content) return;
+    const progress = Math.min(1, Math.max(0, -swipe.offset / PLAYLIST_SWIPE_MAX));
+    swipe.content.style.transform = `translate3d(${swipe.offset}px,0,0)`;
+    swipe.row.style.setProperty('--pl-swipe', progress.toFixed(3));
+    swipe.row.style.setProperty('--pl-swipe-px', `${Math.max(0, -swipe.offset).toFixed(1)}px`);
+  }
+
+  function deletePlaylistRow(swipe) {
+    if (!swipe || swipe.deleting) return;
+    const rows = Array.from(swipe.list.querySelectorAll('.playlist-page-item'));
+    const index = rows.indexOf(swipe.row);
+    if (index < 0) return;
+    const item = state.playlist[index];
+    if (!item) return;
+    swipe.deleting = true;
+    swipe.row.classList.remove('pl-swiping');
+    swipe.row.classList.add('pl-removing');
+    swipe.row.style.setProperty('--pl-swipe', '1');
+    swipe.row.style.setProperty('--pl-swipe-px', '100%');
+    setTimeout(() => {
+      const at = state.playlist.indexOf(item);
+      if (at >= 0) removeFromPlaylist(at);
+    }, 220);
   }
 
   function handlePlaylistRowPointerDown(event) {
@@ -1905,8 +1960,11 @@
     const list = event.currentTarget;
     const row = event.target.closest('.playlist-page-item');
     if (!row || row.parentElement !== list) return;
-    if (event.target.closest('.pl-remove, button, a, input, textarea')) return;
+    if (event.target.closest('button, a, input, textarea')) return;
+    const content = row.querySelector('.pl-swipe-content');
+    if (!content) return;
     cancelPlaylistRowPress();
+    resetPlaylistRowSwipe();
     const press = {
       id: event.pointerId,
       list,
@@ -1921,10 +1979,22 @@
       startPlaylistRowReorder(press);
     }, PLAYLIST_ROW_HOLD_MS);
     playlistRowPress = press;
+    playlistRowSwipe = {
+      id: event.pointerId,
+      list,
+      row,
+      content,
+      startX: event.clientX,
+      startY: event.clientY,
+      offset: 0,
+      active: false,
+      deleting: false,
+    };
   }
 
   function startPlaylistRowReorder(press) {
     playlistRowPress = null;
+    playlistRowSwipe = null;
     if (!press.row.isConnected || playlistRowReorder) return;
     const rows = Array.from(press.list.querySelectorAll('.playlist-page-item'));
     const startIndex = rows.indexOf(press.row);
@@ -2068,6 +2138,31 @@
   }
 
   window.addEventListener('pointermove', (event) => {
+    if (playlistRowSwipe && event.pointerId === playlistRowSwipe.id) {
+      const swipe = playlistRowSwipe;
+      if (swipe.deleting) return;
+      const dx = event.clientX - swipe.startX;
+      const dy = event.clientY - swipe.startY;
+      if (!swipe.active) {
+        if (Math.abs(dx) < 9 && Math.abs(dy) < 9) return;
+        if (dx < -9 && Math.abs(dx) > Math.abs(dy) * 1.12) {
+          cancelPlaylistRowPress();
+          swipe.active = true;
+          swipe.row.classList.add('pl-swiping');
+          playlistRowSwipeSuppressClickUntil = Date.now() + 420;
+          suppressPlaylistClickUntil = Math.max(suppressPlaylistClickUntil, playlistRowSwipeSuppressClickUntil);
+          suppressDockClickUntil = Math.max(suppressDockClickUntil, playlistRowSwipeSuppressClickUntil);
+        } else {
+          playlistRowSwipe = null;
+          cancelPlaylistRowPress();
+          return;
+        }
+      }
+      if (event.cancelable) event.preventDefault();
+      swipe.offset = Math.max(-PLAYLIST_SWIPE_MAX, Math.min(0, dx));
+      updatePlaylistRowSwipe(swipe);
+      return;
+    }
     if (playlistRowReorder && event.pointerId === playlistRowReorder.id) {
       if (event.cancelable) event.preventDefault();
       updatePlaylistRowReorder(event.clientY);
@@ -2087,11 +2182,41 @@
   }, { passive: false });
 
   window.addEventListener('pointerup', (event) => {
+    if (playlistRowSwipe && event.pointerId === playlistRowSwipe.id) {
+      const swipe = playlistRowSwipe;
+      playlistRowSwipe = null;
+      cancelPlaylistRowPress();
+      if (swipe.active) {
+        playlistRowSwipeSuppressClickUntil = Date.now() + 420;
+        suppressPlaylistClickUntil = Math.max(suppressPlaylistClickUntil, playlistRowSwipeSuppressClickUntil);
+        suppressDockClickUntil = Math.max(suppressDockClickUntil, playlistRowSwipeSuppressClickUntil);
+        if (swipe.offset <= -PLAYLIST_SWIPE_ARM) {
+          deletePlaylistRow(swipe);
+        } else {
+          swipe.row.classList.remove('pl-swiping');
+          swipe.content.style.transform = '';
+          swipe.row.style.removeProperty('--pl-swipe');
+          swipe.row.style.removeProperty('--pl-swipe-px');
+        }
+      }
+      return;
+    }
     if (playlistRowPress && event.pointerId === playlistRowPress.id) cancelPlaylistRowPress();
     if (playlistRowReorder && event.pointerId === playlistRowReorder.id) finishPlaylistRowReorder(true);
   });
 
   window.addEventListener('pointercancel', (event) => {
+    if (playlistRowSwipe && event.pointerId === playlistRowSwipe.id) {
+      const swipe = playlistRowSwipe;
+      playlistRowSwipe = null;
+      if (swipe.active) {
+        swipe.row.classList.remove('pl-swiping');
+        swipe.content.style.transform = '';
+        swipe.row.style.removeProperty('--pl-swipe');
+        swipe.row.style.removeProperty('--pl-swipe-px');
+      }
+      cancelPlaylistRowPress();
+    }
     if (playlistRowPress && event.pointerId === playlistRowPress.id) cancelPlaylistRowPress();
     if (playlistRowReorder && event.pointerId === playlistRowReorder.id) finishPlaylistRowReorder(false);
   });
@@ -5257,7 +5382,7 @@
   playlistPage.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (!playlistPage.classList.contains('active')) return;
-    if (event.target.closest('button, .pl-remove')) return;
+    if (event.target.closest('button')) return;
     const header = event.target.closest('.playlist-grab, .playlist-page-top');
     if (!header && appScroll.scrollTop > 0) return;
     playlistDrag = {
