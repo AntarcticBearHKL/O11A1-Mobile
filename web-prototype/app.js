@@ -15,6 +15,8 @@
   const pcPlay = $('#pcPlay');
   const pcQuality = $('#pcQuality');
   const pcQualityValue = $('#pcQualityValue');
+  const pcDanmaku = $('#pcDanmaku');
+  const pcDanmakuValue = $('#pcDanmakuValue');
   const pcLoop = $('#pcLoop');
   const pcLoopValue = $('#pcLoopValue');
   const progressBar = $('#progressBar');
@@ -471,6 +473,12 @@
       panel: $('#pcQualityPanel'),
       data: sheetData.quality,
     },
+    danmaku: {
+      group: $('#pcDanmakuGroup'),
+      row: $('#pcDanmaku'),
+      panel: $('#pcDanmakuPanel'),
+      data: null,
+    },
   };
   const pcOpenPanels = new Set();
 
@@ -496,6 +504,14 @@
     });
   }
 
+  function renderPcDanmakuPanel(panel) {
+    if (!panel) return;
+    panel.innerHTML = '';
+    settingsDefinition('settings-danmaku').rows
+      .filter((row) => row.type !== 'static')
+      .forEach((row) => panel.appendChild(buildSettingRow(row)));
+  }
+
   function setPcPanel(name) {
     const opening = !pcOpenPanels.has(name);
     pcOpenPanels.clear();
@@ -505,7 +521,8 @@
       config.group.classList.toggle('open', open);
       config.row.setAttribute('aria-expanded', open ? 'true' : 'false');
       if (!open) return;
-      renderPcChoicePanel(config.panel, config.data);
+      if (key === 'danmaku') renderPcDanmakuPanel(config.panel);
+      else renderPcChoicePanel(config.panel, config.data);
     });
   }
 
@@ -3078,6 +3095,7 @@
   }
 
   function applyDanmakuSettings() {
+    if (pcDanmakuValue) pcDanmakuValue.textContent = state.settings.danmaku ? '开' : '关';
     if (window.O11A1NativeData && typeof window.O11A1NativeData.applyDanmakuStyle === 'function') {
       try {
         window.O11A1NativeData.applyDanmakuStyle();
@@ -3091,6 +3109,7 @@
 
   function updatePlayerLabels() {
     pcQualityValue.textContent = state.settings.quality;
+    if (pcDanmakuValue) pcDanmakuValue.textContent = state.settings.danmaku ? '开' : '关';
     pcLoopValue.textContent = state.settings.loop;
     setProgress(state.progress);
     updatePlaylistDock();
@@ -5349,6 +5368,19 @@
           { type: 'static', label: '解码策略', value: '系统硬解 · 渐进优先 · 60Hz' },
         ],
       },
+      'settings-danmaku': {
+        title: '弹幕',
+        sub: '实时生效，现有弹幕不清空；屏蔽规则在「我的 → 屏蔽」',
+        rows: [
+          { type: 'switch', label: '弹幕显示', key: 'danmaku', onChange: applyDanmakuSettings },
+          { type: 'slider', label: '不透明度', key: 'danmakuOpacity', min: 0, max: 100, unit: '%', onChange: applyDanmakuSettings },
+          { type: 'slider', label: '字号', key: 'danmakuSize', min: 50, max: 150, unit: '%', onChange: applyDanmakuSettings },
+          { type: 'slider', label: '速度', key: 'danmakuSpeed', min: 50, max: 200, step: 10, format: (v) => `${(v / 100).toFixed(1)}×`, onChange: applyDanmakuSettings },
+          { type: 'choice', label: '显示区域', key: 'danmakuArea', options: ['全屏', '1/2 屏', '1/3 屏'], onChange: applyDanmakuSettings },
+          { type: 'switch', label: '分布密度', key: 'danmakuDensity', onChange: applyDanmakuSettings },
+          { type: 'static', label: '弹幕节拍', value: 'CSS 动画 · 跟随显示刷新' },
+        ],
+      },
       'settings-appearance': {
         title: '外观',
         sub: '浅色 / 深色 / 跟随系统；背景透明度与模糊分别控制',
@@ -5704,6 +5736,7 @@
 
   /* player */
   pcQuality.addEventListener('click', () => setPcPanel('quality'));
+  pcDanmaku.addEventListener('click', () => setPcPanel('danmaku'));
   pcLoop.addEventListener('click', cycleLoop);
   lockBadge.addEventListener('click', unlockPlayer);
 

@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=194">
-  <link rel="stylesheet" href="./fonts.css?v=194">
+  <link rel="stylesheet" href="./styles.css?v=195">
+  <link rel="stylesheet" href="./fonts.css?v=195">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -189,9 +189,10 @@
         </div>
       </div>
       <div class="settings-group">
-        <div class="section-label">播放</div>
+        <div class="section-label">播放与弹幕</div>
         <div class="my-list">
           <button class="my-row" data-sheet="settings-playback"><span>播放</span><span class="my-meta">画质 / 硬解 / 默认</span></button>
+          <button class="my-row" data-sheet="settings-danmaku"><span>弹幕</span><span class="my-meta">显示 / 字号 / 速度 / 屏蔽</span></button>
         </div>
       </div>
       <div class="settings-group">
@@ -375,6 +376,12 @@
             </button>
             <div class="pc-panel" id="pcQualityPanel"></div>
           </div>
+          <div class="pc-group" id="pcDanmakuGroup">
+            <button class="pc-row" id="pcDanmaku" type="button" aria-expanded="false">
+              <span class="pc-row-label">弹幕设置</span><span class="pc-row-value" id="pcDanmakuValue">开</span>
+            </button>
+            <div class="pc-panel pc-panel-controls" id="pcDanmakuPanel"></div>
+          </div>
           <button class="pc-row" id="pcLoop" type="button">
             <span class="pc-row-label">循环模式</span><span class="pc-row-value" id="pcLoopValue">循环</span>
           </button>
@@ -465,8 +472,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=194"></script>
-  <script src="./app.js?v=194"></script>
-  <script src="./native.js?v=194"></script>
+  <script src="./vendor/hls.min.js?v=195"></script>
+  <script src="./app.js?v=195"></script>
+  <script src="./native.js?v=195"></script>
 </body>
 </html>
