@@ -5387,8 +5387,6 @@
     renderNavSettings();
   });
 
-  const myBack = $('#myBack');
-  if (myBack) myBack.addEventListener('click', () => closeMyPageFromSwipe());
   if (loginStart) loginStart.addEventListener('click', openOfficialLogin);
 
   dynamicFilter.addEventListener('click', () => {
