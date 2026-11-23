@@ -679,6 +679,7 @@
       showPage('login');
       return;
     }
+    stopFeedPreview();
     cancelSidebarSettle();
     renderSidebar();
     updateMiniPlayer();
@@ -707,6 +708,19 @@
     app.classList.remove('sidebar-open');
     updatePlaylistDock();
     if (sidebar.contains(document.activeElement)) document.activeElement.blur();
+    setTimeout(refreshFeedPreview, 420);
+  }
+
+  function stopFeedPreview() {
+    if (window.O11A1Host && typeof window.O11A1Host.stopFeedPreview === 'function') {
+      window.O11A1Host.stopFeedPreview();
+    }
+  }
+
+  function refreshFeedPreview() {
+    if (window.O11A1Host && typeof window.O11A1Host.updateFeedPreview === 'function') {
+      window.O11A1Host.updateFeedPreview();
+    }
   }
 
   function handleNav(item, button) {
@@ -751,6 +765,7 @@
   }
 
   function openSearch() {
+    stopFeedPreview();
     if (!state.loggedIn) {
       showPage('login');
       return;
@@ -813,6 +828,7 @@
     searchPanel.style.transform = '';
     searchPanel.style.opacity = '';
     searchPanel.style.boxShadow = '';
+    setTimeout(refreshFeedPreview, 420);
   }
 
   function resetSearchResultsDrag() {
@@ -983,6 +999,7 @@
       page = 'login';
       navId = null;
     }
+    if (page !== previousPage) stopFeedPreview();
     if (page !== 'up') setUpRecede(0);
     if (page !== 'my') setMyRecede(0);
     if (page === 'my' && myPage) {
@@ -1139,6 +1156,7 @@
     updateNavActive();
     updatePlaylistDock();
     if (!returningToBase && !returningFromSearch) appScroll.scrollTop = 0;
+    setTimeout(refreshFeedPreview, 260);
   }
 
   function openModulePage(name, navId) {
@@ -1190,7 +1208,13 @@
     return `
       <button class="video-row" type="button" data-open-player>
         <span class="row-thumb ${v.thumb}"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span>
-        <span class="row-copy"><span class="ph-title"><i class="ph-line ${v.w1}"></i><i class="ph-line ${v.w2}"></i></span><span class="row-meta"><i class="ph-line ${v.m1}"></i><i class="ph-line ${v.m2}"></i></span></span>
+        <span class="row-copy">
+          <span class="row-avatar"><span>O</span></span>
+          <span class="row-text">
+            <span class="ph-title"><i class="ph-line ${v.w1}"></i><i class="ph-line ${v.w2}"></i></span>
+            <span class="row-meta"><i class="ph-line ${v.m1}"></i><i class="ph-line ${v.m2}"></i></span>
+          </span>
+        </span>
       </button>`;
   }
 
@@ -1220,9 +1244,12 @@
         <span class="video-row skel-row">
           <span class="row-thumb skel-thumb"></span>
           <span class="row-copy">
-            <span class="ph-line w80"></span>
-            <span class="ph-line w55"></span>
-            <span class="ph-line w30"></span>
+            <span class="row-avatar skel-avatar"></span>
+            <span class="row-text">
+              <span class="ph-line w80"></span>
+              <span class="ph-line w55"></span>
+              <span class="ph-line w30"></span>
+            </span>
           </span>
         </span>`;
       fragment.appendChild(row);
@@ -2319,6 +2346,7 @@
   }
 
   function openPlaylistPage() {
+    stopFeedPreview();
     if (!state.loggedIn) {
       showPage('login');
       return;
@@ -3370,6 +3398,7 @@
   });
 
   function openPlayer(options = {}) {
+    stopFeedPreview();
     if (!state.loggedIn) {
       showPage('login');
       return;
@@ -3750,6 +3779,7 @@
     if (window.O11A1Media && typeof window.O11A1Media.onMinimize === 'function') {
       window.O11A1Media.onMinimize();
     }
+    setTimeout(refreshFeedPreview, 560);
   }
 
   function stopPlayback() {
@@ -6881,17 +6911,23 @@
     }
 
     const metaEl = row.querySelector('.real-meta');
-    const metaOwner = row.querySelector('.meta-owner-name');
     const metaFresh = row.querySelector('.meta-fresh');
+    const metaPlay = row.querySelector('.meta-play');
     const metaTitle = row.querySelector('.real-title');
+    const copyEl = row.querySelector('.row-copy');
+    const avatarEl = row.querySelector('.row-avatar');
+    const thumbEl = row.querySelector('.row-thumb');
     let feedMeta = false;
-    if (metaEl && metaOwner && metaFresh && metaTitle) {
-      const metaRect = metaEl.getBoundingClientRect();
-      const ownerRect = metaOwner.getBoundingClientRect();
-      const freshRect = metaFresh.getBoundingClientRect();
-      feedMeta = Math.abs(ownerRect.left - metaRect.left) < 1.5
-        && Math.abs(freshRect.right - metaRect.right) < 1.5
-        && getComputedStyle(metaFresh, '::before').content === 'none'
+    if (metaEl && metaFresh && metaPlay && metaTitle && copyEl && avatarEl && thumbEl) {
+      const copyRect = copyEl.getBoundingClientRect();
+      const avatarRect = avatarEl.getBoundingClientRect();
+      const titleRect = metaTitle.getBoundingClientRect();
+      feedMeta = Math.abs(thumbEl.getBoundingClientRect().width - row.getBoundingClientRect().width) < 1
+        && parseFloat(getComputedStyle(thumbEl).borderRadius) >= 10
+        && Math.abs(avatarRect.left - (copyRect.left + 16)) < 3
+        && Math.abs(titleRect.left - (avatarRect.right + 12)) < 3
+        && metaPlay.textContent.includes('播放')
+        && Boolean(metaFresh.style.color)
         && parseFloat(getComputedStyle(metaTitle).fontSize) >= 15
         && parseFloat(getComputedStyle(metaEl).fontSize) >= 11;
     }

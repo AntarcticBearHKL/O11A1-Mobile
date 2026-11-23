@@ -368,6 +368,7 @@ final class BiliApi {
                 out.put("ownerFace", https(ownerObj.optString("face", "")));
             } else {
                 out.put("mid", item.optLong("mid", 0));
+                out.put("ownerFace", https(item.optString("upic", "")));
             }
             out.put("duration", duration);
             out.put("play", play);

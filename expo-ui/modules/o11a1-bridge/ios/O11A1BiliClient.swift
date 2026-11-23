@@ -300,14 +300,17 @@ final class O11A1BiliClient {
     let pic = o11a1HTTPS(rawPic)
     var owner = "UP 主"
     var ownerMid: Int64 = 0
+    var ownerFace = ""
     if let ownerObject = item["owner"] as? [String: Any] {
       let name = o11a1StripHTML(o11a1String(ownerObject["name"]))
       if !name.isEmpty { owner = name }
       ownerMid = o11a1Int64(ownerObject["mid"])
+      ownerFace = o11a1HTTPS(o11a1String(ownerObject["face"]))
     } else {
       let name = o11a1StripHTML(o11a1String(item["author"]))
       if !name.isEmpty { owner = name }
       ownerMid = o11a1Int64(item["uid"])
+      ownerFace = o11a1HTTPS(o11a1String(item["upic"]))
     }
     let durationSeconds = search
       ? o11a1DurationSeconds(o11a1String(item["duration"]))
@@ -334,6 +337,7 @@ final class O11A1BiliClient {
       "title": title,
       "pic": pic,
       "owner": owner,
+      "ownerFace": ownerFace,
       "duration": duration,
       "durationSec": durationSeconds,
       "pubdate": o11a1Int64(item["pubdate"]) != 0 ? o11a1Int64(item["pubdate"]) : o11a1Int64(item["ctime"]),
@@ -967,6 +971,7 @@ final class O11A1BiliClient {
         "title": o11a1StripHTML(o11a1String(row["title"])),
         "pic": o11a1HTTPS(o11a1String(row["pic"])),
         "owner": owner,
+        "ownerFace": o11a1HTTPS(o11a1String(row["face"])),
         "mid": o11a1Int64(row["mid"]) != 0 ? o11a1Int64(row["mid"]) : mid,
         "duration": duration,
         "durationSec": o11a1DurationSeconds(duration),

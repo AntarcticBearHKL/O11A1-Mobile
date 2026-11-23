@@ -207,9 +207,12 @@
         <span class="video-row skel-row">
           <span class="row-thumb skel-thumb"></span>
           <span class="row-copy">
-            <span class="ph-line w80"></span>
-            <span class="ph-line w55"></span>
-            <span class="ph-line w30"></span>
+            <span class="row-avatar skel-avatar"></span>
+            <span class="row-text">
+              <span class="ph-line w80"></span>
+              <span class="ph-line w55"></span>
+              <span class="ph-line w30"></span>
+            </span>
           </span>
         </span>`;
       fragment.appendChild(row);
@@ -380,14 +383,19 @@
     const owner = item.owner || '';
     const fresh = item.live ? '直播中' : feedFreshness(item.pubdate);
     const color = item.live ? '#d97862' : feedFreshnessColor(item.pubdate);
+    const playText = item.playText || (item.play ? countText(item.play) : '');
     const ownerMarkup = owner
       ? `<span class="meta-owner"><span class="meta-owner-name">${esc(owner)}</span></span>`
+      : '';
+    const playMarkup = playText && !item.live
+      ? `<span class="meta-play">${esc(playText)}播放</span>`
       : '';
     const freshMarkup = fresh
       ? `<span class="meta-fresh" style="color:${color}">${esc(fresh)}</span>`
       : '';
-    return (ownerMarkup || freshMarkup)
-      ? `<span class="real-meta">${ownerMarkup}${freshMarkup}</span>`
+    const parts = [ownerMarkup, playMarkup, freshMarkup].filter(Boolean);
+    return parts.length
+      ? `<span class="real-meta">${parts.join('<span class="meta-dot">·</span>')}</span>`
       : '';
   }
 
@@ -409,19 +417,28 @@
         ${progress ? `<span class="row-progress"><span style="width:${progress}%"></span></span>` : ''}
       </span>
       <span class="row-copy">
-        <span class="real-title">${esc(item.title || '视频')}</span>
-        ${metaMarkup(item, label)}
+        <span class="row-avatar">${item.ownerFace ? `<img src="${attr(item.ownerFace)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : `<span>${esc((item.owner || 'UP').slice(0, 1))}</span>`}</span>
+        <span class="row-text">
+          <span class="real-title">${esc(item.title || '视频')}</span>
+          ${metaMarkup(item, label)}
+        </span>
       </span>
       <span class="row-swipe-mask" aria-hidden="true" data-action="queue">
         <b class="rsm-label">加入播放列表</b>
         <small class="rsm-hint">左滑加入</small>
       </span>`;
-    const image = $('img', row);
+    const image = $('.row-thumb img', row);
     if (image) {
       const reveal = () => image.classList.add('loaded');
       if (image.complete && image.naturalWidth) reveal();
       else image.addEventListener('load', reveal, { once: true });
       image.addEventListener('error', () => image.remove());
+    }
+    const avatarImage = $('.row-avatar img', row);
+    if (avatarImage) {
+      avatarImage.addEventListener('error', () => {
+        avatarImage.parentNode.textContent = (item.owner || 'UP').slice(0, 1);
+      }, { once: true });
     }
     row.addEventListener('click', (event) => {
       if (host.isFeedClickSuppressed && host.isFeedClickSuppressed()) return;
@@ -562,6 +579,7 @@
   }
 
   function renderRows(feed, items, label, page) {
+    stopFeedPreview();
     clearFeedSkeletons(feed);
     resetFeedWindow(feed);
     feed.innerHTML = '';
@@ -569,6 +587,7 @@
     fw.label = label || '';
     for (let index = 0; index < items.length; index += 1) fw.queue.push(items[index]);
     renderWindowBlocks(feed);
+    scheduleWindowSettle(feed);
     scheduleBufferFill(feed);
   }
 
@@ -609,12 +628,147 @@
     return rows.length ? rows[rows.length - 1] : null;
   }
 
+  /* ---------- inline focused-card preview ---------- */
+  const previewUrlCache = new Map();
+  let previewVideo = null;
+  let previewRow = null;
+  let previewToken = 0;
+  let previewTimer = null;
+  let previewProgressFill = null;
+
+  function ensurePreviewVideo() {
+    if (previewVideo) return previewVideo;
+    const video = document.createElement('video');
+    video.className = 'feed-preview-video';
+    video.muted = true;
+    video.defaultMuted = true;
+    video.loop = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.setAttribute('aria-hidden', 'true');
+    video.preload = 'auto';
+    video.addEventListener('timeupdate', () => {
+      if (!previewProgressFill || !video.duration) return;
+      previewProgressFill.style.width = `${Math.min(100, (video.currentTime / video.duration) * 100)}%`;
+    });
+    previewVideo = video;
+    return video;
+  }
+
+  function stopFeedPreview() {
+    previewToken += 1;
+    clearTimeout(previewTimer);
+    previewTimer = null;
+    if (previewRow) {
+      previewRow.classList.remove('preview-active');
+      const thumb = previewRow.querySelector('.row-thumb');
+      if (thumb) {
+        thumb.classList.remove('preview-loading');
+        thumb.querySelectorAll('.preview-muted, .preview-progress').forEach((node) => node.remove());
+      }
+      previewRow = null;
+    }
+    if (!previewVideo) return;
+    previewProgressFill = null;
+    try { previewVideo.pause(); } catch (_) {}
+    previewVideo.classList.remove('show');
+    previewVideo.removeAttribute('src');
+    try { previewVideo.load(); } catch (_) {}
+    if (previewVideo.parentNode) previewVideo.parentNode.removeChild(previewVideo);
+  }
+
+  function previewUrlFor(item) {
+    const key = `${item.bvid}:${item.cid || 0}`;
+    if (previewUrlCache.has(key)) return previewUrlCache.get(key);
+    const result = call('playLow', item.bvid, item.cid || 0);
+    const url = result && result.ok ? String(result.url || '') : '';
+    previewUrlCache.set(key, url);
+    return url;
+  }
+
+  function updateFeedPreview(feed) {
+    if (!feed) return;
+    if (previewRow && !document.contains(previewRow)) stopFeedPreview();
+    const view = feedViewport(feed);
+    const paused = state.playerOpen
+      || host.app.classList.contains('sidebar-open')
+      || (state.searchOpen && feed !== feeds.search);
+    if (!view.isActive || paused) {
+      if (previewRow && feed.contains(previewRow)) stopFeedPreview();
+      return;
+    }
+    const row = feedFocusRow(feed, view.scroll);
+    if (!row || row === previewRow) return;
+    stopFeedPreview();
+    const item = row.__nativeItem;
+    if (!item || item.live || !item.bvid) return;
+    const thumb = row.querySelector('.row-thumb');
+    if (!thumb) return;
+    previewRow = row;
+    row.classList.add('preview-active');
+    const token = ++previewToken;
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => {
+      previewTimer = null;
+      if (token !== previewToken || !previewRow || !document.contains(row)) return;
+      const url = previewUrlFor(item);
+      if (!url || token !== previewToken) return;
+      const video = ensurePreviewVideo();
+      video.currentTime = 0;
+      video.src = url;
+      video.classList.add('show');
+      thumb.appendChild(video);
+      const muted = document.createElement('span');
+      muted.className = 'preview-muted';
+      muted.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.4L12 5.8v12.4L7.4 14.5H4z"/><path d="m16.5 9.5 5 5M21.5 9.5l-5 5"/></svg>';
+      const progress = document.createElement('span');
+      progress.className = 'preview-progress';
+      const fill = document.createElement('span');
+      progress.appendChild(fill);
+      thumb.appendChild(muted);
+      thumb.appendChild(progress);
+      previewProgressFill = fill;
+      thumb.classList.add('preview-loading');
+      const ready = () => thumb.classList.remove('preview-loading');
+      video.addEventListener('canplay', ready, { once: true });
+      video.addEventListener('playing', ready, { once: true });
+      video.addEventListener('error', () => {
+        ready();
+        video.classList.remove('show');
+        muted.remove();
+        progress.remove();
+      }, { once: true });
+      const attempt = video.play();
+      if (attempt && attempt.catch) attempt.catch(ready);
+    }, 240);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopFeedPreview();
+  });
+
+  if (host) {
+    host.stopFeedPreview = stopFeedPreview;
+    host.updateFeedPreview = (feed) => {
+      if (feed) {
+        updateFeedPreview(feed);
+        return;
+      }
+      if (state.page === 'up') updateFeedPreview(feeds.up);
+      else if (state.page === 'module') updateFeedPreview(feeds.module);
+      else if (state.searchOpen) updateFeedPreview(feeds.search);
+      else updateFeedPreview(feeds.home);
+    };
+  }
+
   function trimFirstWindowBlock(feed) {
     const fw = feed.__feedWindow;
     if (!fw || fw.blocks.length <= FEED_WINDOW_BLOCKS) return false;
     const { scroll } = feedViewport(feed);
     const block = fw.blocks[0];
     if (!block) return false;
+    if (previewRow && block.nodes.includes(previewRow)) stopFeedPreview();
     const anchor = scroll ? topVisibleRow(feed, scroll, block.nodes) : null;
     const anchorTop = anchor ? anchor.getBoundingClientRect().top : 0;
     const first = block.nodes[0];
@@ -696,6 +850,7 @@
       fw.touchActive = false;
       maybeAdvanceWindow(feed);
       maybePrefetchWindow(feed);
+      updateFeedPreview(feed);
     }, delay);
   }
 
@@ -708,8 +863,12 @@
     if (!feed) return;
     const fw = feedWindowState(feed);
     fw.touchActive = Boolean(active);
-    if (active) fw.touchActiveAt = Date.now();
-    else scheduleWindowSettle(feed, 60);
+    if (active) {
+      fw.touchActiveAt = Date.now();
+      stopFeedPreview();
+    } else {
+      scheduleWindowSettle(feed, 60);
+    }
   }
 
   function scheduleBufferFill(feed) {
@@ -1359,6 +1518,7 @@
 
   function playItem(item) {
     if (!item) return;
+    stopFeedPreview();
     if (item.live) { playLive(item); return; }
     if (item.seasonId && !item.epId) { playSeason(item); return; }
     const key = item.epId ? `ep:${item.epId}` : item.roomId ? `live:${item.roomId}` : `bvid:${item.bvid}`;
@@ -1383,6 +1543,7 @@
   }
 
   function playSeason(item) {
+    stopFeedPreview();
     const detail = call('season', item.seasonId);
     if (!detail.ok || !Array.isArray(detail.episodes) || !detail.episodes.length) {
       renderEmpty(state.page === 'module' ? feeds.module : feeds.home,
@@ -1422,6 +1583,7 @@
   }
 
   function playLive(item) {
+    stopFeedPreview();
     const room = call('liveRoom', item.roomId);
     if (!room.ok || !room.url) {
       renderEmpty(state.page === 'module' ? feeds.module : feeds.home,
@@ -3589,13 +3751,17 @@
   const pageObserver = new MutationObserver(() => {
     if (state.page === 'home') {
       if (!feeds.home.querySelector('.real-row')) loadHome(1);
+      else scheduleWindowSettle(feeds.home, 220);
     }
     if (state.page === 'search') {
       if (!feeds.search.querySelector('.real-row')) loadSearch(host.searchInput.value.trim(), 1);
+      else scheduleWindowSettle(feeds.search, 220);
     }
     if (state.page === 'module') {
       loadModule(1);
+      scheduleWindowSettle(feeds.module, 220);
     }
+    if (state.page === 'up') scheduleWindowSettle(feeds.up, 220);
     if (state.page === 'dynamic') {
       pages.dynamic = 1;
       loadDynamic(1, false);
