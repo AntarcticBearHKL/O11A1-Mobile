@@ -44,6 +44,10 @@
   const realVideo = $('#realVideo');
   const playerBoot = $('#playerBoot');
   const playerBootText = $('#playerBootText');
+  const feedDebug = $('#feedDebug');
+  const feedDebugHz = $('#feedDebugHz');
+  const feedDebugFps = $('#feedDebugFps');
+  const videoDebug = $('#videoDebug');
   const psheet = $('#psheet');
   const psheetBackdrop = $('#psheetBackdrop');
   const psheetTitle = $('#psheetTitle');
@@ -178,6 +182,8 @@
     speed: '1.0×',
     loop: '循环',
     aspect: '适应',
+    debugHud: true,
+    feedDebug: true,
     autoLandscape: true,
 
     danmaku: true,
@@ -998,6 +1004,7 @@
       page = 'login';
       navId = null;
     }
+    requestAnimationFrame(() => { if (typeof updateDebugHud === 'function') updateDebugHud(); });
     if (page !== previousPage) stopFeedPreview();
     if (page !== 'up') setUpRecede(0);
     if (page !== 'my') setMyRecede(0);
@@ -2773,6 +2780,293 @@
   }
 
   /* ---------- player ---------- */
+  /* ---------- debug HUD ---------- */
+  const debugState = {
+    displayHz: 0,
+    nativeHz: 0,
+    compositorHz: 0,
+    feedFps: 0,
+    videoFps: 0,
+    videoPresentFps: 0,
+    decodeFps: 0,
+    dropped: 0,
+    avGap: null,
+    bitrate: 0,
+    bitrateAt: 0,
+    videoStartAt: 0,
+    lastMediaTime: null,
+    lastFrameAt: 0,
+  };
+  const debugFrame = { start: 0, count: 0, videoStart: 0, videoCount: 0, decodeTotal: null, decodeAt: 0, decodeFps: 0, rvfcCount: 0 };
+  let debugNetBytes = null;
+  let debugNetAt = 0;
+  let debugTimer = null;
+
+  function commonHz(value) {
+    if (!Number.isFinite(value) || value <= 0) return 0;
+    const rates = [24, 30, 48, 50, 60, 90, 120, 144, 165, 240];
+    let best = rates[0];
+    let distance = Infinity;
+    rates.forEach((rate) => {
+      const d = Math.abs(rate - value);
+      if (d < distance) { distance = d; best = rate; }
+    });
+    return Math.abs(best - value) <= 6 ? best : Math.round(value);
+  }
+
+  function sampleVideoQuality() {
+    let total = null;
+    let dropped = 0;
+    if (typeof realVideo.webkitDecodedFrameCount === 'number') {
+      total = Number(realVideo.webkitDecodedFrameCount || 0);
+      dropped = Number(realVideo.webkitDroppedFrameCount || 0);
+      if (total <= 0) total = null;
+    }
+    try {
+      if (total === null && typeof realVideo.getVideoPlaybackQuality === 'function') {
+        const quality = realVideo.getVideoPlaybackQuality();
+        total = Number(quality.totalVideoFrames || 0);
+        dropped = Number(quality.droppedVideoFrames || 0);
+      }
+    } catch (_) {}
+    const now = performance.now();
+    if (total !== null) {
+      if (debugFrame.decodeTotal !== null && now - debugFrame.decodeAt >= 400) {
+        const delta = Math.max(0, total - debugFrame.decodeTotal);
+        const seconds = Math.max(0.2, (now - debugFrame.decodeAt) / 1000);
+        debugFrame.decodeFps = delta / seconds;
+      }
+      debugFrame.decodeTotal = total;
+      debugFrame.decodeAt = now;
+    }
+    debugState.dropped = dropped;
+    if (window.O11A1Native && typeof window.O11A1Native.mediaStats === 'function') {
+      try {
+        const stats = JSON.parse(window.O11A1Native.mediaStats());
+        if (stats && stats.ok) {
+          const bytes = Number(stats.bytes || 0);
+          if (debugNetBytes !== null && now > debugNetAt) {
+            const delta = Math.max(0, bytes - debugNetBytes);
+            const instant = Math.round(delta * 8 / ((now - debugNetAt) / 1000) / 1000);
+            if (instant > 0) {
+              debugState.bitrate = instant;
+              debugState.bitrateAt = now;
+            } else if (now - (debugState.bitrateAt || 0) > 6000) {
+              const average = Math.round(bytes * 8 / Math.max(1, (now - (debugState.videoStartAt || now)) / 1000) / 1000);
+              debugState.bitrate = average;
+            }
+          }
+          debugNetBytes = bytes;
+          debugNetAt = now;
+        }
+      } catch (_) {}
+    } else if (typeof realVideo.webkitVideoDecodedByteCount === 'number') {
+      const bytes = Number(realVideo.webkitVideoDecodedByteCount);
+      if (debugNetBytes !== null && now > debugNetAt) {
+        const delta = Math.max(0, bytes - debugNetBytes);
+        debugState.bitrate = Math.round(delta * 8 / ((now - debugNetAt) / 1000) / 1000);
+      }
+      debugNetBytes = bytes;
+      debugNetAt = now;
+    }
+  }
+
+  function formatDebugBitrate(bps) {
+    const value = Math.max(0, Number(bps) || 0);
+    if (value === 0) return '—';
+    if (value >= 1000000) return `${(value / 1000000).toFixed(2)} Mbps`;
+    if (value >= 1000) return `${Math.round(value / 1000)} kbps`;
+    return `${Math.round(value)} bps`;
+  }
+
+  function debugDurationText(seconds) {
+    if (!Number.isFinite(seconds)) return '—';
+    if (seconds < 60) return `${Math.max(0, seconds).toFixed(1)} s`;
+    const total = Math.round(seconds);
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const rest = total % 60;
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+    }
+    return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+  }
+
+  function debugBufferedAhead() {
+    if (!realVideo || realVideo.readyState === 0) return null;
+    try {
+      const ranges = realVideo.buffered;
+      if (!ranges || !ranges.length) return 0;
+      const current = realVideo.currentTime;
+      let best = 0;
+      for (let index = 0; index < ranges.length; index += 1) {
+        const start = ranges.start(index);
+        const end = ranges.end(index);
+        if (end < current) continue;
+        if (start > current + 1) break;
+        best = Math.max(best, end - current);
+      }
+      return best;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function updateDebugHud() {
+    const feedVisible = state.settings.feedDebug !== false
+      && ['home', 'search', 'module'].includes(state.page);
+    feedDebug.classList.toggle('show', feedVisible);
+    document.body.classList.toggle('feed-debug-on', feedVisible);
+    const playerVisible = state.settings.debugHud !== false && state.playerOpen;
+    videoDebug.hidden = !playerVisible;
+    if (!feedVisible && !playerVisible) return;
+    const hz = debugState.nativeHz || debugState.displayHz;
+    feedDebugHz.textContent = `${hz ? hz.toFixed(1) : '—'} Hz`;
+    feedDebugFps.textContent = `${(debugState.compositorHz || debugState.feedFps).toFixed(1)} fps`;
+    if (!playerVisible) return;
+
+    const fps = debugState.videoPresentFps || 0;
+    const frameMs = fps > 0.5 ? 1000 / fps : 0;
+    const danmakuOn = state.settings.danmaku !== false;
+    const danmakuActive = danmakuOn && !realVideo.paused && !realVideo.ended
+      && Boolean(playerVideo.querySelector('.danmaku-item'));
+    const danmakuFps = danmakuActive ? (debugState.feedFps || debugState.compositorHz || 0) : 0;
+    const uiFps = debugState.feedFps || debugState.compositorHz || 0;
+
+    const info = state.streamInfo || {};
+    const videoW = Number(realVideo.videoWidth) || 0;
+    const videoH = Number(realVideo.videoHeight) || 0;
+    const sourceW = Number(info.sourceWidth) || videoW;
+    const sourceH = Number(info.sourceHeight) || videoH;
+    const screenW = Math.round((window.screen && window.screen.width ? window.screen.width : window.innerWidth)
+      * (window.devicePixelRatio || 1));
+    const screenH = Math.round((window.screen && window.screen.height ? window.screen.height : window.innerHeight)
+      * (window.devicePixelRatio || 1));
+    const dimensions = (width, height) => (width > 0 && height > 0 ? `${width}×${height}` : '—×—');
+    const resolution = `源${dimensions(sourceW, sourceH)}/解${dimensions(videoW, videoH)}/屏${screenW}×${screenH}`;
+
+    const directNet = Number(info.netBps) || 0;
+    const directFresh = directNet > 0 && performance.now() - (Number(info.netAt) || 0) < 2500;
+    const netBps = info.direct
+      ? (directFresh ? directNet : 0)
+      : Math.max(0, Number(debugState.bitrate) || 0) * 1000;
+    const videoBps = Number(info.videoBitrate) || 0;
+    const audioBps = Number(info.audioBitrate) || 0;
+    const totalBps = videoBps + audioBps;
+    let network = '— / —';
+    if (netBps > 0) {
+      network = totalBps > 0
+        ? `${formatDebugBitrate(netBps)} / ${formatDebugBitrate(videoBps)} (${(netBps / totalBps).toFixed(1)}×)`
+        : `${formatDebugBitrate(netBps)} / —`;
+    } else if (totalBps > 0) {
+      network = `— / ${formatDebugBitrate(videoBps)}`;
+    }
+
+    const buffered = debugBufferedAhead();
+    const bufferText = buffered === null ? '—' : debugDurationText(buffered);
+
+    videoDebug.textContent = [
+      `画面帧率  ${fps.toFixed(1)} · ${frameMs.toFixed(1)} ms`,
+      `弹幕帧率  ${danmakuFps.toFixed(1)}`,
+      `界面帧率  ${uiFps.toFixed(1)}`,
+      `分辨率    ${resolution}`,
+      `网络      ${network}`,
+      `缓冲长度  ${bufferText}`,
+      `下集预载  —`,
+    ].join('\n');
+  }
+
+  function initDebugHud() {
+    const readNativeRates = () => {
+      try {
+        if (window.O11A1Native && typeof window.O11A1Native.displayHz === 'function') {
+          const hz = Number(window.O11A1Native.displayHz());
+          if (Number.isFinite(hz) && hz > 0) debugState.nativeHz = hz;
+        }
+        if (window.O11A1Native && typeof window.O11A1Native.compositorFps === 'function') {
+          const fps = Number(window.O11A1Native.compositorFps());
+          if (Number.isFinite(fps) && fps > 0) debugState.compositorHz = fps;
+        }
+      } catch (_) {}
+    };
+    readNativeRates();
+    setInterval(readNativeRates, 1200);
+    let last = performance.now();
+    const samples = [];
+    function frame(now) {
+      const delta = now - last;
+      last = now;
+      if (delta > 2 && delta < 200) samples.push(delta);
+      if (samples.length > 180) samples.splice(0, samples.length - 180);
+      debugFrame.count += 1;
+      if (realVideo && !realVideo.paused && !realVideo.ended) debugFrame.videoCount += 1;
+      if (!debugFrame.start) {
+        debugFrame.start = now;
+        debugFrame.videoStart = now;
+      }
+      const span = now - debugFrame.start;
+      if (span >= 1000) {
+        debugState.feedFps = debugFrame.count * 1000 / span;
+        debugState.videoFps = debugFrame.videoCount * 1000 / Math.max(1, now - debugFrame.videoStart);
+        if (samples.length) {
+          const sorted = samples.slice().sort((a, b) => a - b);
+          const median = sorted[Math.floor(sorted.length * 0.5)];
+          const measured = 1000 / Math.max(1, median);
+          const rounded = commonHz(measured);
+          if (rounded >= 24) {
+            debugState.displayHz = Math.max(rounded, (debugState.displayHz || 0) * 0.995);
+          }
+        }
+        debugFrame.start = now;
+        debugFrame.count = 0;
+        debugFrame.videoStart = now;
+        debugFrame.videoCount = 0;
+        debugFrame.decodeFps = 0;
+        sampleVideoQuality();
+        if (debugFrame.rvfcCount > 0
+          && (!debugFrame.decodeFps || debugFrame.decodeFps < debugState.videoFps * 0.35)) {
+          debugFrame.decodeFps = debugFrame.rvfcCount;
+        }
+        debugState.videoPresentFps = debugFrame.rvfcCount > 0
+          ? debugFrame.rvfcCount
+          : (realVideo.paused || realVideo.ended ? 0 : debugState.videoFps);
+        debugFrame.rvfcCount = 0;
+        updateDebugHud();
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    const onFrame = (now, metadata) => {
+      debugState.lastMediaTime = Number(metadata && metadata.mediaTime);
+      debugState.lastFrameAt = now;
+      debugFrame.rvfcCount += 1;
+      if (metadata && Number.isFinite(debugState.lastMediaTime)) {
+        debugState.avGap = Math.max(0, (realVideo.currentTime - debugState.lastMediaTime) * 1000);
+      }
+      if (typeof realVideo.requestVideoFrameCallback === 'function') {
+        realVideo.requestVideoFrameCallback(onFrame);
+      }
+    };
+    if (realVideo && typeof realVideo.requestVideoFrameCallback === 'function') {
+      realVideo.requestVideoFrameCallback(onFrame);
+    } else if (realVideo) {
+      realVideo.addEventListener('timeupdate', () => {
+        if (!Number.isFinite(debugState.lastMediaTime)) debugState.avGap = null;
+      });
+    }
+    if (realVideo) {
+      realVideo.addEventListener('loadedmetadata', () => {
+        debugState.videoStartAt = performance.now();
+        debugState.bitrateAt = 0;
+        debugNetBytes = null;
+        debugNetAt = 0;
+      });
+    }
+    setInterval(sampleVideoQuality, 1000);
+    updateDebugHud();
+  }
+
   function setPlayIcon(playing) {
     player.classList.toggle('paused', playing !== true);
     if (pdDisc) {
@@ -3438,6 +3732,7 @@
     }
     state.playerOpen = true;
     state.locked = false;
+    if (typeof updateDebugHud === 'function') updateDebugHud();
     if (!wasOpen) setPlayerOrientation(false, { silent: true });
     hideMiniPlayer();
     clearTimeout(hideTimer);
@@ -3802,6 +4097,7 @@
     hidePlayerDrop();
     resetVideoDetail();
     state.playerOpen = false;
+    if (typeof updateDebugHud === 'function') updateDebugHud();
     app.classList.remove('player-open');
     state.miniVisible = false;
     state.playing = false;
@@ -5048,6 +5344,8 @@
             return !Array.isArray(list) || !list.length || list.includes(option) || option === state.settings.quality;
           }, onChange: updatePlayerLabels },
           { type: 'switch', label: '陀螺仪自动横屏', key: 'autoLandscape', onChange: () => { if (state.settings.autoLandscape) { if (state.playerOpen) startGyro(); } else { stopGyro(); setPlayerOrientation(false); } } },
+          { type: 'switch', label: '视频调试 HUD', key: 'debugHud', onChange: updateDebugHud },
+          { type: 'switch', label: '视频流刷新率', key: 'feedDebug', onChange: updateDebugHud },
           { type: 'static', label: '解码策略', value: '系统硬解 · 渐进优先 · 60Hz' },
         ],
       },
@@ -6480,6 +6778,7 @@
   applyHiddenEntries();
   initGridProgress();
   updatePlayerLabels();
+  initDebugHud();
   renderHotSearches();
   updateSearch();
   syncLandscape();

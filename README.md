@@ -142,7 +142,7 @@ npx expo start --tunnel
 
 - **渐进优先**：默认 720P；480P / 720P 走 progressive MP4，不进入 MSE。只有 1080P / 1080P+ / 1080P60 / 4K 才请求 DASH。
 - **DASH 有界拉流**：每次只请求 4MB Range，最多保留约 18 秒前置缓冲；暂停时停止继续拉取，切视频 / 关闭播放器立即 abort 请求并释放 MediaSource。
-- **不做逐帧后处理**：移除插帧、CAS、Anime4K、环境模糊画布、120Hz 解锁、视频调试 HUD 和所有逐帧 canvas/WebGL 读回；视频区域使用纯黑背景，避免持续 GPU 模糊。
+- **不做逐帧后处理**：移除插帧、CAS、Anime4K、环境模糊画布、120Hz 解锁和所有逐帧 canvas/WebGL 读回；视频区域使用纯黑背景，避免持续 GPU 模糊。界面调试信息保留：视频流右上角显示刷新率 / 帧率，播放器内显示画面 / 弹幕 / 界面帧率、分辨率、网络、缓冲和下集预载。
 - **单一解码**：不再有自定义 MediaCodec / SurfaceTexture / Metal 测试管线，也不再打包 6MB 测试视频；解码完全交给系统硬解。
 - **设置迁移**：旧版本保存的 1080P60 / 1080P+ / 4K 会自动回落到 720P，避免升级后继续默认高码率。
 
@@ -190,7 +190,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 也可以直接跑仓库里的 `android-debug` workflow（每次 push 自动构建），从 Actions artifact 下载 `app-debug.apk`；debug APK 已自动签名，直接安装。
 
-装好后所有页面与播放都在同一个 V2 WebView 中，不再有独立测试播放器或调试 HUD。
+装好后所有页面与播放都在同一个 V2 WebView 中，不再有独立测试播放器；界面调试 HUD 保留并默认开启，可在「我的 → 播放」中关闭。
 
 ## 3. 现在测到什么、没测到什么
 
@@ -205,7 +205,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 - DASH 分轨 / 4K / 60fps / 1080P+ 的真机稳定性（需要大会员 Cookie；分轨拉流已加 4MB 分块、18 秒前置缓冲、暂停停拉和 AbortController）。
 - 动态 / 消息 / 收藏 / 历史等账户页仍是设计壳；直播 / PGC 没有接独立接口。
-- 截图仍走原生 PixelCopy；本轮已移除插帧 / CAS / Anime4K / 120Hz 高刷 / 逐帧 HUD，避免持续 GPU 读回与高刷唤醒。
+- 截图仍走原生 PixelCopy；本轮已移除插帧 / CAS / Anime4K / 120Hz 高刷 / 逐帧后处理，避免持续 GPU 读回与高刷唤醒；界面级调试 HUD 保留。
 - Android 端的 Expo 本地模块（当前仍是独立原生工程）。
 - iOS 签名 / TestFlight。
 

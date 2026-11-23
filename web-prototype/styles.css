@@ -1491,6 +1491,7 @@ body.grid .grid-overlay{display:block}
 .player.window-opening .rate-hud,
 .player.window-opening .lock-badge,
 .player.window-opening .swipe-hint,
+.player.window-opening .video-debug,
 .player.window-opening .real-video-status,
 .player.window-opening .live-dm-badge{
   opacity:0!important;transition:none!important;
@@ -1896,6 +1897,33 @@ body[data-theme="light"] .grid-progress .grid-cell.on{background:var(--blue,#2F7
 .rate-hud.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
 .rate-hud b{font-size:23px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .rate-hud small{font-size:8.5px;letter-spacing:.08em;color:rgba(255,255,255,.5)}
+
+/* ---------- debug HUD ---------- */
+.feed-debug{
+  position:absolute;top:calc(33.333% - 11px);right:14px;z-index:24;
+  display:none;align-items:center;gap:6px;height:22px;padding:0 8px;
+  border-radius:7px;border:1px solid rgba(47,124,246,.22);
+  background:rgba(12,14,19,.72);color:#D7E3F5;
+  font:600 8.5px/1 var(--font-mono);letter-spacing:.02em;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  pointer-events:none;white-space:nowrap;
+}
+.feed-debug.show{display:flex}
+.fd-dot{width:5px;height:5px;border-radius:50%;background:#4ADE80;box-shadow:0 0 6px #4ADE80}
+.fd-k{color:#7FA8E8;font-size:7.5px;letter-spacing:.12em}
+.feed-debug b{font-weight:700;color:#fff}
+.feed-debug span:last-child{color:#9FB3CC}
+.video-debug{
+  position:absolute;right:8px;bottom:calc(140px + env(safe-area-inset-bottom));z-index:9;
+  width:min(360px,calc(100vw - 16px));height:126px;
+  margin:0;padding:3px 10px 0;border-radius:7px;
+  border:1px solid rgba(255,255,255,.09);
+  background:rgba(15,16,19,.96);color:rgba(179,175,166,1);
+  font:400 10.5px/17px var(--font-sans);
+  text-align:left;white-space:pre;overflow:hidden;
+  pointer-events:none;
+}
+.video-debug[hidden]{display:none!important}
 .player-notice{
   position:absolute;left:50%;top:max(18px,env(safe-area-inset-top));z-index:12;
   transform:translate(-50%,-6px);display:flex;flex-direction:column;gap:3px;
@@ -1984,6 +2012,7 @@ body[data-theme="light"] .up-page{
 .player.to-playlist .rate-hud,
 .player.to-playlist .lock-badge,
 .player.to-playlist .swipe-hint,
+.player.to-playlist .video-debug,
 .player.to-playlist .real-video-status,
 .player.to-playlist .live-dm-badge{
   opacity:0!important;pointer-events:none;
