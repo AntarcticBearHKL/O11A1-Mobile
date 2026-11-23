@@ -407,17 +407,29 @@ body[data-theme="dark"] .feed-skeleton::after{
 .feed-item .video-row{height:100%;z-index:1;transition:background .15s,box-shadow .15s,transform .12s}
 .feed-item.swiping .video-row{transition:none}
 .row-swipe-mask{
-  position:absolute;inset:0;z-index:4;pointer-events:none;
+  position:absolute;top:0;right:0;bottom:0;left:auto;width:58%;z-index:4;pointer-events:none;
   display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:5px;
-  padding:0 22px;opacity:0;will-change:opacity;
-  background:linear-gradient(90deg,rgba(0,95,184,.58) 0%,rgba(0,95,184,.74) 52%,rgba(0,95,184,.96) 100%);
+  padding:0 22px 0 26px;opacity:0;will-change:opacity;
+  background:linear-gradient(90deg,
+    rgba(0,95,184,0) 0%,
+    rgba(0,95,184,0) 10%,
+    rgba(0,95,184,.38) 38%,
+    rgba(0,95,184,.90) 70%,
+    rgba(0,95,184,1) 88%,
+    rgba(0,95,184,1) 100%);
   color:#fff;text-align:right;
   text-shadow:0 1px 10px rgba(0,20,50,.35);
   transition:opacity .22s ease;
 }
 .feed-item.swiping .row-swipe-mask{transition:none}
 .row-swipe-mask[data-action="up"]{
-  background:linear-gradient(90deg,rgba(124,92,252,.58) 0%,rgba(124,92,252,.74) 52%,rgba(124,92,252,.96) 100%);
+  background:linear-gradient(90deg,
+    rgba(124,92,252,0) 0%,
+    rgba(124,92,252,0) 10%,
+    rgba(124,92,252,.38) 38%,
+    rgba(124,92,252,.90) 70%,
+    rgba(124,92,252,1) 88%,
+    rgba(124,92,252,1) 100%);
 }
 .row-swipe-mask .rsm-label{
   font-size:16px;font-weight:700;line-height:1.15;letter-spacing:.01em;
@@ -427,6 +439,10 @@ body[data-theme="dark"] .feed-skeleton::after{
 .row-swipe-mask.fired .rsm-label{transform:scale(.94)}
 .row-swipe-mask .rsm-hint{
   font-size:9px;line-height:1.3;color:rgba(255,255,255,.68);letter-spacing:.03em;
+}
+.feed-item.swiping .row-copy{
+  -webkit-mask-image:linear-gradient(90deg,#000 0%,#000 46%,rgba(0,0,0,.5) 70%,transparent 96%);
+  mask-image:linear-gradient(90deg,#000 0%,#000 46%,rgba(0,0,0,.5) 70%,transparent 96%);
 }
 .row-thumb{
   position:relative;height:100%;width:auto;aspect-ratio:16/9;flex:none;border-radius:0;
