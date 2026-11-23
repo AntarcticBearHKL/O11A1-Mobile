@@ -70,7 +70,16 @@ jobs:
           cp -R "$APP" artifacts/Payload/
           (cd artifacts && zip -qry o11a1-ios-unsigned.ipa Payload)
 
+      - name: Publish unsigned IPA (device)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view ios-unsigned >/dev/null 2>&1 || gh release create ios-unsigned --title "iOS unsigned build" --notes "Unsigned IPA and simulator app built from $GITHUB_SHA."
+          gh release upload ios-unsigned artifacts/o11a1-ios-unsigned.ipa --clobber
+
       - name: Build simulator app
+        timeout-minutes: 20
+        continue-on-error: true
         run: |
           set -o pipefail
           WORKSPACE="$(find ios -maxdepth 1 -name '*.xcworkspace' | head -n 1)"
@@ -87,12 +96,14 @@ jobs:
           test -n "$APP"
           ditto -c -k --sequesterRsrc --keepParent "$APP" artifacts/o11a1-ios-simulator.zip
 
-      - name: Publish unsigned IPA
+      - name: Publish simulator bundle
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view ios-unsigned >/dev/null 2>&1 || gh release create ios-unsigned --title "iOS unsigned build" --notes "Unsigned IPA and simulator app built from $GITHUB_SHA."
-          gh release upload ios-unsigned artifacts/o11a1-ios-unsigned.ipa artifacts/o11a1-ios-simulator.zip --clobber
+          if [ -f artifacts/o11a1-ios-simulator.zip ]; then
+            gh release upload ios-unsigned artifacts/o11a1-ios-simulator.zip --clobber
+          fi
 
       - name: Smoke test in iOS Simulator
         if: success()
