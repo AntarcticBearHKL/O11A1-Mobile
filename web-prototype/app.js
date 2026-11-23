@@ -62,6 +62,7 @@
   const searchSuggestList = $('#searchSuggestList');
   const searchResultsBlock = $('#searchResultsBlock');
   const searchPanel = $('#searchPanel');
+  const searchPanelBody = $('#searchPanelBody');
   const playlistDock = $('#playlistDock');
   const dockBackdrop = $('#dockBackdrop');
   const playlistPage = $('.page[data-page="playlist"]');
@@ -744,7 +745,7 @@
     if (searchEmpty) searchEmpty.hidden = true;
     if (searchHotSection) searchHotSection.hidden = false;
     if (searchSuggestSection) searchSuggestSection.hidden = true;
-    if (searchPanel) searchPanel.scrollTop = 0;
+    if (searchPanelBody) searchPanelBody.scrollTop = 0;
     updateSearch();
   }
 
@@ -756,7 +757,7 @@
     if (searchHotSection) searchHotSection.hidden = true;
     if (searchSuggestSection) searchSuggestSection.hidden = true;
     if (searchResultsLabel) searchResultsLabel.textContent = value ? `“${value}”的视频` : '热门视频';
-    if (searchPanel) searchPanel.scrollTop = 0;
+    if (searchPanelBody) searchPanelBody.scrollTop = 0;
   }
 
   function openSearch() {
@@ -782,7 +783,7 @@
     searchPanel.style.opacity = '';
     searchPanel.style.boxShadow = '';
     showSearchHome();
-    searchPanel.scrollTop = 0;
+    if (searchPanelBody) searchPanelBody.scrollTop = 0;
     searchPanel.inert = false;
     searchPanel.setAttribute('aria-hidden', 'false');
     searchPanel.classList.add('open');
@@ -1100,7 +1101,7 @@
       void searchResultsPage.offsetWidth;
       searchResultsPage.classList.add('entering');
       setTimeout(() => searchResultsPage.classList.remove('entering'), 380);
-      searchResultsPage.scrollTop = 0;
+      if (searchPanelBody) searchPanelBody.scrollTop = 0;
       updatePlaylistDock();
       return;
     }
@@ -5156,8 +5157,9 @@
   function renderHotSearches() {
     if (!hotSearchList) return;
     hotSearchList.innerHTML = HOT_SEARCHES.map((term, index) => `
-      <button class="search-chip" type="button" data-search-term="${escapeHTML(term)}">
-        <i>${index + 1}</i><span>${escapeHTML(term)}</span>
+      <button class="search-hot-row" type="button" data-search-term="${escapeHTML(term)}">
+        <i class="shr-rank${index < 3 ? ' top' : ''}">${index + 1}</i>
+        <span class="shr-text">${escapeHTML(term)}</span>
       </button>`).join('');
   }
 
@@ -5169,7 +5171,7 @@
       : [];
     searchSuggestList.innerHTML = terms.map((term) => `
       <button class="search-suggest" type="button" data-search-term="${escapeHTML(term)}">
-        <span>⌕</span><b>${escapeHTML(term)}</b>
+        <span class="ss-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.6"/><path d="m16 16 4.4 4.4"/></svg></span><b>${escapeHTML(term)}</b>
       </button>`).join('');
   }
 
@@ -5181,14 +5183,16 @@
     if (searchResults) searchResults.hidden = true;
     if (searchHotSection) searchHotSection.hidden = hasQuery;
     if (searchSuggestSection) searchSuggestSection.hidden = !hasQuery;
+    if (searchPanelBody) searchPanelBody.scrollTop = 0;
     renderSearchSuggestions(query);
   }
 
   function renderDockHotSearches() {
     if (!dockHotSearchList) return;
     dockHotSearchList.innerHTML = HOT_SEARCHES.map((term, index) => `
-      <button class="search-chip" type="button" data-search-term="${escapeHTML(term)}">
-        <i>${index + 1}</i><span>${escapeHTML(term)}</span>
+      <button class="search-hot-row" type="button" data-search-term="${escapeHTML(term)}">
+        <i class="shr-rank${index < 3 ? ' top' : ''}">${index + 1}</i>
+        <span class="shr-text">${escapeHTML(term)}</span>
       </button>`).join('');
   }
 
@@ -5202,7 +5206,7 @@
     const terms = [q, `${q} 教程`, `${q} 4K`, `${q} 合集`, `${q} 最新`];
     dockSearchSuggestList.innerHTML = terms.map((term) => `
       <button class="search-suggest" type="button" data-search-term="${escapeHTML(term)}">
-        <span>⌕</span><b>${escapeHTML(term)}</b>
+        <span class="ss-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.6"/><path d="m16 16 4.4 4.4"/></svg></span><b>${escapeHTML(term)}</b>
       </button>`).join('');
   }
 
@@ -6808,7 +6812,7 @@
       searchPanelFocus = state.searchOpen
         && searchPanel.classList.contains('open')
         && document.activeElement === searchInput;
-      const hotChip = $('#hotSearchList .search-chip');
+      const hotChip = $('#hotSearchList .search-hot-row');
       if (hotChip) hotChip.click();
       await sleep(420);
       searchInlineResults = Boolean(hotChip)

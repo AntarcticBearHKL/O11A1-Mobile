@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=189">
-  <link rel="stylesheet" href="./fonts.css?v=189">
+  <link rel="stylesheet" href="./styles.css?v=190">
+  <link rel="stylesheet" href="./fonts.css?v=190">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -158,11 +158,9 @@
         </div>
         <div class="pd-search-panel" id="dockSearchPanel">
           <div class="search-section" id="dockSearchHot">
-            <div class="section-label">热门搜索</div>
-            <div class="search-chips" id="dockHotSearchList"></div>
+            <div class="search-hot-list" id="dockHotSearchList"></div>
           </div>
           <div class="search-section" id="dockSearchSuggest" hidden>
-            <div class="section-label">搜索建议</div>
             <div class="search-suggest-list" id="dockSearchSuggestList"></div>
           </div>
         </div>
@@ -235,12 +233,11 @@
             <button class="search-clear" id="searchClear" type="button" aria-label="清空搜索" hidden>×</button>
           </label>
         </div>
+        <div class="search-panel-body" id="searchPanelBody">
         <div class="search-section" id="searchHotSection">
-          <div class="section-label">热门搜索</div>
-          <div class="search-chips" id="hotSearchList"></div>
+          <div class="search-hot-list" id="hotSearchList"></div>
         </div>
         <div class="search-section" id="searchSuggestSection" hidden>
-          <div class="section-label">搜索建议</div>
           <div class="search-suggest-list" id="searchSuggestList"></div>
         </div>
         <div class="search-results-block" id="searchResultsBlock" hidden>
@@ -253,6 +250,7 @@
             <button class="video-row" data-open-player><span class="row-thumb"><span class="ph-label">封面</span><span class="dur-ph">00:00</span></span><span class="row-copy"><span class="ph-title"><i class="ph-line w75"></i><i class="ph-line w45"></i></span><span class="row-meta"><i class="ph-line w25"></i><i class="ph-line w20"></i></span></span></button>
           </div>
           <div class="search-empty" id="searchEmpty" hidden>没有找到视频 · 换个关键词试试</div>
+        </div>
         </div>
       </section>
 
@@ -463,8 +461,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=189"></script>
-  <script src="./app.js?v=189"></script>
-  <script src="./native.js?v=189"></script>
+  <script src="./vendor/hls.min.js?v=190"></script>
+  <script src="./app.js?v=190"></script>
+  <script src="./native.js?v=190"></script>
 </body>
 </html>

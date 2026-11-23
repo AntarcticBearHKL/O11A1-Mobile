@@ -595,7 +595,7 @@
     const scroll = feed === feeds.up
       ? upScroll
       : feed === feeds.search
-        ? $('#searchPanel')
+        ? $('#searchPanelBody')
         : $('#appScroll');
     const isActive = (feed === feeds.home && state.page === 'home')
       || (feed === feeds.search && state.searchOpen === true)
@@ -4002,7 +4002,7 @@
     requestFeedPage('up');
   });
 
-  const searchScroller = $('#searchPanel');
+  const searchScroller = $('#searchPanelBody');
   if (searchScroller) searchScroller.addEventListener('scroll', () => {
     if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
     if (!state.searchOpen) return;
