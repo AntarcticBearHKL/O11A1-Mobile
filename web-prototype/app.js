@@ -944,6 +944,9 @@
     if (window.O11A1Native && typeof window.O11A1Native.logout === 'function') {
       try { window.O11A1Native.logout(); } catch (_) {}
     }
+    if (window.O11A1Host && typeof window.O11A1Host.clearPreloadCaches === 'function') {
+      try { window.O11A1Host.clearPreloadCaches(); } catch (_) {}
+    }
     if (state.playerOpen) stopPlayback();
     closeSheet();
     closeSidebar();

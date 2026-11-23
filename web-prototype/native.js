@@ -635,6 +635,7 @@
   let previewToken = 0;
   let previewTimer = null;
   let previewProgressFill = null;
+  let previewHoverTimer = null;
 
   function ensurePreviewVideo() {
     if (previewVideo) return previewVideo;
@@ -659,7 +660,9 @@
   function stopFeedPreview() {
     previewToken += 1;
     clearTimeout(previewTimer);
+    clearTimeout(previewHoverTimer);
     previewTimer = null;
+    previewHoverTimer = null;
     if (previewRow) {
       previewRow.classList.remove('preview-active');
       const thumb = previewRow.querySelector('.row-thumb');
@@ -707,6 +710,7 @@
     if (!thumb) return;
     previewRow = row;
     row.classList.add('preview-active');
+    preloadFocusedItem(item);
     const token = ++previewToken;
     setTimeout(() => {
       if (token === previewToken && previewRow === row && !document.hidden) prefetchPlayInfo(item);
@@ -988,7 +992,15 @@
               : kind.api === 'search'
                 ? [name, pageNo]
                 : [pageNo];
-    const result = feedResult(kind.api, args);
+    let result = !append && (kind.api === 'live' || kind.api === 'bangumi')
+      ? readPreloadPage('feed-' + kind.api, args)
+      : null;
+    if (!result) {
+      result = feedResult(kind.api, args);
+      if (result.ok && (kind.api === 'live' || kind.api === 'bangumi')) {
+        writePreloadPage('feed-' + kind.api, args, result);
+      }
+    }
     if (!result.ok) {
       if (!append) {
         if (result.needLogin) {
@@ -2080,7 +2092,7 @@
   }
 
   async function waitDashRoom(buffer, session) {
-    const maxAhead = 18;
+    const maxAhead = 90;
     while (!session.aborted) {
       const ahead = dashBufferedAhead(buffer);
       if (ahead < maxAhead) return;
@@ -2582,6 +2594,7 @@
 
   /* ---------- video detail cache ---------- */
   const VIDEO_INFO_CACHE_MAX = 24;
+  const VIDEO_INFO_TTL = 10 * 60 * 1000;
   const RELATED_CACHE_TTL = 10 * 60 * 1000;
   const RELATED_CACHE_MAX = 12;
   const videoInfoCache = new Map();
@@ -2610,9 +2623,13 @@
     if (!key) return null;
     const cached = videoInfoCache.get(key);
     if (cached) {
-      videoInfoCache.delete(key);
-      videoInfoCache.set(key, cached);
-      return cached.info;
+      if (Date.now() - cached.at >= VIDEO_INFO_TTL) {
+        videoInfoCache.delete(key);
+      } else {
+        videoInfoCache.delete(key);
+        videoInfoCache.set(key, cached);
+        return cached.info;
+      }
     }
     if (options.cachedOnly) return null;
     if (!item.bvid || typeof bridge.videoInfo !== 'function') return null;
@@ -2712,7 +2729,8 @@
   let commentItems = [];
   let commentScrollRaf = 0;
   let commentNote = '';
-  const COMMENT_CACHE_MAX = 16;
+  const COMMENT_CACHE_MAX = 200;
+  const COMMENT_CACHE_TTL = 10 * 60 * 1000;
   const commentCache = new Map();
   let commentPrefetchKey = '';
 
@@ -2746,6 +2764,10 @@
     const key = commentCacheKey(aid, sort);
     const entry = commentCache.get(key);
     if (!entry) return null;
+    if (Date.now() - entry.at >= COMMENT_CACHE_TTL) {
+      commentCache.delete(key);
+      return null;
+    }
     commentCache.delete(key);
     commentCache.set(key, entry);
     return entry;
@@ -2819,6 +2841,174 @@
       if (alive()) prefetchComments(item);
     }, 400));
   }
+
+  /* ---------- background preload / page cache ---------- */
+  const PRELOAD_PAGE_TTL = 5 * 60 * 1000;
+  const PRELOAD_PAGE_MAX = 32;
+  const PRELOAD_IDLE_GAP = 10 * 1000;
+  const PRELOAD_PLAYBACK_GAP = 20 * 1000;
+  const PRELOAD_BACKOFF_CAP = 30 * 1000;
+  const PRELOAD_PARK_MS = 5 * 60 * 1000;
+  const preloadPages = new Map();
+  const preloadState = {
+    timer: null,
+    round: 0,
+    failures: {},
+    parked: {},
+  };
+
+  function preloadPageKey(kind, args) {
+    return `${kind}:${args.map((value) => String(value)).join(':')}`;
+  }
+
+  function readPreloadPage(kind, args) {
+    const key = preloadPageKey(kind, args);
+    const entry = preloadPages.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.at >= PRELOAD_PAGE_TTL) {
+      preloadPages.delete(key);
+      return null;
+    }
+    preloadPages.delete(key);
+    preloadPages.set(key, entry);
+    return entry.data;
+  }
+
+  function writePreloadPage(kind, args, data) {
+    if (!data || data.ok === false) return;
+    const key = preloadPageKey(kind, args);
+    preloadPages.delete(key);
+    preloadPages.set(key, { at: Date.now(), data });
+    while (preloadPages.size > PRELOAD_PAGE_MAX) {
+      preloadPages.delete(preloadPages.keys().next().value);
+    }
+  }
+
+  function preloadFocusedItem(item) {
+    clearTimeout(previewHoverTimer);
+    if (!item) return;
+    previewHoverTimer = setTimeout(() => {
+      previewHoverTimer = null;
+      if (state.playerOpen || document.hidden) return;
+      readVideoInfo(item);
+      if (item.aid) prefetchComments(item);
+    }, 300);
+  }
+
+  function preloadGate() {
+    if (!state.playerOpen) return { allowed: true, gap: PRELOAD_IDLE_GAP };
+    const el = $('#realVideo');
+    if (!el || el.readyState < 3 || playerVideo.classList.contains('video-loading')) {
+      return { allowed: false, gap: 2000 };
+    }
+    let ahead = 0;
+    try {
+      if (el.buffered.length) {
+        ahead = el.buffered.end(el.buffered.length - 1) - el.currentTime;
+      }
+    } catch (_) {}
+    if (ahead < 2) return { allowed: false, gap: 2000 };
+    return { allowed: true, gap: PRELOAD_PLAYBACK_GAP };
+  }
+
+  function preloadRoundWork(kind) {
+    if (kind === 'comments') {
+      const item = currentItem();
+      if (item && item.aid) prefetchComments(item);
+      return true;
+    }
+    if (kind === 'live') {
+      const result = feedResult('live', [1]);
+      if (!result.ok) return false;
+      writePreloadPage('feed-live', [1], result);
+      return true;
+    }
+    if (kind === 'pgc') {
+      const type = moduleSeasonTypes['番剧'] ? moduleSeasonTypes['番剧'][0] : 1;
+      const result = feedResult('bangumi', [1, type]);
+      if (!result.ok) return false;
+      writePreloadPage('feed-bangumi', [1, type], result);
+      return true;
+    }
+    if (kind === 'dynamic') {
+      if (!state.loggedIn) return true;
+      const result = call('dynamicFeed', 1, 'all');
+      if (!result.ok) return false;
+      writePreloadPage('dynamic', ['all', 1], result);
+      return true;
+    }
+    if (kind === 'messages') {
+      if (!state.loggedIn) return true;
+      const result = call('messages', 1, 'reply');
+      if (!result.ok) return false;
+      writePreloadPage('messages', ['reply', 1], result);
+      return true;
+    }
+    return true;
+  }
+
+  function schedulePreload(delay) {
+    clearTimeout(preloadState.timer);
+    preloadState.timer = setTimeout(runPreloadRound, Math.max(600, Number(delay) || 0));
+  }
+
+  function preloadBusy() {
+    if (document.hidden) return true;
+    return [feeds.home, feeds.module, feeds.search, feeds.up].some((feed) => (
+      feed && feed.__feedWindow && feed.__feedWindow.touchActive
+    ));
+  }
+
+  function runPreloadRound() {
+    preloadState.timer = null;
+    if (preloadBusy()) {
+      schedulePreload(2000);
+      return;
+    }
+    const gate = preloadGate();
+    if (!gate.allowed) {
+      schedulePreload(gate.gap);
+      return;
+    }
+    const kinds = ['comments', 'live', 'pgc', 'dynamic', 'messages'];
+    const kind = kinds[preloadState.round % kinds.length];
+    preloadState.round += 1;
+    if ((preloadState.parked[kind] || 0) > Date.now()) {
+      schedulePreload(gate.gap);
+      return;
+    }
+    let ok = true;
+    try {
+      ok = preloadRoundWork(kind);
+    } catch (_) {
+      ok = false;
+    }
+    if (ok) {
+      preloadState.failures[kind] = 0;
+    } else {
+      const failures = (preloadState.failures[kind] || 0) + 1;
+      preloadState.failures[kind] = failures;
+      if (failures >= 5) {
+        preloadState.failures[kind] = 0;
+        preloadState.parked[kind] = Date.now() + PRELOAD_PARK_MS;
+      }
+    }
+    const wait = ok ? gate.gap : Math.min(PRELOAD_BACKOFF_CAP, 1000 * (2 ** (preloadState.failures[kind] || 0)));
+    schedulePreload(wait);
+  }
+
+  if (host) {
+    host.clearPreloadCaches = () => {
+      preloadPages.clear();
+      commentCache.clear();
+      videoInfoCache.clear();
+      relatedCache.clear();
+      playInfoCache.clear();
+      previewUrlCache.clear();
+    };
+  }
+
+  schedulePreload(1800);
 
   const COMMENT_HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3 4.6 13a4.7 4.7 0 0 1 6.6-6.6l.8.8.8-.8A4.7 4.7 0 0 1 19.4 13z"/></svg>';
   const COMMENT_EMPTY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-8 8H5l2.2-2.2A8 8 0 1 1 20 12Z"/><path d="M8.5 11.5h7M8.5 14.5h4.5"/></svg>';
@@ -3493,7 +3683,12 @@
       return true;
     }
     const filter = ['all', 'video', 'image'][Math.max(0, Number(state.dynamicFilterIndex) || 0) % 3];
-    const result = call('dynamicFeed', page || 1, filter);
+    const pageNo = page || 1;
+    let result = !append ? readPreloadPage('dynamic', [filter, pageNo]) : null;
+    if (!result) {
+      result = call('dynamicFeed', pageNo, filter);
+      if (result.ok) writePreloadPage('dynamic', [filter, pageNo], result);
+    }
     clearMoreSkeletons($('#dynamicFeed'));
     if (!result.ok) {
       renderEmpty($('#dynamicFeed'), result.needLogin ? '登录后查看动态' : '动态加载失败', result.needLogin ? '登录后同步关注动态。' : (result.error || ''), result.needLogin ? '去登录' : '重试', result.needLogin ? () => host.showPage('login') : () => loadDynamic(1, false));
@@ -3547,7 +3742,12 @@
       return true;
     }
     const filter = ['reply', 'at', 'like'][index];
-    const result = call('messages', page || 1, filter);
+    const pageNo = page || 1;
+    let result = !append ? readPreloadPage('messages', [filter, pageNo]) : null;
+    if (!result) {
+      result = call('messages', pageNo, filter);
+      if (result.ok) writePreloadPage('messages', [filter, pageNo], result);
+    }
     clearMoreSkeletons($('#messageFeed'));
     if (!result.ok) {
       renderEmpty($('#messageFeed'), result.needLogin ? '登录后查看消息' : '消息加载失败', result.needLogin ? '登录后同步回复、@ 和点赞。' : (result.error || ''), result.needLogin ? '去登录' : '重试', result.needLogin ? () => host.showPage('login') : () => loadMessages(1, false));
