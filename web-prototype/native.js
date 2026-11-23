@@ -1133,7 +1133,10 @@
             : null;
     if (!feed) return;
     if (previewRow && !document.contains(previewRow)) previewRow = null;
-    if (previewRow && previewVideo && previewVideo.src) return;
+    if (previewRow && previewVideo && previewVideo.src) {
+      if (previewVideo.paused && !document.hidden) previewVideo.play().catch(() => {});
+      return;
+    }
     if (previewRow) stopFeedPreview();
     if (preloadVideo && Date.now() - preloadStartedAt > 3000) stopPreviewPreload();
     if (previewCommitTimer || preloadVideo) return;
