@@ -1082,42 +1082,7 @@
     }, 30);
   }
 
-  function openOfficialLogin() {
-    if (!window.O11A1Native || typeof window.O11A1Native.openWebLogin !== 'function') {
-      setLoginStatus('当前环境不支持官方网页登录', 'error');
-      return false;
-    }
-    let result;
-    try { result = JSON.parse(window.O11A1Native.openWebLogin()); } catch (_) { result = { ok: false }; }
-    if (!result || !result.ok) {
-      setLoginStatus(result && result.error ? result.error : '打开 B 站登录失败', 'error');
-      return false;
-    }
-    setLoginStatus('请在 B 站官方页面完成登录');
-    clearInterval(loginPollTimer);
-    let attempts = 0;
-    loginPollTimer = setInterval(() => {
-      attempts += 1;
-      if (state.loggedIn) {
-        clearInterval(loginPollTimer);
-        loginPollTimer = null;
-        return;
-      }
-      const account = nativeLoginCall('account', []);
-      if (account && account.ok && account.loggedIn) {
-        clearInterval(loginPollTimer);
-        loginPollTimer = null;
-        loginSucceeded({ silent: true });
-        return;
-      }
-      if (attempts > 120) {
-        clearInterval(loginPollTimer);
-        loginPollTimer = null;
-        setLoginStatus('登录未完成，可重新点击登录');
-      }
-    }, 1500);
-    return true;
-  }
+
 
   function logout() {
     state.loggedIn = false;

@@ -352,19 +352,6 @@ final class WebAppBridge {
         return displayHz();
     }
 
-    @JavascriptInterface
-    public String openWebLogin() {
-        JSONObject out = new JSONObject();
-        try {
-            android.content.Intent intent = new android.content.Intent(activity, WebLoginActivity.class);
-            activity.startActivity(intent);
-            out.put("ok", true);
-            out.put("opened", true);
-        } catch (Throwable error) {
-            out = error(error);
-        }
-        return out.toString();
-    }
 
     @JavascriptInterface
     public String sendSmsCode(String tel, String cid) {
