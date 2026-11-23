@@ -17,6 +17,7 @@ import android.provider.MediaStore;
 import android.util.Log;
 import android.view.PixelCopy;
 import android.view.WindowManager;
+import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 
 import org.json.JSONObject;
@@ -198,11 +199,10 @@ final class WebAppBridge {
     }
 
     @JavascriptInterface
-    public String openWebLogin(String phone) {
+    public String openWebLogin() {
         JSONObject out = new JSONObject();
         try {
             android.content.Intent intent = new android.content.Intent(activity, WebLoginActivity.class);
-            intent.putExtra("phone", phone == null ? "" : phone);
             activity.startActivity(intent);
             out.put("ok", true);
             out.put("opened", true);
@@ -350,49 +350,15 @@ final class WebAppBridge {
     @JavascriptInterface
     public String logout() {
         api.logout();
+        try {
+            CookieManager manager = CookieManager.getInstance();
+            manager.removeAllCookies(null);
+            manager.flush();
+        } catch (Throwable ignored) {}
         JSONObject out = new JSONObject();
         try {
             out.put("ok", true);
         } catch (Throwable ignored) {}
-        return out.toString();
-    }
-
-    @JavascriptInterface
-    public String qrGenerate() {
-        JSONObject out = new JSONObject();
-        try {
-            String raw = cookies.request("https://passport.bilibili.com/x/passport-login/web/qrcode/generate", null, null);
-            JSONObject json = new JSONObject(raw);
-            JSONObject data = json.optJSONObject("data");
-            if (json.optInt("code") != 0 || data == null) throw new IllegalStateException("qr code " + json.optInt("code"));
-            String url = data.optString("url", "");
-            String key = data.optString("qrcode_key", "");
-            out.put("ok", true);
-            out.put("key", key);
-            out.put("url", url);
-            out.put("image", QrUtil.pngBase64(url, 512));
-        } catch (Throwable error) {
-            Log.w(TAG, "qr generate failed", error);
-            out = error(error);
-        }
-        return out.toString();
-    }
-
-    @JavascriptInterface
-    public String qrPoll(String key) {
-        JSONObject out = new JSONObject();
-        try {
-            String raw = cookies.request("https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key=" + key, null, null);
-            JSONObject json = new JSONObject(raw);
-            JSONObject data = json.optJSONObject("data");
-            int code = data == null ? -1 : data.optInt("code", -1);
-            out.put("ok", true);
-            out.put("code", code);
-            out.put("message", data == null ? "" : data.optString("message", ""));
-            out.put("loggedIn", code == 0 || cookies.loggedIn());
-        } catch (Throwable error) {
-            out = error(error);
-        }
         return out.toString();
     }
 

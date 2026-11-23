@@ -455,11 +455,10 @@ final class O11A1LocalServer {
     case "session":
       data = client.session()
     case "logout":
+      DispatchQueue.main.async {
+        O11A1WebLogin.clearBilibiliCookies()
+      }
       data = client.logout()
-    case "qrGenerate":
-      data = client.qrGenerate()
-    case "qrPoll":
-      data = client.qrPoll(key: query["key"] ?? "")
     case "brightness":
       var percent = 100
       let read = { percent = Int(round(UIScreen.main.brightness * 100)) }
@@ -489,9 +488,8 @@ final class O11A1LocalServer {
       data = o11a1Data(["ok": true, "v": value])
     case "webLogin":
       let client = self.client
-      let phone = query["phone"] ?? ""
       DispatchQueue.main.async {
-        O11A1WebLogin.present(phone: phone) { header in
+        O11A1WebLogin.present { header in
           client.importCookieHeader(header)
         }
       }

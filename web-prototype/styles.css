@@ -1127,25 +1127,16 @@ body.playlist-reordering{cursor:grabbing}
   margin:0 0 38px;font-size:31px;line-height:1.16;font-weight:800;
   letter-spacing:-.035em;color:var(--ink);
 }
-.login-form{display:flex;flex-direction:column}
-.login-field{
-  display:flex;align-items:center;height:56px;
-  border-bottom:1px solid var(--line-strong);
-  transition:border-color .18s ease;
+.login-start{
+  display:flex;align-items:center;justify-content:center;width:100%;height:56px;
+  padding:0 18px;border:1px solid var(--line-strong);border-radius:16px;
+  background:transparent;color:var(--ink);
+  font:inherit;font-size:15px;font-weight:700;letter-spacing:.01em;
+  cursor:pointer;
+  transition:border-color .18s ease,opacity .12s ease,transform .12s ease;
 }
-.login-field:focus-within{border-bottom-color:var(--blue)}
-.login-input{
-  flex:1;min-width:0;height:100%;border:0;background:none;outline:none;padding:0;
-  font-size:17px;font-weight:600;letter-spacing:.01em;color:var(--ink);
-}
-.login-input::placeholder{color:var(--faint);font-weight:500;letter-spacing:0}
-.login-code-btn{
-  flex:none;border:0;background:none;padding:0 0 0 14px;margin:0;
-  font-size:13.5px;font-weight:750;line-height:1;letter-spacing:.01em;color:var(--blue);
-  cursor:pointer;white-space:nowrap;transition:color .16s ease,opacity .16s ease;
-}
-.login-code-btn:disabled{color:var(--faint);cursor:default}
-.login-code-btn:active:not(:disabled){opacity:.55}
+.login-start:hover{border-color:var(--ink)}
+.login-start:active{transform:scale(.985);opacity:.7}
 .login-status{
   min-height:17px;margin:14px 0 0;font-size:12.5px;line-height:1.35;
   color:var(--muted);text-align:left;

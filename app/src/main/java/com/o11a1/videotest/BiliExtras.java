@@ -950,7 +950,7 @@ final class BiliExtras {
     /* ---------- writes ---------- */
 
     JSONObject like(long aid, boolean on) {
-        if (!canWrite()) return needLogin("请先扫码登录");
+        if (!canWrite()) return needLogin("请先登录");
         try {
             JSONObject json = post("https://api.bilibili.com/x/web-interface/archive/like",
                 form("aid", String.valueOf(aid), "like", on ? "1" : "0", "csrf", csrf()));
@@ -961,7 +961,7 @@ final class BiliExtras {
     }
 
     JSONObject coin(long aid, int count, boolean likeAlso) {
-        if (!canWrite()) return needLogin("请先扫码登录");
+        if (!canWrite()) return needLogin("请先登录");
         try {
             JSONObject json = post("https://api.bilibili.com/x/web-interface/coin/add",
                 form("aid", String.valueOf(aid), "multiply", String.valueOf(Math.max(1, Math.min(2, count))),
@@ -975,7 +975,7 @@ final class BiliExtras {
     }
 
     JSONObject favorite(long aid, boolean on) {
-        if (!canWrite()) return needLogin("请先扫码登录");
+        if (!canWrite()) return needLogin("请先登录");
         try {
             long folder = defaultFolderId();
             if (folder <= 0) return apiFailure(-1, "没有可用的收藏夹");
@@ -994,7 +994,7 @@ final class BiliExtras {
     }
 
     JSONObject follow(long mid, boolean on) {
-        if (!canWrite()) return needLogin("请先扫码登录");
+        if (!canWrite()) return needLogin("请先登录");
         try {
             JSONObject json = post("https://api.bilibili.com/x/relation/modify",
                 form("fid", String.valueOf(mid), "act", on ? "1" : "2",
@@ -1006,7 +1006,7 @@ final class BiliExtras {
     }
 
     JSONObject sendComment(long aid, String message) {
-        if (!canWrite()) return needLogin("请先扫码登录");
+        if (!canWrite()) return needLogin("请先登录");
         try {
             JSONObject json = post("https://api.bilibili.com/x/v2/reply/add",
                 form("oid", String.valueOf(aid), "type", "1", "message", message, "csrf", csrf()));
@@ -1022,7 +1022,7 @@ final class BiliExtras {
     }
 
     JSONObject sendDanmaku(long cid, String message, long progressMs) {
-        if (!canWrite()) return needLogin("请先扫码登录");
+        if (!canWrite()) return needLogin("请先登录");
         try {
             JSONObject json = post("https://api.bilibili.com/x/v2/dm/post",
                 form("type", "1", "oid", String.valueOf(cid), "msg", message,

@@ -16,7 +16,7 @@
 
 - 在 Expo Go 中启动时检测不到 `O11A1Bridge`，会自动把 `web-prototype/` 的 `index.html / styles.css / app.js / native.js` 内联进一个 WebView。
 - 注入 `window.O11A1Native` 的 mock 实现：热门/搜索/排行/番剧/直播/收藏/历史/关注/动态/消息/评论/楼中楼/会员任务都有假数据。
-- 登录 gate、极简短信登录页（手机号 / 验证码 / 获取验证码）、侧边栏、播放器设置抽屉、画质/弹幕设置/循环模式/评论/播放列表/主题/外观滑杆/键盘映射等 UI 都可以点。
+- 登录 gate、官方网页登录按钮、侧边栏、播放器设置抽屉、画质/弹幕设置/循环模式/评论/播放列表/主题/外观滑杆/键盘映射等 UI 都可以点。
 - 视频播放、真实账号、离线下载、AI、截图、复制链接会显示“UI 调试模式…”的内联提示，不会伪造成功。
 - 左上角会显示 `UI MOCK · 无视频 / 无账号` 标识。
 
@@ -62,7 +62,7 @@ npx expo start --tunnel
 - **架构**：`expo-ui` 启动 `O11A1Bridge` 原生模块，在 `127.0.0.1` 随机端口起一个本地 HTTP 服务，把打包进 JS 的 `index.html / app.js / native.js / styles.css` 原样提供给 WKWebView。
 - **同步桥**：注入 `window.O11A1Native`，通过同步 XHR 调本地 `/api/*`，与 Android 的 `WebAppBridge` API 完全一致，包括 UP 主空间 `space`（先请求旧版空间接口，失败时再用 WBI 签名请求新版接口，并补全 UP 名字、头像和粉丝数）；`native.js` 不需要分叉。
 - **真实数据**：Swift `O11A1BiliClient` 直接请求 B 站热门、搜索、分页 cid、playurl、评论、弹幕、导航登录态、账户资料、收藏夹、历史、关注动态、动态、消息、排行榜、番剧/影视索引、番剧选集、直播推荐与直播地址、分区、视频详情；Cookie 持久化到 UserDefaults。
-- **真实登录**：应用内打开 B 站官方短信验证码登录页；登录成功后读取 WebKit Cookie 并保存 `SESSDATA` 等 Cookie。
+- **真实登录**：应用内打开 B 站官方登录页（手机号 / 密码 / 扫码等方式由官方页面提供）；登录成功后读取 WebKit Cookie 并保存 `SESSDATA` 等 Cookie；退出登录同时清理原生 Cookie 与 WKWebView Cookie，下次打开官方页保持未登录。
 - **真实播放**：progressive MP4 优先 720P，失败回退 480P / 360P；本地 `/media` 代理补 Referer/UA、转发 Range，按 8MB 分块返回 206；主 CDN 失败自动试备用 CDN；番剧通过 `pgc/player/web/playurl` 播放并一次加入整季选集；直播使用原生 HLS；1080P / 4K / 1080P+ 会先尝试 DASH，失败自动回退渐进播放。
 - **离线缓存**：`O11A1Downloads` 在 Documents/offline 保存 progressive MP4，支持进度、暂停、继续、断点续传、删除，完成后由本地 `/file` 路由播放。
 - **播放器**：与 Android 共用同一套 V2 播放器 UI、三区手势、评论、弹幕、播放列表、刷新和登录 gate；视频信息/性能面板、截图、复制链接、收藏/投币/关注/弹幕发送会调用真实接口（未登录时内联提示）；外接键盘映射、深色主题、全屏评论楼中楼/三段窗口无限列表、会员任务、AI 养鱼全部共用 web 实现。
@@ -72,16 +72,16 @@ npx expo start --tunnel
   - 模拟器包：`https://github.com/AntarcticBearHKL/O11A1-Mobile/releases/download/ios-unsigned/o11a1-ios-simulator.zip`
   - Android APK：`https://github.com/AntarcticBearHKL/O11A1-Mobile/releases/download/android-debug/app-debug.apk`
 - **安装**：未签名 IPA 需要自己签名（Sideloadly / AltStore / eSign / 自有开发者证书）；模拟器 zip 解压后用 `xcrun simctl install booted O11A1.app`，需要 macOS。
-- **CI 验证**：`ios-unsigned` 在 macOS runner 上启动 iOS Simulator，已实际跑通登录 gate + 短信登录入口 → 本地测试进入 → 真实热门流 → 首个视频 720P 播放 + 弹幕。Release 里的 `ios-simulator.png` 是登录 gate，`ios-simulator-player.png` 是真实播放画面。真机仍需你自己签名后测试。
+- **CI 验证**：`ios-unsigned` 在 macOS runner 上启动 iOS Simulator，已实际跑通登录 gate → 真实热门流 → 首个视频 720P 播放 + 弹幕。Release 里的 `ios-simulator.png` 是登录 gate，`ios-simulator-player.png` 是真实播放画面。真机仍需你自己签名后测试。
 - **系统亮度 / 音量**：播放器不再监听左右竖滑，也不提供应用内亮度或音量滑杆；亮度和音量完全交给系统控制。进入、退出播放器都不会修改或恢复系统亮度，也不会修改 `<video>` 元素音量；外接键盘的音量快捷键也已移除。
 
 ## Android V2 实装（当前 APK）
 
 - **架构**：`web-prototype/` 是唯一 UI 源；Gradle 构建时复制到 `assets/web`，`MainActivity` 用全屏 WebView 加载。
-- **原生桥**：`WebAppBridge` / `BiliApi` / `BiliExtras` / `DownloadManager` / `CookieStore` / `StreamProxy` 提供热门、搜索、分集 cid、playurl、DASH、评论与楼中楼、弹幕、短信登录、Cookie、账户、收藏、历史、关注、动态、消息、排行榜、番剧/影视、直播、分区、视频详情、互动写入、会员中心、AI 接口、离线下载、亮度、方向、剪贴板和截图。
+- **原生桥**：`WebAppBridge` / `BiliApi` / `BiliExtras` / `DownloadManager` / `CookieStore` / `StreamProxy` 提供热门、搜索、分集 cid、playurl、DASH、评论与楼中楼、弹幕、官方网页登录、Cookie、账户、收藏、历史、关注、动态、消息、排行榜、番剧/影视、直播、分区、视频详情、互动写入、会员中心、AI 接口、离线下载、亮度、方向、剪贴板和截图。
 - **真实数据**：首页热门 / 排行 / 番剧 / 影视 / 直播 / 分区 / 收藏 / 历史 / 关注；搜索；模块页；账户卡；动态 / 消息；视频信息；会员中心每日任务与经验记录。未登录的账户页会显示登录 CTA。
 - **真实播放**：Bridge 取 B 站 progressive MP4；1080P / 1080P60 / 1080P+ / 4K 先请求 DASH，用 MediaSource 分流视频/音频，失败自动回退渐进播放。画质回退会按 120 / 116 / 112 / 80 / 74 / 64 / 32 / 16 的完整阶梯逐级尝试，不再从 4K 直接掉到 720P；切到实际可用画质时会在播放器内提示原因，并在画质面板里显示当前视频实际支持的分辨率。本地代理补齐 Referer/UA 并转发 Range；番剧按集播放并加入播放列表；直播 HLS 使用 hls.js；HTML5 `<video>` 播放。
-- **真实登录**：登录页为无卡片、无说明文字的极简平面布局，只有「短信验证码登录」标题、手机号、验证码 + 获取验证码三行；点「获取验证码」会把手机号带入 B 站官方短信验证页完成极验和安全校验，官方页验证码输满 6 位会自动提交，成功后自动同步 `SESSDATA` / `bili_jct` 并进入首页；未填写手机号且未获取验证码时直接输入 `999999` 可进入本地测试，不伪造真实账号。
+- **真实登录**：登录页为无卡片、无说明文字的极简平面布局，只有「登录 B 站账号」标题和一个透明描边按钮「前往 B 站登录」；点击后在应用内打开 B 站官方登录页，手机号 / 密码 / 扫码等登录方式全部由官方页面处理，不再在 App 内输入手机号或验证码，也没有本地测试码；官方页登录成功后自动同步 `SESSDATA` / `bili_jct` 并进入首页。退出登录会同时清空原生 `CookieStore` 和 WebView Cookie，保证下次打开官方登录页时处于未登录状态。
 - **系统亮度 / 音量**：播放器不再执行左右竖滑调亮度 / 音量；系统亮度、系统媒体音量完全交给设备和系统控制。App 不修改、不持久化、也不恢复亮度或音量，不修改 `<video>` 元素音量。
 - **播放器**：播放/暂停、进度、倍速、循环、画质重取、三区手势、收起进浮动播放列表、全屏真实评论（三段窗口无限列表 + 楼中楼）、真实弹幕滚动、信息/性能面板、截图保存到相册、复制 BV 链接、收藏/投币/关注/点赞、弹幕发送、外接键盘映射、深色主题与外观滑杆、会员任务、AI 养鱼。评论发送入口暂时隐藏。播放使用系统硬解，默认 720P；不提供插帧、CAS、Anime4K 或 120Hz 强制高刷，避免持续 GPU 后处理和额外发热。
 - **加载状态**：所有需要网络等待的内容先绘制骨架屏再发起同步桥请求，避免真机上先卡住再突然出内容。覆盖首页 / 模块 / 搜索 / UP 主 / 收藏 / 历史 / 关注视频流、动态、消息、会员任务、账户卡、视频详情、相关推荐、评论、评论分页和播放器信息面板。骨架尺寸尽量沿用真实内容尺寸，图标、封面、头像先占位再淡入；分页加载在底部插入局部骨架和尾部加载动画，不会整页闪烁。骨架颜色跟随主题，浅色为浅灰、深色为深蓝灰。
@@ -92,13 +92,13 @@ npx expo start --tunnel
   ./gradlew :app:assembleDebug
   adb install -r app/build/outputs/apk/debug/app-debug.apk
   ```
-- **模拟器验证**：`Medium_Phone_API_37.0`，480×800 / 160dpi。已验证登录 gate / 短信登录入口、热门 20 条、搜索“原神”20 条、排行/番剧/影视/分区真实列表、番剧第一集 360P 播放（整季 11 集入队）、真实评论（8709 条）、最新评论未登录回退最热、楼中楼展开 12 条、触底无限加载、侧边栏、左滑播放列表、播放列表页/移除、视频信息/性能面板、截图（MediaStore）、复制链接、画质切换、倍速/循环、设置账户卡、视频流刷新率、五条播放 HUD、深色/浅色主题、渐进 MP4 离线下载 141.5MB、DASH 分轨下载 + MediaMuxer 合流 11.6MB（360P，音频解码计数 >0）并从本地播放、DASH 720P 在线播放、WebGL 插帧/CAS。直播列表 20 条和直播地址 HLS 已验证；模拟器长时间 720P/直播软解会让模拟器不稳定，真机为准。
+- **模拟器验证**：`Medium_Phone_API_37.0`，480×800 / 160dpi。已验证登录 gate / 官方登录入口、热门 20 条、搜索“原神”20 条、排行/番剧/影视/分区真实列表、番剧第一集 360P 播放（整季 11 集入队）、真实评论（8709 条）、最新评论未登录回退最热、楼中楼展开 12 条、触底无限加载、侧边栏、左滑播放列表、播放列表页/移除、视频信息/性能面板、截图（MediaStore）、复制链接、画质切换、倍速/循环、设置账户卡、视频流刷新率、五条播放 HUD、深色/浅色主题、渐进 MP4 离线下载 141.5MB、DASH 分轨下载 + MediaMuxer 合流 11.6MB（360P，音频解码计数 >0）并从本地播放、DASH 720P 在线播放、WebGL 插帧/CAS。直播列表 20 条和直播地址 HLS 已验证；模拟器长时间 720P/直播软解会让模拟器不稳定，真机为准。
 - **未验证 / 需要账号**：真实登录后的收藏/历史/关注/动态/消息/会员任务、4K/1080P+（需要大会员）、点赞/投币/收藏/关注/评论/弹幕发送、直播弹幕（B 站匿名接口 -352，需登录 Cookie）、AI 养鱼（需要用户提供 DeepSeek/OpenAI 兼容 Key）。这些入口在条件不满足时会内联提示，不会伪造成功。
 
 ## 移动端 V2 规划（当前）
 
 - **不要底部工具栏**：视频流占满整个窗口；在屏幕上向右滑，从左边展开侧边栏。
-- **强制登录**：未登录冷启动直接停在登录 gate，首页、侧边栏、搜索、播放器、播放列表全部不可达；点「获取验证码」进入 B 站官方验证页，输入 `999999` 直接进入本地测试，登录态本地保存；设置 → 账户可退出。
+- **强制登录**：未登录冷启动直接停在登录 gate，首页、侧边栏、搜索、播放器、播放列表全部不可达；登录页只有一个透明描边按钮「前往 B 站登录」，点击后打开 B 站官方登录页，登录成功后同步 Cookie，不再在 App 内输入手机号 / 验证码，也没有本地测试码；退出登录会同时清空原生 CookieStore 和 WebView Cookie，保证下次打开官方页时是未登录的干净状态；二维码登录代码和页面已全部删除，只保留官方网页登录。设置 → 账户可退出。
 - 侧边栏列出了全部导航入口：首页 / 收藏 / 直播 / 番剧 / 动态 / 消息 / 历史 / 我的；不再有搜索按钮，「关注」不再出现在侧边栏。
 - 侧边栏使用统一的极简线性 SVG 图标（无 emoji）；「我的」独立放在侧边栏底部，与主入口之间用分隔线隔开。
 - 养鱼（AI 看片）入口默认隐藏；设置 → 防干扰 → 隐藏养鱼入口 可恢复。
@@ -127,7 +127,7 @@ npx expo start --tunnel
 - 无 Toast、无旧版灰色提示条；所有反馈内联。
 - 桌面端功能逐项保留；完整对照见 [MOBILE_FEATURES.md](MOBILE_FEATURES.md)。
 
-> Android APK 已接入真实热门/搜索/播放/短信登录/评论/弹幕；Web 原型继续作为布局与手势基准。产品与播放器设计：[MOBILE_DESIGN.md](MOBILE_DESIGN.md)（V2）。
+> Android APK 已接入真实热门/搜索/播放/官方网页登录/评论/弹幕；Web 原型继续作为布局与手势基准。产品与播放器设计：[MOBILE_DESIGN.md](MOBILE_DESIGN.md)（V2）。
 > 产品与播放器设计：[MOBILE_DESIGN.md](MOBILE_DESIGN.md)（V2）。
 > 功能与交互规范：[MOBILE_INTERACTION.md](MOBILE_INTERACTION.md)（V2）。
 > 桌面功能完整对照：[MOBILE_FEATURES.md](MOBILE_FEATURES.md)。
@@ -195,8 +195,8 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 已覆盖：
 
-- Android V2：WebView UI + 真实热门/搜索/模块数据、B 站短信验证码登录、progressive 720P 播放、评论、弹幕、播放列表、触底无限加载。
-- iOS V2：Expo + WKWebView + 本地回环桥；CI 的 iOS Simulator 已跑通登录 gate/短信登录入口、真实热门流、首个视频 720P 播放、真实弹幕，截图随 Release 发布。
+- Android V2：WebView UI + 真实热门/搜索/模块数据、B 站官方网页登录、progressive 720P 播放、评论、弹幕、播放列表、触底无限加载。
+- iOS V2：Expo + WKWebView + 本地回环桥；CI 的 iOS Simulator 已跑通登录 gate/官方登录入口、真实热门流、首个视频 720P 播放、真实弹幕，截图随 Release 发布。
 - 两端统一使用同一套 WebView 播放器；默认 720P，progressive 优先，DASH 只在 1080P / 1080P+ / 1080P60 / 4K 时启用。
 - GitHub Actions 每次 push 自动构建 Android APK 和 unsigned iOS 包，并把 IPA/APK 发布到 Releases。
 

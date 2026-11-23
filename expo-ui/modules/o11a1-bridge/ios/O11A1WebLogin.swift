@@ -2,20 +2,17 @@ import Foundation
 import UIKit
 import WebKit
 
-/// Presents Bilibili's official login page, switches it to SMS login and imports the resulting cookies.
+/// Presents Bilibili's official login page and imports the resulting cookies.
 final class O11A1WebLogin: NSObject, WKNavigationDelegate {
   private static var active: O11A1WebLogin?
+  private static let loginURL = "https://passport.bilibili.com/login"
   private let controller: UIViewController
   private let webView: WKWebView
   private let onImport: (String) -> Void
-  private let phone: String
   private var timer: Timer?
   private var finished = false
-  private var initialSess = ""
-  private var initialReady = false
 
-  private init(phone: String, onImport: @escaping (String) -> Void) {
-    self.phone = phone.filter { $0.isNumber }
+  private init(onImport: @escaping (String) -> Void) {
     self.onImport = onImport
     controller = UIViewController()
     let config = WKWebViewConfiguration()
@@ -32,7 +29,7 @@ final class O11A1WebLogin: NSObject, WKNavigationDelegate {
 
     let title = UILabel()
     title.translatesAutoresizingMaskIntoConstraints = false
-    title.text = "B 站短信验证码登录"
+    title.text = "B 站登录"
     title.textColor = UIColor(red: 0.949, green: 0.961, blue: 0.980, alpha: 1)
     title.font = .systemFont(ofSize: 16, weight: .semibold)
 
@@ -69,27 +66,40 @@ final class O11A1WebLogin: NSObject, WKNavigationDelegate {
       webView.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor)
     ])
 
-    if let url = URL(string: "https://passport.bilibili.com/login") {
-      webView.load(URLRequest(url: url))
-    }
-    WKWebsiteDataStore.default().httpCookieStore.getAllCookies { [weak self] cookies in
-      let sess = cookies.first { $0.domain.contains("bilibili.com") && $0.name == "SESSDATA" }?.value ?? ""
-      DispatchQueue.main.async {
-        self?.initialSess = sess
-        self?.initialReady = true
+    O11A1WebLogin.clearBilibiliCookies { [weak self] in
+      guard let self = self, !self.finished, let url = URL(string: O11A1WebLogin.loginURL) else { return }
+      self.webView.load(URLRequest(url: url))
+      self.timer?.invalidate()
+      self.timer = Timer.scheduledTimer(withTimeInterval: 1.2, repeats: true) { [weak self] _ in
+        self?.checkCookies()
       }
-    }
-    timer = Timer.scheduledTimer(withTimeInterval: 1.2, repeats: true) { [weak self] _ in
-      self?.checkCookies()
+      self.checkCookies()
     }
   }
 
-  static func present(phone: String = "", onImport: @escaping (String) -> Void) {
+  static func present(onImport: @escaping (String) -> Void) {
     guard let top = topViewController() else { return }
     if top.presentedViewController != nil { return }
-    let login = O11A1WebLogin(phone: phone, onImport: onImport)
+    let login = O11A1WebLogin(onImport: onImport)
     active = login
     top.present(login.controller, animated: true)
+  }
+
+  static func clearBilibiliCookies(completion: (() -> Void)? = nil) {
+    let store = WKWebsiteDataStore.default().httpCookieStore
+    store.getAllCookies { cookies in
+      let relevant = cookies.filter { $0.domain.contains("bilibili.com") }
+      guard !relevant.isEmpty else {
+        DispatchQueue.main.async { completion?() }
+        return
+      }
+      let group = DispatchGroup()
+      for cookie in relevant {
+        group.enter()
+        store.delete(cookie) { group.leave() }
+      }
+      group.notify(queue: .main) { completion?() }
+    }
   }
 
   private static func topViewController(_ base: UIViewController? = nil) -> UIViewController? {
@@ -110,91 +120,16 @@ final class O11A1WebLogin: NSObject, WKNavigationDelegate {
   }
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-    injectSmsTab()
     checkCookies()
-  }
-
-  private func injectSmsTab() {
-    let js = """
-    (function(){
-      var phone='\(phone)';
-      function phoneInput(){
-        return document.querySelector('.tab-sms input[maxlength="15"]') || document.querySelector('.tab-sms input');
-      }
-      function fillPhone(){
-        var input=phoneInput();
-        if(!input) return false;
-        if(phone && input.value!==phone){
-          var setter=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
-          setter.call(input,phone);
-          input.dispatchEvent(new Event('input',{bubbles:true}));
-          input.dispatchEvent(new Event('change',{bubbles:true}));
-        }
-        return true;
-      }
-      function clickSms(){
-        var all=document.querySelectorAll('div,span,button,a,p');
-        for(var i=0;i<all.length;i++){
-          var t=(all[i].textContent||'').trim();
-          if(t==='短信登录'||t==='短信验证码登录'||t==='验证码登录'||t==='SMS Login'||t==='SMS login'){ all[i].click(); return true; }
-        }
-        return false;
-      }
-      function loginButton(){
-        return document.querySelector('.tab-sms .btn_primary') || document.querySelector('.btn_wp .btn_primary') || document.querySelector('.btn_primary');
-      }
-      function clickLogin(){
-        var btn=loginButton();
-        if(!btn || btn.classList.contains('disabled')) return false;
-        btn.click();
-        return true;
-      }
-      function clickGetCode(){
-        var box=document.querySelector('.tab-sms');
-        if(!box) return false;
-        var all=box.querySelectorAll('.clickable,div,span');
-        for(var i=0;i<all.length;i++){
-          var t=(all[i].textContent||'').trim();
-          if(t==='获取验证码'||t==='Get code'||t==='Get Code'){ all[i].click(); return true; }
-        }
-        return false;
-      }
-      function submitCode(e){
-        var t=e.target;
-        if(!t || t.tagName!=='INPUT' || t.maxLength!==6 || !t.closest('.tab-sms')) return;
-        var v=t.value||'';
-        if(v.length<6){ t.dataset.o11a1=''; return; }
-        if(v.length!==6 || t.dataset.o11a1==='1') return;
-        t.dataset.o11a1='1';
-        var n=0;
-        var timer=setInterval(function(){
-          n++;
-          if(clickLogin() || n>12) clearInterval(timer);
-        },150);
-        setTimeout(function(){ t.dataset.o11a1=''; },3000);
-      }
-      document.addEventListener('input',submitCode,true);
-      var tries=0;
-      var autoSent=false;
-      var timer=setInterval(function(){
-        tries++;
-        var sms=clickSms();
-        var filled=sms?fillPhone():false;
-        if(phone && filled && !autoSent) autoSent=clickGetCode();
-        if(tries>40 || autoSent) clearInterval(timer);
-      },400);
-    })();
-    """
-    webView.evaluateJavaScript(js, completionHandler: nil)
   }
 
   private func checkCookies() {
     guard !finished else { return }
     WKWebsiteDataStore.default().httpCookieStore.getAllCookies { [weak self] cookies in
-      guard let self = self, !self.finished, self.initialReady else { return }
+      guard let self = self, !self.finished else { return }
       let relevant = cookies.filter { $0.domain.contains("bilibili.com") }
       let sess = relevant.first { $0.name == "SESSDATA" }?.value ?? ""
-      guard !sess.isEmpty, sess != self.initialSess,
+      guard !sess.isEmpty,
             relevant.contains(where: { $0.name == "bili_jct" && !$0.value.isEmpty }) else { return }
       let header = relevant.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
       DispatchQueue.main.async { self.finish(header) }

@@ -110,9 +110,7 @@
   const dynamicFilter = $('#dynamicFilter');
   const messageFilter = $('#messageFilter');
   const loginStatus = $('#loginStatus');
-  const loginPhone = $('#loginPhone');
-  const loginCode = $('#loginCode');
-  const loginCodeBtn = $('#loginCodeBtn');
+  const loginStart = $('#loginStart');
   const searchClear = $('#searchClear');
   const protoDrawer = $('#protoDrawer');
   const protoBackdrop = $('#protoBackdrop');
@@ -850,20 +848,7 @@
 
   /* ---------- login ---------- */
 
-  let loginRequested = false;
-  let smsPollTimer = null;
-
-  function loginDigits(value, max) {
-    return String(value == null ? '' : value).replace(/\D/g, '').slice(0, max);
-  }
-
-  function loginPhoneValue() {
-    return loginPhone ? loginPhone.value.trim() : '';
-  }
-
-  function loginPhoneValid() {
-    return /^1[3-9]\d{9}$/.test(loginPhoneValue());
-  }
+  let loginPollTimer = null;
 
   function setLoginStatus(text, tone) {
     if (!loginStatus) return;
@@ -875,7 +860,7 @@
   function nativeLoginCall(name, args) {
     const native = window.O11A1Native;
     if (!native || typeof native[name] !== 'function') {
-      return { ok: false, error: '当前环境不支持短信登录' };
+      return { ok: false, error: '当前环境不支持原生登录' };
     }
     try {
       const raw = native[name].apply(native, args);
@@ -887,9 +872,6 @@
   }
 
   function resetLoginForm() {
-    loginRequested = false;
-    if (loginPhone) loginPhone.value = '';
-    if (loginCode) loginCode.value = '';
     setLoginStatus('');
   }
 
@@ -906,89 +888,47 @@
     }, options.immediate ? 0 : 600);
   }
 
-  function enterLocalTest() {
-    state.loggedIn = true;
-    app.classList.remove('auth-gate');
-    save();
-    resetLoginForm();
-    showPage('home');
-  }
-
-  function openOfficialLogin(phone) {
+  function openOfficialLogin() {
     if (!window.O11A1Native || typeof window.O11A1Native.openWebLogin !== 'function') {
-      setLoginStatus('当前环境不支持短信登录', 'error');
+      setLoginStatus('当前环境不支持官方网页登录', 'error');
       return false;
     }
     let result;
-    try { result = JSON.parse(window.O11A1Native.openWebLogin(phone || '')); } catch (_) { result = { ok: false }; }
+    try { result = JSON.parse(window.O11A1Native.openWebLogin()); } catch (_) { result = { ok: false }; }
     if (!result || !result.ok) {
-      setLoginStatus(result && result.error ? result.error : '打开官方登录失败', 'error');
+      setLoginStatus(result && result.error ? result.error : '打开 B 站登录失败', 'error');
       return false;
     }
-    setLoginStatus('请在官方页面完成验证');
-    clearInterval(smsPollTimer);
+    setLoginStatus('请在 B 站官方页面完成登录');
+    clearInterval(loginPollTimer);
     let attempts = 0;
-    smsPollTimer = setInterval(() => {
+    loginPollTimer = setInterval(() => {
       attempts += 1;
       if (state.loggedIn) {
-        clearInterval(smsPollTimer);
-        smsPollTimer = null;
+        clearInterval(loginPollTimer);
+        loginPollTimer = null;
         return;
       }
       const account = nativeLoginCall('account', []);
       if (account && account.ok && account.loggedIn) {
-        clearInterval(smsPollTimer);
-        smsPollTimer = null;
+        clearInterval(loginPollTimer);
+        loginPollTimer = null;
         loginSucceeded({ silent: true });
         return;
       }
       if (attempts > 120) {
-        clearInterval(smsPollTimer);
-        smsPollTimer = null;
-        setLoginStatus('');
+        clearInterval(loginPollTimer);
+        loginPollTimer = null;
+        setLoginStatus('登录未完成，可重新点击登录');
       }
     }, 1500);
     return true;
   }
 
-  function requestLoginCode() {
-    if (!loginPhoneValid()) {
-      setLoginStatus('请输入正确手机号', 'error');
-      if (loginPhone) loginPhone.focus();
-      return;
-    }
-    loginRequested = true;
-    if (!openOfficialLogin(loginPhoneValue())) {
-      loginRequested = false;
-      return;
-    }
-    if (loginCodeBtn) {
-      loginCodeBtn.disabled = true;
-      loginCodeBtn.textContent = '官方验证中';
-    }
-    setTimeout(() => {
-      if (!state.loggedIn && loginCodeBtn) {
-        loginCodeBtn.disabled = false;
-        loginCodeBtn.textContent = '获取验证码';
-      }
-    }, 2500);
-  }
-
-  function submitLoginCode() {
-    if (!loginCode) return;
-    const code = loginCode.value;
-    if (code.length !== 6) return;
-    const phone = loginPhoneValue();
-    if (code === '999999' && !phone && !loginRequested) {
-      enterLocalTest();
-      return;
-    }
-    loginCode.value = '';
-    setLoginStatus('请在官方页面完成验证');
-  }
-
   function logout() {
     state.loggedIn = false;
+    clearInterval(loginPollTimer);
+    loginPollTimer = null;
     if (window.O11A1Native && typeof window.O11A1Native.logout === 'function') {
       try { window.O11A1Native.logout(); } catch (_) {}
     }
@@ -1001,6 +941,22 @@
     updateNavActive();
     showPage('login');
     resetLoginForm();
+  }
+
+  let loginSyncAt = 0;
+
+  function syncNativeLogin() {
+    if (state.loggedIn) return;
+    if (!window.O11A1Native || typeof window.O11A1Native.session !== 'function') return;
+    const now = Date.now();
+    if (now - loginSyncAt < 1200) return;
+    loginSyncAt = now;
+    const session = nativeLoginCall('session', []);
+    if (!session || !session.ok || !session.loggedIn) return;
+    state.loggedIn = true;
+    app.classList.remove('auth-gate');
+    save();
+    if (state.page === 'login') showPage('home');
   }
 
   function showPage(page, navId) {
@@ -4853,13 +4809,13 @@
       },
       'settings-account': {
         title: '账户',
-        sub: '二维码登录 · 头像 / 昵称 / UID / 等级',
+        sub: 'B 站官方登录 · 头像 / 昵称 / UID / 等级',
         rows: [
           { type: 'static', label: '昵称', value: nativeAccount.name || '未登录' },
           { type: 'static', label: 'UID', value: nativeAccount.mid ? String(nativeAccount.mid) : '—' },
           { type: 'static', label: '等级', value: nativeAccount.loggedIn ? `Lv${nativeAccount.level || 0}` : '—' },
           { type: 'static', label: '大会员', value: nativeAccount.vip ? (nativeAccount.vipLabel || '大会员') : '未开通' },
-          { type: 'action', label: '短信登录', value: state.loggedIn ? '已登录' : '未登录', run: () => { closeSheet(); showPage('login'); return '打开登录'; } },
+          { type: 'action', label: 'B 站登录', value: state.loggedIn ? '已登录' : '未登录', run: () => { closeSheet(); showPage('login'); return '打开登录'; } },
           { type: 'action', label: '打开账户页', value: '账户 / 经验 / 权益', run: () => {
             if (window.O11A1NativeData && typeof window.O11A1NativeData.openAccount === 'function') {
               closeSheet();
@@ -5185,34 +5141,7 @@
 
   $('#accountCard').addEventListener('click', () => showPage('login'));
   myModuleRow.addEventListener('click', openModuleSheet);
-  if (loginPhone) {
-    loginPhone.addEventListener('input', () => {
-      loginPhone.value = loginDigits(loginPhone.value, 11);
-      loginRequested = false;
-      if (loginCode) loginCode.value = '';
-      setLoginStatus('');
-    });
-    loginPhone.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        if (loginCode) loginCode.focus();
-      }
-    });
-  }
-  if (loginCode) {
-    loginCode.addEventListener('input', () => {
-      loginCode.value = loginDigits(loginCode.value, 6);
-      if (loginStatus && loginStatus.classList.contains('error')) setLoginStatus('');
-      if (loginCode.value.length === 6) submitLoginCode();
-    });
-    loginCode.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        submitLoginCode();
-      }
-    });
-  }
-  if (loginCodeBtn) loginCodeBtn.addEventListener('click', requestLoginCode);
+  if (loginStart) loginStart.addEventListener('click', openOfficialLogin);
 
   dynamicFilter.addEventListener('click', () => {
     state.dynamicFilterIndex = (state.dynamicFilterIndex + 1) % DYNAMIC_FILTERS.length;
@@ -6270,6 +6199,11 @@
   updateSearch();
   syncLandscape();
   showPage(state.loggedIn ? 'home' : 'login');
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) syncNativeLogin();
+  });
+  window.addEventListener('focus', () => syncNativeLogin());
+  setTimeout(syncNativeLogin, 800);
 
   /* ---------- prototype review modes (?demo= / ?selftest=1) ---------- */
   function stagePoint(zone) {

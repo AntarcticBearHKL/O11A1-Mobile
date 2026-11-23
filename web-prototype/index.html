@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=160">
+  <link rel="stylesheet" href="./styles.css?v=161">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -72,20 +72,12 @@
           </div>
         </section>
 
-        <!-- 登录 gate：短信验证码 -->
+        <!-- 登录 gate：官方网页登录 -->
         <section class="page" data-page="login">
           <button class="back login-back" data-goto="my" title="返回">‹</button>
           <div class="login-gate">
-            <h1 class="login-title">短信验证码登录</h1>
-            <div class="login-form">
-              <div class="login-field">
-                <input class="login-input" id="loginPhone" type="tel" inputmode="numeric" maxlength="11" autocomplete="tel" placeholder="手机号" aria-label="手机号">
-              </div>
-              <div class="login-field login-field-code">
-                <input class="login-input" id="loginCode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="验证码" aria-label="短信验证码">
-                <button class="login-code-btn" id="loginCodeBtn" type="button">获取验证码</button>
-              </div>
-            </div>
+            <h1 class="login-title">登录 B 站账号</h1>
+            <button class="login-start" id="loginStart" type="button">前往 B 站登录</button>
             <p class="login-status" id="loginStatus" role="status" aria-live="polite"></p>
           </div>
         </section>
@@ -465,8 +457,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=160"></script>
-  <script src="./app.js?v=160"></script>
-  <script src="./native.js?v=160"></script>
+  <script src="./vendor/hls.min.js?v=161"></script>
+  <script src="./app.js?v=161"></script>
+  <script src="./native.js?v=161"></script>
 </body>
 </html>

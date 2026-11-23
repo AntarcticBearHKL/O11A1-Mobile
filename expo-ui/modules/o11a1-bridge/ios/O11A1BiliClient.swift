@@ -85,7 +85,6 @@ final class O11A1BiliClient {
     37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4,
     22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52
   ]
-  static let passportBase = "https://passport.bilibili.com"
   static let userAgent = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
 
   private let cookies = O11A1CookieStore()
@@ -645,61 +644,6 @@ final class O11A1BiliClient {
   func logout() -> Data {
     cookies.clear()
     return o11a1Data(["ok": true])
-  }
-
-  func qrGenerate() -> Data {
-    ensureBuvid()
-    guard let payload = json(
-      base: Self.passportBase,
-      path: "/x/passport-login/web/qrcode/generate"
-    ),
-      o11a1Int(payload["code"]) == 0,
-      let data = payload["data"] as? [String: Any] else {
-      return o11a1Error("qr unavailable")
-    }
-    let url = o11a1String(data["url"])
-    let key = o11a1String(data["qrcode_key"])
-    if url.isEmpty || key.isEmpty { return o11a1Error("qr empty") }
-    return o11a1Data([
-      "ok": true,
-      "key": key,
-      "url": url,
-      "image": o11a1QRCodePNGBase64(url)
-    ])
-  }
-
-  func qrPoll(key: String) -> Data {
-    guard !key.isEmpty else { return o11a1Error("key missing") }
-    ensureBuvid()
-    guard let payload = json(
-      base: Self.passportBase,
-      path: "/x/passport-login/web/qrcode/poll",
-      query: ["qrcode_key": key]
-    ) else { return o11a1Error("qr poll unavailable") }
-    let data = payload["data"] as? [String: Any]
-    let code = o11a1Int(data?["code"])
-    if code == 0, let loginURL = data?["url"] as? String {
-      absorbLoginURL(loginURL)
-    }
-    return o11a1Data([
-      "ok": true,
-      "code": code,
-      "message": o11a1String(data?["message"]),
-      "loggedIn": code == 0 || cookies.hasSession()
-    ])
-  }
-
-  private func absorbLoginURL(_ raw: String) {
-    guard let components = URLComponents(string: raw),
-          let query = components.percentEncodedQuery else { return }
-    let names: Set<String> = ["SESSDATA", "bili_jct", "DedeUserID", "DedeUserID__ckMd5", "sid"]
-    for pair in query.split(separator: "&") {
-      let pieces = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
-      let name = String(pieces[0])
-      if names.contains(name), pieces.count > 1 {
-        cookies.set(name, String(pieces[1]))
-      }
-    }
   }
 
   /* ---------- account / community / discovery ---------- */
@@ -1319,7 +1263,7 @@ final class O11A1BiliClient {
   }
 
   func like(aid: Int64, on: Bool) -> Data {
-    guard canWrite() else { return needLogin("请先扫码登录") }
+    guard canWrite() else { return needLogin("请先登录") }
     guard let payload = postForm("https://api.bilibili.com/x/web-interface/archive/like", fields: [
       "aid": "\(aid)", "like": on ? "1" : "0", "csrf": csrfToken()
     ]) else { return o11a1Error("点赞失败") }
@@ -1327,7 +1271,7 @@ final class O11A1BiliClient {
   }
 
   func coin(aid: Int64, count: Int, likeAlso: Bool) -> Data {
-    guard canWrite() else { return needLogin("请先扫码登录") }
+    guard canWrite() else { return needLogin("请先登录") }
     guard let payload = postForm("https://api.bilibili.com/x/web-interface/coin/add", fields: [
       "aid": "\(aid)", "multiply": "\(min(2, max(1, count)))",
       "select_like": likeAlso ? "1" : "0", "csrf": csrfToken()
@@ -1337,7 +1281,7 @@ final class O11A1BiliClient {
   }
 
   func favorite(aid: Int64, on: Bool) -> Data {
-    guard canWrite() else { return needLogin("请先扫码登录") }
+    guard canWrite() else { return needLogin("请先登录") }
     let folder = defaultFolderId()
     guard folder > 0 else { return apiFailure(-1, "没有可用的收藏夹") }
     guard let payload = postForm("https://api.bilibili.com/x/v3/fav/resource/deal", fields: [
@@ -1350,7 +1294,7 @@ final class O11A1BiliClient {
   }
 
   func follow(mid: Int64, on: Bool) -> Data {
-    guard canWrite() else { return needLogin("请先扫码登录") }
+    guard canWrite() else { return needLogin("请先登录") }
     guard let payload = postForm("https://api.bilibili.com/x/relation/modify", fields: [
       "fid": "\(mid)", "act": on ? "1" : "2", "re_src": "11", "csrf": csrfToken()
     ]) else { return o11a1Error("关注失败") }
@@ -1358,7 +1302,7 @@ final class O11A1BiliClient {
   }
 
   func sendComment(aid: Int64, message: String) -> Data {
-    guard canWrite() else { return needLogin("请先扫码登录") }
+    guard canWrite() else { return needLogin("请先登录") }
     guard let payload = postForm("https://api.bilibili.com/x/v2/reply/add", fields: [
       "oid": "\(aid)", "type": "1", "message": message, "csrf": csrfToken()
     ]) else { return o11a1Error("评论发送失败") }
@@ -1371,7 +1315,7 @@ final class O11A1BiliClient {
   }
 
   func sendDanmaku(cid: Int64, message: String, progressMs: Int64) -> Data {
-    guard canWrite() else { return needLogin("请先扫码登录") }
+    guard canWrite() else { return needLogin("请先登录") }
     guard let payload = postForm("https://api.bilibili.com/x/v2/dm/post", fields: [
       "type": "1", "oid": "\(cid)", "msg": message, "progress": "\(max(0, progressMs))",
       "color": "16777215", "fontsize": "25", "pool": "0", "mode": "1", "plat": "1",

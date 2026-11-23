@@ -16,7 +16,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-/** In-app Bilibili SMS login page. Shares the WebView cookie jar and imports SESSDATA on success. */
+/** In-app Bilibili official web login page. Shares the WebView cookie jar and imports SESSDATA on success. */
 public final class WebLoginActivity extends Activity {
     private static final String UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36";
     private static final String LOGIN_URL = "https://passport.bilibili.com/login";
@@ -24,7 +24,6 @@ public final class WebLoginActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean finished = false;
     private String initialSess = "";
-    private String phone = "";
 
     private final Runnable cookiePoll = new Runnable() {
         @Override
@@ -52,8 +51,6 @@ public final class WebLoginActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        String rawPhone = getIntent().getStringExtra("phone");
-        phone = rawPhone == null ? "" : rawPhone.replaceAll("[^0-9]", "");
         getWindow().setStatusBarColor(Color.parseColor("#0B0D12"));
         getWindow().setNavigationBarColor(Color.parseColor("#0B0D12"));
 
@@ -68,7 +65,7 @@ public final class WebLoginActivity extends Activity {
         bar.setBackgroundColor(Color.parseColor("#141820"));
 
         TextView title = new TextView(this);
-        title.setText("B 站短信验证码登录");
+        title.setText("B 站登录");
         title.setTextColor(Color.parseColor("#F2F5FA"));
         title.setTextSize(16);
         title.setSingleLine(true);
@@ -96,59 +93,24 @@ public final class WebLoginActivity extends Activity {
         CookieManager manager = CookieManager.getInstance();
         manager.setAcceptCookie(true);
         manager.setAcceptThirdPartyCookies(webView, true);
-        initialSess = cookieValue(manager.getCookie("https://www.bilibili.com"), "SESSDATA");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                injectSmsTab();
                 handler.removeCallbacks(cookiePoll);
                 handler.postDelayed(cookiePoll, 800);
             }
         });
         root.addView(webView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         setContentView(root);
-        webView.loadUrl(LOGIN_URL);
-        handler.postDelayed(cookiePoll, 1500);
-    }
-
-    private void injectSmsTab() {
-        String js = "(function(){"
-            + "var phone='" + phone + "';"
-            + "function phoneInput(){return document.querySelector('.tab-sms input[maxlength=\"15\"]')||document.querySelector('.tab-sms input');}"
-            + "function codeInput(){return document.querySelector('.tab-sms input[maxlength=\"6\"]');}"
-            + "function fillPhone(){var input=phoneInput();if(!input)return false;"
-            + "if(phone&&input.value!==phone){var setter=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;"
-            + "setter.call(input,phone);input.dispatchEvent(new Event('input',{bubbles:true}));"
-            + "input.dispatchEvent(new Event('change',{bubbles:true}));}return true;}"
-            + "function clickSms(){"
-            + "var all=document.querySelectorAll('div,span,button,a,p');"
-            + "for(var i=0;i<all.length;i++){"
-            + "var t=(all[i].textContent||'').trim();"
-            + "if(t==='短信登录'||t==='短信验证码登录'||t==='验证码登录'||t==='SMS Login'||t==='SMS login'){"
-            + "all[i].click();return true;}}return false;}"
-            + "function loginButton(){return document.querySelector('.tab-sms .btn_primary')||document.querySelector('.btn_wp .btn_primary')||document.querySelector('.btn_primary');}"
-            + "function clickLogin(){var btn=loginButton();if(!btn||btn.classList.contains('disabled'))return false;btn.click();return true;}"
-            + "function clickGetCode(){var box=document.querySelector('.tab-sms');if(!box)return false;"
-            + "var all=box.querySelectorAll('.clickable,div,span');"
-            + "for(var i=0;i<all.length;i++){var t=(all[i].textContent||'').trim();"
-            + "if(t==='获取验证码'||t==='Get code'||t==='Get Code'){all[i].click();return true;}}return false;}"
-            + "function submitCode(e){"
-            + "var t=e.target;if(!t||t.tagName!=='INPUT'||t.maxLength!==6||!t.closest('.tab-sms'))return;"
-            + "var v=t.value||'';"
-            + "if(v.length<6){t.dataset.o11a1='';return;}"
-            + "if(v.length!==6||t.dataset.o11a1==='1')return;"
-            + "t.dataset.o11a1='1';"
-            + "var n=0;var timer=setInterval(function(){n++;if(clickLogin()||n>12)clearInterval(timer);},150);"
-            + "setTimeout(function(){t.dataset.o11a1='';},3000);}"
-            + "document.addEventListener('input',submitCode,true);"
-            + "var tries=0;var autoSent=false;var timer=setInterval(function(){tries++;var sms=clickSms();"
-            + "var filled=sms?fillPhone():false;"
-            + "if(phone&&filled&&!autoSent)autoSent=clickGetCode();"
-            + "if(tries>40||autoSent)clearInterval(timer);},400);"
-            + "})();";
-        webView.evaluateJavascript(js, null);
+        manager.removeAllCookies(status -> {
+            if (isFinishing() || isDestroyed() || webView == null) return;
+            manager.flush();
+            initialSess = cookieValue(manager.getCookie("https://www.bilibili.com"), "SESSDATA");
+            webView.loadUrl(LOGIN_URL);
+            handler.postDelayed(cookiePoll, 1500);
+        });
     }
 
     private void complete(String cookie) {

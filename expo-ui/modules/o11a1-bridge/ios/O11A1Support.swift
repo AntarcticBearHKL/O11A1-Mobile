@@ -1,6 +1,5 @@
 import Foundation
 import Compression
-import CoreImage
 import UIKit
 
 /// Small box used by synchronous URLSession calls.
@@ -119,24 +118,6 @@ func o11a1Base64URLDecode(_ text: String) -> Data? {
   var value = text.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
   while value.count % 4 != 0 { value += "=" }
   return Data(base64Encoded: value)
-}
-
-func o11a1QRCodePNGBase64(_ text: String) -> String {
-  guard !text.isEmpty,
-        let message = text.data(using: .utf8),
-        let filter = CIFilter(name: "CIQRCodeGenerator") else { return "" }
-  filter.setValue(message, forKey: "inputMessage")
-  filter.setValue("M", forKey: "inputCorrectionLevel")
-  guard let output = filter.outputImage else { return "" }
-  let scaled = output.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
-  let padding: CGFloat = 28
-  let rect = scaled.extent.insetBy(dx: -padding, dy: -padding)
-  let background = CIImage(color: CIColor.white).cropped(to: rect)
-  let composed = scaled.composited(over: background)
-  let context = CIContext(options: nil)
-  guard let cgImage = context.createCGImage(composed, from: rect) else { return "" }
-  guard let png = UIImage(cgImage: cgImage).pngData() else { return "" }
-  return png.base64EncodedString()
 }
 
 func o11a1Inflate(_ data: Data) -> Data? {

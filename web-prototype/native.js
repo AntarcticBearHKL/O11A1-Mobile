@@ -611,11 +611,11 @@
       return { ok: true, items: [], title: kind.label, needLogin: false, hasMore: false };
     }
     if (kind.api === 'favorites' && !state.loggedIn) {
-      if (!append) renderEmpty(feed, '登录后查看收藏', '短信登录后同步收藏夹。', '去登录', () => host.showPage('login'));
+      if (!append) renderEmpty(feed, '登录后查看收藏', '登录后同步收藏夹。', '去登录', () => host.showPage('login'));
       return { ok: true, items: [], title: kind.label, needLogin: true, hasMore: false };
     }
     if ((kind.api === 'history' || kind.api === 'following') && !state.loggedIn) {
-      if (!append) renderEmpty(feed, `登录后查看${kind.label}`, '短信登录后同步 B 站账号。', '去登录', () => host.showPage('login'));
+      if (!append) renderEmpty(feed, `登录后查看${kind.label}`, '登录后同步 B 站账号。', '去登录', () => host.showPage('login'));
       return { ok: true, items: [], title: kind.label, needLogin: true, hasMore: false };
     }
     const args = kind.api === 'popular' ? [pageNo, 20]
@@ -631,7 +631,7 @@
     if (!result.ok) {
       if (!append) {
         if (result.needLogin) {
-          renderEmpty(feed, `登录后查看${kind.label}`, '短信登录后同步 B 站账号。', '去登录', () => host.showPage('login'));
+          renderEmpty(feed, `登录后查看${kind.label}`, '登录后同步 B 站账号。', '去登录', () => host.showPage('login'));
         } else {
           renderEmpty(feed, `${kind.label}加载失败`, result.error || '网络错误', '重试', () => loadFeed(name, feed, 1, ''));
         }
@@ -1096,7 +1096,7 @@
   function renderMember(immediate) {
     const feed = feeds.module;
     if (!state.loggedIn) {
-      renderEmpty(feed, '登录后查看会员任务', '短信登录后同步大会员状态与每日经验。', '去登录', () => host.showPage('login'));
+      renderEmpty(feed, '登录后查看会员任务', '登录后同步大会员状态与每日经验。', '去登录', () => host.showPage('login'));
       return;
     }
     if (typeof bridge.memberCenter !== 'function') {
@@ -3045,7 +3045,7 @@
         <span class="avatar-ph lg"></span>
         <span class="account-copy">
           <span class="account-name">未登录</span>
-          <span class="account-meta">短信登录 B 站账号，同步收藏 / 历史 / 动态</span>
+          <span class="account-meta">登录 B 站账号，同步收藏 / 历史 / 动态</span>
         </span>
         <span class="account-vip off">登录</span>`;
     }
@@ -3098,7 +3098,7 @@
 
   function openAccountSheet() {
     const info = accountInfo || {};
-    host.openSheet('账户', info.loggedIn ? 'B 站账号 · 实时信息' : '未登录 · 短信登录后同步', (body) => {
+    host.openSheet('账户', info.loggedIn ? 'B 站账号 · 实时信息' : '未登录 · B 站登录后同步', (body) => {
       const rows = [
         ['昵称', info.name || '未登录'],
         ['UID', info.mid ? String(info.mid) : '—'],
@@ -3113,7 +3113,7 @@
         row.innerHTML = `<span class="sr-label">${esc(label)}</span><span class="sr-value">${esc(value)}</span>`;
         body.appendChild(row);
       });
-      host.actionRow(body, '短信登录', info.loggedIn ? '已登录' : '去登录', () => {
+      host.actionRow(body, 'B 站登录', info.loggedIn ? '已登录' : '去登录', () => {
         host.closeSheet();
         host.showPage('login');
         return '打开登录';
@@ -3183,7 +3183,7 @@
 
   function loadDynamic(page, append, immediate) {
     if (!state.loggedIn) {
-      renderEmpty($('#dynamicFeed'), '登录后查看动态', '短信登录后同步关注动态。', '去登录', () => host.showPage('login'));
+      renderEmpty($('#dynamicFeed'), '登录后查看动态', '登录后同步关注动态。', '去登录', () => host.showPage('login'));
       return true;
     }
     if (typeof bridge.dynamicFeed !== 'function') {
@@ -3202,7 +3202,7 @@
     const result = call('dynamicFeed', page || 1, filter);
     clearMoreSkeletons($('#dynamicFeed'));
     if (!result.ok) {
-      renderEmpty($('#dynamicFeed'), result.needLogin ? '登录后查看动态' : '动态加载失败', result.needLogin ? '短信登录后同步关注动态。' : (result.error || ''), result.needLogin ? '去登录' : '重试', result.needLogin ? () => host.showPage('login') : () => loadDynamic(1, false));
+      renderEmpty($('#dynamicFeed'), result.needLogin ? '登录后查看动态' : '动态加载失败', result.needLogin ? '登录后同步关注动态。' : (result.error || ''), result.needLogin ? '去登录' : '重试', result.needLogin ? () => host.showPage('login') : () => loadDynamic(1, false));
       return true;
     }
     renderDynamic(result.items || [], Boolean(append));
@@ -3232,7 +3232,7 @@
 
   function loadMessages(page, append, immediate) {
     if (!state.loggedIn) {
-      renderEmpty($('#messageFeed'), '登录后查看消息', '短信登录后同步回复、@ 和点赞。', '去登录', () => host.showPage('login'));
+      renderEmpty($('#messageFeed'), '登录后查看消息', '登录后同步回复、@ 和点赞。', '去登录', () => host.showPage('login'));
       return true;
     }
     const index = Math.max(0, Number(state.messageFilterIndex) || 0) % 4;
@@ -3256,7 +3256,7 @@
     const result = call('messages', page || 1, filter);
     clearMoreSkeletons($('#messageFeed'));
     if (!result.ok) {
-      renderEmpty($('#messageFeed'), result.needLogin ? '登录后查看消息' : '消息加载失败', result.needLogin ? '短信登录后同步回复、@ 和点赞。' : (result.error || ''), result.needLogin ? '去登录' : '重试', result.needLogin ? () => host.showPage('login') : () => loadMessages(1, false));
+      renderEmpty($('#messageFeed'), result.needLogin ? '登录后查看消息' : '消息加载失败', result.needLogin ? '登录后同步回复、@ 和点赞。' : (result.error || ''), result.needLogin ? '去登录' : '重试', result.needLogin ? () => host.showPage('login') : () => loadMessages(1, false));
       return true;
     }
     renderMessages(result.items || [], Boolean(append));
@@ -3437,7 +3437,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录，不再使用二维码';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方页面完成登录';
 
   const accountCard = $('#accountCard');
   if (accountCard) accountCard.addEventListener('click', (event) => {
