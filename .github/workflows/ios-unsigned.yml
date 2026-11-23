@@ -158,13 +158,14 @@ jobs:
 
       - name: Publish simulator assets
         if: always()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view ios-unsigned >/dev/null 2>&1 || gh release create ios-unsigned --title "iOS unsigned build" --notes "Unsigned IPA and simulator app built from $GITHUB_SHA."
           shopt -s nullglob
           files=(artifacts/ios-simulator.png artifacts/ios-simulator-player.png artifacts/ios-simulator.log)
-          if [ ${#files[@]} -gt 0 ]; then gh release upload ios-unsigned "${files[@]}" --clobber; fi
+          if [ ${#files[@]} -gt 0 ]; then gh release upload ios-unsigned "${files[@]}" --clobber || true; fi
 
       - name: Publish failure logs
         if: failure()
