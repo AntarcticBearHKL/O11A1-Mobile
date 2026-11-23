@@ -944,6 +944,7 @@
     if (loginCode) loginCode.value = '';
     loginCaptchaKey = '';
     loginCaptchaPhone = '';
+    clearLoginPending();
   }
 
   function loginSucceeded(options = {}) {
@@ -963,6 +964,48 @@
   let loginCaptchaPhone = '';
   let loginCountdownTimer = null;
   let loginSending = false;
+  const LOGIN_PENDING_KEY = 'o11a1.login.pending.v1';
+  const LOGIN_PENDING_TTL = 30 * 60 * 1000;
+
+  function saveLoginPending() {
+    try {
+      if (!loginCaptchaKey) {
+        localStorage.removeItem(LOGIN_PENDING_KEY);
+        return;
+      }
+      const [cid, phone] = String(loginCaptchaPhone || '').split(':');
+      localStorage.setItem(LOGIN_PENDING_KEY, JSON.stringify({
+        key: loginCaptchaKey,
+        phone: phone || loginPhoneValue(),
+        cid: cid || loginCountryCode(),
+        at: Date.now(),
+      }));
+    } catch (_) {}
+  }
+
+  function clearLoginPending() {
+    try { localStorage.removeItem(LOGIN_PENDING_KEY); } catch (_) {}
+  }
+
+  function restoreLoginPending() {
+    if (state.loggedIn) return;
+    try {
+      const raw = localStorage.getItem(LOGIN_PENDING_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (!saved || !saved.key || Date.now() - Number(saved.at || 0) > LOGIN_PENDING_TTL) {
+        clearLoginPending();
+        return;
+      }
+      loginCaptchaKey = String(saved.key);
+      loginCaptchaPhone = `${saved.cid || '86'}:${saved.phone || ''}`;
+      if (loginCid) loginCid.value = saved.cid || '86';
+      if (loginPhone) loginPhone.value = saved.phone || '';
+      if (state.page === 'login') {
+        setLoginStatus('已恢复验证码登录状态，请输入短信验证码', 'success');
+      }
+    } catch (_) {}
+  }
 
   function loginCountryCode() {
     const value = loginCid ? loginCid.value.replace(/\D/g, '') : '86';
@@ -1041,7 +1084,8 @@
       setLoginStatus('验证码已发送，但未返回登录凭据，请重新获取', 'error');
       return false;
     }
-    setLoginStatus('验证码已发送，请在 5 分钟内输入', 'success');
+    saveLoginPending();
+    setLoginStatus('验证码已发送，请在有效期内输入', 'success');
     startLoginCountdown(60);
     if (loginCode) loginCode.focus();
     return true;
@@ -1087,6 +1131,8 @@
       loginSucceeded();
     }, 30);
   }
+
+  restoreLoginPending();
 
 
 

@@ -10,6 +10,8 @@ final class O11A1LocalServer {
   private let listener: NWListener
   private let queue = DispatchQueue(label: "o11a1.local-server", qos: .userInitiated)
   private let lock = NSLock()
+  private let smsLock = NSLock()
+  private var smsBusy = false
   private var active: [ObjectIdentifier: NWConnection] = [:]
   private var previewCache: [String: (data: Data, at: Date)] = [:]
   private let previewQueue = DispatchQueue(label: "o11a1.preview", qos: .utility)
@@ -532,30 +534,47 @@ final class O11A1LocalServer {
         data = o11a1Error("请输入正确的手机号")
         break
       }
-      let captcha = client.loginCaptcha()
-      if captcha["ok"] as? Bool != true {
-        data = o11a1Data(captcha)
+      smsLock.lock()
+      let busy = smsBusy
+      if !busy { smsBusy = true }
+      smsLock.unlock()
+      if busy {
+        data = o11a1Data(["ok": true, "pending": true, "error": "正在验证，请稍候"])
         break
       }
-      let challenge = O11A1Geetest.present(
-        gt: o11a1String(captcha["gt"]),
-        challenge: o11a1String(captcha["challenge"])
-      )
-      if challenge["ok"] as? Bool != true {
-        data = o11a1Data(challenge)
-        break
+      data = o11a1Data(["ok": true, "pending": true])
+      let smsClient = client
+      DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        var result: [String: Any] = ["ok": false, "error": "短信发送失败"]
+        let captcha = smsClient.loginCaptcha()
+        if captcha["ok"] as? Bool != true {
+          result = captcha
+        } else {
+          let challenge = O11A1Geetest.present(
+            gt: o11a1String(captcha["gt"]),
+            challenge: o11a1String(captcha["challenge"])
+          )
+          if challenge["ok"] as? Bool != true {
+            result = challenge
+          } else {
+            result = smsClient.smsSend(
+              tel: tel,
+              cid: cid,
+              token: o11a1String(captcha["token"]),
+              challenge: o11a1String(captcha["challenge"]),
+              validate: o11a1String(challenge["validate"]),
+              seccode: o11a1String(challenge["seccode"])
+            )
+          }
+        }
+        result["tel"] = tel
+        result["cid"] = cid
+        guard let self = self else { return }
+        self.smsLock.lock()
+        self.smsBusy = false
+        self.smsLock.unlock()
+        self.deliverSmsResult(result)
       }
-      var sent = client.smsSend(
-        tel: tel,
-        cid: cid,
-        token: o11a1String(captcha["token"]),
-        challenge: o11a1String(captcha["challenge"]),
-        validate: o11a1String(challenge["validate"]),
-        seccode: o11a1String(challenge["seccode"])
-      )
-      sent["tel"] = tel
-      sent["cid"] = cid
-      data = o11a1Data(sent)
     case "smsLogin":
       data = client.smsLogin(
         tel: query["tel"] ?? "",
@@ -619,6 +638,19 @@ final class O11A1LocalServer {
       ],
       body: data,
       headOnly: method == "HEAD"
+    )
+  }
+
+  private func deliverSmsResult(_ result: [String: Any]) {
+    print("[O11A1] sms result ok=\(o11a1Bool(result["ok"])) "
+      + "keyLen=\(o11a1String(result["captchaKey"]).count) "
+      + "error=\(o11a1String(result["error"]))")
+    let payloadData = (try? JSONSerialization.data(withJSONObject: result)) ?? Data("{}".utf8)
+    let payloadString = String(data: payloadData, encoding: .utf8) ?? "{}"
+    guard let arrayData = try? JSONSerialization.data(withJSONObject: [payloadString]),
+          let array = String(data: arrayData, encoding: .utf8) else { return }
+    O11A1PlayerHost.shared.evaluateInPage(
+      "window.O11A1Login&&window.O11A1Login.onSmsCode.apply(null,\(array))"
     )
   }
 

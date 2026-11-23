@@ -131,7 +131,7 @@ final class GeetestDialog {
             }
         });
         try {
-            if (!latch.await(5, TimeUnit.MINUTES)) {
+            if (!latch.await(15, TimeUnit.MINUTES)) {
                 result.error = "验证超时";
                 result.cancelled = true;
                 main.post(() -> {

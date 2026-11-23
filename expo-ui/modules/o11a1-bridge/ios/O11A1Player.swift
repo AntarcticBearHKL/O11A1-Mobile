@@ -130,6 +130,13 @@ final class O11A1PlayerHost {
     return scenes.flatMap { $0.windows }.first
   }
 
+  func evaluateInPage(_ javascript: String) {
+    DispatchQueue.main.async {
+      guard let web = self.attachIfNeeded() else { return }
+      web.evaluateJavaScript(javascript, completionHandler: nil)
+    }
+  }
+
   // MARK: - API
 
   func load(slot id: String, json: [String: Any]) {

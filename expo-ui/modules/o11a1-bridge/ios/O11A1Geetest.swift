@@ -55,7 +55,7 @@ final class O11A1Geetest: NSObject, WKScriptMessageHandler {
       active = geetest
       top.present(geetest.controller, animated: true)
     }
-    if semaphore.wait(timeout: .now() + 300) == .timedOut {
+    if semaphore.wait(timeout: .now() + 900) == .timedOut {
       result = ["ok": false, "cancelled": true, "error": "验证超时"]
       DispatchQueue.main.async {
         active?.controller.dismiss(animated: true)
