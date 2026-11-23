@@ -37,7 +37,6 @@ final class WebAppBridge {
     private final BiliExtras extras;
     private final StreamProxy proxy;
     private final CookieStore cookies;
-    private final DownloadManager downloads;
 
     WebAppBridge(Activity activity, BiliApi api, StreamProxy proxy, CookieStore cookies) {
         this.activity = activity;
@@ -45,7 +44,6 @@ final class WebAppBridge {
         this.extras = new BiliExtras(cookies, proxy, api);
         this.proxy = proxy;
         this.cookies = cookies;
-        this.downloads = new DownloadManager(activity, api, this.extras, proxy, cookies);
     }
 
     @JavascriptInterface
@@ -215,36 +213,6 @@ final class WebAppBridge {
             out = error(error);
         }
         return out.toString();
-    }
-
-    @JavascriptInterface
-    public String downloadStart(String bvid, long cid, String title, String pic, String quality) {
-        return downloads.start(bvid, cid, title, pic, quality).toString();
-    }
-
-    @JavascriptInterface
-    public String downloadDash(String bvid, long cid, String title, String pic, String quality) {
-        return runExtra(() -> downloads.startDash(bvid, cid, title, pic, quality).toString(), 30);
-    }
-
-    @JavascriptInterface
-    public String downloadList() {
-        return downloads.list().toString();
-    }
-
-    @JavascriptInterface
-    public String downloadRemove(String id) {
-        return downloads.remove(id).toString();
-    }
-
-    @JavascriptInterface
-    public String downloadPause(String id) {
-        return downloads.pause(id).toString();
-    }
-
-    @JavascriptInterface
-    public String downloadResume(String id) {
-        return downloads.resume(id).toString();
     }
 
     @JavascriptInterface

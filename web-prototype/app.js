@@ -53,9 +53,6 @@
   const psheetBody = $('#psheetBody');
   const psheetClose = $('#psheetClose');
   const homeNote = $('#homeNote');
-  const myModuleName = $('#myModuleName');
-  const myModuleRow = $('#myModuleRow');
-  const myFishRow = $('#myFishRow');
   const sidebar = $('#sidebar');
   const sidebarBackdrop = $('#sidebarBackdrop');
   const sidebarNav = $('#sidebarNav');
@@ -71,6 +68,7 @@
   const dockBackdrop = $('#dockBackdrop');
   const playlistPage = $('.page[data-page="playlist"]');
   const upPage = $('.page[data-page="up"]');
+  const myPage = $('.page[data-page="my"]');
   const pdCollapsed = $('#pdCollapsed');
   const pdDisc = $('#pdDisc');
   const pdDiscArt = $('#pdDiscArt');
@@ -269,6 +267,8 @@
     searchOpen: false,
     searchReturn: 'home',
     searchReturnNav: null,
+    myReturn: 'home',
+    myReturnNav: null,
     playlistReturn: 'home',
     playlistReturnNav: null,
   };
@@ -395,7 +395,6 @@
     历史: '真实观看历史 · 触底翻页',
     关注: '关注的 UP 主动态',
     养鱼: '入口默认隐藏',
-    下载: '离线下载暂未接入',
     会员: '账号大会员状态',
     番剧: '番剧 / 国创 / 电影',
     影视: '电影 / 纪录片 / 电视剧',
@@ -962,6 +961,14 @@
     app.classList.toggle('up-dragging', options.dragging === true && p > 0.001);
   }
 
+  function setMyRecede(progress, options = {}) {
+    const p = Math.max(0, Math.min(1, Number(progress) || 0));
+    app.style.setProperty('--my-x', `${(7 * p).toFixed(2)}%`);
+    app.style.setProperty('--my-scale', (1 - p * 0.06).toFixed(4));
+    app.classList.toggle('my-open', p > 0.001);
+    app.classList.toggle('my-dragging', options.dragging === true && p > 0.001);
+  }
+
   function showPage(page, navId) {
     const previousPage = state.page;
     if (!state.loggedIn && page !== 'login') {
@@ -969,6 +976,50 @@
       navId = null;
     }
     if (page !== 'up') setUpRecede(0);
+    if (page !== 'my') setMyRecede(0);
+    if (page === 'my' && myPage) {
+      const fromSubpage = ['modules', 'settings', 'nav'].includes(previousPage);
+      const base = previousPage !== 'my' && !fromSubpage
+        ? previousPage
+        : (state.myReturn || 'home');
+      if (previousPage !== 'my' && !fromSubpage) {
+        state.myReturn = previousPage || 'home';
+        state.myReturnNav = state.navActive;
+      }
+      state.page = 'my';
+      app.classList.toggle('auth-gate', !state.loggedIn);
+      $$('.page').forEach((section) => {
+        if (section === myPage) return;
+        if (section === upPage) return;
+        if (section === searchResultsPage) return;
+        section.classList.toggle('active', section.dataset.page === base);
+      });
+      app.dataset.page = 'my';
+      setMyRecede(1);
+      document.body.classList.toggle('search-mode', false);
+      if (searchResultsPage && base !== 'search') {
+        searchResultsPage.classList.remove('active', 'dragging', 'settling', 'entering');
+        searchResultsPage.style.transition = '';
+        searchResultsPage.style.transform = '';
+        searchResultsPage.style.opacity = '';
+        searchResultsPage.style.boxShadow = '';
+      }
+      myPage.classList.remove('my-dragging', 'my-settling', 'entering');
+      myPage.style.transition = '';
+      myPage.style.transform = '';
+      myPage.style.opacity = '';
+      myPage.style.boxShadow = '';
+      myPage.classList.add('active');
+      myPage.setAttribute('aria-hidden', 'false');
+      myPage.inert = false;
+      void myPage.offsetWidth;
+      myPage.classList.add('entering');
+      setTimeout(() => myPage.classList.remove('entering'), 430);
+      const myScroller = $('#myScroll');
+      if (myScroller) myScroller.scrollTop = 0;
+      updatePlaylistDock();
+      return;
+    }
     if (page === 'up' && upPage) {
       const base = state.upReturn && state.upReturn !== 'up'
         ? state.upReturn
@@ -1041,6 +1092,15 @@
       upPage.style.opacity = '';
       upPage.style.boxShadow = '';
     }
+    if (previousPage === 'my' && myPage) {
+      myPage.classList.remove('active', 'my-dragging', 'my-settling', 'entering');
+      myPage.style.transition = '';
+      myPage.style.transform = '';
+      myPage.style.opacity = '';
+      myPage.style.boxShadow = '';
+      myPage.setAttribute('aria-hidden', 'true');
+      myPage.inert = true;
+    }
     if (previousPage === 'search' && searchResultsPage) {
       searchResultsPage.classList.remove('active', 'dragging', 'settling', 'entering');
       searchResultsPage.style.transition = '';
@@ -1080,7 +1140,7 @@
     }
     if (PAGE_NAV[state.page]) {
       state.moduleReturn = state.page;
-    } else if (['settings', 'modules', 'nav'].includes(state.page)) {
+    } else if (['modules', 'nav', 'my'].includes(state.page)) {
       state.moduleReturn = 'my';
     } else if (state.page !== 'module') {
       state.moduleReturn = 'home';
@@ -1304,58 +1364,11 @@
 
   function refreshHomeHeader() {
     const mod = currentModule();
-    if (myModuleName) myModuleName.textContent = mod ? mod.name : '无模块';
     if (!mod) {
       homeNote.textContent = '所有主页模块已关闭 · 在「主页模块」中启用';
       return;
     }
-    homeNote.textContent = `${mod.name} · 触底加载 · 保留最近两段`;
-  }
-
-  function selectModule(moduleId) {
-    state.moduleId = moduleId;
-    refreshHomeHeader();
-    save();
-    closeSheet();
-    showPage('home');
-    appScroll.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  function openModuleSheet() {
-    const enabled = state.modules.filter((mod) => mod.on && !(state.settings.hideFish && mod.id === 'fish'));
-    openSheet('首页模块', '选择首页当前模块', (body) => {
-      if (!enabled.length) {
-        const empty = document.createElement('div');
-        empty.className = 'empty-state';
-        empty.style.padding = '28px 12px';
-        empty.innerHTML = '<span class="empty-ico">◫</span><b>没有启用的主页模块</b><p>到「主页模块」里打开至少一个。</p>';
-        body.appendChild(empty);
-        const go = document.createElement('button');
-        go.type = 'button';
-        go.className = 'pill-btn';
-        go.textContent = '去主页模块设置';
-        go.addEventListener('click', () => {
-          closeSheet();
-          showPage('modules', 'my');
-        });
-        body.appendChild(go);
-        return;
-      }
-      enabled.forEach((mod) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = `opt${mod.id === state.moduleId ? ' on' : ''}`;
-        button.innerHTML = `
-          <span class="opt-copy">
-            <span>${escapeHTML(mod.name)}</span>
-            <small>${escapeHTML(mod.desc)}</small>
-          </span>
-          <span class="opt-dot"></span>`;
-        button.addEventListener('click', () => selectModule(mod.id));
-        body.appendChild(button);
-      });
-    });
-    psheet.dataset.kind = 'module';
+    homeNote.textContent = `${mod.name} · 触底加载 · 每块 10 条 · 保留 3 块`;
   }
 
   function renderModuleSettings() {
@@ -1412,7 +1425,6 @@
         state.moduleId = state.modules.find((mod) => mod.on && mod.id !== 'fish')?.id || null;
       }
     }
-    if (myFishRow) myFishRow.hidden = hideFish;
     renderSidebar();
     renderNavSettings();
     renderModuleSettings();
@@ -1597,11 +1609,10 @@
     if (!item) return '';
     const owner = String(item.owner || '').trim();
     if (owner) return owner;
-    if (item.offlineUrl) return '本地缓存';
     const meta = String(item.meta || '').trim();
     if (!meta) return '';
     const first = meta.split('·')[0].trim();
-    if (!first || first === '播放列表' || first === '离线') return '';
+    if (!first || first === '播放列表') return '';
     return first;
   }
 
@@ -1667,13 +1678,12 @@
     const count = state.playlist.length;
     const item = state.playlist[state.currentIndex];
     renderDockPlaylist();
-    const dockVisible = state.loggedIn && (!state.playerOpen || dockLaunching);
-    const show = dockVisible;
-    playlistDock.classList.toggle('show', show);
-    playlistDock.setAttribute('aria-hidden', show ? 'false' : 'true');
+    // The bottom playlist dock is retired; playback stays reachable from the player toolbar.
+    playlistDock.classList.remove('show');
+    playlistDock.setAttribute('aria-hidden', 'true');
     playlistDock.setAttribute('aria-label', `播放列表，${count} 项`);
-    playlistDock.inert = !show;
-    app.classList.toggle('has-playlist', dockVisible);
+    playlistDock.inert = true;
+    app.classList.remove('has-playlist');
     playlistDock.style.opacity = '';
     playlistDock.style.transform = '';
     if (pdModeValue) pdModeValue.textContent = state.settings.loop;
@@ -2489,6 +2499,49 @@
     }, 320);
   }
 
+  function closeMyPageThen(callback) {
+    if (!myPage || !myPage.classList.contains('active')) {
+      if (callback) callback();
+      return;
+    }
+    setMyRecede(0);
+    myPage.classList.remove('my-dragging', 'entering');
+    myPage.classList.add('my-settling');
+    myPage.style.transition = 'transform .3s cubic-bezier(.22,1,.36,1)';
+    myPage.style.transform = 'translate3d(-105%,0,0)';
+    myPage.style.boxShadow = '18px 0 46px rgba(10,12,20,.18)';
+    setTimeout(() => {
+      myPage.classList.remove('my-settling', 'active');
+      myPage.style.transition = '';
+      myPage.style.transform = '';
+      myPage.style.opacity = '';
+      myPage.style.boxShadow = '';
+      myPage.setAttribute('aria-hidden', 'true');
+      myPage.inert = true;
+      if (callback) callback();
+    }, 300);
+  }
+
+  function closeMyPageFromSwipe() {
+    closeMyPageThen(() => showPage(state.myReturn || 'home', state.myReturnNav || undefined));
+  }
+
+  function resetMyPageDrag() {
+    if (!myPage) return;
+    setMyRecede(1);
+    myPage.classList.remove('my-dragging');
+    myPage.classList.add('my-settling');
+    myPage.style.transition = 'transform .3s cubic-bezier(.16,1,.3,1)';
+    myPage.style.transform = '';
+    myPage.style.boxShadow = '';
+    setTimeout(() => {
+      if (!myPage.classList.contains('my-dragging')) {
+        myPage.style.transition = '';
+        myPage.classList.remove('my-settling');
+      }
+    }, 320);
+  }
+
   function triggerRowAction(wrapper, action) {
     if (!wrapper || !action) return;
     const row = wrapper.querySelector('.video-row');
@@ -2712,7 +2765,7 @@
   }
 
   function updateMiniPlayer() {
-    // Playback continues without a persistent mini card; the playlist dock and page own playback state.
+    // Playback continues without a persistent mini card; the playlist page owns playback state.
   }
 
   function setPlayerRecede(side, amount, options = {}) {
@@ -4813,7 +4866,6 @@
         state.copied = true;
         return '已复制';
       });
-      actionRow(body, '缓存', '当前版本暂未接入', () => '暂未接入');
       actionRow(body, '举报', '', () => '暂未接入');
       actionRow(body, '关闭播放', '停止并清空进度', () => {
         stopPlayback();
@@ -4942,7 +4994,7 @@
       },
       'settings-danmaku': {
         title: '弹幕',
-        sub: '实时生效，现有弹幕不清空；屏蔽规则在「设置 → 屏蔽」',
+        sub: '实时生效，现有弹幕不清空；屏蔽规则在「我的 → 屏蔽」',
         rows: [
           { type: 'switch', label: '弹幕显示', key: 'danmaku', onChange: applyDanmakuSettings },
           { type: 'slider', label: '不透明度', key: 'danmakuOpacity', min: 0, max: 100, unit: '%', onChange: applyDanmakuSettings },
@@ -4951,17 +5003,6 @@
           { type: 'choice', label: '显示区域', key: 'danmakuArea', options: ['全屏', '1/2 屏', '1/3 屏'], onChange: applyDanmakuSettings },
           { type: 'switch', label: '分布密度', key: 'danmakuDensity', onChange: applyDanmakuSettings },
           { type: 'static', label: '弹幕节拍', value: 'CSS 动画 · 跟随显示刷新' },
-        ],
-      },
-      'settings-download': {
-        title: '离线下载',
-        sub: '当前版本支持边下边播；离线任务与合流暂未接入',
-        rows: [
-          { type: 'static', label: '同时任务', value: '2 个' },
-          { type: 'switch', label: '仅 Wi-Fi 预加载', key: 'wifiPreload' },
-          { type: 'static', label: '离线任务', value: '暂未接入' },
-          { type: 'action', label: '打开下载目录', value: '暂未接入', run: () => '暂未接入' },
-          { type: 'action', label: '清理已完成', value: '0 个', run: () => '没有已完成任务' },
         ],
       },
       'settings-appearance': {
@@ -5063,12 +5104,10 @@
       },
       'settings-storage': {
         title: '存储',
-        sub: '缓存、离线任务与本地文件',
+        sub: '页面缓存与本地数据',
         rows: [
           { type: 'static', label: '页面缓存', value: '由系统 WebView 管理' },
-          { type: 'static', label: '离线任务', value: '暂未接入' },
           { type: 'action', label: '清理缓存', value: '', run: () => '暂未接入' },
-          { type: 'action', label: '打开下载目录', value: '', run: () => '暂未接入' },
         ],
       },
       'settings-optimize': {
@@ -5329,8 +5368,10 @@
     renderNavSettings();
   });
 
-  $('#accountCard').addEventListener('click', () => showPage('login'));
-  myModuleRow.addEventListener('click', openModuleSheet);
+  const myBack = $('#myBack');
+  if (myBack) myBack.addEventListener('click', () => closeMyPageFromSwipe());
+  const searchFab = $('#searchFab');
+  if (searchFab) searchFab.addEventListener('click', () => openSearch());
   if (loginStart) loginStart.addEventListener('click', openOfficialLogin);
 
   dynamicFilter.addEventListener('click', () => {
@@ -5925,6 +5966,7 @@
   }, true);
   appScroll.addEventListener('pointerdown', (event) => startFeedGesture(event, 'scroll'));
   if (upPage) upPage.addEventListener('pointerdown', (event) => startFeedGesture(event, 'up'));
+  if (myPage) myPage.addEventListener('pointerdown', (event) => startFeedGesture(event, 'my'));
   if (searchResultsPage) searchResultsPage.addEventListener('pointerdown', (event) => startFeedGesture(event, 'search'));
   if (videoDetailScroll) videoDetailScroll.addEventListener('pointerdown', (event) => startFeedGesture(event, 'detail'));
 
@@ -5939,7 +5981,7 @@
         return;
       }
       if (dx > 8) {
-        if (rowSwipe.surface === 'detail') {
+        if (rowSwipe.surface === 'detail' || rowSwipe.surface === 'my') {
           rowSwipe.direction = 'vertical';
           return;
         }
@@ -5977,6 +6019,14 @@
           rowSwipe.direction = 'vertical';
           return;
         }
+        if (rowSwipe.surface === 'my') {
+          rowSwipe.direction = 'my-close';
+          rowSwipe.myOffset = 0;
+          setMyRecede(1, { dragging: true });
+          myPage.classList.add('my-dragging');
+          myPage.style.transition = 'none';
+          return;
+        }
         if (!rowSwipe.wrapper) {
           rowSwipe.direction = 'vertical';
           return;
@@ -6002,6 +6052,16 @@
       upPage.style.transform = `translate3d(${offset}px,0,0)`;
       upPage.style.boxShadow = offset > 0 ? '-18px 0 46px rgba(10,12,20,.18)' : '';
       setUpRecede(1 - offset / width, { dragging: true });
+      return;
+    }
+    if (rowSwipe.direction === 'my-close') {
+      if (event.cancelable) event.preventDefault();
+      const width = app.clientWidth || window.innerWidth;
+      const offset = Math.max(0, Math.min(width, -dx));
+      rowSwipe.myOffset = offset;
+      myPage.style.transform = `translate3d(${-offset}px,0,0)`;
+      myPage.style.boxShadow = offset > 0 ? '18px 0 46px rgba(10,12,20,.18)' : '';
+      setMyRecede(1 - offset / width, { dragging: true });
       return;
     }
     if (rowSwipe.direction === 'right') {
@@ -6043,6 +6103,13 @@
       else resetUpPageDrag();
       return;
     }
+    if (start.direction === 'my-close') {
+      suppressFeedClickUntil = Date.now() + 420;
+      const width = app.clientWidth || window.innerWidth;
+      if ((start.myOffset || 0) > width * 0.24) closeMyPageFromSwipe();
+      else resetMyPageDrag();
+      return;
+    }
     if (start.direction !== 'left') return;
     suppressFeedClickUntil = Date.now() + 420;
     const action = rowActionForOffset(start.offset);
@@ -6059,6 +6126,7 @@
     if (start.direction === 'right') endSidebarDrag(start, { type: 'pointercancel' });
     else if (start.direction === 'left') resetRowSwipe(start.wrapper);
     else if (start.direction === 'up-close') resetUpPageDrag();
+    else if (start.direction === 'my-close') resetMyPageDrag();
     else if (start.direction === 'search-close') resetSearchResultsDrag();
   });
 
@@ -6248,8 +6316,9 @@
         return;
       }
       if (protoDrawer.classList.contains('open')) { closeDrawer(); return; }
-      if (state.playerOpen) { minimizePlayer(); return; }
       if (state.searchOpen) { closeSearch(); return; }
+      if (state.page === 'my') { closeMyPageFromSwipe(); return; }
+      if (state.playerOpen) { minimizePlayer(); return; }
     }
     if (!state.playerOpen || state.locked) return;
     if (event.code === 'Space') {
@@ -6655,33 +6724,13 @@
 
     minimizePlayer();
     await sleep(420);
-    results.push(`dock=${playlistDock.classList.contains('show')}`);
-    const dockRect = playlistDock.getBoundingClientRect();
-    const dockX = dockRect.left + dockRect.width * 0.45;
-    const dockY = dockRect.top + Math.min(50, dockRect.height * 0.5);
-    playlistDock.dispatchEvent(pointerEvent('pointerdown', dockX, dockY, 1));
-    window.dispatchEvent(pointerEvent('pointermove', dockX, dockY - 24, 1));
-    window.dispatchEvent(pointerEvent('pointermove', dockX, dockY - 82, 1));
-    window.dispatchEvent(pointerEvent('pointerup', dockX, dockY - 82, 0));
-    await sleep(480);
-    const dockExpanded = playlistDock.classList.contains('expanded') && state.page !== 'playlist';
-    results.push(`dockExpand=${dockExpanded}`);
-    if (dockPlaylistBody) dockPlaylistBody.scrollTop = 0;
-    const dockBodyRect = dockPlaylistBody.getBoundingClientRect();
-    const dockBodyX = dockBodyRect.left + dockBodyRect.width * 0.5;
-    const dockBodyY = dockBodyRect.top + Math.min(36, dockBodyRect.height * 0.5);
-    dockPlaylistBody.dispatchEvent(pointerEvent('pointerdown', dockBodyX, dockBodyY, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', dockBodyX, dockBodyY + (90 * step) / 6, 1));
-    }
-    window.dispatchEvent(pointerEvent('pointerup', dockBodyX, dockBodyY + 90, 0));
-    await sleep(480);
-    results.push(`dockBodyClose=${!playlistDock.classList.contains('expanded') && playlistDock.classList.contains('show')}`);
+    results.push(`dockHidden=${!playlistDock.classList.contains('show') && !app.classList.contains('has-playlist')}`);
     let searchPanelFocus = false;
     let searchInlineResults = false;
     let searchPanelClosed = false;
-    if (pdSearch && searchPanel && searchInput) {
-      pdSearch.click();
+    const searchFab = $('#searchFab');
+    if (searchFab && searchPanel && searchInput) {
+      searchFab.click();
       searchPanelFocus = state.searchOpen
         && searchPanel.classList.contains('open')
         && document.activeElement === searchInput;
@@ -6964,6 +7013,29 @@
     await sleep(460);
     results.push(`sidebarPick=${pickVisible && initialPick === 'home'}`);
     results.push(`sidebarSelect=${sideTargetPicked && !sidebar.classList.contains('open') && state.page !== 'home'}`);
+
+    const myBefore = state.page;
+    showPage('my');
+    await sleep(540);
+    const myOpened = state.page === 'my'
+      && app.classList.contains('my-open')
+      && myPage.classList.contains('active')
+      && myPage.getAttribute('aria-hidden') === 'false'
+      && !playlistDock.classList.contains('show');
+    const myRows = $$('.my-page .my-row').length;
+    const myCard = $('.my-page .my-account-card');
+    const myCardRect = myCard ? myCard.getBoundingClientRect() : null;
+    const myPageRect = myPage.getBoundingClientRect();
+    const myCardFixed = Boolean(myCardRect)
+      && Math.abs(myCardRect.bottom - myPageRect.bottom) <= 2
+      && myCardRect.height >= 60;
+    closeMyPageFromSwipe();
+    await sleep(640);
+    const myClosed = state.page === myBefore
+      && !app.classList.contains('my-open')
+      && !myPage.classList.contains('active');
+    results.push(`myPage=${myOpened && myCardFixed && myRows >= 10}`);
+    results.push(`myBack=${myClosed}`);
 
     document.title = `SELFTEST ${results.join(' ')}`;
   }

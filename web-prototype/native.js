@@ -315,13 +315,20 @@
   }
 
   function showAccountSkeleton() {
-    const card = $('#accountCard');
+    const card = $('.my-account-card');
     if (!card) return;
     card.classList.add('is-loading');
-    card.innerHTML = `
-      <span class="skeleton-avatar lg"></span>
-      <span class="account-copy"><span class="skeleton-line w40"></span><span class="skeleton-line w65"></span></span>
-      <span class="skeleton-chip"></span>`;
+    const avatar = $('#myAvatar');
+    if (avatar) {
+      avatar.style.backgroundImage = '';
+      avatar.innerHTML = '<span class="skeleton-avatar"></span>';
+    }
+    const name = $('#myName');
+    if (name) name.innerHTML = '<span class="skeleton-line w40"></span>';
+    const meta = $('#myMeta');
+    if (meta) meta.innerHTML = '<span class="skeleton-line w65"></span>';
+    const action = $('#myAccountAction');
+    if (action) action.hidden = true;
   }
 
   function showMemberSkeleton() {
@@ -777,7 +784,6 @@
     if (moduleName === '收藏') return { api: 'favorites', args: [], label: '收藏夹' };
     if (moduleName === '历史') return { api: 'history', args: [], label: '历史', cursor: true };
     if (moduleName === '动态') return { api: 'following', args: [], label: '关注动态' };
-    if (moduleName === '下载') return { api: null, special: 'downloads', label: '离线缓存' };
     if (moduleName === '会员') return { api: null, special: 'member', label: '会员任务' };
     if (moduleName === '养鱼') return { api: null, special: 'fish', label: 'AI 养鱼' };
     return { api: 'search', args: [moduleName], label: moduleName };
@@ -894,7 +900,7 @@
     const kind = moduleKind(name);
     const win = windows.module;
     const filter = $('#moduleFilter');
-    if (!append && !immediate && kind.special !== 'downloads' && kind.special !== 'fish') {
+    if (!append && !immediate && kind.special !== 'fish') {
       deferLoading('module', () => {
         if (kind.special === 'member') showMemberSkeleton();
         else showInitialFeedSkeleton(feeds.module, 8);
@@ -911,14 +917,6 @@
       win.hasMore = true;
       win.loading = false;
       win.name = name;
-    }
-    if (kind.special === 'downloads') {
-      win.hasMore = false;
-      win.page = 1;
-      win.loading = false;
-      if (!appendPage) renderDownloads();
-      setTail(feeds.module, 'idle');
-      return true;
     }
     if (kind.special === 'member') {
       win.hasMore = false;
@@ -1099,196 +1097,6 @@
       loadUp(1, false, true);
     }, 430);
   }
-
-  /* ---------- offline downloads ---------- */
-  let downloadItems = [];
-  let downloadTimer = null;
-  let downloadNote = '';
-
-  function stopDownloadPolling() {
-    clearInterval(downloadTimer);
-    downloadTimer = null;
-  }
-
-  function downloadRow(item) {
-    const progress = Number(item.progress || 0);
-    const status = String(item.status || '');
-    const statusText = status === 'completed' ? '已完成'
-      : status === 'downloading' ? `下载中 ${progress}%`
-        : status === 'merging' ? '正在合流音视频…'
-        : status === 'paused' ? `已暂停 ${progress}%`
-          : status === 'missing' ? '文件已丢失'
-            : status === 'error' ? `失败 · ${item.error || '未知错误'}`
-              : status;
-    const action = status === 'completed' ? 'play'
-      : status === 'downloading' ? 'pause'
-        : status === 'paused' || status === 'error' ? 'resume'
-          : status === 'merging' ? ''
-            : 'play';
-    const actionLabel = action === 'play' ? '播放' : action === 'pause' ? '暂停' : '继续';
-    return `
-      <article class="download-row" data-download="${attr(item.id)}">
-        <span class="download-thumb">${item.pic ? `<img src="${attr(item.pic)}" alt="" referrerpolicy="no-referrer">` : ''}</span>
-        <div class="download-copy">
-          <b>${esc(item.title || item.id)}</b>
-          <span>${esc(item.quality || '')}${item.mode === 'dash' ? ' · DASH 合流' : ''} · ${esc(item.downloadedText || '0 B')} / ${esc(item.totalText || '未知')}</span>
-          <div class="download-track"><i style="width:${progress}%"></i></div>
-          <small class="${status === 'error' || status === 'missing' ? 'bad' : status === 'completed' ? 'ok' : ''}">${esc(statusText)}</small>
-        </div>
-        <div class="download-actions">
-          ${action ? `<button type="button" data-dl-action="${action}" data-dl-id="${attr(item.id)}">${actionLabel}</button>` : ''}
-          <button type="button" class="ghost" data-dl-action="remove" data-dl-id="${attr(item.id)}">删除</button>
-        </div>
-      </article>`;
-  }
-
-  function paintDownloads(list) {
-    const box = $('#downloadList');
-    if (!box) return;
-    if (!list.length) {
-      box.innerHTML = '<div class="native-empty"><b>还没有离线任务</b><span>在播放器或这里缓存当前视频，完成后可离线播放。</span></div>';
-      return;
-    }
-    box.innerHTML = list.map(downloadRow).join('');
-  }
-
-  function refreshDownloads(showNote) {
-    if (typeof bridge.downloadList !== 'function') return;
-    const result = call('downloadList');
-    if (!result.ok) {
-      const box = $('#downloadList');
-      if (box) box.innerHTML = `<div class="native-empty">下载列表加载失败<br>${esc(result.error || '')}</div>`;
-      return;
-    }
-    downloadItems = Array.isArray(result.items) ? result.items : [];
-    paintDownloads(downloadItems);
-    const storage = $('#downloadStorage');
-    if (storage) storage.textContent = `已用 ${result.storage ? sizeText(result.storage) : '0 B'} · ${downloadItems.length} 个任务`;
-    if (showNote) {
-      const note = $('#downloadNote');
-      if (note) note.textContent = showNote;
-    }
-  }
-
-  function sizeText(bytes) {
-    const value = Number(bytes || 0);
-    if (value >= 1073741824) return `${(value / 1073741824).toFixed(2)} GB`;
-    if (value >= 1048576) return `${(value / 1048576).toFixed(1)} MB`;
-    if (value >= 1024) return `${Math.round(value / 1024)} KB`;
-    return `${value} B`;
-  }
-
-  function renderDownloads() {
-    stopDownloadPolling();
-    const feed = feeds.module;
-    resetFeedWindow(feed);
-    const current = currentItem();
-    const supported = typeof bridge.downloadStart === 'function';
-    feed.innerHTML = `
-      <div class="special-page">
-        <div class="special-head">
-          <div><b>离线缓存</b><span>渐进 MP4 · 应用私有目录 · 支持断点续传</span></div>
-          <button type="button" class="filter-btn" id="downloadRefresh">刷新</button>
-        </div>
-        <div class="download-add">
-          <div>
-            <b>${current ? esc(current.title || '当前视频') : '当前没有打开视频'}</b>
-            <span id="downloadStorage">已用 0 B · 0 个任务</span>
-          </div>
-          <button type="button" class="pill-btn primary" id="downloadCurrent" ${supported && current && current.bvid ? '' : 'disabled'}>缓存当前视频</button>
-        </div>
-        ${typeof bridge.downloadDash === 'function' ? `<div class="download-add dash-add"><div><b>DASH 音视频合流</b><span>分轨下载后用 MediaMuxer 合成 MP4</span></div><button type="button" class="pill-btn" id="downloadDash" ${current && current.bvid ? '' : 'disabled'}>DASH 合流缓存</button></div>` : ''}
-        <div class="special-note" id="downloadNote">${supported ? '下载完成后在这里直接播放；删除会同时移除本地文件。' : '当前版本没有可用的下载桥。'}</div>
-        <div class="download-list" id="downloadList"></div>
-      </div>`;
-    const button = $('#downloadCurrent');
-    if (button) button.addEventListener('click', () => {
-      const item = currentItem();
-      if (!item || !item.bvid) {
-        const note = $('#downloadNote');
-        if (note) note.textContent = '当前视频没有可缓存的 BV 号。';
-        return;
-      }
-      const note = $('#downloadNote');
-      if (note) note.textContent = '已加入下载队列…';
-      const result = call('downloadStart', item.bvid, Number(item.cid || 0), item.title || '', item.pic || '', state.settings.quality);
-      if (!result.ok) {
-        if (note) note.textContent = `加入失败 · ${result.error || '未知错误'}`;
-        return;
-      }
-      refreshDownloads('已开始下载。');
-    });
-    const refresh = $('#downloadRefresh');
-    if (refresh) refresh.addEventListener('click', () => refreshDownloads('已刷新。'));
-    const dashButton = $('#downloadDash');
-    if (dashButton) dashButton.addEventListener('click', () => {
-      const item = currentItem();
-      if (!item || !item.bvid) {
-        const note = $('#downloadNote');
-        if (note) note.textContent = '当前视频没有可缓存的 BV 号。';
-        return;
-      }
-      const note = $('#downloadNote');
-      if (note) note.textContent = '已加入 DASH 合流队列…';
-      const result = call('downloadDash', item.bvid, Number(item.cid || 0), item.title || '', item.pic || '', state.settings.quality);
-      if (!result.ok) {
-        if (note) note.textContent = `加入失败 · ${result.error || '未知错误'}`;
-        return;
-      }
-      refreshDownloads('DASH 音视频分轨下载中，完成后自动合流。');
-    });
-    refreshDownloads();
-    if (supported) downloadTimer = setInterval(() => {
-      if (state.page !== 'module' || state.moduleName !== '下载') {
-        stopDownloadPolling();
-        return;
-      }
-      refreshDownloads();
-    }, 1200);
-  }
-
-  function downloadAction(action, id) {
-    const item = downloadItems.find((row) => row.id === id);
-    if (!item) return;
-    if (action === 'remove') {
-      const result = call('downloadRemove', id);
-      refreshDownloads(result.ok ? '已删除本地文件。' : `删除失败 · ${result.error || ''}`);
-      return;
-    }
-    if (action === 'pause') {
-      call('downloadPause', id);
-      refreshDownloads('已暂停，可继续。');
-      return;
-    }
-    if (action === 'resume') {
-      const result = call('downloadResume', id);
-      refreshDownloads(result.ok ? '继续下载。' : `继续失败 · ${result.error || ''}`);
-      return;
-    }
-    if (action === 'play') {
-      if (!item.url) {
-        refreshDownloads('文件不在本地，请重新缓存。');
-        return;
-      }
-      playItem({
-        id: item.id,
-        key: `offline:${item.id}`,
-        title: item.title,
-        meta: `离线 · ${item.quality || ''}`,
-        pic: item.pic,
-        bvid: item.bvid,
-        cid: item.cid,
-        offlineUrl: item.url,
-      });
-    }
-  }
-
-  feeds.module.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-dl-action]');
-    if (!button) return;
-    event.preventDefault();
-    downloadAction(button.dataset.dlAction, button.dataset.dlId);
-  });
 
   /* ---------- member center ---------- */
   function renderMember(immediate) {
@@ -1536,8 +1344,7 @@
     if (!item) return;
     if (item.live) { playLive(item); return; }
     if (item.seasonId && !item.epId) { playSeason(item); return; }
-    const key = item.offlineUrl ? `offline:${item.id || item.bvid}`
-      : item.epId ? `ep:${item.epId}` : item.roomId ? `live:${item.roomId}` : `bvid:${item.bvid}`;
+    const key = item.epId ? `ep:${item.epId}` : item.roomId ? `live:${item.roomId}` : `bvid:${item.bvid}`;
     let index = state.playlist.findIndex((entry) => entry.key === key);
     if (index < 0) {
       state.playlist.push(Object.assign({ id: `n${Date.now()}` }, item, {
@@ -2291,12 +2098,11 @@
       loadLive(item, autoplay);
       return;
     }
-    if (!item.bvid && !item.epId && !item.offlineUrl) {
+    if (!item.bvid && !item.epId) {
       clearVideo();
       return;
     }
-    const key = item.offlineUrl ? `offline:${item.id || item.bvid}`
-      : item.epId ? `ep:${item.epId}` : `bvid:${item.bvid}`;
+    const key = item.epId ? `ep:${item.epId}` : `bvid:${item.bvid}`;
     if (mediaItem && mediaItem.key === key && video.src) {
       if (autoplay) video.play().catch(() => {});
       return;
@@ -2313,25 +2119,6 @@
     playerVideo.classList.remove('has-video', 'video-error');
     playerVideo.classList.add('video-loading');
     setStatus('加载中…', 'loading');
-    if (item.offlineUrl) {
-      loadDanmaku(item.cid);
-      mediaBackup = '';
-      video.src = item.offlineUrl;
-      video.load();
-      playerVideo.classList.add('has-video');
-      if (autoplay) {
-        video.play().then(() => {
-          state.playing = true;
-          host.setPlayIcon(true);
-          host.updatePlaylistDock();
-        }).catch(() => {
-          state.playing = false;
-          host.setPlayIcon(false);
-          setStatus('点击播放', 'error');
-        });
-      }
-      return;
-    }
     const highQuality = ['4K', '1080P60', '1080P', '1080P+'].includes(state.settings.quality);
     if (allowDash && highQuality && item.bvid && typeof bridge.dash === 'function') {
       const dash = call('dash', item.bvid, item.cid || 0, qualityQn(state.settings.quality));
@@ -2452,8 +2239,7 @@
     isCurrentReady() {
       const item = currentItem();
       if (!item || !mediaItem || !video.src || video.readyState < 2) return false;
-      const key = item.offlineUrl ? `offline:${item.id || item.bvid}`
-        : item.epId ? `ep:${item.epId}` : item.roomId ? `live:${item.roomId}` : `bvid:${item.bvid}`;
+      const key = item.epId ? `ep:${item.epId}` : item.roomId ? `live:${item.roomId}` : `bvid:${item.bvid}`;
       return mediaItem.key === key;
     },
     onOpen() {
@@ -3281,35 +3067,34 @@
 
   /* ---------- account ---------- */
   function renderAccount() {
-    const card = $('#accountCard');
-    if (!card) return;
-    card.classList.remove('is-loading');
-    if (accountInfo && accountInfo.loggedIn) {
-      card.innerHTML = `
-        ${accountInfo.face ? `<img class="account-avatar" src="${attr(accountInfo.face)}" alt="" referrerpolicy="no-referrer">` : '<span class="avatar-ph lg"></span>'}
-        <span class="account-copy">
-          <span class="account-name">${esc(accountInfo.name || 'B 站用户')}</span>
-          <span class="account-meta">UID ${esc(accountInfo.mid || '')} · Lv${esc(accountInfo.level || 0)}${accountInfo.follower ? ` · ${countText(accountInfo.follower)} 粉丝` : ''}</span>
-        </span>
-        <span class="account-vip ${accountInfo.vip ? '' : 'off'}">${accountInfo.vip ? (accountInfo.vipLabel || '大会员') : '普通'}</span>`;
+    const card = $('.my-account-card');
+    if (card) card.classList.remove('is-loading');
+    const avatar = $('#myAvatar');
+    const name = $('#myName');
+    const meta = $('#myMeta');
+    const action = $('#myAccountAction');
+    const loggedIn = Boolean(accountInfo && accountInfo.loggedIn);
+    if (avatar) {
+      avatar.innerHTML = '';
+      avatar.style.backgroundImage = loggedIn && accountInfo.face ? `url("${accountInfo.face}")` : '';
+      avatar.textContent = loggedIn && !accountInfo.face ? (accountInfo.name || 'B').slice(0, 1) : (loggedIn ? '' : 'B');
+    }
+    if (loggedIn) {
+      if (name) name.textContent = accountInfo.name || 'B 站用户';
+      if (meta) meta.textContent = `UID ${accountInfo.mid || ''} · Lv${accountInfo.level || 0}${accountInfo.follower ? ` · ${countText(accountInfo.follower)} 粉丝` : ''}`;
+      if (action) {
+        action.hidden = false;
+        action.textContent = accountInfo.vip ? (accountInfo.vipLabel || '大会员') : '账户';
+        action.classList.toggle('on', Boolean(accountInfo.vip));
+      }
     } else {
-      card.innerHTML = `
-        <span class="avatar-ph lg"></span>
-        <span class="account-copy">
-          <span class="account-name">未登录</span>
-          <span class="account-meta">登录 B 站账号，同步收藏 / 历史 / 动态</span>
-        </span>
-        <span class="account-vip off">登录</span>`;
-    }
-    const download = $$('.my-row').find((row) => row.dataset.module === '下载');
-    if (download) {
-      const meta = $('.my-meta', download);
-      if (meta) meta.textContent = '暂未接入';
-    }
-    const vip = $$('.my-row').find((row) => row.dataset.module === '会员');
-    if (vip) {
-      const meta = $('.my-meta', vip);
-      if (meta) meta.textContent = accountInfo && accountInfo.vip ? (accountInfo.vipLabel || '大会员') : '未开通';
+      if (name) name.textContent = '未登录';
+      if (meta) meta.textContent = '登录 B 站账号，同步收藏 / 历史 / 动态';
+      if (action) {
+        action.hidden = false;
+        action.textContent = '登录';
+        action.classList.remove('on');
+      }
     }
   }
 
@@ -3691,13 +3476,14 @@
   const loginNote = $('.login-note');
   if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方页面完成登录';
 
-  const accountCard = $('#accountCard');
-  if (accountCard) accountCard.addEventListener('click', (event) => {
-    if (!state.loggedIn) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
+  const accountAction = $('#myAccountAction');
+  if (accountAction) accountAction.addEventListener('click', () => {
+    if (!state.loggedIn && !(accountInfo && accountInfo.loggedIn)) {
+      host.showPage('login');
+      return;
+    }
     openAccountSheet();
-  }, true);
+  });
 
   const dynamicFilter = $('#dynamicFilter');
   if (dynamicFilter) dynamicFilter.addEventListener('click', () => {
@@ -3804,13 +3590,6 @@
     if (state.page === 'my') loadAccount();
   });
   pageObserver.observe(host.app, { attributes: true, attributeFilter: ['data-page'] });
-
-  const moduleLabel = $('#myModuleName');
-  if (moduleLabel) {
-    new MutationObserver(() => {
-      if (state.page === 'home') loadHome(1);
-    }).observe(moduleLabel, { childList: true, characterData: true, subtree: true });
-  }
 
   const upFollow = $('#upFollow');
   if (upFollow) upFollow.addEventListener('click', () => {

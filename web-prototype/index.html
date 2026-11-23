@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=176">
-  <link rel="stylesheet" href="./fonts.css?v=176">
+  <link rel="stylesheet" href="./styles.css?v=177">
+  <link rel="stylesheet" href="./fonts.css?v=177">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -16,6 +16,9 @@
       <div class="app-main" id="appMain">
       <div class="statusbar"><span>9:41</span><span class="status-icons">5G ▮▮▮ ▰</span></div>
       <div class="top-glass" aria-hidden="true"></div>
+      <button class="search-fab" id="searchFab" type="button" aria-label="搜索">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+      </button>
       <div class="app-scroll" id="appScroll">
         <!-- 首页：单列，每行一个视频 -->
         <section class="page active" data-page="home">
@@ -53,25 +56,7 @@
           <div class="native-empty" id="messageEmpty" hidden></div>
         </section>
 
-        <!-- 我的 -->
-        <section class="page" data-page="my">
-          <button class="account-card" id="accountCard" type="button">
-            <span class="avatar-ph lg"></span>
-            <div class="ph-title" style="flex:1"><i class="ph-line w35"></i><i class="ph-line w55"></i></div>
-            <span class="vip-ph">VIP 占位</span>
-          </button>
-          <div class="my-list">
-            <button class="my-row" data-module="收藏"><span>收藏</span><span class="my-meta">收藏夹 / 推荐</span></button>
-            <button class="my-row" data-module="历史"><span>历史</span><span class="my-meta">继续观看</span></button>
-            <button class="my-row" data-module="关注"><span>关注</span><span class="my-meta">UP 动态</span></button>
-            <button class="my-row" data-module="养鱼" id="myFishRow"><span>养鱼 · AI 看片</span><span class="my-meta">实验</span></button>
-            <button class="my-row" data-module="下载"><span>离线缓存</span><span class="my-meta">占位</span></button>
-            <button class="my-row" data-module="会员"><span>大会员</span><span class="my-meta">占位</span></button>
-            <button class="my-row" id="myModuleRow"><span>当前模块</span><span class="my-meta" id="myModuleName">推荐</span></button>
-            <button class="my-row" data-goto="modules"><span>主页模块</span><span class="my-meta">自定义</span></button>
-            <button class="my-row" data-goto="settings"><span>设置</span><span class="my-meta">›</span></button>
-          </div>
-        </section>
+        <!-- 我的页改为从左侧滑入的独立覆盖层，见 app-main 外 -->
 
         <!-- 登录 gate：官方网页登录 -->
         <section class="page" data-page="login">
@@ -83,7 +68,7 @@
           </div>
         </section>
 
-        <!-- 通用模块占位页：收藏 / 历史 / 下载 / 会员 / 番剧 / 直播 / 分区... -->
+        <!-- 通用模块占位页：收藏 / 历史 / 会员 / 番剧 / 直播 / 分区... -->
         <section class="page" data-page="module">
           <div class="page-filter-row">
             <button class="filter-btn" id="moduleFilter" title="筛选">全部</button>
@@ -98,54 +83,14 @@
 
         <!-- 主页模块设置 -->
         <section class="page" data-page="modules">
-          <p class="page-desc">选择可以出现在首页的模块；在「我的 → 当前模块」里切换。长按拖动排序可后续接入。</p>
+          <p class="page-desc">选择可以出现在首页的模块；开关和顺序会保存。长按拖动排序可后续接入。</p>
           <div class="module-count" id="moduleCount"></div>
           <div id="moduleSettings" class="module-settings"></div>
         </section>
 
-        <!-- 设置 -->
-        <section class="page" data-page="settings">
-          <div class="settings-group">
-            <div class="section-label">播放与弹幕</div>
-            <div class="my-list">
-              <button class="my-row" data-sheet="settings-playback"><span>播放</span><span class="my-meta">画质 / 硬解 / 默认</span></button>
-              <button class="my-row" data-sheet="settings-danmaku"><span>弹幕</span><span class="my-meta">显示 / 字号 / 速度 / 屏蔽</span></button>
-              <button class="my-row" data-sheet="settings-download"><span>离线下载</span><span class="my-meta">任务 / 合流 / 存储</span></button>
-            </div>
-          </div>
+        <!-- 设置内容已并入「我的」一级菜单 -->
 
-          <div class="settings-group">
-            <div class="section-label">外观与交互</div>
-            <div class="my-list">
-              <button class="my-row" data-sheet="settings-appearance"><span>外观</span><span class="my-meta">主题 / 透明度 / 模糊</span></button>
-              <button class="my-row" data-sheet="settings-gesture"><span>手势</span><span class="my-meta">双击 / 长按 / 滑动</span></button>
-              <button class="my-row" data-sheet="settings-distraction"><span>防干扰</span><span class="my-meta">入口 / 热搜</span></button>
-              <button class="my-row" data-goto="modules"><span>主页模块</span><span class="my-meta">首页快速切换</span></button>
-            </div>
-          </div>
-
-          <div class="settings-group">
-            <div class="section-label">账户与系统</div>
-            <div class="my-list">
-              <button class="my-row" data-sheet="settings-account"><span>账户</span><span class="my-meta">昵称 / UID / 登录</span></button>
-              <button class="my-row" data-sheet="settings-shortcuts"><span>快捷键</span><span class="my-meta">11 项播放器快捷键</span></button>
-              <button class="my-row" data-sheet="settings-system"><span>系统</span><span class="my-meta">自启 / 托盘 / 更新</span></button>
-            </div>
-          </div>
-
-          <div class="settings-group">
-            <div class="section-label">内容与优化</div>
-            <div class="my-list">
-              <button class="my-row" data-sheet="settings-block"><span>屏蔽</span><span class="my-meta">关键词 / 正则 / 用户</span></button>
-              <button class="my-row" data-sheet="settings-cloud"><span>智能云屏蔽</span><span class="my-meta">等级 / 同步</span></button>
-              <button class="my-row" data-sheet="settings-storage"><span>存储</span><span class="my-meta">缓存 / 清理</span></button>
-              <button class="my-row" data-sheet="settings-optimize"><span>优化</span><span class="my-meta">预加载 / 性能</span></button>
-              <button class="my-row" data-sheet="settings-about"><span>关于 O11A1</span><span class="my-meta">版本 / 构建</span></button>
-            </div>
-          </div>
-        </section>
-
-        <!-- 播放列表：从底部浮动播放列表进入 -->
+        <!-- 播放列表：从播放器工具栏进入 -->
         <section class="page playlist-page" data-page="playlist">
           <div class="playlist-grab" id="playlistGrab" aria-hidden="true"></div>
           <div class="playlist-page-top">
@@ -160,7 +105,7 @@
         <!-- 底部导航：全量预览 / 自选 5 个 -->
         <section class="page" data-page="nav">
           <div class="page-top">
-            <button class="back" data-goto="settings">‹</button>
+            <button class="back" data-goto="my">‹</button>
             <b>底部导航</b>
             <span class="my-meta" id="navCount">5 / 5</span>
           </div>
@@ -222,6 +167,65 @@
       </div>
 
       </div>
+
+  <!-- 我的：从左侧滑入，底部账户信息 -->
+  <section class="page my-page" data-page="my" aria-hidden="true" inert>
+    <header class="my-head">
+      <button class="my-back" id="myBack" type="button" aria-label="返回">‹</button>
+      <b>我的</b>
+    </header>
+    <div class="my-scroll" id="myScroll">
+      <div class="settings-group">
+        <div class="section-label">首页</div>
+        <div class="my-list">
+          <button class="my-row" data-goto="modules"><span>主页模块</span><span class="my-meta">自定义首页内容</span></button>
+        </div>
+      </div>
+      <div class="settings-group">
+        <div class="section-label">播放与弹幕</div>
+        <div class="my-list">
+          <button class="my-row" data-sheet="settings-playback"><span>播放</span><span class="my-meta">画质 / 硬解 / 默认</span></button>
+          <button class="my-row" data-sheet="settings-danmaku"><span>弹幕</span><span class="my-meta">显示 / 字号 / 速度 / 屏蔽</span></button>
+        </div>
+      </div>
+      <div class="settings-group">
+        <div class="section-label">外观与交互</div>
+        <div class="my-list">
+          <button class="my-row" data-sheet="settings-appearance"><span>外观</span><span class="my-meta">主题 / 透明度 / 模糊</span></button>
+          <button class="my-row" data-sheet="settings-gesture"><span>手势</span><span class="my-meta">双击 / 长按 / 滑动</span></button>
+          <button class="my-row" data-sheet="settings-distraction"><span>防干扰</span><span class="my-meta">入口 / 热搜</span></button>
+        </div>
+      </div>
+      <div class="settings-group">
+        <div class="section-label">账户与系统</div>
+        <div class="my-list">
+          <button class="my-row" data-sheet="settings-account"><span>账户</span><span class="my-meta">昵称 / UID / 登录</span></button>
+          <button class="my-row" data-sheet="settings-shortcuts"><span>快捷键</span><span class="my-meta">11 项播放器快捷键</span></button>
+          <button class="my-row" data-sheet="settings-system"><span>系统</span><span class="my-meta">自启 / 托盘 / 更新</span></button>
+        </div>
+      </div>
+      <div class="settings-group">
+        <div class="section-label">内容与优化</div>
+        <div class="my-list">
+          <button class="my-row" data-sheet="settings-block"><span>屏蔽</span><span class="my-meta">关键词 / 正则 / 用户</span></button>
+          <button class="my-row" data-sheet="settings-cloud"><span>智能云屏蔽</span><span class="my-meta">等级 / 同步</span></button>
+          <button class="my-row" data-sheet="settings-storage"><span>存储</span><span class="my-meta">页面缓存 / 清理</span></button>
+          <button class="my-row" data-sheet="settings-optimize"><span>优化</span><span class="my-meta">预加载 / 性能</span></button>
+          <button class="my-row" data-sheet="settings-about"><span>关于 O11A1</span><span class="my-meta">版本 / 构建</span></button>
+        </div>
+      </div>
+    </div>
+    <footer class="up-info-card my-account-card">
+      <div class="up-title-row">
+        <span class="up-avatar" id="myAvatar">B</span>
+        <div class="up-copy">
+          <b id="myName">未登录</b>
+          <small id="myMeta">登录 B 站账号</small>
+        </div>
+        <button class="pill-btn up-follow" id="myAccountAction" type="button">登录</button>
+      </div>
+    </footer>
+  </section>
 
       <!-- 搜索面板：主界面向后退，面板从右侧滑入并完全覆盖 -->
       <section class="search-panel" id="searchPanel" role="dialog" aria-label="搜索" aria-hidden="true" inert>
@@ -294,7 +298,6 @@
       <button data-goto="my">我的</button>
       <button data-goto="login">登录</button>
       <button data-goto="modules">主页模块</button>
-      <button data-goto="settings">设置</button>
     </div>
     <div class="drawer-label">TOKENS</div>
     <div class="drawer-tokens">
@@ -459,6 +462,7 @@
     </footer>
   </section>
 
+
   <div class="psheet-backdrop" id="psheetBackdrop"></div>
   <div class="psheet" id="psheet" inert>
     <div class="psheet-grab"></div>
@@ -468,8 +472,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=176"></script>
-  <script src="./app.js?v=176"></script>
-  <script src="./native.js?v=176"></script>
+  <script src="./vendor/hls.min.js?v=177"></script>
+  <script src="./app.js?v=177"></script>
+  <script src="./native.js?v=177"></script>
 </body>
 </html>

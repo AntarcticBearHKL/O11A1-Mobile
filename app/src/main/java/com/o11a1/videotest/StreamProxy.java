@@ -1,6 +1,5 @@
 package com.o11a1.videotest;
 
-import android.content.Context;
 import android.util.Base64;
 import android.util.Log;
 
@@ -32,18 +31,12 @@ final class StreamProxy {
     private final CookieStore cookies;
     private final ServerSocket server;
     private final ExecutorService pool = Executors.newCachedThreadPool();
-    private final String filesRoot;
     private volatile boolean running = true;
     private final AtomicLong bytesServed = new AtomicLong();
     private final AtomicLong requestCount = new AtomicLong();
 
-    StreamProxy(CookieStore cookies, android.content.Context context) throws IOException {
+    StreamProxy(CookieStore cookies) throws IOException {
         this.cookies = cookies;
-        String root = "";
-        try {
-            root = context.getFilesDir().getCanonicalPath();
-        } catch (IOException ignored) {}
-        this.filesRoot = root;
         server = new ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"));
         Thread acceptThread = new Thread(this::acceptLoop, "o11a1-proxy-accept");
         acceptThread.setDaemon(true);
@@ -59,12 +52,6 @@ final class StreamProxy {
         String token = Base64.encodeToString(remote.getBytes(StandardCharsets.UTF_8),
             Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
         return "http://127.0.0.1:" + port() + "/s?u=" + token;
-    }
-
-    String localFileUrl(String path) {
-        String token = Base64.encodeToString(path.getBytes(StandardCharsets.UTF_8),
-            Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
-        return "http://127.0.0.1:" + port() + "/f?p=" + token;
     }
 
     String statsJson() {
@@ -110,30 +97,8 @@ final class StreamProxy {
                 int colon = line.indexOf(':');
                 if (colon > 0) headers.put(line.substring(0, colon).trim().toLowerCase(Locale.US), line.substring(colon + 1).trim());
             }
-            if (!path.startsWith("/s?") && !path.startsWith("/f?")) {
+            if (!path.startsWith("/s?")) {
                 writeText(s.getOutputStream(), 404, "not found");
-                return;
-            }
-            if (path.startsWith("/f?")) {
-                requestCount.incrementAndGet();
-                String encodedFile = null;
-                for (String pair : path.substring(3).split("&")) {
-                    int eq = pair.indexOf('=');
-                    if (eq > 0 && pair.substring(0, eq).equals("p")) {
-                        encodedFile = URLDecoder.decode(pair.substring(eq + 1), "UTF-8");
-                    }
-                }
-                if (encodedFile == null || encodedFile.isEmpty()) {
-                    writeText(s.getOutputStream(), 400, "missing p");
-                    return;
-                }
-                String local = new String(Base64.decode(encodedFile, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING), StandardCharsets.UTF_8);
-                java.io.File file = new java.io.File(local);
-                if (!file.getCanonicalPath().startsWith(filesRoot) || !file.isFile()) {
-                    writeText(s.getOutputStream(), 404, "file not found");
-                    return;
-                }
-                serveFile(s.getOutputStream(), file, headers.get("range"));
                 return;
             }
             requestCount.incrementAndGet();
@@ -227,54 +192,6 @@ final class StreamProxy {
         } finally {
             if (connection != null) connection.disconnect();
         }
-    }
-
-    private void serveFile(OutputStream out, java.io.File file, String range) throws IOException {
-        long length = file.length();
-        long start = 0;
-        long end = length - 1;
-        boolean partial = false;
-        if (range != null && range.startsWith("bytes=")) {
-            try {
-                String spec = range.substring(6).split(",")[0];
-                String[] parts = spec.split("-", -1);
-                if (!parts[0].isEmpty()) start = Long.parseLong(parts[0]);
-                if (parts.length > 1 && !parts[1].isEmpty()) end = Math.min(length - 1, Long.parseLong(parts[1]));
-                partial = true;
-            } catch (Throwable ignored) {
-                start = 0;
-                end = length - 1;
-                partial = false;
-            }
-        }
-        if (start < 0 || start >= length) {
-            writeText(out, 416, "range not satisfiable");
-            return;
-        }
-        long count = Math.max(0, end - start + 1);
-        String type = file.getName().endsWith(".m4a") ? "audio/mp4" : "video/mp4";
-        StringBuilder head = new StringBuilder();
-        head.append(partial ? "HTTP/1.1 206 Partial Content\r\n" : "HTTP/1.1 200 OK\r\n");
-        head.append("Access-Control-Allow-Origin: *\r\n");
-        head.append("Accept-Ranges: bytes\r\n");
-        head.append("Content-Type: ").append(type).append("\r\n");
-        head.append("Content-Length: ").append(count).append("\r\n");
-        if (partial) head.append("Content-Range: bytes ").append(start).append("-").append(end).append("/").append(length).append("\r\n");
-        head.append("Cache-Control: no-store\r\nConnection: close\r\n\r\n");
-        out.write(head.toString().getBytes(StandardCharsets.ISO_8859_1));
-        try (java.io.RandomAccessFile input = new java.io.RandomAccessFile(file, "r")) {
-            input.seek(start);
-            byte[] buffer = new byte[64 * 1024];
-            long remaining = count;
-            while (remaining > 0) {
-                int read = input.read(buffer, 0, (int) Math.min(buffer.length, remaining));
-                if (read < 0) break;
-                out.write(buffer, 0, read);
-                bytesServed.addAndGet(read);
-                remaining -= read;
-            }
-        }
-        out.flush();
     }
 
     private static void writeText(OutputStream out, int code, String text) throws IOException {
