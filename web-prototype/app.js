@@ -355,6 +355,7 @@
   let searchDrag = null;
   let searchResultsTouch = null;
   let sidebarSwipeStart = null;
+  let sidebarSettleRaf = 0;
   let sidebarCompact = window.matchMedia('(max-width:760px)').matches;
   window.addEventListener('resize', () => {
     sidebarCompact = window.matchMedia('(max-width:760px)').matches;
@@ -680,6 +681,7 @@
       showPage('login');
       return;
     }
+    cancelSidebarSettle();
     renderSidebar();
     updateMiniPlayer();
     sidebar.inert = false;
@@ -693,6 +695,13 @@
 
   function closeSidebar() {
     if (!sidebar.classList.contains('open')) return;
+    cancelSidebarSettle();
+    appMain.style.transform = '';
+    appMain.style.borderRadius = '';
+    appMain.style.boxShadow = '';
+    sidebar.style.transform = '';
+    sidebarBackdrop.style.opacity = '';
+    app.classList.remove('sidebar-dragging');
     sidebar.classList.remove('open');
     sidebarBackdrop.classList.remove('show');
     sidebar.setAttribute('aria-hidden', 'true');
@@ -2530,6 +2539,7 @@
 
   function beginSidebarDrag() {
     if (!state.loggedIn) return false;
+    cancelSidebarSettle();
     renderSidebar();
     updateMiniPlayer();
     clearSidebarPicked();
@@ -2560,6 +2570,32 @@
       : `${(p * radius).toFixed(1)}px ${(34 - p * 8).toFixed(1)}px ${(34 - p * 8).toFixed(1)}px ${(p * radius).toFixed(1)}px`;
     sidebar.style.transform = `translate3d(${((p - 1) * 100).toFixed(2)}%,0,0)`;
     sidebarBackdrop.style.opacity = String(p);
+  }
+
+  function cancelSidebarSettle() {
+    if (!sidebarSettleRaf) return;
+    cancelAnimationFrame(sidebarSettleRaf);
+    sidebarSettleRaf = 0;
+  }
+
+  function settleSidebarDrag(from, to, done) {
+    cancelSidebarSettle();
+    const start = performance.now();
+    const distance = to - from;
+    const duration = to === 1 ? 260 : 220;
+    const frame = (now) => {
+      sidebarSettleRaf = 0;
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      applySidebarDrag(from + distance * eased);
+      if (t < 1) {
+        sidebarSettleRaf = requestAnimationFrame(frame);
+        return;
+      }
+      applySidebarDrag(to);
+      done();
+    };
+    sidebarSettleRaf = requestAnimationFrame(frame);
   }
 
   function finishSidebarDrag() {
@@ -2606,11 +2642,13 @@
       return;
     }
     if (!cancelled && progress >= 0.22) {
-      finishSidebarDrag();
-      updatePlaylistDock();
+      settleSidebarDrag(progress, 1, () => {
+        finishSidebarDrag();
+        updatePlaylistDock();
+      });
       return;
     }
-    closeSidebarFromDrag();
+    settleSidebarDrag(progress, 0, closeSidebarFromDrag);
   }
 
   /* ---------- player ---------- */
