@@ -6832,12 +6832,30 @@
       const sortStyle = getComputedStyle(upSortBar);
       const infoRect = upInfoCard.getBoundingClientRect();
       const scrollRect = upScroll.getBoundingClientRect();
+      const commentsDock = $('#commentsSort');
+      const commentsButton = commentsDock ? commentsDock.querySelector('.comments-sort:not(.on)') : null;
+      const upButton = upSortBar.querySelector('.up-sort-btn:not(.on)');
+      const dockStyle = commentsDock ? getComputedStyle(commentsDock) : null;
+      const commentsButtonStyle = commentsButton ? getComputedStyle(commentsButton) : null;
+      const upButtonStyle = upButton ? getComputedStyle(upButton) : null;
+      const glassMatch = Boolean(dockStyle
+        && Math.abs(parseFloat(sortStyle.paddingLeft) - parseFloat(dockStyle.paddingLeft)) < 0.5
+        && sortStyle.borderRadius === dockStyle.borderRadius
+        && sortStyle.backgroundColor === dockStyle.backgroundColor
+        && sortStyle.boxShadow === dockStyle.boxShadow
+        && sortStyle.backdropFilter === dockStyle.backdropFilter
+        && sortStyle.borderColor === dockStyle.borderColor
+        && sortStyle.gap === dockStyle.gap);
+      const buttonMatch = Boolean(commentsButtonStyle && upButtonStyle
+        && upButtonStyle.backgroundColor === commentsButtonStyle.backgroundColor
+        && upButtonStyle.color === commentsButtonStyle.color
+        && Math.abs(parseFloat(upButtonStyle.height) - parseFloat(commentsButtonStyle.height)) < 0.5
+        && Math.abs(parseFloat(upButtonStyle.minWidth) - parseFloat(commentsButtonStyle.minWidth)) < 0.5
+        && Math.abs(parseFloat(upButtonStyle.paddingLeft) - parseFloat(commentsButtonStyle.paddingLeft)) < 0.5
+        && upButtonStyle.borderRadius === commentsButtonStyle.borderRadius);
       upSortFloat = sortStyle.position === 'absolute'
-        && sortStyle.backgroundImage === 'none'
-        && sortStyle.backgroundColor === 'rgba(0, 0, 0, 0)'
-        && sortStyle.boxShadow === 'none'
-        && sortStyle.backdropFilter === 'none'
-        && parseFloat(sortStyle.paddingLeft) === 0
+        && glassMatch
+        && buttonMatch
         && sortRect.top >= scrollRect.top
         && sortRect.bottom <= scrollRect.bottom
         && sortRect.top < infoRect.top;
