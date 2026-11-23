@@ -708,6 +708,9 @@
     previewRow = row;
     row.classList.add('preview-active');
     const token = ++previewToken;
+    setTimeout(() => {
+      if (token === previewToken && previewRow === row && !document.hidden) prefetchPlayInfo(item);
+    }, 900);
     clearTimeout(previewTimer);
     previewTimer = setTimeout(() => {
       previewTimer = null;
@@ -2095,7 +2098,23 @@
     }
   }
 
+  async function fetchDashBlock(url, offset, size, session) {
+    const end = offset + size - 1;
+    const response = await fetch(url, {
+      cache: 'no-store',
+      headers: { Range: 'bytes=' + offset + '-' + end },
+      signal: session.controller ? session.controller.signal : undefined
+    });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const contentRange = response.headers.get('Content-Range') || '';
+    const totalMatch = contentRange.match(/\/(\d+)$/);
+    const total = totalMatch ? Number(totalMatch[1]) : 0;
+    const value = new Uint8Array(await response.arrayBuffer());
+    return { status: response.status, total, value, size };
+  }
+
   async function pumpDash(urls, buffer, type, item, autoplay, session) {
+    const firstSize = 512 * 1024;
     const chunkSize = 4 * 1024 * 1024;
     let lastError = 'DASH 地址不可用';
     for (const url of urls.filter(Boolean)) {
@@ -2103,35 +2122,52 @@
         let offset = 0;
         let total = 0;
         let appended = 0;
+        let pending = fetchDashBlock(url, 0, firstSize, session)
+          .then((value) => ({ value }), (error) => ({ error }));
         while (!session.aborted) {
           if (video.paused && dashBufferedAhead(buffer) >= 10) {
             await waitDashResume(session);
             continue;
           }
-          const end = offset + chunkSize - 1;
-          const response = await fetch(url, {
-            cache: 'no-store',
-            headers: { Range: 'bytes=' + offset + '-' + end },
-            signal: session.controller ? session.controller.signal : undefined
-          });
-          if (!response.ok) throw new Error('HTTP ' + response.status);
-          const contentRange = response.headers.get('Content-Range') || '';
-          const totalMatch = contentRange.match(/\/(\d+)$/);
-          if (totalMatch) total = Number(totalMatch[1]);
-          const value = new Uint8Array(await response.arrayBuffer());
+          const current = await pending;
+          pending = null;
+          if (current.error) throw current.error;
+          const block = current.value;
+          const value = block.value;
           if (!value.length) break;
+          if (block.total) total = block.total;
           addNetBytes(value.length);
+          const nextOffset = offset + value.length;
+          if (block.status === 200 && !total) {
+            offset = nextOffset;
+            await appendDashChunk(buffer, value, session);
+            appended += value.length;
+            if (!session.started && type === 'video' && appended > 350 * 1024) {
+              session.started = true;
+              startDashPlayback(autoplay);
+            }
+            break;
+          }
+          const canContinue = total === 0 || nextOffset < total;
+          const canPrefetch = canContinue
+            && value.length >= Math.min(block.size, 64 * 1024)
+            && !(video.paused && dashBufferedAhead(buffer) >= 10);
+          const lookahead = canPrefetch
+            ? fetchDashBlock(url, nextOffset, chunkSize, session)
+              .then((next) => ({ value: next }), (error) => ({ error }))
+            : null;
           await appendDashChunk(buffer, value, session);
           appended += value.length;
-          offset += value.length;
+          offset = nextOffset;
           if (!session.started && type === 'video' && appended > 350 * 1024) {
             session.started = true;
             startDashPlayback(autoplay);
           }
           await waitDashRoom(buffer, session);
-          if (response.status === 200 && !total) break;
           if (total > 0 && offset >= total) break;
-          if (value.length < Math.min(chunkSize, 64 * 1024)) break;
+          if (value.length < Math.min(block.size, 64 * 1024)) break;
+          if (!lookahead) break;
+          pending = lookahead;
         }
         if (!session.aborted && type === 'video') startDashPlayback(autoplay);
         if (!session.aborted) log('dash ' + type + ' ended bytes=' + appended);
@@ -2265,6 +2301,37 @@
     video.load();
   }
 
+  const playInfoCache = new Map();
+  const PLAY_INFO_TTL = 4 * 60 * 1000;
+
+  function playInfoKey(item, qn) {
+    return `${item.bvid || item.epId || ''}:${qn}`;
+  }
+
+  function playQualityCached(item, qn) {
+    const key = playInfoKey(item, qn);
+    const hit = playInfoCache.get(key);
+    if (hit && Date.now() - hit.at < PLAY_INFO_TTL) return hit.value;
+    const value = call('playQuality', item.bvid, item.cid || 0, qn);
+    if (value && value.ok) {
+      if (value.cid) item.cid = value.cid;
+      playInfoCache.set(key, { at: Date.now(), value });
+    }
+    return value;
+  }
+
+  function prefetchPlayInfo(item) {
+    if (!item || item.live || !item.bvid || item.epId) return;
+    const qn = qualityQn(state.settings.quality);
+    const key = playInfoKey(item, qn);
+    if (playInfoCache.has(key)) return;
+    const value = call('playQuality', item.bvid, item.cid || 0, qn);
+    if (value && value.ok) {
+      if (value.cid) item.cid = value.cid;
+      playInfoCache.set(key, { at: Date.now(), value });
+    }
+  }
+
   function loadVideo(item, autoplay, allowDash = true) {
     state.streamInfo = { videoBitrate: 0, audioBitrate: 0, sourceWidth: 0, sourceHeight: 0, frameRate: 0, netBps: 0, netAt: 0, direct: false };
     state.availableQualities = [];
@@ -2315,7 +2382,7 @@
     const requestedQuality = state.settings.quality;
     const result = item.epId
       ? call('playPgc', item.epId, item.bvid || '', item.cid || 0, qualityQn(state.settings.quality))
-      : call('playQuality', item.bvid, item.cid || 0, qualityQn(state.settings.quality));
+      : playQualityCached(item, qualityQn(state.settings.quality));
     if (!result.ok) {
       setStatus('加载失败 · 点击重试', 'error');
       log('play error ' + (item.bvid || item.epId || '') + ' ' + (result.error || ''));
@@ -2739,13 +2806,13 @@
       && videoCacheKey(currentItem()) === key;
     videoPrefetchTimers.push(setTimeout(() => {
       if (alive()) readVideoInfo(item);
-    }, 420));
+    }, 120));
     videoPrefetchTimers.push(setTimeout(() => {
       if (alive()) ensureRelatedVideos(item.bvid);
-    }, 900));
+    }, 260));
     videoPrefetchTimers.push(setTimeout(() => {
       if (alive()) prefetchComments(item);
-    }, 1350));
+    }, 400));
   }
 
   const COMMENT_HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3 4.6 13a4.7 4.7 0 0 1 6.6-6.6l.8.8.8-.8A4.7 4.7 0 0 1 19.4 13z"/></svg>';
