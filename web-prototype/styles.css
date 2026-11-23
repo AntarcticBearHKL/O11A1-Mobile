@@ -499,8 +499,9 @@ body[data-theme="dark"] .feed-skeleton::after{
 
 /* ---------- right-side search panel ---------- */
 .search-panel{
-  position:absolute;left:0;right:0;top:0;bottom:var(--kb,0px);z-index:92;
+  position:absolute;left:0;right:0;top:0;bottom:0;z-index:92;
   display:block;overflow-y:auto;overflow-x:hidden;
+  padding-bottom:var(--kb,0px);
   background-color:var(--paper);
   background-image:var(--dots-faint),var(--wallpaper);
   background-repeat:repeat,no-repeat,no-repeat,no-repeat;
@@ -534,8 +535,17 @@ body[data-theme="dark"] .search-panel-head{
   background:linear-gradient(180deg,rgba(15,16,19,.94),rgba(15,16,19,.78));
   border-bottom-color:var(--line);
 }
-.search-panel-head .back{margin-left:-8px}
-.search-panel-head .search-field{flex:1;height:44px;border-radius:14px;background:var(--surface)}
+.search-panel-head .search-field{
+  flex:1;height:48px;border-radius:16px;background:var(--surface);
+  padding:0 14px;gap:10px;
+}
+.search-icon{
+  width:24px;height:24px;flex:none;display:grid;place-items:center;color:var(--faint);
+}
+.search-icon svg{
+  width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round;
+}
 .search-panel .search-section{padding:0 18px}
 .search-panel .search-section .section-label{margin-top:22px}
 .search-panel .search-section:first-of-type .section-label{margin-top:18px}

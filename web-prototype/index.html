@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=168">
-  <link rel="stylesheet" href="./fonts.css?v=168">
+  <link rel="stylesheet" href="./styles.css?v=169">
+  <link rel="stylesheet" href="./fonts.css?v=169">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -226,9 +226,10 @@
       <!-- 搜索面板：主界面向后退，面板从右侧滑入并完全覆盖 -->
       <section class="search-panel" id="searchPanel" role="dialog" aria-label="搜索" aria-hidden="true" inert>
         <div class="search-panel-head">
-          <button class="back" id="searchClose" type="button" title="返回">‹</button>
           <label class="search-field" id="searchField">
-            <span>⌕</span>
+            <span class="search-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.6"/><path d="m16 16 4.4 4.4"/></svg>
+            </span>
             <input id="searchInput" placeholder="搜索视频 / UP / 番剧" autocomplete="off">
             <button class="search-clear" id="searchClear" type="button" aria-label="清空搜索" hidden>×</button>
           </label>
@@ -467,8 +468,8 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=168"></script>
-  <script src="./app.js?v=168"></script>
-  <script src="./native.js?v=168"></script>
+  <script src="./vendor/hls.min.js?v=169"></script>
+  <script src="./app.js?v=169"></script>
+  <script src="./native.js?v=169"></script>
 </body>
 </html>

@@ -60,7 +60,6 @@
   const sidebarBackdrop = $('#sidebarBackdrop');
   const sidebarNav = $('#sidebarNav');
   const sidebarFoot = $('#sidebarFoot');
-  const searchClose = $('#searchClose');
   const searchBack = $('#searchBack');
   const searchHotSection = $('#searchHotSection');
   const searchSuggestSection = $('#searchSuggestSection');
@@ -354,7 +353,6 @@
   let sidebarPicked = null;
   let menuSwipeStart = null;
   let searchDrag = null;
-  let searchResultsTouch = null;
   let sidebarSwipeStart = null;
   let sidebarSettleRaf = 0;
   let sidebarCompact = window.matchMedia('(max-width:760px)').matches;
@@ -789,20 +787,25 @@
     }
   }
 
-  function closeSearch() {
-    if (!searchPanel || !state.searchOpen) return;
+  function beginSearchDismiss() {
+    if (!searchPanel || !state.searchOpen) return false;
     state.searchOpen = false;
+    app.classList.remove('search-open');
+    document.body.classList.remove('search-mode');
+    if (document.activeElement === searchInput) searchInput.blur();
+    syncKeyboardOffset();
+    searchPanel.setAttribute('aria-hidden', 'true');
+    searchPanel.inert = true;
+    return true;
+  }
+
+  function closeSearch() {
+    if (!beginSearchDismiss()) return;
     searchPanel.classList.remove('open', 'dragging', 'settling');
     searchPanel.style.transition = '';
     searchPanel.style.transform = '';
     searchPanel.style.opacity = '';
     searchPanel.style.boxShadow = '';
-    searchPanel.setAttribute('aria-hidden', 'true');
-    searchPanel.inert = true;
-    app.classList.remove('search-open');
-    document.body.classList.remove('search-mode');
-    if (document.activeElement === searchInput) searchInput.blur();
-    syncKeyboardOffset();
   }
 
   function resetSearchResultsDrag() {
@@ -821,43 +824,20 @@
     }, 340);
   }
 
-  function closeSearchResultsFromPull() {
-    if (!searchResultsPage) {
-      closeSearch();
-      return;
-    }
-    searchResultsPage.classList.remove('dragging');
-    searchResultsPage.classList.add('settling');
-    searchResultsPage.style.transition = 'transform .28s cubic-bezier(.22,1,.36,1),opacity .2s ease';
-    searchResultsPage.style.transform = 'translate3d(0,105%,0)';
-    searchResultsPage.style.opacity = '0';
-    searchResultsPage.style.boxShadow = '';
-    setTimeout(() => {
-      closeSearch();
-      searchResultsPage.classList.remove('settling');
-      searchResultsPage.style.transition = '';
-      searchResultsPage.style.transform = '';
-      searchResultsPage.style.opacity = '';
-      searchResultsPage.style.boxShadow = '';
-    }, 280);
-  }
-
   function closeSearchFromSwipe() {
-    if (!searchResultsPage) {
-      closeSearch();
-      return;
-    }
-    searchResultsPage.classList.remove('dragging');
-    searchResultsPage.classList.add('settling');
-    searchResultsPage.style.transition = 'transform .32s cubic-bezier(.22,1,.36,1)';
-    searchResultsPage.style.transform = 'translate3d(105%,0,0)';
-    searchResultsPage.style.boxShadow = '-18px 0 46px rgba(10,12,20,.18)';
+    if (!beginSearchDismiss()) return;
+    searchPanel.classList.remove('dragging');
+    searchPanel.classList.add('settling');
+    searchPanel.style.transition = 'transform .32s cubic-bezier(.22,1,.36,1)';
+    searchPanel.style.transform = 'translate3d(105%,0,0)';
+    searchPanel.style.boxShadow = '-18px 0 46px rgba(10,12,20,.18)';
     setTimeout(() => {
-      closeSearch();
-      searchResultsPage.classList.remove('settling');
-      searchResultsPage.style.transition = '';
-      searchResultsPage.style.transform = '';
-      searchResultsPage.style.boxShadow = '';
+      if (state.searchOpen) return;
+      searchPanel.classList.remove('open', 'settling');
+      searchPanel.style.transition = '';
+      searchPanel.style.transform = '';
+      searchPanel.style.opacity = '';
+      searchPanel.style.boxShadow = '';
     }, 320);
   }
 
@@ -5307,7 +5287,6 @@
     }
   });
 
-  if (searchClose) searchClose.addEventListener('click', closeSearch);
   if (searchBack) searchBack.addEventListener('click', closeSearchFromSwipe);
   searchClear.addEventListener('click', () => {
     searchInput.value = '';
@@ -5935,33 +5914,6 @@
   if (searchResultsPage) searchResultsPage.addEventListener('pointerdown', (event) => startFeedGesture(event, 'search'));
   if (videoDetailScroll) videoDetailScroll.addEventListener('pointerdown', (event) => startFeedGesture(event, 'detail'));
 
-  function startSearchResultsTouch(event) {
-    if (!searchResultsPage || searchResultsPage.scrollTop > 0) return;
-    if (!event.touches || event.touches.length !== 1) return;
-    searchResultsTouch = { y: event.touches[0].clientY };
-  }
-  function moveSearchResultsTouch(event) {
-    if (!searchResultsTouch) return;
-    if (!event.touches || event.touches.length !== 1) {
-      searchResultsTouch = null;
-      return;
-    }
-    const dy = event.touches[0].clientY - searchResultsTouch.y;
-    if (searchResultsPage.scrollTop > 0 || dy < -6) {
-      searchResultsTouch = null;
-      return;
-    }
-    if (dy > 6 && event.cancelable) event.preventDefault();
-  }
-  function endSearchResultsTouch() {
-    searchResultsTouch = null;
-  }
-  if (searchResultsPage) {
-    searchResultsPage.addEventListener('touchstart', startSearchResultsTouch, { passive: true });
-    searchResultsPage.addEventListener('touchmove', moveSearchResultsTouch, { passive: false });
-    searchResultsPage.addEventListener('touchend', endSearchResultsTouch);
-    searchResultsPage.addEventListener('touchcancel', endSearchResultsTouch);
-  }
   window.addEventListener('pointermove', (event) => {
     if (!rowSwipe || event.pointerId !== rowSwipe.id) return;
     const dx = event.clientX - rowSwipe.x;
@@ -5969,14 +5921,7 @@
     if (!rowSwipe.direction) {
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
       if (Math.abs(dy) > Math.abs(dx) * 1.15) {
-        if (rowSwipe.surface === 'search' && dy > 0 && searchResultsPage && searchResultsPage.scrollTop <= 0) {
-          rowSwipe.direction = 'search-pull';
-          rowSwipe.searchPullY = 0;
-          searchResultsPage.classList.add('dragging');
-          searchResultsPage.style.transition = 'none';
-        } else {
-          rowSwipe.direction = 'vertical';
-        }
+        rowSwipe.direction = 'vertical';
         return;
       }
       if (dx > 8) {
@@ -6034,14 +5979,6 @@
       searchResultsPage.style.boxShadow = offset > 0 ? '-18px 0 46px rgba(10,12,20,.18)' : '';
       return;
     }
-    if (rowSwipe.direction === 'search-pull') {
-      if (event.cancelable) event.preventDefault();
-      const pullY = Math.max(0, dy);
-      rowSwipe.searchPullY = pullY;
-      searchResultsPage.style.transform = `translate3d(0,${pullY}px,0)`;
-      searchResultsPage.style.opacity = String(Math.max(0.35, 1 - pullY / 520));
-      return;
-    }
     if (rowSwipe.direction === 'up-close') {
       if (event.cancelable) event.preventDefault();
       const width = app.clientWidth || window.innerWidth;
@@ -6083,12 +6020,6 @@
       else resetSearchResultsDrag();
       return;
     }
-    if (start.direction === 'search-pull') {
-      suppressFeedClickUntil = Date.now() + 420;
-      if ((start.searchPullY || 0) > 96) closeSearchResultsFromPull();
-      else resetSearchResultsDrag();
-      return;
-    }
     if (start.direction === 'up-close') {
       suppressFeedClickUntil = Date.now() + 420;
       const width = app.clientWidth || window.innerWidth;
@@ -6113,7 +6044,6 @@
     else if (start.direction === 'left') resetRowSwipe(start.wrapper);
     else if (start.direction === 'up-close') resetUpPageDrag();
     else if (start.direction === 'search-close') resetSearchResultsDrag();
-    else if (start.direction === 'search-pull') resetSearchResultsDrag();
   });
 
   appScroll.addEventListener('scroll', () => {
@@ -6726,7 +6656,7 @@
       searchInlineResults = Boolean(hotChip)
         && !searchResultsBlock.hidden
         && searchPanel.classList.contains('open');
-      if (searchClose) searchClose.click();
+      closeSearch();
       await sleep(420);
       searchPanelClosed = !state.searchOpen
         && !searchPanel.classList.contains('open')
