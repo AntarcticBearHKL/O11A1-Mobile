@@ -322,6 +322,13 @@ body[data-theme="dark"] .feed-skeleton::after{
 @keyframes feedSkelShimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
 .page[data-page="home"]{padding-top:0;padding-left:0;padding-right:0}
 .page[data-page="home"] .video-row{padding-left:0;padding-right:8px}
+.feed-brand{
+  display:flex;align-items:center;justify-content:center;
+  padding:calc(env(safe-area-inset-top,0px) * .5 + 30px) 18px 12px;
+  font-size:10px;font-weight:650;line-height:1.2;letter-spacing:.24em;
+  color:var(--faint);text-transform:uppercase;user-select:none;
+}
+.feed-top-rule{height:1px;background:var(--line-strong)}
 .page[data-page="module"]{padding-left:0;padding-right:0}
 .page[data-page="module"] .page-filter-row{padding-left:18px;padding-right:18px}
 .app.module-wide .page[data-page="module"]{padding-left:0;padding-right:0}
