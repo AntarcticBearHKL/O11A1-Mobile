@@ -18,8 +18,6 @@
   const pcDanmaku = $('#pcDanmaku');
   const pcLoop = $('#pcLoop');
   const pcLoopValue = $('#pcLoopValue');
-  const pcPlaylist = $('#pcPlaylist');
-  const pcPlaylistValue = $('#pcPlaylistValue');
   const progressBar = $('#progressBar');
   const gridProgress = $('#gridProgress');
   const wheelStrip = $('#wheelStrip');
@@ -71,8 +69,6 @@
   const playlistPage = $('.page[data-page="playlist"]');
   const upPage = $('.page[data-page="up"]');
   const myPage = $('.page[data-page="my"]');
-  const queueFab = $('#queueFab');
-  const queueFabCount = $('#queueFabCount');
   const pdCollapsed = $('#pdCollapsed');
   const pdDisc = $('#pdDisc');
   const pdDiscArt = $('#pdDiscArt');
@@ -146,7 +142,6 @@
 
   const NAV_ITEMS = [
     { id: 'home', label: '首页', icon: 'home', type: 'page', target: 'home', group: '桌面端' },
-    { id: 'playlist', label: '播放列表', icon: 'playlist', type: 'playlist', target: 'playlist', group: '移动端' },
     { id: 'favorite', label: '收藏', icon: 'favorite', type: 'module', target: '收藏', group: '桌面端' },
     { id: 'fish', label: '养鱼', icon: 'fish', type: 'module', target: '养鱼', group: '桌面端' },
     { id: 'live', label: '直播', icon: 'live', type: 'module', target: '直播', group: '桌面端' },
@@ -159,7 +154,6 @@
 
   const NAV_ICONS = {
     home: '<path d="M3.5 10.7 12 3.5l8.5 7.2V20a1 1 0 0 1-1 1h-5v-6h-5v6h-5a1 1 0 0 1-1-1z"/>',
-    playlist: '<path d="M4 6.5h16M4 11.5h16M4 16.5h9"/><path d="m15.5 15.2 4 2.3-4 2.3z"/>',
     favorite: '<path d="M6.5 3.5h11a1 1 0 0 1 1 1v16l-6.5-4-6.5 4v-16a1 1 0 0 1 1-1z"/>',
     fish: '<path d="M3.5 12c2.4-3.1 5.5-4.6 9.1-4.6 3.1 0 5.7 1.5 7.9 4.6-2.2 3.1-4.8 4.6-7.9 4.6-3.6 0-6.7-1.5-9.1-4.6z"/><path d="M3.5 12 1.5 8.7v6.6L3.5 12z"/><circle cx="15.8" cy="10.5" r="0.8" fill="currentColor" stroke="none"/>',
     live: '<rect x="3" y="4.5" width="18" height="12.5" rx="2"/><path d="m10 8 5 2.75L10 13.5z"/><path d="M8.5 21h7M12 17v4"/>',
@@ -177,7 +171,7 @@
   }
 
   const DEFAULT_NAV_SELECTED = ['home', 'favorite', 'dynamic', 'messages', 'my'];
-  const PAGE_NAV = { home: 'home', search: 'search', dynamic: 'dynamic', messages: 'messages', my: 'my', playlist: 'playlist' };
+  const PAGE_NAV = { home: 'home', search: 'search', dynamic: 'dynamic', messages: 'messages', my: 'my' };
 
   const DEFAULT_SETTINGS = {
     defaultQuality: '最高',
@@ -718,10 +712,6 @@
   function handleNav(item, button) {
     if (item.type === 'search') {
       openSearch();
-      return;
-    }
-    if (item.type === 'playlist') {
-      openPlaylistPage();
       return;
     }
     if (item.type === 'module') {
@@ -1687,19 +1677,14 @@
   function updatePlaylistDock() {
     const count = state.playlist.length;
     const item = state.playlist[state.currentIndex];
-    if (queueFabCount) {
-      queueFabCount.textContent = count > 99 ? '99+' : String(count);
-      queueFabCount.hidden = count === 0;
-    }
-    if (queueFab) queueFab.setAttribute('aria-label', `播放列表，${count} 项`);
-    if (pcPlaylistValue) pcPlaylistValue.textContent = `${count} 项`;
     renderDockPlaylist();
-    // The bottom playlist dock is retired; playback stays reachable from the player toolbar.
-    playlistDock.classList.remove('show');
-    playlistDock.setAttribute('aria-hidden', 'true');
+    const dockVisible = state.loggedIn && (!state.playerOpen || dockLaunching);
+    const show = dockVisible;
+    playlistDock.classList.toggle('show', show);
+    playlistDock.setAttribute('aria-hidden', show ? 'false' : 'true');
     playlistDock.setAttribute('aria-label', `播放列表，${count} 项`);
-    playlistDock.inert = true;
-    app.classList.remove('has-playlist');
+    playlistDock.inert = !show;
+    app.classList.toggle('has-playlist', dockVisible);
     playlistDock.style.opacity = '';
     playlistDock.style.transform = '';
     if (pdModeValue) pdModeValue.textContent = state.settings.loop;
@@ -5386,9 +5371,6 @@
 
   const myBack = $('#myBack');
   if (myBack) myBack.addEventListener('click', () => closeMyPageFromSwipe());
-  const searchFab = $('#searchFab');
-  if (searchFab) searchFab.addEventListener('click', () => openSearch());
-  if (queueFab) queueFab.addEventListener('click', () => openPlaylistPage());
   if (loginStart) loginStart.addEventListener('click', openOfficialLogin);
 
   dynamicFilter.addEventListener('click', () => {
@@ -5410,10 +5392,6 @@
   pcQuality.addEventListener('click', () => setPcPanel('quality'));
   pcDanmaku.addEventListener('click', () => setPcPanel('danmaku'));
   pcLoop.addEventListener('click', cycleLoop);
-  if (pcPlaylist) pcPlaylist.addEventListener('click', () => {
-    closePlayerSettings({ instant: true });
-    openPlaylistPage();
-  });
   lockBadge.addEventListener('click', unlockPlayer);
 
   if (playerSettings) {
@@ -6745,14 +6723,33 @@
 
     minimizePlayer();
     await sleep(420);
-    results.push(`dockHidden=${!playlistDock.classList.contains('show') && !app.classList.contains('has-playlist')}`);
-    results.push(`queueEntry=${Boolean($('#queueFab') && $('.sidebar-item[data-nav="playlist"]') && $('#pcPlaylist'))}`);
+    results.push(`dock=${playlistDock.classList.contains('show')}`);
+    const dockRect = playlistDock.getBoundingClientRect();
+    const dockX = dockRect.left + dockRect.width * 0.45;
+    const dockY = dockRect.top + Math.min(50, dockRect.height * 0.5);
+    playlistDock.dispatchEvent(pointerEvent('pointerdown', dockX, dockY, 1));
+    window.dispatchEvent(pointerEvent('pointermove', dockX, dockY - 24, 1));
+    window.dispatchEvent(pointerEvent('pointermove', dockX, dockY - 82, 1));
+    window.dispatchEvent(pointerEvent('pointerup', dockX, dockY - 82, 0));
+    await sleep(480);
+    const dockExpanded = playlistDock.classList.contains('expanded') && state.page !== 'playlist';
+    results.push(`dockExpand=${dockExpanded}`);
+    if (dockPlaylistBody) dockPlaylistBody.scrollTop = 0;
+    const dockBodyRect = dockPlaylistBody.getBoundingClientRect();
+    const dockBodyX = dockBodyRect.left + dockBodyRect.width * 0.5;
+    const dockBodyY = dockBodyRect.top + Math.min(36, dockBodyRect.height * 0.5);
+    dockPlaylistBody.dispatchEvent(pointerEvent('pointerdown', dockBodyX, dockBodyY, 1));
+    for (let step = 1; step <= 6; step += 1) {
+      window.dispatchEvent(pointerEvent('pointermove', dockBodyX, dockBodyY + (90 * step) / 6, 1));
+    }
+    window.dispatchEvent(pointerEvent('pointerup', dockBodyX, dockBodyY + 90, 0));
+    await sleep(480);
+    results.push(`dockBodyClose=${!playlistDock.classList.contains('expanded') && playlistDock.classList.contains('show')}`);
     let searchPanelFocus = false;
     let searchInlineResults = false;
     let searchPanelClosed = false;
-    const searchFab = $('#searchFab');
-    if (searchFab && searchPanel && searchInput) {
-      searchFab.click();
+    if (pdSearch && searchPanel && searchInput) {
+      pdSearch.click();
       searchPanelFocus = state.searchOpen
         && searchPanel.classList.contains('open')
         && document.activeElement === searchInput;
@@ -7042,8 +7039,7 @@
     const myOpened = state.page === 'my'
       && app.classList.contains('my-open')
       && myPage.classList.contains('active')
-      && myPage.getAttribute('aria-hidden') === 'false'
-      && !playlistDock.classList.contains('show');
+      && myPage.getAttribute('aria-hidden') === 'false';
     const myRows = $$('.my-page .my-row').length;
     const myCard = $('.my-page .my-account-card');
     const myCardRect = myCard ? myCard.getBoundingClientRect() : null;
