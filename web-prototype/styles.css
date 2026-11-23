@@ -1521,7 +1521,7 @@ body[data-theme="light"] .grid-progress .grid-cell.on{background:var(--blue,#2F7
 .player-settings-card.dragging{transition:none}
 .player-settings-titlebar{
   flex:none;height:64px;display:flex;align-items:center;justify-content:flex-start;
-  padding:0 2px;border-bottom:0;
+  padding:0 2px 0 16px;border-bottom:0;
 }
 .player-settings-titlebar b{
   display:block;
