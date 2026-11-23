@@ -47,6 +47,7 @@ tasks.register('syncWebAssets', Copy) {
     include 'app.js'
     include 'native.js'
     include 'styles.css'
+    include 'fonts.css'
     include 'vendor/hls.min.js'
     into layout.buildDirectory.dir('generated/webAssets/web')
 }

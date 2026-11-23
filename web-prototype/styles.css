@@ -16,7 +16,7 @@
   --row-fade:243,239,231;
   --radius:18px;
   --font-sans:"Chill Round Gothic","PingFang SC","HarmonyOS Sans SC","MiSans","Microsoft YaHei UI","Noto Sans SC",sans-serif;
-  --font-mono:"SFMono-Regular","JetBrains Mono",Consolas,monospace;
+  --font-mono:"Chill Round Gothic","SFMono-Regular","JetBrains Mono",Consolas,monospace;
   --dots:radial-gradient(rgba(30,26,20,.30) .45px,transparent .45px);
   --dots-faint:radial-gradient(rgba(30,26,20,.036) .45px,transparent .45px);
   --wallpaper:
@@ -86,6 +86,7 @@ body{
 body *{-webkit-user-select:inherit;user-select:inherit;-webkit-touch-callout:none}
 input,textarea,select,[contenteditable="true"]{
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  font-family:var(--font-sans);
 }
 ::selection{background:transparent;color:inherit}
 img,a{-webkit-user-drag:none}
@@ -1412,6 +1413,7 @@ body.grid .grid-overlay{display:block}
 .player{
   position:fixed;inset:0;z-index:300;display:none;flex-direction:column;
   background:#07090D;color:#fff;overflow:hidden;
+  font-family:var(--font-sans);
   transform-origin:50% 50%;
 }
 .player.open{display:flex;animation:playerIn .28s cubic-bezier(.16,1,.3,1)}
@@ -2454,7 +2456,7 @@ body.reduce-motion .player-boot-ring{animation:none}
 }
 .danmaku-layer.paused .danmaku-item{animation-play-state:paused}
 .danmaku-item{
-  position:absolute;left:100%;white-space:nowrap;font-size:var(--dm-font-size,14px);line-height:1.2;font-weight:600;
+  position:absolute;left:100%;white-space:nowrap;font-family:var(--font-sans);font-size:var(--dm-font-size,14px);line-height:1.2;font-weight:600;
   opacity:var(--dm-opacity,.85);
   text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 4px rgba(0,0,0,.55);
   animation-name:danmakuFly;animation-timing-function:linear;animation-fill-mode:forwards;

@@ -325,6 +325,7 @@ const MOCK_BRIDGE = `
 function buildMockHtml(files: Record<string, string>): string {
   let html = files['index.html'] || '';
   html = html.replace(/<link[^>]*styles\.css[^>]*>/, () => `<style>${files['styles.css'] || ''}</style>`);
+  html = html.replace(/<link[^>]*fonts\.css[^>]*>/, () => `<style>${files['fonts.css'] || ''}</style>`);
   html = html.replace(/<script[^>]*vendor\/hls[^>]*><\/script>/, () => '');
   html = html.replace(/<script[^>]*app\.js[^>]*><\/script>/, () => `<script>${files['app.js'] || ''}</script>`);
   html = html.replace(/<script[^>]*native\.js[^>]*><\/script>/, () => `<script>${files['native.js'] || ''}</script>`);

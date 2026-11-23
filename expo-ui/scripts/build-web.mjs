@@ -6,7 +6,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const project = path.resolve(here, '..');
 const webDir = path.resolve(project, '..', 'web-prototype');
 const outFile = path.resolve(project, 'src', 'webapp.generated.ts');
-const names = ['index.html', 'app.js', 'native.js', 'styles.css', 'vendor/hls.min.js'];
+const names = ['index.html', 'app.js', 'native.js', 'styles.css', 'fonts.css', 'vendor/hls.min.js'];
 
 const files = {};
 for (const name of names) {
