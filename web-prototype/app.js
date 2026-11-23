@@ -3671,7 +3671,7 @@
       try { playerOpenWindowAnim.cancel(); } catch (_) {}
       playerOpenWindowAnim = null;
     }
-    player.classList.remove('window-opening');
+    player.classList.remove('window-opening', 'promoting-preview');
     player.style.pointerEvents = '';
     player.style.transform = '';
     player.style.borderRadius = '';
@@ -3684,7 +3684,7 @@
     const finish = () => {
       clearTimeout(playerOpenWindowTimer);
       playerOpenWindowTimer = null;
-      player.classList.remove('window-opening');
+      player.classList.remove('window-opening', 'promoting-preview');
       player.style.pointerEvents = '';
       player.style.transform = '';
       player.style.borderRadius = '';
@@ -3735,11 +3735,15 @@
   function openPlayer(options = {}) {
     const origin = pendingPlayerOrigin;
     pendingPlayerOrigin = null;
-    stopFeedPreview();
     if (!state.loggedIn) {
+      stopFeedPreview();
       showPage('login');
       return;
     }
+    const promotedPreview = Boolean(origin && origin.thumb
+      && window.O11A1Host && typeof window.O11A1Host.promoteFeedPreview === 'function'
+      && window.O11A1Host.promoteFeedPreview(origin.thumb));
+    stopFeedPreview();
     const wasOpen = state.playerOpen;
     const openToken = ++playerMediaOpenToken;
     clearTimeout(playerMediaOpenTimer);
@@ -3780,11 +3784,12 @@
     player.style.transform = '';
     player.style.opacity = '';
     player.style.pointerEvents = '';
-    player.classList.remove('dragging', 'collapsing', 'window-opening');
+    player.classList.remove('dragging', 'collapsing', 'window-opening', 'promoting-preview');
     playerRotor.style.backgroundImage = '';
     const expandFromRow = !wasOpen && Boolean(origin && origin.rect && origin.rect.width && origin.rect.height);
     if (expandFromRow) {
       player.classList.add('window-opening');
+      if (promotedPreview) player.classList.add('promoting-preview');
       player.style.animation = 'none';
       player.style.pointerEvents = 'none';
       if (origin.image) {
@@ -3809,7 +3814,11 @@
     hideRateHud(0);
     hideControlsInstant();
     startGyro();
-    if (expandFromRow) expandPlayerWindowFromOrigin(origin);
+    if (expandFromRow) {
+      requestAnimationFrame(() => {
+        if (state.playerOpen) expandPlayerWindowFromOrigin(origin);
+      });
+    }
     if (!hasMediaApi) return;
     const startMedia = () => {
       if (openToken !== playerMediaOpenToken || !state.playerOpen) return;
@@ -3831,7 +3840,7 @@
         playerMediaOpenTimer = null;
         if (openToken !== playerMediaOpenToken || !state.playerOpen) return;
         requestAnimationFrame(() => startMedia());
-      }, 0);
+      }, promotedPreview ? 480 : 0);
     }
   }
 

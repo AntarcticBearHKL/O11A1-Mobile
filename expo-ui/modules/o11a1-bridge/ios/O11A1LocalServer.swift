@@ -15,6 +15,8 @@ final class O11A1LocalServer {
   private var active: [ObjectIdentifier: NWConnection] = [:]
   private var mediaBytes: Int64 = 0
   private var mediaRequests: Int64 = 0
+  private var previewCache: [String: (data: Data, at: Date)] = [:]
+  private let previewQueue = DispatchQueue(label: "o11a1.preview", qos: .utility)
   private var savedBrightness: CGFloat?
   private lazy var volumeView: MPVolumeView = {
     let view = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 1, height: 1))
@@ -299,11 +301,49 @@ final class O11A1LocalServer {
         cid: o11a1Int64(query["cid"] ?? "0"),
         qns: [64, 32, 16]
       )
+    case "prewarm":
+      if let raw = query["items"], let encoded = raw.data(using: .utf8),
+         let object = try? JSONSerialization.jsonObject(with: encoded),
+         let list = object as? [[String: Any]] {
+        for row in list {
+          let bvid = o11a1String(row["bvid"])
+          let cid = o11a1Int64(row["cid"])
+          guard !bvid.isEmpty else { continue }
+          previewQueue.async { [weak self] in
+            guard let self = self else { return }
+            let key = "\(bvid):\(cid)"
+            self.lock.lock()
+            let cached = self.previewCache[key]
+            self.lock.unlock()
+            if let cached = cached, Date().timeIntervalSince(cached.at) < 600 { return }
+            let result = self.client.playLow(bvid: bvid, cid: cid)
+            self.lock.lock()
+            self.previewCache[key] = (data: result, at: Date())
+            if self.previewCache.count > 80 {
+              let cutoff = Date().addingTimeInterval(-600)
+              self.previewCache = self.previewCache.filter { $0.value.at >= cutoff }
+            }
+            self.lock.unlock()
+          }
+        }
+      }
+      data = o11a1Data(["ok": true])
     case "playLow":
-      data = client.playLow(
-        bvid: query["bvid"] ?? "",
-        cid: o11a1Int64(query["cid"] ?? "0")
-      )
+      let lowBvid = query["bvid"] ?? ""
+      let lowCid = o11a1Int64(query["cid"] ?? "0")
+      let lowKey = "\(lowBvid):\(lowCid)"
+      lock.lock()
+      let lowCached = previewCache[lowKey]
+      lock.unlock()
+      if let lowCached = lowCached, Date().timeIntervalSince(lowCached.at) < 600 {
+        data = lowCached.data
+      } else {
+        let fetched = client.playLow(bvid: lowBvid, cid: lowCid)
+        lock.lock()
+        previewCache[lowKey] = (data: fetched, at: Date())
+        lock.unlock()
+        data = fetched
+      }
     case "playQuality":
       data = client.playQuality(
         bvid: query["bvid"] ?? "",

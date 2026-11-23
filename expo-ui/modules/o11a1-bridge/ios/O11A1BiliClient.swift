@@ -86,6 +86,7 @@ final class O11A1BiliClient {
     22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52
   ]
   static let userAgent = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
+  static let desktopUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
   private let cookies = O11A1CookieStore()
   private let apiSession: URLSession
@@ -383,23 +384,24 @@ final class O11A1BiliClient {
     for qn in qns {
       if seen.contains(qn) { continue }
       seen.insert(qn)
-      guard let payload = json(
-        base: Self.apiBase,
-        path: "/x/player/playurl",
-        query: [
+      for platform in ["html5", ""] {
+        var query = [
           "bvid": bvid,
           "cid": "\(resolvedCid)",
           "qn": "\(qn)",
           "fnval": "1",
           "fourk": "0"
         ]
-      ),
-        o11a1Int(payload["code"]) == 0,
-        let data = payload["data"] as? [String: Any],
-        let durl = data["durl"] as? [[String: Any]],
-        !durl.isEmpty else { continue }
-      selected = data
-      break
+        if !platform.isEmpty { query["platform"] = platform }
+        guard let payload = json(base: Self.apiBase, path: "/x/player/playurl", query: query),
+              o11a1Int(payload["code"]) == 0,
+              let data = payload["data"] as? [String: Any],
+              let durl = data["durl"] as? [[String: Any]],
+              !durl.isEmpty else { continue }
+        selected = data
+        break
+      }
+      if selected != nil { break }
     }
     guard let data = selected,
           let durl = data["durl"] as? [[String: Any]],
@@ -548,7 +550,9 @@ final class O11A1BiliClient {
   }
 
   private func applyMediaHeaders(_ request: inout URLRequest) {
-    request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+    let path = request.url?.path ?? ""
+    let ua = path.hasSuffix(".m4s") || path.hasSuffix(".m4a") ? Self.desktopUserAgent : Self.userAgent
+    request.setValue(ua, forHTTPHeaderField: "User-Agent")
     request.setValue("https://www.bilibili.com/", forHTTPHeaderField: "Referer")
     request.setValue("*/*", forHTTPHeaderField: "Accept")
     request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")

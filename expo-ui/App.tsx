@@ -100,6 +100,13 @@ function bridgeShim(port: number, testFlow: string): string {
     aiChat: function (endpoint, apiKey, model, prompt) { return call('aiChat', { endpoint: endpoint, apiKey: apiKey, model: model, prompt: prompt }); },
     dash: function (bvid, cid, qn) { return call('dash', { bvid: bvid, cid: cid, qn: qn }); },
     mediaStats: function () { return call('mediaStats', {}); },
+    prewarmPreviews: function (json) {
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', 'http://127.0.0.1:' + PORT + '/api/prewarm?items=' + encodeURIComponent(String(json || '[]')), true);
+        xhr.send(null);
+      } catch (error) {}
+    },
     displayHz: function () { return displayRates().hz; },
     compositorFps: function () { return displayRates().fps; },
     copy: function (text) { return call('copy', { text: text }); },
@@ -317,6 +324,7 @@ const MOCK_BRIDGE = `
     memberCenter: function () { return JSON.stringify({ ok: true, vip: false, tasks: [{ key: 'login', label: '每日登录', done: true, reward: 5 }, { key: 'watch', label: '每日观看', done: false, reward: 5 }, { key: 'share', label: '每日分享', done: false, reward: 5 }, { key: 'coins', label: '每日投币', done: false, reward: 50, detail: '已获得 0 / 50 经验' }], log: [{ delta: 5, reason: '登录奖励', time: '2026-11-22 08:00:00' }] }); },
     aiChat: function () { return JSON.stringify({ ok: false, needKey: true, error: 'UI 调试模式不请求 AI' }); },
     mediaStats: function () { return JSON.stringify({ ok: true, bytes: 0, requests: 0 }); },
+    prewarmPreviews: function () {},
     displayHz: function () { return 60; },
     compositorFps: function () { return 60; },
     copy: function () { return JSON.stringify({ ok: false, error: 'UI 调试模式不复制' }); },

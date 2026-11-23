@@ -157,16 +157,20 @@ final class BiliApi {
             int[] qns = qn <= 0 ? new int[]{80, 64, 32, 16} : BiliApi.qualityLadder(qn);
             JSONObject data = null;
             for (int candidate : qns) {
-                String url = "https://api.bilibili.com/x/player/playurl?bvid=" + bvid + "&cid=" + cid
-                    + "&qn=" + candidate + "&fnval=1&fourk=1";
-                JSONObject json = new JSONObject(cookies.request(url, null, null));
-                if (json.optInt("code", -1) != 0) continue;
-                JSONObject candidateData = json.optJSONObject("data");
-                if (candidateData != null && candidateData.optJSONArray("durl") != null
-                    && candidateData.getJSONArray("durl").length() > 0) {
-                    data = candidateData;
-                    break;
+                for (String platform : new String[]{"html5", ""}) {
+                    String url = "https://api.bilibili.com/x/player/playurl?bvid=" + bvid + "&cid=" + cid
+                        + "&qn=" + candidate + "&fnval=1&fourk=1"
+                        + (platform.isEmpty() ? "" : "&platform=" + platform);
+                    JSONObject json = new JSONObject(cookies.request(url, null, null));
+                    if (json.optInt("code", -1) != 0) continue;
+                    JSONObject candidateData = json.optJSONObject("data");
+                    if (candidateData != null && candidateData.optJSONArray("durl") != null
+                        && candidateData.getJSONArray("durl").length() > 0) {
+                        data = candidateData;
+                        break;
+                    }
                 }
+                if (data != null) break;
             }
             if (data == null) throw new IllegalStateException("playurl unavailable");
             JSONObject first = data.getJSONArray("durl").getJSONObject(0);
@@ -217,16 +221,24 @@ final class BiliApi {
             if (cid <= 0) throw new IllegalStateException("cid not found");
             JSONObject data = null;
             for (int qn : qns) {
-                String url = "https://api.bilibili.com/x/player/playurl?bvid=" + bvid + "&cid=" + cid
-                    + "&qn=" + qn + "&fnval=1&fourk=0";
-                String raw = cookies.request(url, null, null);
-                JSONObject json = new JSONObject(raw);
-                int code = json.optInt("code", -1);
-                Log.i(TAG, "playurl qn=" + qn + " code=" + code + " msg=" + json.optString("message") + " len=" + raw.length());
-                if (code != 0) continue;
-                data = json.optJSONObject("data");
-                if (data != null && data.optJSONArray("durl") != null && data.getJSONArray("durl").length() > 0) break;
-                data = null;
+                for (String platform : new String[]{"html5", ""}) {
+                    String url = "https://api.bilibili.com/x/player/playurl?bvid=" + bvid + "&cid=" + cid
+                        + "&qn=" + qn + "&fnval=1&fourk=0"
+                        + (platform.isEmpty() ? "" : "&platform=" + platform);
+                    String raw = cookies.request(url, null, null);
+                    JSONObject json = new JSONObject(raw);
+                    int code = json.optInt("code", -1);
+                    Log.i(TAG, "playurl qn=" + qn + " platform=" + (platform.isEmpty() ? "pc" : platform)
+                        + " code=" + code + " msg=" + json.optString("message") + " len=" + raw.length());
+                    if (code != 0) continue;
+                    JSONObject candidate = json.optJSONObject("data");
+                    if (candidate != null && candidate.optJSONArray("durl") != null
+                        && candidate.getJSONArray("durl").length() > 0) {
+                        data = candidate;
+                        break;
+                    }
+                }
+                if (data != null) break;
             }
             if (data == null) throw new IllegalStateException("playurl unavailable");
             JSONArray durl = data.getJSONArray("durl");

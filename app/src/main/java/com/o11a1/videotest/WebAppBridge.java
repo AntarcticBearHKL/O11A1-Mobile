@@ -20,12 +20,18 @@ import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 
@@ -37,6 +43,24 @@ final class WebAppBridge {
     private final BiliExtras extras;
     private final StreamProxy proxy;
     private final CookieStore cookies;
+    private static final long PREVIEW_URL_TTL = 10 * 60 * 1000L;
+    private final ConcurrentHashMap<String, PreviewEntry> previewUrls = new ConcurrentHashMap<>();
+    private final Set<String> previewsLoading = ConcurrentHashMap.newKeySet();
+    private final ExecutorService previewPool = Executors.newFixedThreadPool(2, runnable -> {
+        Thread thread = new Thread(runnable, "o11a1-preview");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    private static final class PreviewEntry {
+        final String json;
+        final long at;
+
+        PreviewEntry(String json, long at) {
+            this.json = json;
+            this.at = at;
+        }
+    }
 
     WebAppBridge(Activity activity, BiliApi api, StreamProxy proxy, CookieStore cookies) {
         this.activity = activity;
@@ -311,7 +335,68 @@ final class WebAppBridge {
 
     @JavascriptInterface
     public String playLow(String bvid, long cid) {
-        return runExtra(() -> api.playLow(bvid, cid).toString());
+        String key = bvid + ":" + cid;
+        PreviewEntry cached = previewUrls.get(key);
+        if (cached != null && System.currentTimeMillis() - cached.at < PREVIEW_URL_TTL) {
+            return cached.json;
+        }
+        String value = runExtra(() -> api.playLow(bvid, cid).toString());
+        cachePreview(key, value);
+        return value;
+    }
+
+    @JavascriptInterface
+    public void prewarmPreviews(String json) {
+        if (json == null || json.isEmpty()) return;
+        try {
+            JSONArray list = new JSONArray(json);
+            for (int index = 0; index < list.length(); index += 1) {
+                JSONObject row = list.optJSONObject(index);
+                if (row == null) continue;
+                String bvid = row.optString("bvid", "");
+                long cid = row.optLong("cid", 0);
+                if (bvid.isEmpty()) continue;
+                String key = bvid + ":" + cid;
+                PreviewEntry cached = previewUrls.get(key);
+                if (cached != null && System.currentTimeMillis() - cached.at < PREVIEW_URL_TTL) continue;
+                if (!previewsLoading.add(key)) continue;
+                previewPool.execute(() -> {
+                    try {
+                        String value = api.playLow(bvid, cid).toString();
+                        cachePreview(key, value);
+                    } catch (Throwable error) {
+                        Log.w(TAG, "preview prewarm failed " + bvid, error);
+                    } finally {
+                        previewsLoading.remove(key);
+                    }
+                });
+            }
+        } catch (Throwable error) {
+            Log.w(TAG, "preview prewarm parse failed", error);
+        }
+    }
+
+    private void cachePreview(String key, String json) {
+        if (key == null || json == null) return;
+        previewUrls.put(key, new PreviewEntry(json, System.currentTimeMillis()));
+        if (previewUrls.size() > 80) {
+            long cutoff = System.currentTimeMillis() - PREVIEW_URL_TTL;
+            for (Map.Entry<String, PreviewEntry> entry : previewUrls.entrySet()) {
+                if (entry.getValue().at < cutoff) previewUrls.remove(entry.getKey());
+            }
+            while (previewUrls.size() > 80) {
+                String oldest = null;
+                long oldestAt = Long.MAX_VALUE;
+                for (Map.Entry<String, PreviewEntry> entry : previewUrls.entrySet()) {
+                    if (entry.getValue().at < oldestAt) {
+                        oldestAt = entry.getValue().at;
+                        oldest = entry.getKey();
+                    }
+                }
+                if (oldest == null) break;
+                previewUrls.remove(oldest);
+            }
+        }
     }
 
     @JavascriptInterface
@@ -342,6 +427,8 @@ final class WebAppBridge {
     @JavascriptInterface
     public String logout() {
         api.logout();
+        previewUrls.clear();
+        previewsLoading.clear();
         try {
             CookieManager manager = CookieManager.getInstance();
             manager.removeAllCookies(null);

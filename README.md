@@ -63,7 +63,7 @@ npx expo start --tunnel
 - **同步桥**：注入 `window.O11A1Native`，通过同步 XHR 调本地 `/api/*`，与 Android 的 `WebAppBridge` API 完全一致，包括 UP 主空间 `space`（先请求旧版空间接口，失败时再用 WBI 签名请求新版接口，并补全 UP 名字、头像和粉丝数）；`native.js` 不需要分叉。
 - **真实数据**：Swift `O11A1BiliClient` 直接请求 B 站热门、搜索、分页 cid、playurl、评论、弹幕、导航登录态、账户资料、收藏夹、历史、关注动态、动态、消息、排行榜、番剧/影视索引、番剧选集、直播推荐与直播地址、分区、视频详情；Cookie 持久化到 UserDefaults。
 - **真实登录**：应用内打开 B 站官方登录页（手机号 / 密码 / 扫码等方式由官方页面提供）；登录成功后读取 WebKit Cookie 并保存 `SESSDATA` 等 Cookie；退出登录同时清理原生 Cookie 与 WKWebView Cookie，下次打开官方页保持未登录。
-- **真实播放**：progressive MP4 优先 720P，失败回退 480P / 360P；本地 `/media` 代理补 Referer/UA、转发 Range，按 8MB 分块返回 206；主 CDN 失败自动试备用 CDN；番剧通过 `pgc/player/web/playurl` 播放并一次加入整季选集；直播使用原生 HLS；1080P / 4K / 1080P+ 会先尝试 DASH，失败自动回退渐进播放。
+- **真实播放**：progressive MP4 优先 720P，失败回退 480P / 360P；本地 `/media` 代理补 Referer/UA、转发 Range，按 8MB 分块返回 206；主 CDN 失败自动试备用 CDN；番剧通过 `pgc/player/web/playurl` 播放并一次加入整季选集；直播使用原生 HLS。1080P 及以下走 progressive；DASH 仅作为保留路径（默认关闭），避免 MSE 在移动端长时间缓冲和 seek。
 - **播放器**：与 Android 共用同一套 V2 播放器 UI、三区手势、评论、弹幕、播放列表、刷新和登录 gate；视频信息/性能面板、截图、复制链接、收藏/投币/关注/弹幕发送会调用真实接口（未登录时内联提示）；外接键盘映射、深色主题、全屏评论楼中楼/三段窗口无限列表、会员任务、AI 养鱼全部共用 web 实现。
 - **构建**：GitHub Actions `ios-unsigned`（macOS）每次 push 生成未签名 IPA + 模拟器 zip；成功后发布到 Releases。
 - **下载**：
@@ -79,7 +79,7 @@ npx expo start --tunnel
 - **架构**：`web-prototype/` 是唯一 UI 源；Gradle 构建时复制到 `assets/web`，`MainActivity` 用全屏 WebView 加载。
 - **原生桥**：`WebAppBridge` / `BiliApi` / `BiliExtras` / `CookieStore` / `StreamProxy` 提供热门、搜索、分集 cid、playurl、DASH、评论与楼中楼、弹幕、官方网页登录、Cookie、账户、收藏、历史、关注、动态、消息、排行榜、番剧/影视、直播、分区、视频详情、互动写入、会员中心、AI 接口、亮度、方向、剪贴板和截图。
 - **真实数据**：首页推荐 / 热门 / 排行 / 番剧 / 影视 / 直播 / 分区 / 收藏 / 历史 / 关注；搜索；模块页；账户卡；动态 / 消息；视频信息；会员中心每日任务与经验记录。首页「推荐」直接请求 B 站首页推荐流 `index/top/feed/rcmd`，每次重新加载都会换一个 fresh 批次并去重，不再固定展示同一组热门视频。未登录的账户页会显示登录 CTA。
-- **真实播放**：Bridge 取 B 站 progressive MP4；1080P / 1080P60 / 1080P+ / 4K 先请求 DASH，用 MediaSource 分流视频/音频，失败自动回退渐进播放。画质回退会按 120 / 116 / 112 / 80 / 74 / 64 / 32 / 16 的完整阶梯逐级尝试，不再从 4K 直接掉到 720P；切到实际可用画质时会在播放器内提示原因，并在画质面板里显示当前视频实际支持的分辨率。本地代理补齐 Referer/UA 并转发 Range；番剧按集播放并加入播放列表；直播 HLS 使用 hls.js；HTML5 `<video>` 播放。
+- **真实播放**：Bridge 取 B 站 progressive MP4；默认 720P，最高 1080P，画质台阶 120 / 116 / 112 / 80 / 74 / 64 / 32 / 16 逐级回退，切到实际可用画质时会在播放器内提示原因，并在画质面板里只显示当前视频实际支持的分辨率。DASH/MSE 路径保留在 `DASH_PLAYBACK` 开关后，默认关闭；`.m4s` 媒体代理使用桌面 UA 以通过 B 站 CDN 的 UA 校验。本地代理补齐 Referer/UA 并转发 Range；番剧按集播放并加入播放列表；直播 HLS 使用 hls.js；HTML5 `<video>` 播放。
 - **真实登录**：登录页为无卡片、无说明文字的极简平面布局，只有「登录 B 站账号」标题和一个透明描边按钮「前往 B 站登录」；点击后在应用内打开 B 站官方登录页，手机号 / 密码 / 扫码等登录方式全部由官方页面处理，不再在 App 内输入手机号或验证码，也没有本地测试码；官方页登录成功后自动同步 `SESSDATA` / `bili_jct` 并进入首页。退出登录会同时清空原生 `CookieStore` 和 WebView Cookie，保证下次打开官方登录页时处于未登录状态。
 - **系统亮度 / 音量**：播放器不再执行左右竖滑调亮度 / 音量；系统亮度、系统媒体音量完全交给设备和系统控制。App 不修改、不持久化、也不恢复亮度或音量，不修改 `<video>` 元素音量。
 - **播放器**：播放/暂停、进度、倍速、循环、画质重取、三区手势、收起播放、全屏真实评论（三段窗口无限列表 + 楼中楼）、真实弹幕滚动、信息/性能面板、截图保存到相册、复制 BV 链接、收藏/投币/关注/点赞、弹幕发送、外接键盘映射、深色主题与外观滑杆、会员任务、AI 养鱼。评论发送入口暂时隐藏。播放使用系统硬解，默认 720P；不提供插帧、CAS、Anime4K 或逐帧后处理，避免持续 GPU 后处理和额外发热。界面层独立按屏幕刷新率运行，最高 120Hz。
@@ -140,10 +140,10 @@ npx expo start --tunnel
 
 两端统一使用系统 WebView 媒体层硬解，V2 播放器只有一个 `<video>`，不再保留第二套 MediaCodec / VideoToolbox / Metal 测试播放器。
 
-- **渐进优先**：默认 720P；480P / 720P 走 progressive MP4，不进入 MSE。只有 1080P / 1080P+ / 1080P60 / 4K 才请求 DASH。
-- **DASH 有界拉流**：每次只请求 4MB Range，最多保留约 18 秒前置缓冲；暂停时停止继续拉取，切视频 / 关闭播放器立即 abort 请求并释放 MediaSource。
+- **渐进优先**：默认 720P；480P / 720P / 1080P 走 progressive MP4，不进入 MSE。1080P 以上（4K / 1080P+ / 60fps）当前不默认启用 DASH，避免 MSE 缓冲、seek 和双解码在移动端造成长时间等待；画质面板只列出 progressive 实际返回的清晰度。
+- **DASH 可选**：代码保留 DASH 拉流和 MSE 路径（`DASH_PLAYBACK` 开关），`.m4s` 代理自动切换桌面 UA 以通过 CDN 校验；需要 4K / 1080P+ 时再打开，并注意缓冲配额与 seek 行为。
 - **CDN 容错**：媒体代理的同一个本地播放地址同时携带主 CDN 和备用 CDN，主地址返回 403 / 404 时自动用备用地址重试同一段 Range，并记住失效地址，避免部分视频因主 CDN 拒绝而显示「播放失败」。
-- **画质列表**：720P progressive 播放时后台读取 DASH 实际视频轨道，画质面板显示账号当前可用的完整清晰度；切换低画质不会把列表缩回单一项，切到高清时保留当前播放进度。
+- **画质列表**：来自 progressive `accept_quality`，只显示当前视频实际可用的清晰度；切换画质保留当前播放进度，不会把列表缩回单一项。
 - **不做逐帧后处理**：移除插帧、CAS、Anime4K、环境模糊画布和所有逐帧 canvas/WebGL 读回；视频区域使用纯黑背景，避免持续 GPU 模糊。界面调试信息保留：视频流右上角显示刷新率 / 帧率，播放器内显示画面 / 弹幕 / 界面帧率、分辨率、网络、缓冲和下集预载。
 - **界面高刷**：视频解码维持独立，其他所有 UI 共用屏幕刷新率，最高 120Hz。Android 在当前分辨率下选择最高不超过 120Hz 的显示模式；iOS 关闭 WebKit 的 60fps 页面渲染限制并启用 ProMotion。侧边栏、搜索、页面切换、播放器控件、手势跟手和所有过渡动画都跟随该刷新率。
 - **单一解码**：不再有自定义 MediaCodec / SurfaceTexture / Metal 测试管线，也不再打包 6MB 测试视频；解码完全交给系统硬解。
@@ -172,7 +172,7 @@ Expo Go 扫码只能看 UI 和 mock 数据；真实播放由打包后的 WebView
 
 - unsigned IPA 不能直接安装到未越狱 iPhone；下载后自己用证书 / Sideloadly / AltStore 等方式签名安装。签名方案和免费 Apple ID 限制见 [SIGNING.md](SIGNING.md)。
 - simulator zip 只能在 Mac 的 Simulator 里运行；Windows 不能跑 iOS Simulator。
-- iOS 与 Android 共用同一套 WebView 播放器；DASH 在 WKWebView 支持 MSE 时可用，不支持时自动回退渐进播放。
+- iOS 与 Android 共用同一套 WebView 播放器；默认 progressive，DASH 路径保留在 `DASH_PLAYBACK` 开关后，需要在支持 MSE 的 WKWebView 上单独启用和验证。
 
 ## 2. Android 构建
 
@@ -201,12 +201,12 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 - Android V2：WebView UI + 真实热门/搜索/模块数据、B 站官方网页登录、progressive 720P 播放、评论、弹幕、播放列表、触底无限加载。
 - iOS V2：Expo + WKWebView + 本地回环桥；CI 的 iOS Simulator 已跑通登录 gate/官方登录入口、真实推荐流、首个视频 720P 播放、真实弹幕，截图随 Release 发布。
-- 两端统一使用同一套 WebView 播放器；默认 720P，progressive 优先，DASH 只在 1080P / 1080P+ / 1080P60 / 4K 时启用。
+- 两端统一使用同一套 WebView 播放器；默认 720P，progressive 优先，最高 1080P；DASH 路径保留但默认关闭。
 - GitHub Actions 每次 push 自动构建 Android APK 和 unsigned iOS 包，并把 IPA/APK 发布到 Releases。
 
 还没覆盖：
 
-- DASH 分轨 / 4K / 60fps / 1080P+ 的真机稳定性（需要大会员 Cookie；分轨拉流已加 4MB 分块、18 秒前置缓冲、暂停停拉和 AbortController）。
+- DASH 分轨 / 4K / 60fps / 1080P+ 的真机稳定性（需要大会员 Cookie；`.m4s` 的桌面 UA 已修正，但 MSE 的缓冲配额、seek 和双解码仍需真机验证；默认 `DASH_PLAYBACK=false`）。
 - 动态 / 消息 / 收藏 / 历史等账户页仍是设计壳；直播 / PGC 没有接独立接口。
 - 截图仍走原生 PixelCopy；本轮已移除插帧 / CAS / Anime4K / 逐帧后处理，避免持续 GPU 读回；界面层仍按屏幕最高刷新率（最高 120Hz）运行，界面级调试 HUD 保留。
 - Android 端的 Expo 本地模块（当前仍是独立原生工程）。
@@ -215,5 +215,5 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ## 4. 推荐下一步
 
 1. 用真机连续播放 480P / 720P 10–20 分钟，观察机身温度和耗电是否回到正常水平。
-2. 如果需要 1080P / 4K，再单独验证 DASH 分轨和 CDN Range；默认保持 720P，视频不做插帧 / 强制高刷；UI 层仍按屏幕最高刷新率（最高 120Hz）运行。
+2. 1080P 已走 progressive，可直接真机验证；如果需要 1080P+ / 4K，再单独打开 `DASH_PLAYBACK` 验证 DASH 分轨、CDN Range 和 MSE 缓冲配额。视频不做插帧 / 强制高刷；UI 层仍按屏幕最高刷新率（最高 120Hz）运行。
 3. 接动态 / 消息 / 收藏 / 历史接口，或把 Android V2 包成 Expo 本地模块统一工程。

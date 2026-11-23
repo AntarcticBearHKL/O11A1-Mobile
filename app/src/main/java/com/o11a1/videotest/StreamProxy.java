@@ -32,6 +32,8 @@ import java.util.concurrent.atomic.AtomicLong;
 final class StreamProxy {
     private static final String TAG = "O11A1Proxy";
     private static final String UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36";
+    private static final String DESKTOP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+    private static final long MEDIA_CHUNK = 8L * 1024 * 1024;
     private final CookieStore cookies;
     private final ServerSocket server;
     private final ExecutorService pool = Executors.newCachedThreadPool();
@@ -157,10 +159,28 @@ final class StreamProxy {
         }
     }
 
+    private static String boundedRange(String range) {
+        if (range == null) return null;
+        String value = range.trim();
+        if (!value.startsWith("bytes=")) return value;
+        int dash = value.indexOf('-');
+        if (dash <= 6) return value;
+        String startText = value.substring(6, dash);
+        String endText = value.substring(dash + 1).trim();
+        if (!endText.isEmpty() || !startText.matches("\\d+")) return value;
+        try {
+            long start = Long.parseLong(startText);
+            return "bytes=" + start + "-" + (start + MEDIA_CHUNK - 1);
+        } catch (Throwable ignored) {
+            return value;
+        }
+    }
+
     private void stream(Socket socket, String method, List<String> remotes, Map<String, String> clientHeaders) throws IOException {
         HttpURLConnection connection = null;
         try {
             String range = clientHeaders.get("range");
+            String upstreamRange = boundedRange(range);
             int code = -1;
             String selectedRemote = null;
             String contentType = null;
@@ -168,26 +188,24 @@ final class StreamProxy {
             String contentLength = null;
             for (String remote : remotes) {
                 if (remote == null || blockedMediaUrls.contains(remote)) continue;
-                for (int attempt = 0; attempt < 2; attempt += 1) {
+                for (int attempt = 0; attempt < 1; attempt += 1) {
                     if (connection != null) connection.disconnect();
                     connection = (HttpURLConnection) new URL(remote).openConnection();
                     connection.setInstanceFollowRedirects(true);
-                    connection.setConnectTimeout(15000);
-                    connection.setReadTimeout(30000);
+                    connection.setConnectTimeout(3000);
+                    connection.setReadTimeout(7000);
                     connection.setRequestMethod("HEAD".equals(method) ? "HEAD" : "GET");
-                    connection.setRequestProperty("User-Agent", UA);
+                    connection.setRequestProperty("User-Agent", mediaUserAgent(remote));
                     connection.setRequestProperty("Referer", "https://www.bilibili.com/");
                     connection.setRequestProperty("Accept", "*/*");
                     connection.setRequestProperty("Cache-Control", "no-cache");
-                    if (range != null) connection.setRequestProperty("Range", range);
+                    if (upstreamRange != null) connection.setRequestProperty("Range", upstreamRange);
                     try {
                         code = connection.getResponseCode();
                     } catch (IOException error) {
                         code = -1;
-                        if (attempt == 0) {
-                            try { Thread.sleep(260L); } catch (InterruptedException ignored) {}
-                            continue;
-                        }
+                        blockedMediaUrls.add(remote);
+                        Log.w(TAG, "remote timeout host=" + new URL(remote).getHost());
                     }
                     if (code == 200 || code == 206) {
                         selectedRemote = remote;
@@ -242,9 +260,20 @@ final class StreamProxy {
         }
     }
 
+    private static String mediaUserAgent(String remote) {
+        if (remote == null) return UA;
+        String path = remote;
+        int query = path.indexOf('?');
+        if (query >= 0) path = path.substring(0, query);
+        return path.endsWith(".m4s") || path.endsWith(".m4a") ? DESKTOP_UA : UA;
+    }
+
     private static void writeText(OutputStream out, int code, String text) throws IOException {
         byte[] body = text.getBytes(StandardCharsets.UTF_8);
         String head = "HTTP/1.1 " + code + " " + (code == 200 ? "OK" : "Error") + "\r\n"
+            + "Access-Control-Allow-Origin: *\r\n"
+            + "Access-Control-Allow-Headers: Range\r\n"
+            + "Access-Control-Expose-Headers: Content-Length,Content-Range\r\n"
             + "Content-Type: text/plain; charset=utf-8\r\n"
             + "Content-Length: " + body.length + "\r\nConnection: close\r\n\r\n";
         out.write(head.getBytes(StandardCharsets.ISO_8859_1));

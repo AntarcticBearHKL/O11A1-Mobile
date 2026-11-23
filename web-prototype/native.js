@@ -68,6 +68,7 @@
   const FEED_BLOCK_SIZE = 10;
   const FEED_WINDOW_BLOCKS = 3;
   const FEED_SCROLL_IDLE = 220;
+  const DASH_PLAYBACK = true;
   let lastFeedScrollAt = 0;
   const more = { dynamic: true, messages: true };
   let upSort = 'pubdate';
@@ -401,13 +402,20 @@
       : '';
   }
 
+  function biliImage(url, width, height) {
+    const value = String(url || '');
+    if (!/^https?:\/\/[^/]*hdslb\.com\//i.test(value)) return value;
+    if (/@[^/?#]+/.test(value)) return value;
+    return `${value}@${width}w_${height}h_1c.webp`;
+  }
+
   function buildRow(item, label, page, index) {
     const row = document.createElement('button');
     row.type = 'button';
     row.className = `video-row real-row${item.live ? ' live-row' : ''}${item.seasonId ? ' season-row' : ''}`;
     row.__nativeItem = item;
     row.dataset.nativeIndex = String(index);
-    const pic = item.pic || '';
+    const pic = biliImage(item.pic, 960, 540);
     const progress = item.durationSec > 0 && item.progress > 0
       ? Math.min(100, Math.round(item.progress / item.durationSec * 100))
       : 0;
@@ -419,7 +427,7 @@
         ${progress ? `<span class="row-progress"><span style="width:${progress}%"></span></span>` : ''}
       </span>
       <span class="row-copy">
-        <span class="row-avatar">${item.ownerFace ? `<img src="${attr(item.ownerFace)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : `<span>${esc((item.owner || 'UP').slice(0, 1))}</span>`}</span>
+        <span class="row-avatar">${item.ownerFace ? `<img src="${attr(biliImage(item.ownerFace, 96, 96))}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : `<span>${esc((item.owner || 'UP').slice(0, 1))}</span>`}</span>
         <span class="row-text">
           <span class="real-title">${esc(item.title || '视频')}</span>
           ${metaMarkup(item, label)}
@@ -532,6 +540,18 @@
     block.items.length = 0;
   }
 
+  function prewarmPreviewItems(items) {
+    if (!items || !items.length || typeof bridge.prewarmPreviews !== 'function') return;
+    const rows = [];
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      if (!item || item.live || item.epId || !item.bvid) continue;
+      rows.push({ bvid: item.bvid, cid: Number(item.cid) || 0 });
+    }
+    if (!rows.length) return;
+    try { bridge.prewarmPreviews(JSON.stringify(rows)); } catch (_) {}
+  }
+
   function appendWindowBlock(feed) {
     const fw = feed.__feedWindow;
     if (!fw) return null;
@@ -563,6 +583,7 @@
       endIndex: startIndex + take,
     };
     fw.blocks.push(block);
+    prewarmPreviewItems(items);
     return block;
   }
 
@@ -633,25 +654,39 @@
   function feedFocusRow(feed, scroll) {
     if (!scroll) return null;
     const viewport = scroll.getBoundingClientRect();
-    const focusY = viewport.top + viewport.height * 0.5;
+    const middle = viewport.top + viewport.height * 0.5;
+    const bandTop = viewport.top + viewport.height / 6;
+    const bandBottom = viewport.top + viewport.height * 5 / 6;
     const rows = $$('.feed-item:not(.feed-skeleton)', feed);
+    let best = null;
+    let bestOverlap = 0;
+    let bestDistance = Infinity;
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index];
-      if (row.getBoundingClientRect().bottom > focusY) return row;
+      const rect = row.getBoundingClientRect();
+      const overlap = Math.min(rect.bottom, bandBottom) - Math.max(rect.top, bandTop);
+      if (overlap <= 0) continue;
+      const distance = Math.abs(rect.top + rect.height / 2 - middle);
+      if (overlap > bestOverlap + 0.5 || (Math.abs(overlap - bestOverlap) <= 0.5 && distance < bestDistance)) {
+        best = row;
+        bestOverlap = overlap;
+        bestDistance = distance;
+      }
     }
-    return rows.length ? rows[rows.length - 1] : null;
+    return best || rows[rows.length - 1] || null;
   }
 
   /* ---------- inline focused-card preview ---------- */
   const previewUrlCache = new Map();
+  const PREVIEW_URL_TTL = 10 * 60 * 1000;
   let previewVideo = null;
   let previewRow = null;
   let previewToken = 0;
   let previewTimer = null;
   let previewProgressFill = null;
-  let previewHoverTimer = null;
   let lastPreviewProgress = null;
   let pendingMediaStart = null;
+  let promotedPreview = null;
 
   function mediaKeyFor(item) {
     if (!item) return '';
@@ -682,19 +717,38 @@
     video.setAttribute('aria-hidden', 'true');
     video.preload = 'auto';
     video.addEventListener('timeupdate', () => {
+      if (promotedPreview && promotedPreview.video === video) {
+        if (!video.duration || !Number.isFinite(video.duration)) return;
+        state.duration = video.duration;
+        state.progress = video.currentTime / video.duration * 100;
+        host.setProgress(state.progress);
+        maybeFinishPromotedPreview();
+        return;
+      }
       if (!previewProgressFill || !video.duration) return;
-      previewProgressFill.style.width = `${Math.min(100, (video.currentTime / video.duration) * 100)}%`;
+      previewProgressFill.style.transform = `scaleX(${Math.min(1, Math.max(0, video.currentTime / video.duration))})`;
+    });
+    video.addEventListener('play', () => {
+      if (!promotedPreview || promotedPreview.video !== video) return;
+      state.playing = true;
+      host.setPlayIcon(true);
+      host.updatePlaylistDock();
+    });
+    video.addEventListener('pause', () => {
+      if (!promotedPreview || promotedPreview.video !== video) return;
+      state.playing = false;
+      host.setPlayIcon(false);
+      host.updatePlaylistDock();
     });
     previewVideo = video;
     return video;
   }
 
   function stopFeedPreview() {
+    if (promotedPreview) return;
     previewToken += 1;
     clearTimeout(previewTimer);
-    clearTimeout(previewHoverTimer);
     previewTimer = null;
-    previewHoverTimer = null;
     if (previewRow && previewVideo) {
       const item = previewRow.__nativeItem;
       const key = mediaKeyFor(item);
@@ -721,12 +775,112 @@
     if (previewVideo.parentNode) previewVideo.parentNode.removeChild(previewVideo);
   }
 
+  function promoteFeedPreview(thumb) {
+    if (!previewRow || !previewVideo || !previewVideo.src) return false;
+    if (previewVideo.error || previewVideo.readyState < 2) return false;
+    const rowThumb = previewRow.querySelector('.row-thumb');
+    if (thumb && rowThumb !== thumb) return false;
+    const item = previewRow.__nativeItem;
+    if (!item || item.live || !item.bvid) return false;
+    previewToken += 1;
+    clearTimeout(previewTimer);
+    previewTimer = null;
+    const time = Number(previewVideo.currentTime) || 0;
+    previewRow.classList.remove('preview-active');
+    previewRow.querySelectorAll('.preview-muted, .preview-progress').forEach((node) => node.remove());
+    previewRow = null;
+    previewProgressFill = null;
+    lastPreviewProgress = null;
+    if (previewVideo.parentNode) previewVideo.parentNode.removeChild(previewVideo);
+    previewVideo.classList.remove('feed-preview-video', 'show');
+    previewVideo.classList.add('player-promoted-video');
+    previewVideo.muted = false;
+    previewVideo.defaultMuted = false;
+    previewVideo.volume = 1;
+    previewVideo.loop = false;
+    previewVideo.controls = false;
+    playerVideo.appendChild(previewVideo);
+    playerVideo.classList.add('promoted-preview');
+    const key = mediaKeyFor(item);
+    promotedPreview = { video: previewVideo, key, time };
+    pendingMediaStart = time > 0.25 ? { key, time } : pendingMediaStart;
+    try { video.muted = true; video.pause(); } catch (_) {}
+    if (Number.isFinite(previewVideo.duration) && previewVideo.duration > 0) {
+      state.duration = previewVideo.duration;
+      state.progress = time / previewVideo.duration * 100;
+      host.setProgress(state.progress);
+      host.updatePlaylistDock();
+    }
+    previewVideo.play().catch(() => {});
+    return true;
+  }
+
+  function removePromotedPreview() {
+    if (!promotedPreview) return;
+    const promoted = promotedPreview;
+    promotedPreview = null;
+    try { promoted.video.pause(); } catch (_) {}
+    promoted.video.removeAttribute('src');
+    try { promoted.video.load(); } catch (_) {}
+    if (promoted.video.parentNode) promoted.video.parentNode.removeChild(promoted.video);
+    if (previewVideo === promoted.video) previewVideo = null;
+    playerVideo.classList.remove('promoted-preview');
+    playerVideo.classList.remove('has-video', 'video-loading', 'video-error');
+    try { video.muted = false; } catch (_) {}
+  }
+
+  function maybeFinishPromotedPreview() {
+    if (!promotedPreview || !video || !video.src) return;
+    if (video.readyState < 2 || playerVideo.classList.contains('video-error')) return;
+    const promoted = promotedPreview;
+    if (promoted.video.paused) {
+      try { if (!video.paused) video.pause(); } catch (_) {}
+      return;
+    }
+    const duration = Number(video.duration);
+    const overlayTime = Number(promoted.video.currentTime) || promoted.time;
+    const target = Number.isFinite(duration) && duration > 0
+      ? Math.min(overlayTime, Math.max(0, duration - 0.2))
+      : overlayTime;
+    const rate = parseFloat(state.settings.speed || '1');
+    const playbackRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
+    const delta = Number(video.currentTime) - target;
+    if (delta < -0.45) {
+      const catchUp = Math.min(3, Math.max(1.05, 1 + (-delta) / 3));
+      try { video.playbackRate = catchUp; } catch (_) {}
+      if (video.paused) video.play().catch(() => {});
+      return;
+    }
+    if (delta > 0.8) {
+      try { if (!video.paused) video.pause(); } catch (_) {}
+      try { video.playbackRate = playbackRate; } catch (_) {}
+      return;
+    }
+    try { video.playbackRate = playbackRate; } catch (_) {}
+    try { promoted.video.pause(); } catch (_) {}
+    if (promoted.video.parentNode) promoted.video.parentNode.removeChild(promoted.video);
+    promotedPreview = null;
+    if (previewVideo === promoted.video) previewVideo = null;
+    playerVideo.classList.remove('promoted-preview');
+    video.muted = false;
+    video.volume = 1;
+    state.duration = Number.isFinite(duration) ? duration : 0;
+    state.progress = duration > 0 ? target / duration * 100 : 0;
+    host.setProgress(state.progress);
+    host.updatePlaylistDock();
+    video.play().catch(() => {
+      state.playing = false;
+      host.setPlayIcon(false);
+    });
+  }
+
   function previewUrlFor(item) {
     const key = `${item.bvid}:${item.cid || 0}`;
-    if (previewUrlCache.has(key)) return previewUrlCache.get(key);
+    const cached = previewUrlCache.get(key);
+    if (cached && Date.now() - cached.at < PREVIEW_URL_TTL) return cached.url;
     const result = call('playLow', item.bvid, item.cid || 0);
     const url = result && result.ok ? String(result.url || '') : '';
-    previewUrlCache.set(key, url);
+    previewUrlCache.set(key, { url, at: Date.now() });
     return url;
   }
 
@@ -750,11 +904,7 @@
     if (!thumb) return;
     previewRow = row;
     row.classList.add('preview-active');
-    preloadFocusedItem(item);
     const token = ++previewToken;
-    setTimeout(() => {
-      if (token === previewToken && previewRow === row && !document.hidden) prefetchPlayInfo(item);
-    }, 900);
     clearTimeout(previewTimer);
     previewTimer = setTimeout(() => {
       previewTimer = null;
@@ -788,15 +938,21 @@
       }, { once: true });
       const attempt = video.play();
       if (attempt && attempt.catch) attempt.catch(ready);
-    }, 240);
+    }, 80);
   }
 
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) stopFeedPreview();
+    if (!document.hidden) return;
+    if (promotedPreview) {
+      try { promotedPreview.video.pause(); } catch (_) {}
+      return;
+    }
+    stopFeedPreview();
   });
 
   if (host) {
     host.stopFeedPreview = stopFeedPreview;
+    host.promoteFeedPreview = promoteFeedPreview;
     host.updateFeedPreview = (feed) => {
       if (feed) {
         updateFeedPreview(feed);
@@ -919,7 +1075,6 @@
     fw.touchActive = Boolean(active);
     if (active) {
       fw.touchActiveAt = Date.now();
-      stopFeedPreview();
     } else {
       scheduleWindowSettle(feed, 60);
     }
@@ -1600,8 +1755,14 @@
 
   function playItem(item) {
     if (!item) return;
-    stopFeedPreview();
-    const previewStart = takePreviewStart(item);
+    const preservePreview = Boolean(!item.live && !item.seasonId && previewRow
+      && previewRow.__nativeItem
+      && mediaKeyFor(previewRow.__nativeItem) === mediaKeyFor(item));
+    let previewStart = preservePreview && previewVideo ? (Number(previewVideo.currentTime) || 0) : 0;
+    if (!preservePreview) {
+      stopFeedPreview();
+      previewStart = takePreviewStart(item);
+    }
     if (item.live) { playLive(item); return; }
     if (item.seasonId && !item.epId) { playSeason(item); return; }
     const key = item.epId ? `ep:${item.epId}` : item.roomId ? `live:${item.roomId}` : `bvid:${item.bvid}`;
@@ -1982,6 +2143,7 @@
   }
 
   function clearVideo() {
+    removePromotedPreview();
     destroyHls();
     destroyDash();
     closeLiveDanmaku();
@@ -2086,7 +2248,7 @@
 
   function requestQualityOptions(item, delay = 0) {
     const key = qualityOptionsKey(item);
-    if (!key || typeof bridge.dash !== 'function') return;
+    if (!DASH_PLAYBACK || !key || typeof bridge.dash !== 'function') return;
     const cached = readQualityOptions(item);
     if (cached) {
       applyQualityOptions(item, cached);
@@ -2199,16 +2361,32 @@
   }
 
   function chooseDashTrack(tracks, targetQn) {
-    const sorted = tracks.slice().sort((a, b) => Number(a.qn || 0) - Number(b.qn || 0));
-    let best = sorted[0];
-    sorted.forEach((track) => {
-      if (Number(track.qn || 0) <= targetQn) best = track;
+    const codecRank = (track) => {
+      const id = Number(track && track.codecid) || 0;
+      if (id === 7) return 0;
+      if (id === 12) return 1;
+      if (id === 13) return 2;
+      return 3;
+    };
+    let best = null;
+    tracks.forEach((track) => {
+      const qn = Number(track.qn || 0);
+      if (qn > targetQn) return;
+      if (!best) {
+        best = track;
+        return;
+      }
+      const bestQn = Number(best.qn || 0);
+      if (qn > bestQn || (qn === bestQn && codecRank(track) < codecRank(best))) {
+        best = track;
+      }
     });
-    return best || sorted[sorted.length - 1];
+    return best || tracks.slice().sort((a, b) => codecRank(a) - codecRank(b))[0] || null;
   }
 
   function appendDashBuffer(buffer, data, state) {
     return new Promise((resolve, reject) => {
+      let attempts = 0;
       const append = () => {
         if (state.aborted) { resolve(); return; }
         if (buffer.updating) {
@@ -2218,6 +2396,26 @@
         try {
           buffer.appendBuffer(data);
         } catch (error) {
+          if (error && error.name === 'QuotaExceededError' && attempts < 3) {
+            attempts += 1;
+            let removed = false;
+            try {
+              if (buffer.buffered.length) {
+                const start = buffer.buffered.start(0);
+                const target = Math.min(
+                  buffer.buffered.end(buffer.buffered.length - 1),
+                  Math.max(start + 0.5, (Number(video.currentTime) || 0) - 2),
+                );
+                if (target > start) {
+                  buffer.remove(start, target);
+                  removed = true;
+                }
+              }
+            } catch (_) {}
+            if (removed) buffer.addEventListener('updateend', append, { once: true });
+            else setTimeout(append, 220);
+            return;
+          }
           reject(error);
           return;
         }
@@ -2265,11 +2463,11 @@
   }
 
   async function waitDashRoom(buffer, session) {
-    const maxAhead = 90;
+    const maxAhead = 12;
     while (!session.aborted) {
       const ahead = dashBufferedAhead(buffer);
       if (ahead < maxAhead) return;
-      if (video.paused) {
+      if (video.paused && !promotedPreview) {
         await waitDashResume(session);
         continue;
       }
@@ -2299,8 +2497,8 @@
   }
 
   async function pumpDash(urls, buffer, type, item, autoplay, session) {
-    const firstSize = 512 * 1024;
-    const chunkSize = 4 * 1024 * 1024;
+    const firstSize = 384 * 1024;
+    const chunkSize = 1024 * 1024;
     let lastError = 'DASH 地址不可用';
     for (const url of urls.filter(Boolean)) {
       try {
@@ -2310,7 +2508,7 @@
         let pending = fetchDashBlock(url, 0, firstSize, session)
           .then((value) => ({ value }), (error) => ({ error }));
         while (!session.aborted) {
-          if (video.paused && dashBufferedAhead(buffer) >= 10) {
+          if (!promotedPreview && video.paused && dashBufferedAhead(buffer) >= 6) {
             await waitDashResume(session);
             continue;
           }
@@ -2574,18 +2772,22 @@
     mediaLive = false;
     if (player) player.classList.remove('live-player');
     mediaItem = item;
+    video.muted = Boolean(promotedPreview);
     mediaTriedBackup = false;
     mediaBackup = '';
     state.duration = 0;
     playerVideo.classList.remove('has-video', 'video-error');
     playerVideo.classList.add('video-loading');
     setStatus('加载中…', 'loading');
-    const highQuality = ['4K', '1080P60', '1080P', '1080P+'].includes(state.settings.quality);
     let dashTried = false;
-    if (allowDash && highQuality && item.bvid && typeof bridge.dash === 'function') {
+    if (DASH_PLAYBACK && allowDash && qualityQn(state.settings.quality) > 64
+      && item.bvid && !item.epId && typeof bridge.dash === 'function') {
       dashTried = true;
       const dash = call('dash', item.bvid, item.cid || 0, 120);
-      if (dash.ok && Array.isArray(dash.video) && Array.isArray(dash.audio) && dash.video.length && dash.audio.length) {
+      const dashMax = dash.ok && Array.isArray(dash.video)
+        ? dash.video.reduce((max, track) => Math.max(max, Number(track.qn) || 0), 0)
+        : 0;
+      if (dash.ok && dashMax > 64 && Array.isArray(dash.video) && Array.isArray(dash.audio) && dash.video.length && dash.audio.length) {
         if (dash.cid) {
           item.cid = dash.cid;
           const entry = currentItem();
@@ -2601,7 +2803,7 @@
       ? call('playPgc', item.epId, item.bvid || '', item.cid || 0, qualityQn(state.settings.quality))
       : playQualityCached(item, qualityQn(state.settings.quality));
     if (!result.ok) {
-      if (!dashTried && allowDash && item.bvid && typeof bridge.dash === 'function') {
+      if (!dashTried && DASH_PLAYBACK && allowDash && item.bvid && !item.epId && typeof bridge.dash === 'function') {
         const dash = call('dash', item.bvid, item.cid || 0, 120);
         if (dash.ok && Array.isArray(dash.video) && Array.isArray(dash.audio) && dash.video.length && dash.audio.length) {
           if (dash.cid) {
@@ -2631,7 +2833,6 @@
       result.qualityLabel ? [result.qualityLabel] : [],
       state.availableQualities,
     );
-    requestQualityOptions(item, 2500);
     if (result.qualityLabel) {
       state.settings.quality = result.qualityLabel;
       host.updatePlayerLabels();
@@ -2648,6 +2849,7 @@
         host.setPlayIcon(true);
         host.updatePlaylistDock();
       }).catch(() => {
+        if (promotedPreview) return;
         state.playing = false;
         host.setPlayIcon(false);
         setStatus('点击播放', 'error');
@@ -2661,9 +2863,20 @@
     if (state.duration > 0 && !mediaLive) host.setProgress(video.currentTime / state.duration * 100);
     playerVideo.classList.remove('video-loading');
   });
-  video.addEventListener('canplay', applyPendingMediaStart);
-  video.addEventListener('playing', applyPendingMediaStart);
+  video.addEventListener('canplay', () => {
+    applyPendingMediaStart();
+    maybeFinishPromotedPreview();
+  });
+  video.addEventListener('playing', () => {
+    applyPendingMediaStart();
+    maybeFinishPromotedPreview();
+  });
+  video.addEventListener('seeked', maybeFinishPromotedPreview);
   video.addEventListener('timeupdate', () => {
+    if (promotedPreview) {
+      maybeFinishPromotedPreview();
+      return;
+    }
     if (mediaLive) return;
     if (!video.duration || !Number.isFinite(video.duration)) return;
     host.setProgress(video.currentTime / video.duration * 100);
@@ -2678,6 +2891,7 @@
     if (status) status.textContent = '';
   });
   video.addEventListener('pause', () => {
+    if (promotedPreview) return;
     state.playing = false;
     host.setPlayIcon(false);
     host.updatePlaylistDock();
@@ -2699,11 +2913,17 @@
       video.play().catch(() => {});
       return;
     }
+    if (promotedPreview) {
+      playerVideo.classList.remove('video-loading', 'video-error');
+      if (status) status.textContent = '';
+      log('promoted preview kept after player media error ' + (mediaItem ? mediaItem.bvid || mediaItem.roomId : ''));
+      return;
+    }
     setStatus(mediaLive ? '直播加载失败 · 点击重试' : '播放失败 · 点击重试', 'error');
     log('video element error ' + (mediaItem ? mediaItem.bvid || mediaItem.roomId : ''));
   });
   video.addEventListener('ended', () => {
-    if (mediaLive) return;
+    if (mediaLive || promotedPreview) return;
     if (state.settings.loop === '循环') {
       video.currentTime = 0;
       video.play().catch(() => {});
@@ -2738,6 +2958,12 @@
       clearVideo();
     },
     togglePlay() {
+      if (promotedPreview) {
+        const promoted = promotedPreview.video;
+        if (promoted.paused) promoted.play().catch(() => {});
+        else promoted.pause();
+        return true;
+      }
       if (mediaLive && hls) {
         if (video.paused) video.play().catch(() => {});
         else video.pause();
@@ -2749,37 +2975,55 @@
       return true;
     },
     seek(percent) {
+      if (promotedPreview) {
+        const promoted = promotedPreview.video;
+        if (!promoted.duration || !Number.isFinite(promoted.duration)) return;
+        promoted.currentTime = promoted.duration * Math.max(0, Math.min(100, percent)) / 100;
+        return;
+      }
       if (mediaLive || !video.duration || !Number.isFinite(video.duration)) return;
       video.currentTime = video.duration * Math.max(0, Math.min(100, percent)) / 100;
     },
     onSettings() {
       applyDanmakuStyle();
-      if (!video.src) return;
       const rate = parseFloat(state.settings.speed || '1');
+      if (promotedPreview) {
+        promotedPreview.video.playbackRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
+        promotedPreview.video.loop = state.settings.loop === '循环';
+      }
+      if (!video.src) return;
       video.playbackRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
       video.loop = state.settings.loop === '循环';
     },
     onTrackChange() {
+      removePromotedPreview();
       loadVideo(currentItem(), true);
     },
     onRateHold(rate) {
+      if (promotedPreview) promotedPreview.video.playbackRate = rate;
       if (!video.src || mediaLive) return;
       video.playbackRate = rate;
     },
     onRateHoldEnd() {
-      if (!video.src || mediaLive) return;
       const rate = parseFloat(state.settings.speed || '1');
-      video.playbackRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
+      const restored = Number.isFinite(rate) && rate > 0 ? rate : 1;
+      if (promotedPreview) promotedPreview.video.playbackRate = restored;
+      if (!video.src || mediaLive) return;
+      video.playbackRate = restored;
     },
     onQualityChange(value) {
-      if (!mediaItem || !video.src || mediaItem.live) return;
-      if (['4K', '1080P60', '1080P', '1080P+'].includes(value) && typeof bridge.dash === 'function') {
+      if (!mediaItem || mediaItem.live) return;
+      if (!promotedPreview && !video.src) return;
+      state.settings.quality = value;
+      host.updatePlayerLabels();
+      const keepTime = promotedPreview ? promotedPreview.video.currentTime : (video.currentTime || 0);
+      const keepDuration = promotedPreview ? promotedPreview.video.duration : video.duration;
+      if (DASH_PLAYBACK && qualityQn(value) > 64 && typeof bridge.dash === 'function' && !mediaItem.epId) {
         const item = mediaItem;
-        const keepTime = video.currentTime || 0;
         if (keepTime > 0.5) {
           pendingMediaStart = { key: mediaKeyFor(item), time: keepTime };
-          if (Number.isFinite(video.duration) && video.duration > 0) {
-            state.progress = keepTime / video.duration * 100;
+          if (Number.isFinite(keepDuration) && keepDuration > 0) {
+            state.progress = keepTime / keepDuration * 100;
             host.setProgress(state.progress);
           }
         }
@@ -2789,8 +3033,7 @@
       }
       if (typeof bridge.playQuality !== 'function') return;
       const qn = qualityQn(value);
-      const keepTime = video.currentTime || 0;
-      const wasPlaying = !video.paused;
+      const wasPlaying = promotedPreview ? !promotedPreview.video.paused : !video.paused;
       const result = mediaItem.epId
         ? call('playPgc', mediaItem.epId, mediaItem.bvid || '', mediaItem.cid || 0, qn)
         : call('playQuality', mediaItem.bvid, mediaItem.cid || 0, qn);
@@ -2813,6 +3056,7 @@
       }
       playerVideo.classList.add('video-loading');
       setStatus('切换画质…', 'loading');
+      destroyDash();
       const onMeta = () => {
         video.removeEventListener('loadedmetadata', onMeta);
         if (keepTime > 0 && Number.isFinite(video.duration)) {
@@ -3066,17 +3310,6 @@
     }
   }
 
-  function preloadFocusedItem(item) {
-    clearTimeout(previewHoverTimer);
-    if (!item) return;
-    previewHoverTimer = setTimeout(() => {
-      previewHoverTimer = null;
-      if (state.playerOpen || document.hidden) return;
-      readVideoInfo(item);
-      if (item.aid) prefetchComments(item);
-    }, 300);
-  }
-
   function preloadGate() {
     if (!state.playerOpen) return { allowed: true, gap: PRELOAD_IDLE_GAP };
     const el = $('#realVideo');
@@ -3135,7 +3368,7 @@
   }
 
   function preloadBusy() {
-    if (document.hidden) return true;
+    if (document.hidden || previewRow) return true;
     if (Date.now() - lastFeedScrollAt < 600) return true;
     return [feeds.home, feeds.module, feeds.search, feeds.up].some((feed) => (
       feed && feed.__feedWindow && (feed.__feedWindow.touchActive || feedIsBusy(feed))
