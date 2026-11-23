@@ -718,6 +718,14 @@
       openModulePage(item.target, item.id);
       return;
     }
+    if (state.page === item.target && item.target !== 'login') {
+      // Re-selecting the current page from the sidebar must not reset the feed.
+      if (item.id) {
+        state.navActive = item.id;
+        updateNavActive();
+      }
+      return;
+    }
     showPage(item.target, item.id);
   }
 
@@ -1136,6 +1144,14 @@
   function openModulePage(name, navId) {
     if (!state.loggedIn) {
       showPage('login');
+      return;
+    }
+    if (state.page === 'module' && state.moduleName === name) {
+      // Re-selecting the current module from the sidebar must not reset the feed.
+      if (navId) {
+        state.navActive = navId;
+        updateNavActive();
+      }
       return;
     }
     if (PAGE_NAV[state.page]) {
