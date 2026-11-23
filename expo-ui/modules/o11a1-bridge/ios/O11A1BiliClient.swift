@@ -410,7 +410,7 @@ final class O11A1BiliClient {
     if let backups = first["backup_url"] as? [String] {
       for url in backups.prefix(2) where !url.isEmpty { urls.append(url) }
     }
-    let primaryToken = token(for: [remote])
+    let primaryToken = token(for: urls)
     let backupToken = urls.count > 1 ? token(for: [urls[1]]) : ""
     let quality = o11a1Int(data["quality"])
     let base = "http://127.0.0.1:\(port)"
@@ -1099,10 +1099,14 @@ final class O11A1BiliClient {
       return apiFailure(code == 0 ? -1 : code, o11a1String(payload["message"]))
     }
     let quality = o11a1Int(result["quality"])
+    var mediaUrls = [remote]
+    if let backups = first["backup_url"] as? [String], let backup = backups.first, !backup.isEmpty {
+      mediaUrls.append(backup)
+    }
     var output: [String: Any] = [
       "ok": true,
       "cid": cid,
-      "url": "http://127.0.0.1:\(port)/media?u=\(token(for: [remote]))",
+      "url": "http://127.0.0.1:\(port)/media?u=\(token(for: mediaUrls))",
       "quality": quality,
       "qualityLabel": o11a1QualityLabel(quality),
       "format": o11a1String(result["format"]),
@@ -1793,6 +1797,14 @@ final class O11A1BiliClient {
       ? o11a1String(track["base_url"])
       : o11a1String(track["baseUrl"])
     guard !base.isEmpty else { return nil }
+    var mediaUrls = [base]
+    var backup = ""
+    if let backups = track["backupUrl"] as? [String], let value = backups.first, !value.isEmpty {
+      backup = value
+    } else if let backups = track["backup_url"] as? [String], let value = backups.first, !value.isEmpty {
+      backup = value
+    }
+    if !backup.isEmpty { mediaUrls.append(backup) }
     var row: [String: Any] = [
       "qn": o11a1Int(track["id"]),
       "codecid": o11a1Int(track["codecid"]),
@@ -1801,11 +1813,9 @@ final class O11A1BiliClient {
       "codecs": o11a1String(track["codecs"]),
       "width": o11a1Int(track["width"]),
       "height": o11a1Int(track["height"]),
-      "url": "http://127.0.0.1:\(port)/media?u=\(token(for: [base]))"
+      "url": "http://127.0.0.1:\(port)/media?u=\(token(for: mediaUrls))"
     ]
-    if let backups = track["backupUrl"] as? [String], let backup = backups.first, !backup.isEmpty {
-      row["backup"] = "http://127.0.0.1:\(port)/media?u=\(token(for: [backup]))"
-    } else if let backups = track["backup_url"] as? [String], let backup = backups.first, !backup.isEmpty {
+    if !backup.isEmpty {
       row["backup"] = "http://127.0.0.1:\(port)/media?u=\(token(for: [backup]))"
     }
     return row

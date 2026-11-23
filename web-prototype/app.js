@@ -510,8 +510,36 @@
       .forEach((row) => panel.appendChild(buildSettingRow(row)));
   }
 
+  function ensureQualityOptions() {
+    const api = window.O11A1NativeData;
+    if (!api || typeof api.ensureQualityOptions !== 'function') return;
+    try { api.ensureQualityOptions(); } catch (_) {}
+  }
+
+  function refreshQualityChoices() {
+    if (pcOpenPanels.has('quality')) {
+      renderPcChoicePanel(pcPanels.quality.panel, pcPanels.quality.data);
+    }
+    if (!psheetBody || !psheet.classList.contains('open')
+      || psheetBody.dataset.settingsId !== 'settings-playback') return;
+    const def = settingsDefinition('settings-playback');
+    if (!def) return;
+    $$('.choice-btn', psheetBody).forEach((button) => {
+      const row = def.rows.find((item) => (
+        item.type === 'choice' && item.key === button.dataset.choiceKey
+      ));
+      if (!row || typeof row.available !== 'function') return;
+      const blocked = row.available(button.dataset.choiceValue) === false;
+      button.disabled = blocked;
+      button.classList.toggle('off', blocked);
+      if (blocked) button.title = '当前视频不支持该画质';
+      else button.removeAttribute('title');
+    });
+  }
+
   function setPcPanel(name) {
     const opening = !pcOpenPanels.has(name);
+    if (opening && name === 'quality') ensureQualityOptions();
     pcOpenPanels.clear();
     if (opening) pcOpenPanels.add(name);
     Object.entries(pcPanels).forEach(([key, config]) => {
@@ -5233,8 +5261,10 @@
   function openSettingsSheet(id, options = {}) {
     const def = settingsDefinition(id);
     if (!def) return;
+    if (id === 'settings-playback') ensureQualityOptions();
     const minimal = options.minimal === true;
     openSheet(def.title, def.sub, (body) => {
+      body.dataset.settingsId = id;
       def.rows
         .filter((row) => !minimal || row.type !== 'static')
         .forEach((row) => body.appendChild(buildSettingRow(row)));
@@ -5270,6 +5300,8 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.className = `choice-btn${state.settings[row.key] === option ? ' on' : ''}${blocked ? ' off' : ''}`;
+        button.dataset.choiceKey = row.key;
+        button.dataset.choiceValue = option;
         button.textContent = option;
         button.disabled = blocked;
         if (blocked) button.title = '当前视频不支持该画质';
@@ -6746,6 +6778,7 @@
     stopPlayback,
     updatePlayerLabels,
     updatePlaylistDock,
+    refreshQualityChoices,
     updatePlaylistCounts,
     showPlayerNotice,
     addToPlaylist,

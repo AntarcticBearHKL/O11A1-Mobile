@@ -232,14 +232,16 @@ final class BiliApi {
             JSONArray durl = data.getJSONArray("durl");
             JSONObject first = durl.getJSONObject(0);
             String remote = first.optString("url", "");
+            String backup = "";
             if (first.optJSONArray("backup_url") != null && first.getJSONArray("backup_url").length() > 0) {
-                out.put("backup", proxy.localUrl(first.getJSONArray("backup_url").getString(0)));
+                backup = first.getJSONArray("backup_url").getString(0);
+                if (!backup.isEmpty()) out.put("backup", proxy.localUrl(backup));
             }
             if (remote.isEmpty()) throw new IllegalStateException("empty stream url");
             int quality = data.optInt("quality", 16);
             out.put("ok", true);
             out.put("cid", cid);
-            out.put("url", proxy.localUrl(remote));
+            out.put("url", proxy.localUrl(remote, backup));
             out.put("quality", quality);
             out.put("qualityLabel", qualityLabel(quality));
             out.put("available", availableQualities(data, quality));

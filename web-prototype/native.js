@@ -2023,6 +2023,109 @@
     }
   }
 
+  const qualityOptionsCache = new Map();
+  const qualityOptionsPending = new Set();
+  const qualityOptionsTimers = new Map();
+  const QUALITY_OPTIONS_TTL = 10 * 60 * 1000;
+  const QUALITY_OPTIONS_MAX = 40;
+  const QUALITY_RANK = {
+    '4K': 120, '1080P60': 116, '1080P+': 112, '1080P': 80,
+    '720P60': 74, '720P': 64, '480P': 32, '360P': 16,
+  };
+
+  function qualityOptionsKey(item) {
+    if (!item || item.live || item.epId || !item.bvid) return '';
+    return `${item.bvid}:${item.cid || 0}`;
+  }
+
+  function mergeQualityLabels() {
+    const seen = new Set();
+    const labels = [];
+    for (let group = 0; group < arguments.length; group += 1) {
+      const list = arguments[group];
+      if (!Array.isArray(list)) continue;
+      list.forEach((label) => {
+        const value = String(label || '');
+        if (!value || seen.has(value)) return;
+        seen.add(value);
+        labels.push(value);
+      });
+    }
+    return labels.sort((a, b) => (QUALITY_RANK[b] || 0) - (QUALITY_RANK[a] || 0));
+  }
+
+  function readQualityOptions(item) {
+    const key = qualityOptionsKey(item);
+    if (!key) return null;
+    const cached = qualityOptionsCache.get(key);
+    if (!cached) return null;
+    if (Date.now() - cached.at >= QUALITY_OPTIONS_TTL) {
+      qualityOptionsCache.delete(key);
+      return null;
+    }
+    return cached.labels;
+  }
+
+  function cacheQualityOptions(item, labels) {
+    const key = qualityOptionsKey(item);
+    const merged = mergeQualityLabels(labels);
+    if (!key || !merged.length) return;
+    qualityOptionsCache.set(key, { labels: merged, at: Date.now() });
+    while (qualityOptionsCache.size > QUALITY_OPTIONS_MAX) {
+      qualityOptionsCache.delete(qualityOptionsCache.keys().next().value);
+    }
+  }
+
+  function applyQualityOptions(item, labels) {
+    const current = currentItem();
+    if (!current || mediaKeyFor(current) !== mediaKeyFor(item)) return;
+    state.availableQualities = mergeQualityLabels(labels, state.availableQualities);
+    host.updatePlayerLabels();
+    if (typeof host.refreshQualityChoices === 'function') host.refreshQualityChoices();
+  }
+
+  function requestQualityOptions(item, delay = 0) {
+    const key = qualityOptionsKey(item);
+    if (!key || typeof bridge.dash !== 'function') return;
+    const cached = readQualityOptions(item);
+    if (cached) {
+      applyQualityOptions(item, cached);
+      return;
+    }
+    if (qualityOptionsPending.has(key)) {
+      if (delay > 0) return;
+      const pendingTimer = qualityOptionsTimers.get(key);
+      if (!pendingTimer) return;
+      clearTimeout(pendingTimer);
+      qualityOptionsTimers.delete(key);
+      qualityOptionsPending.delete(key);
+    }
+    qualityOptionsPending.add(key);
+    const timer = setTimeout(() => {
+      qualityOptionsTimers.delete(key);
+      let result = null;
+      try {
+        result = call('dash', item.bvid, item.cid || 0, 120);
+      } catch (_) {
+        result = null;
+      }
+      qualityOptionsPending.delete(key);
+      if (!result || !result.ok) return;
+      const labels = mergeQualityLabels(
+        (Array.isArray(result.video) ? result.video : [])
+          .map((track) => qualityLabelFromQn(track && track.qn)),
+        Array.isArray(result.available) ? result.available : [],
+      );
+      if (!labels.length) return;
+      const current = currentItem();
+      const sameItem = current && mediaKeyFor(current) === mediaKeyFor(item);
+      const merged = mergeQualityLabels(labels, sameItem ? state.availableQualities : []);
+      cacheQualityOptions(item, merged);
+      applyQualityOptions(item, merged);
+    }, Math.max(0, Number(delay) || 0));
+    qualityOptionsTimers.set(key, timer);
+  }
+
   function setAvailableQualities(tracks) {
     const labels = [];
     (tracks || [])
@@ -2032,7 +2135,7 @@
         const label = qualityLabelFromQn(track && track.qn);
         if (label && !labels.includes(label)) labels.push(label);
       });
-    state.availableQualities = labels;
+    state.availableQualities = mergeQualityLabels(labels, state.availableQualities);
   }
 
   function loadLive(item, autoplay) {
@@ -2305,6 +2408,7 @@
       return;
     }
     setAvailableQualities(videoCandidates.length ? videoCandidates : [videoTrack]);
+    cacheQualityOptions(item, state.availableQualities);
     const requestedQuality = state.settings.quality;
     state.streamInfo = {
       videoBitrate: Number(videoTrack.bandwidth) || 0,
@@ -2462,6 +2566,8 @@
       if (autoplay) video.play().catch(() => {});
       return;
     }
+    const cachedQualityOptions = readQualityOptions(item);
+    if (cachedQualityOptions) state.availableQualities = cachedQualityOptions;
     destroyDash();
     destroyHls();
     try { video.pause(); } catch (_) {}
@@ -2475,8 +2581,10 @@
     playerVideo.classList.add('video-loading');
     setStatus('加载中…', 'loading');
     const highQuality = ['4K', '1080P60', '1080P', '1080P+'].includes(state.settings.quality);
+    let dashTried = false;
     if (allowDash && highQuality && item.bvid && typeof bridge.dash === 'function') {
-      const dash = call('dash', item.bvid, item.cid || 0, qualityQn(state.settings.quality));
+      dashTried = true;
+      const dash = call('dash', item.bvid, item.cid || 0, 120);
       if (dash.ok && Array.isArray(dash.video) && Array.isArray(dash.audio) && dash.video.length && dash.audio.length) {
         if (dash.cid) {
           item.cid = dash.cid;
@@ -2493,6 +2601,18 @@
       ? call('playPgc', item.epId, item.bvid || '', item.cid || 0, qualityQn(state.settings.quality))
       : playQualityCached(item, qualityQn(state.settings.quality));
     if (!result.ok) {
+      if (!dashTried && allowDash && item.bvid && typeof bridge.dash === 'function') {
+        const dash = call('dash', item.bvid, item.cid || 0, 120);
+        if (dash.ok && Array.isArray(dash.video) && Array.isArray(dash.audio) && dash.video.length && dash.audio.length) {
+          if (dash.cid) {
+            item.cid = dash.cid;
+            const entry = currentItem();
+            if (entry) entry.cid = dash.cid;
+          }
+          loadDash(item, dash, autoplay);
+          return;
+        }
+      }
       setStatus('加载失败 · 点击重试', 'error');
       log('play error ' + (item.bvid || item.epId || '') + ' ' + (result.error || ''));
       if (host.showPlayerNotice) host.showPlayerNotice('画质', `${requestedQuality} 加载失败`, 3200);
@@ -2506,9 +2626,12 @@
     const availableLabels = Array.isArray(result.available)
       ? result.available.filter(Boolean)
       : [];
-    state.availableQualities = availableLabels.length
-      ? availableLabels
-      : (result.qualityLabel ? [result.qualityLabel] : []);
+    state.availableQualities = mergeQualityLabels(
+      availableLabels,
+      result.qualityLabel ? [result.qualityLabel] : [],
+      state.availableQualities,
+    );
+    requestQualityOptions(item, 2500);
     if (result.qualityLabel) {
       state.settings.quality = result.qualityLabel;
       host.updatePlayerLabels();
@@ -2652,6 +2775,14 @@
       if (!mediaItem || !video.src || mediaItem.live) return;
       if (['4K', '1080P60', '1080P', '1080P+'].includes(value) && typeof bridge.dash === 'function') {
         const item = mediaItem;
+        const keepTime = video.currentTime || 0;
+        if (keepTime > 0.5) {
+          pendingMediaStart = { key: mediaKeyFor(item), time: keepTime };
+          if (Number.isFinite(video.duration) && video.duration > 0) {
+            state.progress = keepTime / video.duration * 100;
+            host.setProgress(state.progress);
+          }
+        }
         mediaItem = null;
         loadVideo(item, true);
         return;
@@ -2671,8 +2802,13 @@
       mediaTriedBackup = false;
       if (result.qualityLabel) {
         state.settings.quality = result.qualityLabel;
-        state.availableQualities = [result.qualityLabel];
+        state.availableQualities = mergeQualityLabels(
+          state.availableQualities,
+          Array.isArray(result.available) ? result.available : [],
+          [result.qualityLabel],
+        );
         host.updatePlayerLabels();
+        if (typeof host.refreshQualityChoices === 'function') host.refreshQualityChoices();
         showQualityFallback(value, result.qualityLabel);
       }
       playerVideo.classList.add('video-loading');
@@ -3051,7 +3187,12 @@
       videoInfoCache.clear();
       playInfoCache.clear();
       previewUrlCache.clear();
+      qualityOptionsCache.clear();
+      qualityOptionsPending.clear();
+      qualityOptionsTimers.forEach((timer) => clearTimeout(timer));
+      qualityOptionsTimers.clear();
     };
+    host.ensureQualityOptions = () => requestQualityOptions(currentItem(), 0);
   }
 
   schedulePreload(1800);
@@ -4106,6 +4247,7 @@
     copyLink: copyCurrentLink,
     screenshot: screenshotCurrent,
     applyDanmakuStyle,
+    ensureQualityOptions: () => requestQualityOptions(currentItem(), 0),
     playerInfo,
     playerPerf,
     openAccount: openAccountSheet,

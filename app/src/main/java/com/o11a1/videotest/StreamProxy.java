@@ -17,9 +17,13 @@ import java.net.Socket;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
@@ -34,6 +38,7 @@ final class StreamProxy {
     private volatile boolean running = true;
     private final AtomicLong bytesServed = new AtomicLong();
     private final AtomicLong requestCount = new AtomicLong();
+    private final Set<String> blockedMediaUrls = ConcurrentHashMap.newKeySet();
 
     StreamProxy(CookieStore cookies) throws IOException {
         this.cookies = cookies;
@@ -49,7 +54,22 @@ final class StreamProxy {
     }
 
     String localUrl(String remote) {
-        String token = Base64.encodeToString(remote.getBytes(StandardCharsets.UTF_8),
+        return localUrl(new String[]{remote});
+    }
+
+    String localUrl(String remote, String backup) {
+        return localUrl(new String[]{remote, backup});
+    }
+
+    String localUrl(String[] remotes) {
+        org.json.JSONArray list = new org.json.JSONArray();
+        if (remotes != null) {
+            for (String remote : remotes) {
+                if (remote != null && !remote.isEmpty()) list.put(remote);
+            }
+        }
+        String payload = list.length() > 0 ? list.toString() : "";
+        String token = Base64.encodeToString(payload.getBytes(StandardCharsets.UTF_8),
             Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
         return "http://127.0.0.1:" + port() + "/s?u=" + token;
     }
@@ -66,6 +86,7 @@ final class StreamProxy {
 
     void stop() {
         running = false;
+        blockedMediaUrls.clear();
         try { server.close(); } catch (IOException ignored) {}
         pool.shutdownNow();
     }
@@ -114,58 +135,85 @@ final class StreamProxy {
                 writeText(s.getOutputStream(), 400, "missing u");
                 return;
             }
-            String remote = new String(Base64.decode(encoded, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING), StandardCharsets.UTF_8);
-            if (!remote.startsWith("https://") && !remote.startsWith("http://")) {
+            String decoded = new String(Base64.decode(encoded, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING), StandardCharsets.UTF_8);
+            List<String> remotes = new ArrayList<>();
+            try {
+                org.json.JSONArray list = new org.json.JSONArray(decoded);
+                for (int index = 0; index < list.length(); index += 1) {
+                    String value = list.optString(index, "");
+                    if (value.startsWith("https://") || value.startsWith("http://")) remotes.add(value);
+                }
+            } catch (Throwable ignored) {
+                if (decoded.startsWith("https://") || decoded.startsWith("http://")) remotes.add(decoded);
+            }
+            if (remotes.isEmpty()) {
                 writeText(s.getOutputStream(), 400, "bad url");
                 return;
             }
-            Log.i(TAG, "request " + method + " range=" + headers.get("range") + " url=" + remote.substring(0, Math.min(90, remote.length())));
-            stream(s, method, remote, headers);
+            Log.i(TAG, "request " + method + " range=" + headers.get("range") + " url=" + remotes.get(0).substring(0, Math.min(90, remotes.get(0).length())));
+            stream(s, method, remotes, headers);
         } catch (Throwable error) {
             Log.w(TAG, "proxy request failed", error);
         }
     }
 
-    private void stream(Socket socket, String method, String remote, Map<String, String> clientHeaders) throws IOException {
+    private void stream(Socket socket, String method, List<String> remotes, Map<String, String> clientHeaders) throws IOException {
         HttpURLConnection connection = null;
         try {
             String range = clientHeaders.get("range");
             int code = -1;
+            String selectedRemote = null;
             String contentType = null;
             String contentRange = null;
             String contentLength = null;
-            for (int attempt = 0; attempt < 3; attempt += 1) {
-                if (connection != null) connection.disconnect();
-                connection = (HttpURLConnection) new URL(remote).openConnection();
-                connection.setInstanceFollowRedirects(true);
-                connection.setConnectTimeout(15000);
-                connection.setReadTimeout(30000);
-                connection.setRequestMethod("HEAD".equals(method) ? "HEAD" : "GET");
-                connection.setRequestProperty("User-Agent", UA);
-                connection.setRequestProperty("Referer", "https://www.bilibili.com/");
-                connection.setRequestProperty("Accept", "*/*");
-                connection.setRequestProperty("Cache-Control", "no-cache");
-                if (range != null) connection.setRequestProperty("Range", range);
-                try {
-                    code = connection.getResponseCode();
-                } catch (IOException error) {
-                    if (attempt < 2) {
-                        try { Thread.sleep(320L * (attempt + 1)); } catch (InterruptedException ignored) {}
-                        continue;
+            for (String remote : remotes) {
+                if (remote == null || blockedMediaUrls.contains(remote)) continue;
+                for (int attempt = 0; attempt < 2; attempt += 1) {
+                    if (connection != null) connection.disconnect();
+                    connection = (HttpURLConnection) new URL(remote).openConnection();
+                    connection.setInstanceFollowRedirects(true);
+                    connection.setConnectTimeout(15000);
+                    connection.setReadTimeout(30000);
+                    connection.setRequestMethod("HEAD".equals(method) ? "HEAD" : "GET");
+                    connection.setRequestProperty("User-Agent", UA);
+                    connection.setRequestProperty("Referer", "https://www.bilibili.com/");
+                    connection.setRequestProperty("Accept", "*/*");
+                    connection.setRequestProperty("Cache-Control", "no-cache");
+                    if (range != null) connection.setRequestProperty("Range", range);
+                    try {
+                        code = connection.getResponseCode();
+                    } catch (IOException error) {
+                        code = -1;
+                        if (attempt == 0) {
+                            try { Thread.sleep(260L); } catch (InterruptedException ignored) {}
+                            continue;
+                        }
                     }
-                    throw error;
+                    if (code == 200 || code == 206) {
+                        selectedRemote = remote;
+                        contentType = connection.getContentType();
+                        contentRange = connection.getHeaderField("Content-Range");
+                        contentLength = connection.getHeaderField("Content-Length");
+                        Log.i(TAG, "remote -> " + code + " host=" + new URL(remote).getHost()
+                            + " type=" + contentType + " len=" + contentLength + " range=" + contentRange);
+                        break;
+                    }
+                    Log.w(TAG, "remote reject " + code + " host=" + new URL(remote).getHost());
+                    if (code == 403 || code == 404 || code == 410) {
+                        blockedMediaUrls.add(remote);
+                        break;
+                    }
+                    if (attempt == 0) {
+                        try { Thread.sleep(260L); } catch (InterruptedException ignored) {}
+                    }
                 }
-                contentType = connection.getContentType();
-                contentRange = connection.getHeaderField("Content-Range");
-                contentLength = connection.getHeaderField("Content-Length");
-                Log.i(TAG, "remote -> " + code + " type=" + contentType + " len=" + contentLength + " range=" + contentRange + " attempt=" + attempt);
-                if (code >= 500 && attempt < 2) {
-                    try { Thread.sleep(320L * (attempt + 1)); } catch (InterruptedException ignored) {}
-                    continue;
-                }
-                break;
+                if (selectedRemote != null) break;
             }
             OutputStream out = socket.getOutputStream();
+            if (selectedRemote == null) {
+                writeText(out, 502, "upstream unavailable");
+                return;
+            }
             StringBuilder head = new StringBuilder();
             head.append("HTTP/1.1 ").append(code).append(" ").append(connection.getResponseMessage() == null ? "OK" : connection.getResponseMessage()).append("\r\n");
             head.append("Access-Control-Allow-Origin: *\r\n");
@@ -176,7 +224,7 @@ final class StreamProxy {
             head.append("Cache-Control: no-store\r\nConnection: close\r\n\r\n");
             out.write(head.toString().getBytes(StandardCharsets.ISO_8859_1));
             if (!"HEAD".equals(method)) {
-                InputStream in = code >= 400 ? connection.getErrorStream() : connection.getInputStream();
+                InputStream in = connection.getInputStream();
                 if (in != null) {
                     try (InputStream input = new BufferedInputStream(in)) {
                         byte[] buffer = new byte[32 * 1024];

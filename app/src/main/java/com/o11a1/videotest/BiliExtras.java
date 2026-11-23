@@ -686,12 +686,14 @@ final class BiliExtras {
             if (remote.isEmpty()) throw new IllegalStateException("pgc url empty");
             JSONObject out = new JSONObject();
             int quality = result.optInt("quality", 16);
+            String backup = "";
+            if (first.optJSONArray("backup_url") != null && first.getJSONArray("backup_url").length() > 0) {
+                backup = first.getJSONArray("backup_url").getString(0);
+                if (!backup.isEmpty()) out.put("backup", proxy.localUrl(backup));
+            }
             out.put("ok", true);
             out.put("cid", cid);
-            out.put("url", proxy.localUrl(remote));
-            if (first.optJSONArray("backup_url") != null && first.getJSONArray("backup_url").length() > 0) {
-                out.put("backup", proxy.localUrl(first.getJSONArray("backup_url").getString(0)));
-            }
+            out.put("url", proxy.localUrl(remote, backup));
             out.put("quality", quality);
             out.put("qualityLabel", qualityLabel(quality));
             JSONArray available = new JSONArray();
@@ -1142,12 +1144,13 @@ final class BiliExtras {
             row.put("height", track.optInt("height", 0));
             row.put("frameRate", track.optString("frameRate", track.optString("frame_rate", "")));
             row.put("remote", base);
-            row.put("url", proxy.localUrl(base));
             JSONArray backups = track.optJSONArray("backupUrl");
             if (backups == null) backups = track.optJSONArray("backup_url");
-            if (backups != null && backups.length() > 0) {
-                row.put("backupRemote", backups.optString(0, ""));
-                row.put("backup", proxy.localUrl(backups.optString(0, "")));
+            String backup = backups != null && backups.length() > 0 ? backups.optString(0, "") : "";
+            row.put("url", proxy.localUrl(base, backup));
+            if (!backup.isEmpty()) {
+                row.put("backupRemote", backup);
+                row.put("backup", proxy.localUrl(backup));
             }
             return row;
         } catch (Throwable ignored) {
