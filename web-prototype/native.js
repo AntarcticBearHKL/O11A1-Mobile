@@ -67,6 +67,8 @@
   const FEED_PREFETCH = 900;
   const FEED_BLOCK_SIZE = 10;
   const FEED_WINDOW_BLOCKS = 3;
+  const FEED_SCROLL_IDLE = 220;
+  let lastFeedScrollAt = 0;
   const more = { dynamic: true, messages: true };
   let upSort = 'pubdate';
   let recommendSeed = 1;
@@ -468,10 +470,12 @@
         firstItemIndex: 0,
         label: '',
         fillTimer: null,
+        renderTimer: null,
         frame: 0,
         scrollTimer: null,
         touchActive: false,
         touchActiveAt: 0,
+        lastScrollAt: 0,
       };
     }
     return feed.__feedWindow;
@@ -482,6 +486,7 @@
     const previous = feed.__feedWindow;
     if (previous) {
       clearTimeout(previous.fillTimer);
+      clearTimeout(previous.renderTimer);
       clearTimeout(previous.scrollTimer);
       if (previous.frame) cancelAnimationFrame(previous.frame);
     }
@@ -493,10 +498,12 @@
       firstItemIndex: 0,
       label: '',
       fillTimer: null,
+      renderTimer: null,
       frame: 0,
       scrollTimer: null,
       touchActive: false,
       touchActiveAt: 0,
+      lastScrollAt: 0,
     };
     feed.__nativeItems = [];
     feed.__chunkPages = [];
@@ -602,6 +609,13 @@
       || (feed === feeds.module && state.page === 'module')
       || (feed === feeds.up && state.page === 'up');
     return { scroll, isActive: Boolean(scroll && isActive) };
+  }
+
+  function feedIsBusy(feed) {
+    const fw = feed && feed.__feedWindow;
+    if (!fw) return false;
+    if (fw.touchActive && Date.now() - fw.touchActiveAt < 4000) return true;
+    return Date.now() - (fw.lastScrollAt || 0) < FEED_SCROLL_IDLE;
   }
 
   function topVisibleRow(feed, scroll, exclude) {
@@ -880,6 +894,10 @@
         scheduleWindowSettle(feed, 180);
         return;
       }
+      if (feedIsBusy(feed)) {
+        scheduleWindowSettle(feed, 120);
+        return;
+      }
       fw.touchActive = false;
       maybeAdvanceWindow(feed);
       maybePrefetchWindow(feed);
@@ -889,6 +907,9 @@
 
   function scheduleWindowUpdate(feed) {
     if (!feed) return;
+    const now = Date.now();
+    lastFeedScrollAt = now;
+    feedWindowState(feed).lastScrollAt = now;
     scheduleWindowSettle(feed);
   }
 
@@ -924,10 +945,27 @@
       const activeBlock = focus ? Number(focus.dataset.block) : -1;
       const nearBottom = view.scroll.scrollTop + view.scroll.clientHeight
         >= view.scroll.scrollHeight - FEED_PREFETCH;
-      if (nearBottom || activeBlock >= fw.blocks[0].id + 1) {
+      if (nearBottom || fw.queue.length === 0 || activeBlock >= fw.blocks[0].id + 1) {
         requestFeedPage(feedKey(feed), false);
       }
     }, 180);
+  }
+
+  function scheduleDeferredFeedRender(feed) {
+    const fw = feed && feed.__feedWindow;
+    if (!fw) return;
+    clearTimeout(fw.renderTimer);
+    const pump = () => {
+      fw.renderTimer = null;
+      if (feedIsBusy(feed)) {
+        fw.renderTimer = setTimeout(pump, 160);
+        return;
+      }
+      renderWindowBlocks(feed);
+      scheduleWindowSettle(feed);
+      scheduleBufferFill(feed);
+    };
+    fw.renderTimer = setTimeout(pump, 140);
   }
 
   function appendRows(feed, items, label, page) {
@@ -939,6 +977,10 @@
     }
     if (label) fw.label = label;
     for (let index = 0; index < items.length; index += 1) fw.queue.push(items[index]);
+    if (feedIsBusy(feed)) {
+      scheduleDeferredFeedRender(feed);
+      return;
+    }
     renderWindowBlocks(feed);
     scheduleWindowSettle(feed);
     scheduleBufferFill(feed);
@@ -1107,7 +1149,6 @@
       setNote(`${result.title || kind.label} · 加载失败`);
     }
     win.loading = false;
-    renderWindowBlocks(feeds.home);
     return result.ok;
   }
 
@@ -1158,7 +1199,6 @@
       win.hasMore = result.hasMore !== false;
     }
     win.loading = false;
-    renderWindowBlocks(feeds.module);
     return result.ok;
   }
 
@@ -1261,7 +1301,6 @@
     win.page = pageNo;
     win.hasMore = result.hasMore !== false;
     win.loading = false;
-    renderWindowBlocks(feed);
     setTail(feed, 'idle');
     const note = $('#upNote');
     if (note) note.textContent = `${state.upName || 'UP 主'} · ${upSort === 'click' ? '播放量' : '新发布'} · 触底加载`;
@@ -1499,7 +1538,6 @@
     win.page = pageNo;
     win.hasMore = hasMore;
     win.loading = false;
-    renderWindowBlocks(feeds.search);
     host.searchResultsLabel.textContent = query ? `“${query}”的视频` : '热门视频';
     host.searchEmpty.hidden = true;
     return true;
@@ -1522,10 +1560,14 @@
     win.loading = true;
     setTail(feed, 'loading', '正在加载下一段…');
     clearTimeout(win.loadTimer);
-    win.loadTimer = setTimeout(() => {
+    const run = () => {
       win.loadTimer = null;
       if (win.token !== token) {
         win.loading = false;
+        return;
+      }
+      if (feedIsBusy(feed)) {
+        win.loadTimer = setTimeout(run, 180);
         return;
       }
       if (state.page !== key && !(key === 'search' && state.searchOpen)) {
@@ -1550,10 +1592,10 @@
         return;
       }
       win.nextRetryAt = 0;
-      renderWindowBlocks(feed);
       scheduleWindowSettle(feed);
       scheduleBufferFill(feed);
-    }, 220);
+    };
+    win.loadTimer = setTimeout(run, 80);
   }
 
   function playItem(item) {
@@ -2958,8 +3000,9 @@
 
   function preloadBusy() {
     if (document.hidden) return true;
+    if (Date.now() - lastFeedScrollAt < 600) return true;
     return [feeds.home, feeds.module, feeds.search, feeds.up].some((feed) => (
-      feed && feed.__feedWindow && feed.__feedWindow.touchActive
+      feed && feed.__feedWindow && (feed.__feedWindow.touchActive || feedIsBusy(feed))
     ));
   }
 
@@ -3953,9 +3996,6 @@
     if (state.page === 'home') scheduleWindowUpdate(feeds.home);
     else if (state.page === 'module') scheduleWindowUpdate(feeds.module);
     if (appScroll.scrollTop + appScroll.clientHeight < appScroll.scrollHeight - FEED_PREFETCH) return;
-    if (state.page === 'home' || state.page === 'module') {
-      requestFeedPage(state.page);
-    }
     if (state.page === 'dynamic' && more.dynamic && $('#dynamicFeed .dynamic-card:not(.skeleton-card)')) {
       more.dynamic = false;
       pages.dynamic += 1;
@@ -3973,8 +4013,6 @@
     if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
     if (state.page !== 'up') return;
     scheduleWindowUpdate(feeds.up);
-    if (upScroller.scrollTop + upScroller.clientHeight < upScroller.scrollHeight - FEED_PREFETCH) return;
-    requestFeedPage('up');
   });
 
   const searchScroller = $('#searchPanelBody');
@@ -3982,8 +4020,6 @@
     if (Date.now() - (window.__o11a1ScrollAdjust || 0) < 160) return;
     if (!state.searchOpen) return;
     scheduleWindowUpdate(feeds.search);
-    if (searchScroller.scrollTop + searchScroller.clientHeight < searchScroller.scrollHeight - FEED_PREFETCH) return;
-    requestFeedPage('search');
   });
 
   function trackFeedTouch(scroll, feedFor) {
