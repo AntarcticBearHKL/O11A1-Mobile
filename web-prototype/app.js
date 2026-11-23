@@ -385,8 +385,9 @@
 
   const FEED_PREFETCH = 900;
   const ROW_ACTION_ARM = 24;
-  const ROW_ACTION_UP = 160;
   const ROW_ACTION_MAX = 230;
+  const ROW_ACTION_HOLD_MS = 460;
+  const ROW_ACTION_HOLD_SLOP = 7;
 
   const MODULE_NOTES = {
     收藏: '真实收藏夹 · 第一页 20 条',
@@ -2438,12 +2439,6 @@
     flyRowToPlaylist(row);
   }
 
-  function rowActionForOffset(offset) {
-    if (offset >= ROW_ACTION_UP) return 'up';
-    if (offset >= ROW_ACTION_ARM) return 'queue';
-    return '';
-  }
-
   function ensureRowMask(row) {
     let mask = row.querySelector('.row-swipe-mask');
     if (mask) return mask;
@@ -2451,7 +2446,7 @@
     mask.className = 'row-swipe-mask';
     mask.dataset.action = 'queue';
     mask.setAttribute('aria-hidden', 'true');
-    mask.innerHTML = '<b class="rsm-label">加入播放列表</b><small class="rsm-hint">左滑加入</small>';
+    mask.innerHTML = '<b class="rsm-label">加入播放列表</b><small class="rsm-hint">左滑加入 · 按住切换 UP 主</small>';
     row.appendChild(mask);
     return mask;
   }
@@ -2462,18 +2457,18 @@
     if (!row) return;
     const mask = ensureRowMask(row);
     const armedQueue = offset >= ROW_ACTION_ARM;
-    const armedUp = offset >= ROW_ACTION_UP;
+    const armedUp = Boolean(wrapper.__rowUpMode);
     const action = armedUp ? 'up' : 'queue';
     const armed = armedUp ? 'up' : armedQueue ? 'queue' : '';
     const opacity = Math.min(1, Math.max(0, offset / 24));
-    mask.dataset.action = action;
+    mask.dataset.action = 'queue';
     mask.style.opacity = String(opacity);
     const label = mask.querySelector('.rsm-label');
     const hint = mask.querySelector('.rsm-hint');
     if (label) label.textContent = armedUp ? '查看 UP 主' : '加入播放列表';
     if (hint) hint.textContent = armedUp
       ? '松开查看 UP 主'
-      : armedQueue ? '松开加入 · 继续左滑看 UP 主' : '左滑加入';
+      : armedQueue ? '松开加入 · 按住不动切换 UP 主' : '左滑加入 · 按住切换 UP 主';
     mask.classList.toggle('armed', Boolean(armed));
     mask.classList.toggle('armed-up', armedUp);
     if (armed && armed !== wrapper.__rowArmed && navigator.vibrate) navigator.vibrate(6);
@@ -2487,6 +2482,7 @@
     wrapper.classList.remove('swiping');
     wrapper.__rowAction = '';
     wrapper.__rowArmed = '';
+    wrapper.__rowUpMode = false;
     if (row) {
       const mask = row.querySelector('.row-swipe-mask');
       if (mask) {
@@ -5951,6 +5947,10 @@
       offset: 0,
       direction: null,
       surface,
+      holdTimer: null,
+      holdX: event.clientX,
+      holdY: event.clientY,
+      upMode: false,
       sidebarActive: false,
       sidebarProgress: 0,
       sidebarSelecting: false,
@@ -6093,14 +6093,50 @@
     }
     if (rowSwipe.direction !== 'left') return;
     if (event.cancelable) event.preventDefault();
+    const swipe = rowSwipe;
     const offset = Math.min(ROW_ACTION_MAX, Math.max(0, -dx));
-    rowSwipe.offset = offset;
-    setRowSwipe(rowSwipe.wrapper, offset);
+    swipe.offset = offset;
+    if (swipe.upMode) {
+      if (offset < ROW_ACTION_ARM) {
+        swipe.upMode = false;
+        if (swipe.wrapper) swipe.wrapper.__rowUpMode = false;
+        clearTimeout(swipe.holdTimer);
+        swipe.holdTimer = null;
+      }
+      setRowSwipe(swipe.wrapper, offset);
+      return;
+    }
+    if (offset < ROW_ACTION_ARM) {
+      clearTimeout(swipe.holdTimer);
+      swipe.holdTimer = null;
+      swipe.holdX = event.clientX;
+      swipe.holdY = event.clientY;
+      setRowSwipe(swipe.wrapper, offset);
+      return;
+    }
+    const moved = Math.abs(event.clientX - swipe.holdX) > ROW_ACTION_HOLD_SLOP
+      || Math.abs(event.clientY - swipe.holdY) > ROW_ACTION_HOLD_SLOP;
+    if (!swipe.holdTimer || moved) {
+      clearTimeout(swipe.holdTimer);
+      swipe.holdX = event.clientX;
+      swipe.holdY = event.clientY;
+      swipe.holdTimer = setTimeout(() => {
+        if (rowSwipe !== swipe || swipe.direction !== 'left' || swipe.upMode) return;
+        if (swipe.offset < ROW_ACTION_ARM) return;
+        swipe.upMode = true;
+        if (swipe.wrapper) swipe.wrapper.__rowUpMode = true;
+        setRowSwipe(swipe.wrapper, swipe.offset);
+        if (navigator.vibrate) navigator.vibrate(8);
+      }, ROW_ACTION_HOLD_MS);
+    }
+    setRowSwipe(swipe.wrapper, offset);
   }, { passive: false });
   window.addEventListener('pointerup', (event) => {
     if (!rowSwipe || event.pointerId !== rowSwipe.id) return;
     const start = rowSwipe;
     rowSwipe = null;
+    clearTimeout(start.holdTimer);
+    start.holdTimer = null;
     if (start.direction === 'right') {
       endSidebarDrag(start, event);
       return;
@@ -6128,7 +6164,7 @@
     }
     if (start.direction !== 'left') return;
     suppressFeedClickUntil = Date.now() + 420;
-    const action = rowActionForOffset(start.offset);
+    const action = start.upMode ? 'up' : (start.offset >= ROW_ACTION_ARM ? 'queue' : '');
     if (action) {
       triggerRowAction(start.wrapper, action);
       return;
@@ -6139,6 +6175,8 @@
     const start = rowSwipe;
     rowSwipe = null;
     if (!start) return;
+    clearTimeout(start.holdTimer);
+    start.holdTimer = null;
     if (start.direction === 'right') endSidebarDrag(start, { type: 'pointercancel' });
     else if (start.direction === 'left') resetRowSwipe(start.wrapper);
     else if (start.direction === 'up-close') resetUpPageDrag();
@@ -6894,7 +6932,7 @@
       const avatarRect = avatarEl.getBoundingClientRect();
       const titleRect = metaTitle.getBoundingClientRect();
       feedMeta = Math.abs(thumbEl.getBoundingClientRect().width - row.getBoundingClientRect().width) < 1
-        && parseFloat(getComputedStyle(thumbEl).borderRadius) >= 10
+        && parseFloat(getComputedStyle(thumbEl).borderRadius) <= 1
         && Math.abs(avatarRect.left - (copyRect.left + 16)) < 3
         && Math.abs(titleRect.left - (avatarRect.right + 12)) < 3
         && metaPlay.textContent.includes('播放')
@@ -6910,9 +6948,10 @@
     const upX = upRect.left + upRect.width / 2;
     upRow.dispatchEvent(pointerEvent('pointerdown', upX, upY, 1));
     for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', upX - (260 * step) / 6, upY, 1));
+      window.dispatchEvent(pointerEvent('pointermove', upX - (120 * step) / 6, upY, 1));
     }
-    window.dispatchEvent(pointerEvent('pointerup', upX - 260, upY, 0));
+    await sleep(560);
+    window.dispatchEvent(pointerEvent('pointerup', upX - 120, upY, 0));
     await sleep(560);
     results.push(`rowUp=${state.page === 'up' && $$('#upFeed .real-row').length > 0}`);
     const upSortClick = $('#upSort [data-up-sort="click"]');
