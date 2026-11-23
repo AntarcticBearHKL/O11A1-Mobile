@@ -1086,7 +1086,16 @@
     windows.up.hasMore = true;
     windows.up.loading = false;
     windows.up.name = name;
-    loadUp(1, false);
+    const feed = feeds.up;
+    if (feed) showInitialFeedSkeleton(feed, 8);
+    if (note) note.textContent = `${name} · 正在加载…`;
+    const token = windows.up.token;
+    clearTimeout(windows.up.openTimer);
+    windows.up.openTimer = setTimeout(() => {
+      windows.up.openTimer = null;
+      if (state.page !== 'up' || windows.up.token !== token) return;
+      loadUp(1, false, true);
+    }, 430);
   }
 
   /* ---------- offline downloads ---------- */

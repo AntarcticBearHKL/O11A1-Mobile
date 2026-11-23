@@ -193,6 +193,12 @@ i{font-style:normal}
   border-radius:26px;
   box-shadow:0 12px 32px rgba(10,12,20,.22);
 }
+.app.up-open .app-main{
+  transform:translate3d(var(--up-x,-7%),0,0) scale(var(--up-scale,.94));
+  border-radius:26px;
+  box-shadow:0 12px 32px rgba(10,12,20,.22);
+}
+.app.up-dragging .app-main{transition:none}
 .app.sidebar-dragging .app-main,
 .app.sidebar-dragging .sidebar,
 .app.sidebar-dragging .sidebar-backdrop,
@@ -1007,8 +1013,8 @@ body[data-theme="dark"] .up-page{
 .up-page.up-dragging{animation:none!important;transition:none!important}
 .up-page.up-settling{animation:none!important}
 @keyframes upPageIn{
-  from{opacity:.4;transform:translateX(100%)}
-  to{opacity:1;transform:none}
+  from{transform:translateX(100%)}
+  to{transform:none}
 }
 .up-scroll{
   flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;

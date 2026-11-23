@@ -954,12 +954,21 @@
     if (state.page === 'login') showPage('home');
   }
 
+  function setUpRecede(progress, options = {}) {
+    const p = Math.max(0, Math.min(1, Number(progress) || 0));
+    app.style.setProperty('--up-x', `${(-7 * p).toFixed(2)}%`);
+    app.style.setProperty('--up-scale', (1 - p * 0.06).toFixed(4));
+    app.classList.toggle('up-open', p > 0.001);
+    app.classList.toggle('up-dragging', options.dragging === true && p > 0.001);
+  }
+
   function showPage(page, navId) {
     const previousPage = state.page;
     if (!state.loggedIn && page !== 'login') {
       page = 'login';
       navId = null;
     }
+    if (page !== 'up') setUpRecede(0);
     if (page === 'up' && upPage) {
       const base = state.upReturn && state.upReturn !== 'up'
         ? state.upReturn
@@ -972,6 +981,7 @@
         section.classList.toggle('active', section.dataset.page === base);
       });
       app.dataset.page = 'up';
+      setUpRecede(1);
       document.body.classList.toggle('search-mode', false);
       if (searchResultsPage && base !== 'search') {
         searchResultsPage.classList.remove('active', 'dragging', 'settling', 'entering');
@@ -2445,6 +2455,7 @@
 
   function resetUpPageDrag() {
     if (!upPage) return;
+    setUpRecede(1);
     upPage.classList.remove('up-dragging');
     upPage.classList.add('up-settling');
     upPage.style.transition = 'transform .3s cubic-bezier(.16,1,.3,1)';
@@ -2463,6 +2474,7 @@
       showPage(state.upReturn || 'home');
       return;
     }
+    setUpRecede(0);
     upPage.classList.remove('up-dragging', 'entering');
     upPage.classList.add('up-settling');
     upPage.style.transition = 'transform .32s cubic-bezier(.22,1,.36,1)';
@@ -5940,6 +5952,7 @@
         if (rowSwipe.surface === 'up') {
           rowSwipe.direction = 'up-close';
           rowSwipe.upOffset = 0;
+          setUpRecede(1, { dragging: true });
           upPage.classList.add('up-dragging');
           upPage.style.transition = 'none';
           return;
@@ -5988,6 +6001,7 @@
       rowSwipe.upOffset = offset;
       upPage.style.transform = `translate3d(${offset}px,0,0)`;
       upPage.style.boxShadow = offset > 0 ? '-18px 0 46px rgba(10,12,20,.18)' : '';
+      setUpRecede(1 - offset / width, { dragging: true });
       return;
     }
     if (rowSwipe.direction === 'right') {
@@ -6804,16 +6818,14 @@
     let upRowMatch = false;
     let upSortFloat = false;
     if (upRowCheck && homeRowCheck && upSortBar && upInfoCard && upScroll) {
-      const upRowRect = upRowCheck.getBoundingClientRect();
-      const homeRowRect = homeRowCheck.getBoundingClientRect();
-      const upThumbRect = upRowCheck.querySelector('.row-thumb').getBoundingClientRect();
-      const homeThumbRect = homeRowCheck.querySelector('.row-thumb').getBoundingClientRect();
+      const upThumbCheck = upRowCheck.querySelector('.row-thumb');
+      const homeThumbCheck = homeRowCheck.querySelector('.row-thumb');
       const upRowStyle = getComputedStyle(upRowCheck);
       const homeRowStyle = getComputedStyle(homeRowCheck);
-      upRowMatch = Math.abs(upRowRect.width - homeRowRect.width) < 1.5
-        && Math.abs(upRowRect.height - homeRowRect.height) < 1.5
-        && Math.abs(upThumbRect.width - homeThumbRect.width) < 1.5
-        && Math.abs(upThumbRect.height - homeThumbRect.height) < 1.5
+      upRowMatch = Math.abs(upRowCheck.offsetWidth - homeRowCheck.offsetWidth) < 1.5
+        && Math.abs(upRowCheck.offsetHeight - homeRowCheck.offsetHeight) < 1.5
+        && Math.abs(upThumbCheck.offsetWidth - homeThumbCheck.offsetWidth) < 1.5
+        && Math.abs(upThumbCheck.offsetHeight - homeThumbCheck.offsetHeight) < 1.5
         && upRowStyle.borderRadius === homeRowStyle.borderRadius
         && Math.abs(parseFloat(upRowStyle.paddingRight) - parseFloat(homeRowStyle.paddingRight)) < 0.5;
       const sortRect = upSortBar.getBoundingClientRect();
