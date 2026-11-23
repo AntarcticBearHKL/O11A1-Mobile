@@ -1191,7 +1191,7 @@
     const { scroll } = feedViewport(feed);
     const block = fw.blocks[0];
     if (!block) return false;
-    if (previewRow && block.nodes.includes(previewRow)) stopFeedPreview();
+    if (previewRow && block.nodes.includes(previewRow)) return false;
     if (preloadRow && block.nodes.includes(preloadRow)) stopPreviewPreload();
     const anchor = scroll ? topVisibleRow(feed, scroll, block.nodes) : null;
     const anchorTop = anchor ? anchor.getBoundingClientRect().top : 0;
