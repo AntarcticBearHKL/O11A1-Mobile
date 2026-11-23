@@ -1,0 +1,313 @@
+import UIKit
+import WebKit
+import CoreMotion
+
+@UIApplicationMain
+final class AppDelegate: UIResponder, UIApplicationDelegate {
+  var window: UIWindow?
+
+  func application(
+    _ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+  ) -> Bool {
+    let window = UIWindow(frame: UIScreen.main.bounds)
+    window.backgroundColor = UIColor(red: 0.953, green: 0.937, blue: 0.906, alpha: 1)
+    window.rootViewController = O11A1RootController()
+    self.window = window
+    window.makeKeyAndVisible()
+    return true
+  }
+
+  func application(
+    _ application: UIApplication,
+    supportedInterfaceOrientationsFor window: UIWindow?
+  ) -> UIInterfaceOrientationMask {
+    return .portrait
+  }
+}
+
+final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNavigationDelegate {
+  private var server: O11A1LocalServer?
+  private var webView: WKWebView?
+  private var loadingView: UIView?
+  private let motion = CMMotionManager()
+  private var tiltWatching = false
+  private var tiltDirection = 0
+  private var savedBrightness: CGFloat?
+
+  override var prefersStatusBarHidden: Bool { true }
+  override var prefersHomeIndicatorAutoHidden: Bool { true }
+  override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .portrait }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    view.backgroundColor = UIColor(red: 0.953, green: 0.937, blue: 0.906, alpha: 1)
+    UIApplication.shared.isIdleTimerDisabled = true
+    O11A1Orientation.apply("portrait")
+    showLoading()
+    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+      do {
+        let files = try O11A1RootController.loadWebFiles()
+        let server = try O11A1LocalServer(files: files)
+        try server.start()
+        DispatchQueue.main.async {
+          guard let self = self else { return }
+          self.server = server
+          self.hideLoading()
+          self.installWebView(port: server.port)
+        }
+      } catch {
+        DispatchQueue.main.async {
+          self?.showError(error.localizedDescription)
+        }
+      }
+    }
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    webView?.frame = view.bounds
+    loadingView?.frame = view.bounds
+  }
+
+  deinit {
+    motion.stopAccelerometerUpdates()
+    UIApplication.shared.isIdleTimerDisabled = false
+  }
+
+  private static func loadWebFiles() throws -> [String: String] {
+    guard let root = Bundle.main.resourceURL?.appendingPathComponent("Web") else {
+      throw NSError(domain: "O11A1", code: 1, userInfo: [
+        NSLocalizedDescriptionKey: "Web resources missing",
+      ])
+    }
+    var files: [String: String] = [:]
+    let keys: [URLResourceKey] = [.isRegularFileKey]
+    guard let enumerator = FileManager.default.enumerator(
+      at: root,
+      includingPropertiesForKeys: keys,
+      options: [.skipsHiddenFiles]
+    ) else {
+      throw NSError(domain: "O11A1", code: 2, userInfo: [
+        NSLocalizedDescriptionKey: "Web resources unreadable",
+      ])
+    }
+    let prefix = root.path + "/"
+    for case let url as URL in enumerator {
+      guard (try? url.resourceValues(forKeys: Set(keys)))?.isRegularFile == true else { continue }
+      let key = url.path.replacingOccurrences(of: prefix, with: "")
+      files[key] = try String(contentsOf: url, encoding: .utf8)
+    }
+    guard files["index.html"] != nil else {
+      throw NSError(domain: "O11A1", code: 3, userInfo: [
+        NSLocalizedDescriptionKey: "index.html missing",
+      ])
+    }
+    return files
+  }
+
+  private func installWebView(port: Int) {
+    let config = WKWebViewConfiguration()
+    config.websiteDataStore = .default()
+    config.allowsInlineMediaPlayback = true
+    config.mediaTypesRequiringUserActionForPlayback = []
+    config.preferences.javaScriptCanOpenWindowsAutomatically = false
+
+    let controller = WKUserContentController()
+    controller.add(self, name: "o11a1")
+    let bootstrap = """
+    (function () {
+      window.ReactNativeWebView = {
+        postMessage: function (message) {
+          try { window.webkit.messageHandlers.o11a1.postMessage(String(message)); } catch (error) {}
+        }
+      };
+    })();
+    """
+    controller.addUserScript(WKUserScript(
+      source: bootstrap,
+      injectionTime: .atDocumentStart,
+      forMainFrameOnly: true
+    ))
+    if let bridge = bridgeScript(port: port) {
+      controller.addUserScript(WKUserScript(
+        source: bridge,
+        injectionTime: .atDocumentStart,
+        forMainFrameOnly: true
+      ))
+    }
+    config.userContentController = controller
+
+    let web = WKWebView(frame: view.bounds, configuration: config)
+    web.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    web.isOpaque = false
+    web.backgroundColor = .clear
+    web.scrollView.backgroundColor = .clear
+    web.scrollView.contentInsetAdjustmentBehavior = .never
+    web.scrollView.isScrollEnabled = false
+    web.scrollView.bounces = false
+    web.navigationDelegate = self
+    view.addSubview(web)
+    webView = web
+    guard let url = URL(string: "http://127.0.0.1:\(port)/index.html") else {
+      showError("invalid local url")
+      return
+    }
+    web.load(URLRequest(url: url))
+    O11A1HighRefresh.shared.enable()
+  }
+
+  private func bridgeScript(port: Int) -> String? {
+    guard let url = Bundle.main.url(forResource: "bridge", withExtension: "js"),
+          var source = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+    let flow = ProcessInfo.processInfo.environment["O11A1_TEST_FLOW"] ?? ""
+    source = source.replacingOccurrences(of: "__PORT__", with: String(port))
+    source = source.replacingOccurrences(of: "__TEST_FLOW__", with: jsonString(flow))
+    return source
+  }
+
+  private func jsonString(_ value: String) -> String {
+    guard let data = try? JSONSerialization.data(withJSONObject: [value]),
+          let text = String(data: data, encoding: .utf8),
+          text.count >= 2 else { return "\"\"" }
+    return String(text.dropFirst().dropLast())
+  }
+
+  private func showLoading() {
+    let holder = UIView(frame: view.bounds)
+    holder.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    holder.backgroundColor = view.backgroundColor
+    let spinner = UIActivityIndicatorView(style: .medium)
+    spinner.color = UIColor(red: 0.70, green: 0.27, blue: 0.23, alpha: 1)
+    spinner.translatesAutoresizingMaskIntoConstraints = false
+    spinner.startAnimating()
+    holder.addSubview(spinner)
+    NSLayoutConstraint.activate([
+      spinner.centerXAnchor.constraint(equalTo: holder.centerXAnchor),
+      spinner.centerYAnchor.constraint(equalTo: holder.centerYAnchor),
+    ])
+    view.addSubview(holder)
+    loadingView = holder
+  }
+
+  private func hideLoading() {
+    loadingView?.removeFromSuperview()
+    loadingView = nil
+  }
+
+  private func showError(_ message: String) {
+    hideLoading()
+    webView?.removeFromSuperview()
+    webView = nil
+    let label = UILabel(frame: view.bounds.insetBy(dx: 32, dy: 32))
+    label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    label.numberOfLines = 0
+    label.textAlignment = .center
+    label.textColor = UIColor(red: 0.54, green: 0.23, blue: 0.19, alpha: 1)
+    label.font = UIFont.systemFont(ofSize: 13)
+    label.text = "O11A1\n\n\(message)"
+    view.addSubview(label)
+  }
+
+  // MARK: - WKScriptMessageHandler
+
+  func userContentController(
+    _ userContentController: WKUserContentController,
+    didReceive message: WKScriptMessage
+  ) {
+    guard message.name == "o11a1", let body = message.body as? String,
+          let data = body.data(using: .utf8),
+          let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+          let type = object["type"] as? String else { return }
+    switch type {
+    case "tilt-watch":
+      let on: Bool
+      if let flag = object["on"] as? Bool { on = flag }
+      else if let number = object["on"] as? NSNumber { on = number.boolValue }
+      else { on = false }
+      setTiltWatching(on)
+    case "brightness":
+      if savedBrightness == nil { savedBrightness = UIScreen.main.brightness }
+      var percent = 100.0
+      if let number = object["value"] as? NSNumber { percent = number.doubleValue }
+      else if let text = object["value"] as? String, let parsed = Double(text) { percent = parsed }
+      UIScreen.main.brightness = CGFloat(max(0.02, min(1, percent / 100)))
+    case "brightness-restore":
+      if let saved = savedBrightness {
+        UIScreen.main.brightness = saved
+        savedBrightness = nil
+      }
+    case "orientation":
+      O11A1Orientation.apply(object["mode"] as? String ?? "portrait")
+    default:
+      break
+    }
+  }
+
+  private func setTiltWatching(_ on: Bool) {
+    guard on != tiltWatching else { return }
+    tiltWatching = on
+    if on {
+      guard motion.isAccelerometerAvailable else { return }
+      motion.accelerometerUpdateInterval = 0.12
+      motion.startAccelerometerUpdates(to: .main) { [weak self] data, _ in
+        guard let self = self, self.tiltWatching,
+              let acceleration = data?.acceleration else { return }
+        let x = acceleration.x
+        var next = self.tiltDirection
+        if abs(x) >= 0.8 { next = x > 0 ? -1 : 1 }
+        else if abs(x) <= 0.45 { next = 0 }
+        if next == self.tiltDirection { return }
+        self.tiltDirection = next
+        self.webView?.evaluateJavaScript(
+          "window.O11A1Host&&window.O11A1Host.setTiltDir(\(next));true;",
+          completionHandler: nil
+        )
+      }
+      webView?.evaluateJavaScript("window.__O11A1_NATIVE_TILT=true;true;", completionHandler: nil)
+    } else {
+      motion.stopAccelerometerUpdates()
+      tiltDirection = 0
+      webView?.evaluateJavaScript("window.__O11A1_NATIVE_TILT=false;true;", completionHandler: nil)
+    }
+  }
+
+  // MARK: - WKNavigationDelegate
+
+  func webView(
+    _ webView: WKWebView,
+    decidePolicyFor navigationAction: WKNavigationAction,
+    decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+  ) {
+    guard let url = navigationAction.request.url,
+          let scheme = url.scheme?.lowercased() else {
+      decisionHandler(.allow)
+      return
+    }
+    if scheme == "http" || scheme == "https" {
+      decisionHandler(url.host == "127.0.0.1" ? .allow : .cancel)
+      return
+    }
+    decisionHandler(.allow)
+  }
+
+  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    print("[O11A1] page finished")
+  }
+
+  func webView(
+    _ webView: WKWebView,
+    didFail navigation: WKNavigation!,
+    withError error: Error
+  ) {
+    print("[O11A1] navigation failed \(error.localizedDescription)")
+  }
+
+  func webView(
+    _ webView: WKWebView,
+    didFailProvisionalNavigation navigation: WKNavigation!,
+    withError error: Error
+  ) {
+    print("[O11A1] provisional navigation failed \(error.localizedDescription)")
+  }
+}
