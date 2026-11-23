@@ -1262,6 +1262,23 @@ final class O11A1BiliClient {
     return o11a1Data(output)
   }
 
+  func related(bvid: String) -> Data {
+    let id = bvid.trimmingCharacters(in: .whitespacesAndNewlines)
+    if id.isEmpty { return o11a1Error("缺少视频编号") }
+    ensureBuvid()
+    guard let payload = json(
+      base: Self.apiBase,
+      path: "/x/web-interface/archive/related",
+      query: ["bvid": id]
+    ),
+      o11a1Int(payload["code"]) == 0,
+      let list = payload["data"] as? [[String: Any]] else {
+      return o11a1Error("相关推荐不可用")
+    }
+    let items = list.map { video($0, search: false) }
+    return o11a1Data(["ok": true, "bvid": id, "items": items])
+  }
+
   func like(aid: Int64, on: Bool) -> Data {
     guard canWrite() else { return needLogin("请先登录") }
     guard let payload = postForm("https://api.bilibili.com/x/web-interface/archive/like", fields: [

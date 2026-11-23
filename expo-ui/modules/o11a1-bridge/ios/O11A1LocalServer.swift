@@ -412,6 +412,8 @@ final class O11A1LocalServer {
       )
     case "videoInfo":
       data = client.videoInfo(bvid: query["bvid"] ?? "")
+    case "related":
+      data = client.related(bvid: query["bvid"] ?? "")
     case "like":
       data = client.like(
         aid: o11a1Int64(query["aid"] ?? "0"),

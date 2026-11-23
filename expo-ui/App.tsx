@@ -73,6 +73,7 @@ function bridgeShim(port: number, testFlow: string): string {
     liveDanmuInfo: function (roomId) { return call('liveDanmuInfo', { roomId: roomId }); },
     zone: function (rid, page) { return call('zone', { rid: rid, page: page }); },
     videoInfo: function (bvid) { return call('videoInfo', { bvid: bvid }); },
+    related: function (bvid) { return call('related', { bvid: bvid }); },
     like: function (aid, on) { return call('like', { aid: aid, on: on ? 1 : 0 }); },
     coin: function (aid, count, likeAlso) { return call('coin', { aid: aid, count: count, likeAlso: likeAlso ? 1 : 0 }); },
     favorite: function (aid, on) { return call('favorite', { aid: aid, on: on ? 1 : 0 }); },
