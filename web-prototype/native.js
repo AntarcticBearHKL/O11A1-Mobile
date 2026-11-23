@@ -541,7 +541,21 @@
   }
 
   function prewarmPreviewItems(items) {
-    if (!items || !items.length || typeof bridge.prewarmPreviews !== 'function') return;
+    if (!items || !items.length) return;
+    items.forEach((item) => {
+      if (!item) return;
+      if (item.pic) {
+        const img = new Image();
+        img.decoding = 'async';
+        img.src = biliImage(item.pic, 960, 540);
+      }
+      if (item.ownerFace) {
+        const avatar = new Image();
+        avatar.decoding = 'async';
+        avatar.src = biliImage(item.ownerFace, 96, 96);
+      }
+    });
+    if (typeof bridge.prewarmPreviews !== 'function') return;
     const rows = [];
     for (let index = 0; index < items.length; index += 1) {
       const item = items[index];
