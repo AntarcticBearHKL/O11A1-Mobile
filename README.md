@@ -63,7 +63,7 @@ npx expo start --tunnel
 - **同步桥**：注入 `window.O11A1Native`，通过同步 XHR 调本地 `/api/*`，与 Android 的 `WebAppBridge` API 完全一致，包括 UP 主空间 `space`（先请求旧版空间接口，失败时再用 WBI 签名请求新版接口，并补全 UP 名字、头像和粉丝数）；`native.js` 不需要分叉。
 - **真实数据**：Swift `O11A1BiliClient` 直接请求 B 站热门、搜索、分页 cid、playurl、评论、弹幕、导航登录态、账户资料、收藏夹、历史、关注动态、动态、消息、排行榜、番剧/影视索引、番剧选集、直播推荐与直播地址、分区、视频详情；Cookie 持久化到 UserDefaults。
 - **真实登录**：应用内打开 B 站官方登录页（手机号 / 密码 / 扫码等方式由官方页面提供）；登录成功后读取 WebKit Cookie 并保存 `SESSDATA` 等 Cookie；退出登录同时清理原生 Cookie 与 WKWebView Cookie，下次打开官方页保持未登录。
-- **真实播放**：progressive MP4 优先 720P，失败回退 480P / 360P；本地 `/media` 代理补 Referer/UA、转发 Range，按 8MB 分块返回 206；主 CDN 失败自动试备用 CDN；番剧通过 `pgc/player/web/playurl` 播放并一次加入整季选集；直播使用原生 HLS。1080P 及以下走 progressive；DASH 仅作为保留路径（默认关闭），避免 MSE 在移动端长时间缓冲和 seek。
+- **真实播放**：progressive MP4 优先 720P，失败回退 480P / 360P；本地 `/media` 代理补 Referer/UA、转发 Range，按 8MB 分块返回 206；主 CDN 失败自动试备用 CDN；番剧通过 `pgc/player/web/playurl` 播放并一次加入整季选集；直播使用原生 HLS。1080P 及以下默认走 progressive；DASH 仅在用户选择 720P 以上画质时启用，避免默认播放进入 MSE 长时间缓冲和 seek。
 - **播放器**：与 Android 共用同一套 V2 播放器 UI、三区手势、评论、弹幕、播放列表、刷新和登录 gate；视频信息/性能面板、截图、复制链接、收藏/投币/关注/弹幕发送会调用真实接口（未登录时内联提示）；外接键盘映射、深色主题、全屏评论楼中楼/三段窗口无限列表、会员任务、AI 养鱼全部共用 web 实现。
 - **构建**：GitHub Actions `ios-unsigned`（macOS）每次 push 生成未签名 IPA + 模拟器 zip；成功后发布到 Releases。
 - **下载**：
@@ -79,7 +79,7 @@ npx expo start --tunnel
 - **架构**：`web-prototype/` 是唯一 UI 源；Gradle 构建时复制到 `assets/web`，`MainActivity` 用全屏 WebView 加载。
 - **原生桥**：`WebAppBridge` / `BiliApi` / `BiliExtras` / `CookieStore` / `StreamProxy` 提供热门、搜索、分集 cid、playurl、DASH、评论与楼中楼、弹幕、官方网页登录、Cookie、账户、收藏、历史、关注、动态、消息、排行榜、番剧/影视、直播、分区、视频详情、互动写入、会员中心、AI 接口、亮度、方向、剪贴板和截图。
 - **真实数据**：首页推荐 / 热门 / 排行 / 番剧 / 影视 / 直播 / 分区 / 收藏 / 历史 / 关注；搜索；模块页；账户卡；动态 / 消息；视频信息；会员中心每日任务与经验记录。首页「推荐」直接请求 B 站首页推荐流 `index/top/feed/rcmd`，每次重新加载都会换一个 fresh 批次并去重，不再固定展示同一组热门视频。未登录的账户页会显示登录 CTA。
-- **真实播放**：Bridge 取 B 站 progressive MP4；默认 720P，最高 1080P，画质台阶 120 / 116 / 112 / 80 / 74 / 64 / 32 / 16 逐级回退，切到实际可用画质时会在播放器内提示原因，并在画质面板里只显示当前视频实际支持的分辨率。DASH/MSE 路径保留在 `DASH_PLAYBACK` 开关后，默认关闭；`.m4s` 媒体代理使用桌面 UA 以通过 B 站 CDN 的 UA 校验。本地代理补齐 Referer/UA 并转发 Range；番剧按集播放并加入播放列表；直播 HLS 使用 hls.js；HTML5 `<video>` 播放。
+- **真实播放**：Bridge 取 B 站 progressive MP4；默认 720P，最高 1080P，画质台阶 120 / 116 / 112 / 80 / 74 / 64 / 32 / 16 逐级回退，切到实际可用画质时会在播放器内提示原因，并在画质面板里只显示当前视频实际支持的分辨率。DASH/MSE 只在用户选择 720P 以上画质时启用；`.m4s` 媒体代理使用桌面 UA 以通过 B 站 CDN 的 UA 校验。本地代理补齐 Referer/UA 并转发 Range；番剧按集播放并加入播放列表；直播 HLS 使用 hls.js；HTML5 `<video>` 播放。
 - **真实登录**：登录页为无卡片、无说明文字的极简平面布局，只有「登录 B 站账号」标题和一个透明描边按钮「前往 B 站登录」；点击后在应用内打开 B 站官方登录页，手机号 / 密码 / 扫码等登录方式全部由官方页面处理，不再在 App 内输入手机号或验证码，也没有本地测试码；官方页登录成功后自动同步 `SESSDATA` / `bili_jct` 并进入首页。退出登录会同时清空原生 `CookieStore` 和 WebView Cookie，保证下次打开官方登录页时处于未登录状态。
 - **系统亮度 / 音量**：播放器不再执行左右竖滑调亮度 / 音量；系统亮度、系统媒体音量完全交给设备和系统控制。App 不修改、不持久化、也不恢复亮度或音量，不修改 `<video>` 元素音量。
 - **播放器**：播放/暂停、进度、倍速、循环、画质重取、三区手势、收起播放、全屏真实评论（三段窗口无限列表 + 楼中楼）、真实弹幕滚动、信息/性能面板、截图保存到相册、复制 BV 链接、收藏/投币/关注/点赞、弹幕发送、外接键盘映射、深色主题与外观滑杆、会员任务、AI 养鱼。评论发送入口暂时隐藏。播放使用系统硬解，默认 720P；不提供插帧、CAS、Anime4K 或逐帧后处理，避免持续 GPU 后处理和额外发热。界面层独立按屏幕刷新率运行，最高 120Hz。
@@ -206,7 +206,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 还没覆盖：
 
-- DASH 分轨 / 4K / 60fps / 1080P+ 的真机稳定性（需要大会员 Cookie；`.m4s` 的桌面 UA 已修正，但 MSE 的缓冲配额、seek 和双解码仍需真机验证；默认 `DASH_PLAYBACK=false`）。
+- DASH 分轨 / 4K / 60fps / 1080P+ 的真机稳定性（需要大会员 Cookie；`.m4s` 的桌面 UA 已修正，但 MSE 的缓冲配额、seek 和双解码仍需真机验证；仅在用户选择 720P 以上画质时启用）。
 - 动态 / 消息 / 收藏 / 历史等账户页仍是设计壳；直播 / PGC 没有接独立接口。
 - 截图仍走原生 PixelCopy；本轮已移除插帧 / CAS / Anime4K / 逐帧后处理，避免持续 GPU 读回；界面层仍按屏幕最高刷新率（最高 120Hz）运行，界面级调试 HUD 保留。
 - Android 端的 Expo 本地模块（当前仍是独立原生工程）。
