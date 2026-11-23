@@ -685,6 +685,12 @@ body.search-mode .proto-fab{opacity:0;pointer-events:none}
 .empty-state p{margin:0;font-size:11px;line-height:1.6;color:var(--muted)}
 
 /* ---------- persistent playlist bottom bar ---------- */
+.dock-backdrop{
+  position:absolute;inset:0;z-index:75;display:none;
+  background:transparent;touch-action:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.dock-backdrop.show{display:block}
 .playlist-dock{
   position:absolute;left:50%;bottom:0;
   z-index:76;width:100%;height:calc(96px + env(safe-area-inset-bottom));

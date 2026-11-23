@@ -69,6 +69,7 @@
   const searchResultsBlock = $('#searchResultsBlock');
   const searchPanel = $('#searchPanel');
   const playlistDock = $('#playlistDock');
+  const dockBackdrop = $('#dockBackdrop');
   const playlistPage = $('.page[data-page="playlist"]');
   const upPage = $('.page[data-page="up"]');
   const pdCollapsed = $('#pdCollapsed');
@@ -361,6 +362,7 @@
   let suppressSidebarClickUntil = 0;
   let suppressPlaylistClickUntil = 0;
   let suppressDockClickUntil = 0;
+  let dockDismissClickUntil = 0;
   let suppressDetailClickUntil = 0;
   let dockLaunching = false;
   let dockLaunchTimer = null;
@@ -1497,6 +1499,10 @@
     const next = Boolean(expanded);
     playlistDock.classList.remove('dragging');
     playlistDock.classList.toggle('expanded', next);
+    if (dockBackdrop) {
+      dockBackdrop.classList.toggle('show', next);
+      dockBackdrop.setAttribute('aria-hidden', next ? 'false' : 'true');
+    }
     if (pdTools) pdTools.setAttribute('aria-hidden', next ? 'false' : 'true');
     if (pdCollapsed) pdCollapsed.setAttribute('aria-hidden', next ? 'true' : 'false');
     resetDockClear();
@@ -5622,6 +5628,23 @@
       launchPlayerFromDock();
     }
   });
+  if (dockBackdrop) {
+    dockBackdrop.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      // A tap or downward swipe outside the expanded playlist only dismisses
+      // the playlist; it must never fall through and open the feed row below.
+      dockDismissClickUntil = Date.now() + 420;
+      suppressFeedClickUntil = Date.now() + 420;
+      event.preventDefault();
+      event.stopPropagation();
+      setDockExpanded(false);
+    });
+  }
+  document.addEventListener('click', (event) => {
+    if (Date.now() >= dockDismissClickUntil) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
   if (pdMode) {
     pdMode.addEventListener('click', (event) => {
       event.stopPropagation();
