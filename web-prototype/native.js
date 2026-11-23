@@ -926,7 +926,6 @@
     if (feed === feeds.home) return 'home';
     if (feed === feeds.search) return 'search';
     if (feed === feeds.up) return 'up';
-    if (feed && feed.classList && feed.classList.contains('detail-related')) return 'detail';
     return 'module';
   }
 
@@ -2595,10 +2594,7 @@
   /* ---------- video detail cache ---------- */
   const VIDEO_INFO_CACHE_MAX = 24;
   const VIDEO_INFO_TTL = 10 * 60 * 1000;
-  const RELATED_CACHE_TTL = 10 * 60 * 1000;
-  const RELATED_CACHE_MAX = 12;
   const videoInfoCache = new Map();
-  const relatedCache = new Map();
   let detailRenderedKey = '';
   let videoPrefetchToken = 0;
   let videoPrefetchTimers = [];
@@ -2659,54 +2655,6 @@
     if (videoInfoCache.has(key)) return true;
     return detailRenderedKey === key
       && Boolean(document.querySelector('#videoDetailBody .vd-title'));
-  }
-
-  function relatedCacheKey(bvid) {
-    return String(bvid || '');
-  }
-
-  function readRelatedCache(bvid) {
-    const key = relatedCacheKey(bvid);
-    if (!key) return null;
-    const cached = relatedCache.get(key);
-    if (!cached) return null;
-    if (Date.now() - cached.at >= RELATED_CACHE_TTL) {
-      relatedCache.delete(key);
-      return null;
-    }
-    relatedCache.delete(key);
-    relatedCache.set(key, cached);
-    return cached.items;
-  }
-
-  function ensureRelatedVideos(bvid) {
-    const key = relatedCacheKey(bvid);
-    if (!key) return [];
-    const cached = readRelatedCache(key);
-    if (cached) return cached;
-    if (typeof bridge.related !== 'function') return [];
-    let result = null;
-    try {
-      result = call('related', bvid);
-    } catch (_) {
-      result = null;
-    }
-    if (!result || !result.ok || !Array.isArray(result.items)) return [];
-    const seen = new Set();
-    const items = [];
-    for (let index = 0; index < result.items.length; index += 1) {
-      const row = result.items[index];
-      if (!row) continue;
-      const id = String(row.bvid || row.aid || '');
-      if (!id || id === key || seen.has(id)) continue;
-      seen.add(id);
-      items.push(row);
-    }
-    relatedCache.set(key, { items, at: Date.now() });
-    while (relatedCache.size > RELATED_CACHE_MAX) {
-      relatedCache.delete(relatedCache.keys().next().value);
-    }
-    return items;
   }
 
   /* ---------- comments ---------- */
@@ -2834,9 +2782,6 @@
     videoPrefetchTimers.push(setTimeout(() => {
       if (alive()) readVideoInfo(item);
     }, 120));
-    videoPrefetchTimers.push(setTimeout(() => {
-      if (alive()) ensureRelatedVideos(item.bvid);
-    }, 260));
     videoPrefetchTimers.push(setTimeout(() => {
       if (alive()) prefetchComments(item);
     }, 400));
@@ -3002,7 +2947,6 @@
       preloadPages.clear();
       commentCache.clear();
       videoInfoCache.clear();
-      relatedCache.clear();
       playInfoCache.clear();
       previewUrlCache.clear();
     };
@@ -3430,9 +3374,6 @@
       duration,
       desc,
     });
-    const cachedRelated = readRelatedCache(bvid);
-    const relatedPending = !cachedRelated && typeof bridge.related === 'function';
-    const related = cachedRelated || [];
     const longDesc = desc.length > 90;
     body.innerHTML = `
       <div class="vd-hero">
@@ -3460,32 +3401,7 @@
         <span class="vd-stat"><b>${esc(countText(favorite))}</b><small>收藏</small></span>
       </div>
       <p class="vd-desc${longDesc ? '' : ' expanded'}" id="vdDesc">${esc(desc)}</p>
-      ${longDesc ? '<button class="vd-desc-toggle" type="button" data-vd-desc-toggle>展开简介</button>' : ''}
-      <div class="vd-section"><b>相关推荐</b><span data-related-count>${relatedPending ? '正在加载…' : related.length ? `${related.length} 个视频 · 点击加入` : '暂无相关推荐'}</span></div>
-      <div class="feed detail-related" id="detailRelatedFeed"></div>`;
-    const relatedFeed = document.getElementById('detailRelatedFeed');
-    if (related.length) {
-      renderRows(relatedFeed, related, '相关推荐', 1);
-    } else if (relatedFeed) {
-      relatedFeed.innerHTML = `<div class="comment-inline-note">${relatedPending ? '正在加载相关推荐…' : '暂无相关推荐'}</div>`;
-    }
-    if (relatedPending) {
-      setTimeout(() => {
-        if (detailRenderedKey !== key) return;
-        const items = ensureRelatedVideos(bvid);
-        if (detailRenderedKey !== key) return;
-        const feed = document.getElementById('detailRelatedFeed');
-        const count = body.querySelector('[data-related-count]');
-        if (feed) {
-          feed.innerHTML = '';
-          if (items.length) renderRows(feed, items, '相关推荐', 1);
-          else feed.innerHTML = '<div class="comment-inline-note">暂无相关推荐</div>';
-        }
-        if (count) {
-          count.textContent = items.length ? `${items.length} 个视频 · 点击加入` : '暂无相关推荐';
-        }
-      }, 40);
-    }
+      ${longDesc ? '<button class="vd-desc-toggle" type="button" data-vd-desc-toggle>展开简介</button>' : ''}`;
     const author = body.querySelector('[data-detail-author]');
     if (author) {
       author.addEventListener('click', (event) => {

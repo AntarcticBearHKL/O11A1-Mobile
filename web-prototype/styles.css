@@ -2199,9 +2199,6 @@ body[data-theme="dark"] .comment-skeleton-copy i{background:rgba(255,255,255,.11
 .vd-section{display:flex;align-items:baseline;justify-content:space-between;margin:24px 0 5px;padding-top:16px;border-top:1px solid rgba(26,26,26,.06)}
 .vd-section b{font-size:16px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
 .vd-section span{font-size:10px;color:var(--muted)}
-.detail-related{margin:0 -20px}
-.detail-related .video-row{padding-left:0;padding-right:8px}
-.detail-related .row-swipe-mask{display:none}
 .vd-skeleton-hero{width:100%;aspect-ratio:16/9;border-radius:22px;background:rgba(26,26,26,.08);animation:commentSkeletonPulse 1.35s ease-in-out infinite}
 .vd-skeleton-line{display:block;height:10px;margin-top:11px;border-radius:999px;background:rgba(26,26,26,.08);animation:commentSkeletonPulse 1.35s ease-in-out infinite}
 .vd-skeleton-line.w70{width:70%}
@@ -2211,11 +2208,6 @@ body[data-theme="dark"] .comment-skeleton-copy i{background:rgba(255,255,255,.11
 .vd-skeleton-author span{width:42px;height:42px;flex:none;border-radius:50%;background:rgba(26,26,26,.08);animation:commentSkeletonPulse 1.35s ease-in-out infinite}
 .vd-skeleton-author i{display:block;width:55%;height:10px;border-radius:999px;background:rgba(26,26,26,.08);animation:commentSkeletonPulse 1.35s ease-in-out infinite}
 .vd-skeleton-stats{height:70px;margin-top:14px;border-radius:14px;background:rgba(26,26,26,.05);animation:commentSkeletonPulse 1.35s ease-in-out infinite}
-.vd-skeleton-section{width:35%;height:14px;margin-top:24px;border-radius:999px;background:rgba(26,26,26,.08);animation:commentSkeletonPulse 1.35s ease-in-out infinite}
-.vd-skeleton-row{height:112px;margin-top:10px;border-radius:18px;background:rgba(26,26,26,.05);animation:commentSkeletonPulse 1.35s ease-in-out infinite}
-@media (max-width:400px){
-  .vd-skeleton-row{height:104px}
-}
 body[data-theme="dark"] .video-detail-card{
   background-color:var(--paper);
   box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);
@@ -2223,14 +2215,11 @@ body[data-theme="dark"] .video-detail-card{
 body[data-theme="dark"] .vd-author{background:none;border-color:rgba(255,255,255,.07)}
 body[data-theme="dark"] .vd-stat-row{border-color:rgba(255,255,255,.07)}
 body[data-theme="dark"] .vd-stat+.vd-stat::before{background:rgba(255,255,255,.08)}
-body[data-theme="dark"] .vd-section,
 body[data-theme="dark"] .vd-skeleton-hero,
 body[data-theme="dark"] .vd-skeleton-line,
 body[data-theme="dark"] .vd-skeleton-author span,
-body[data-theme="dark"] .vd-skeleton-author i,
-body[data-theme="dark"] .vd-skeleton-section{background:rgba(255,255,255,.1)}
+body[data-theme="dark"] .vd-skeleton-author i{background:rgba(255,255,255,.1)}
 body[data-theme="dark"] .vd-skeleton-stats,
-body[data-theme="dark"] .vd-skeleton-row,
 body[data-theme="dark"] .vd-skeleton-author{background:rgba(255,255,255,.055)}
 
 /* ---------- sheets ---------- */

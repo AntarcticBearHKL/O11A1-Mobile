@@ -6652,13 +6652,6 @@
       }
       const row = event.target.closest('.video-row');
       if (!row) return;
-      if (row.closest('.detail-related')) {
-        event.preventDefault();
-        event.stopPropagation();
-        if (Date.now() < suppressFeedClickUntil) return;
-        addFeedRowToPlaylist(row, { preserveCurrent: true });
-        return;
-      }
       if (Date.now() < suppressFeedClickUntil) return;
       setTimeout(() => {
         if (videoDetailOpen) closeVideoDetail();
@@ -6990,10 +6983,9 @@
     dispatchSwipe('middle', 240, 0);
     await sleep(650);
     results.push(`detail=${videoDetailPanel.classList.contains('open')}`);
-    results.push(`detailRows=${videoDetailBody.querySelectorAll('.feed-item').length >= 4}`);
+    results.push(`detailNoRelated=${!videoDetailBody.querySelector('.detail-related, .vd-section')}`);
     const detailRect = videoDetailPanel.getBoundingClientRect();
-    const detailRow = videoDetailBody.querySelector('.detail-related .feed-item .video-row')
-      || videoDetailBody.querySelector('.feed-item .video-row');
+    const detailRow = videoDetailBody.querySelector('.feed-item .video-row');
     const detailRowRect = detailRow ? detailRow.getBoundingClientRect() : detailRect;
     const detailStartX = detailRow
       ? detailRowRect.left + Math.max(20, detailRowRect.width * 0.7)
