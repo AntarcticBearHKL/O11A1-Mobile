@@ -90,7 +90,6 @@ final class O11A1BiliClient {
 
   private let cookies = O11A1CookieStore()
   private let apiSession: URLSession
-  private let mediaSession: URLSession
   private let buvidLock = NSLock()
   private var buvidBusy = false
   private let cidLock = NSLock()
@@ -110,14 +109,6 @@ final class O11A1BiliClient {
     apiConfig.timeoutIntervalForRequest = 20
     apiConfig.timeoutIntervalForResource = 45
     apiSession = URLSession(configuration: apiConfig)
-
-    let mediaConfig = URLSessionConfiguration.ephemeral
-    mediaConfig.httpCookieStorage = nil
-    mediaConfig.httpShouldSetCookies = false
-    mediaConfig.requestCachePolicy = .reloadIgnoringLocalCacheData
-    mediaConfig.timeoutIntervalForRequest = 60
-    mediaConfig.timeoutIntervalForResource = 120
-    mediaSession = URLSession(configuration: mediaConfig)
   }
 
   /* ---------- transport ---------- */
@@ -412,14 +403,12 @@ final class O11A1BiliClient {
     if let backups = first["backup_url"] as? [String] {
       for url in backups.prefix(2) where !url.isEmpty { urls.append(url) }
     }
-    let primaryToken = token(for: urls)
-    let backupToken = urls.count > 1 ? token(for: [urls[1]]) : ""
     let quality = o11a1Int(data["quality"])
-    let base = "http://127.0.0.1:\(port)"
     var output: [String: Any] = [
       "ok": true,
       "cid": resolvedCid,
-      "url": "\(base)/media?u=\(primaryToken)",
+      "url": remote,
+      "remote": remote,
       "quality": quality,
       "qualityLabel": o11a1QualityLabel(quality),
       "format": o11a1String(data["format"])
@@ -429,7 +418,10 @@ final class O11A1BiliClient {
       if !labels.isEmpty { output["available"] = labels }
     }
     if output["available"] == nil { output["available"] = [o11a1QualityLabel(quality)] }
-    if !backupToken.isEmpty { output["backup"] = "\(base)/media?u=\(backupToken)" }
+    if urls.count > 1 {
+      output["backup"] = urls[1]
+      output["backupRemote"] = urls[1]
+    }
     return o11a1Data(output)
   }
 
@@ -498,64 +490,6 @@ final class O11A1BiliClient {
         if !name.isEmpty { cookies.set(name, value) }
       }
     }
-  }
-
-  private func token(for urls: [String]) -> String {
-    if let data = try? JSONSerialization.data(withJSONObject: urls, options: []) {
-      return o11a1Base64URLEncode(data)
-    }
-    return o11a1Base64URLEncode(Data((urls.first ?? "").utf8))
-  }
-
-  struct O11A1MediaChunk {
-    let data: Data
-    let total: Int64
-  }
-
-  func fetchMedia(urlString: String, start: Int64, end: Int64) -> O11A1MediaChunk? {
-    guard let url = URL(string: urlString) else { return nil }
-    print("[O11A1] media \(start)-\(end) host=\(url.host ?? "?")")
-    var total: Int64 = 0
-    var headRequest = URLRequest(url: url)
-    headRequest.httpMethod = "HEAD"
-    headRequest.timeoutInterval = 15
-    applyMediaHeaders(&headRequest)
-    if let (_, response) = perform(headRequest, session: mediaSession), response.statusCode < 400 {
-      if let length = response.value(forHTTPHeaderField: "Content-Length"),
-         let value = Int64(length) {
-        total = value
-      }
-    }
-    var request = URLRequest(url: url)
-    request.httpMethod = "GET"
-    request.timeoutInterval = 60
-    applyMediaHeaders(&request)
-    request.setValue("bytes=\(start)-\(end)", forHTTPHeaderField: "Range")
-    guard let (data, response) = perform(request, session: mediaSession),
-          response.statusCode < 400 else { return nil }
-    if total <= 0,
-       let contentRange = response.value(forHTTPHeaderField: "Content-Range"),
-       let slash = contentRange.lastIndex(of: "/") {
-      total = Int64(String(contentRange[contentRange.index(after: slash)...])) ?? 0
-    }
-    if total <= 0 { total = start + Int64(data.count) }
-    let maximum = Int(max(0, end - start + 1))
-    var payload = data
-    if response.statusCode == 200 && data.count > maximum {
-      payload = Data(data.prefix(maximum))
-      total = max(total, Int64(data.count))
-    }
-    if payload.isEmpty { return nil }
-    return O11A1MediaChunk(data: payload, total: max(total, start + Int64(payload.count)))
-  }
-
-  private func applyMediaHeaders(_ request: inout URLRequest) {
-    let path = request.url?.path ?? ""
-    let ua = path.hasSuffix(".m4s") || path.hasSuffix(".m4a") ? Self.desktopUserAgent : Self.userAgent
-    request.setValue(ua, forHTTPHeaderField: "User-Agent")
-    request.setValue("https://www.bilibili.com/", forHTTPHeaderField: "Referer")
-    request.setValue("*/*", forHTTPHeaderField: "Accept")
-    request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
   }
 
   /* ---------- comments and danmaku ---------- */
@@ -693,6 +627,91 @@ final class O11A1BiliClient {
   func logout() -> Data {
     cookies.clear()
     return o11a1Data(["ok": true])
+  }
+
+  func loginCaptcha() -> [String: Any] {
+    ensureBuvid()
+    guard let payload = json(
+      base: "https://passport.bilibili.com",
+      path: "/x/passport-login/captcha",
+      query: ["source": "main_web"]
+    ), o11a1Int(payload["code"]) == 0,
+      let data = payload["data"] as? [String: Any],
+      let gee = data["geetest"] as? [String: Any] else {
+      return ["ok": false, "error": "验证码初始化失败"]
+    }
+    return [
+      "ok": true,
+      "type": o11a1String(data["type"]),
+      "token": o11a1String(data["token"]),
+      "gt": o11a1String(gee["gt"]),
+      "challenge": o11a1String(gee["challenge"])
+    ]
+  }
+
+  func smsSend(tel: String, cid: String, token: String, challenge: String,
+               validate: String, seccode: String) -> [String: Any] {
+    guard let payload = postPassport(
+      path: "/x/passport-login/web/sms/send",
+      fields: [
+        "cid": cid,
+        "tel": tel,
+        "source": "main_web",
+        "token": token,
+        "challenge": challenge,
+        "validate": validate,
+        "seccode": seccode
+      ]
+    ) else {
+      return ["ok": false, "error": "短信发送失败"]
+    }
+    let code = o11a1Int(payload["code"])
+    let data = payload["data"] as? [String: Any]
+    return [
+      "ok": code == 0,
+      "code": code,
+      "message": o11a1String(payload["message"]),
+      "captchaKey": data == nil ? "" : o11a1String(data?["captcha_key"])
+    ]
+  }
+
+  func smsLogin(tel: String, cid: String, code: String, captchaKey: String) -> Data {
+    guard let payload = postPassport(
+      path: "/x/passport-login/web/login/sms",
+      fields: [
+        "cid": cid,
+        "tel": tel,
+        "code": code,
+        "source": "main_web",
+        "captcha_key": captchaKey
+      ]
+    ) else {
+      return o11a1Error("短信登录失败")
+    }
+    let result = o11a1Int(payload["code"])
+    if result != 0 {
+      return o11a1Error(o11a1String(payload["message"]).isEmpty ? "短信登录失败" : o11a1String(payload["message"]))
+    }
+    var out = session()
+    out = out.isEmpty ? o11a1Data(["ok": true, "loggedIn": true]) : out
+    return out
+  }
+
+  private func postPassport(path: String, fields: [String: String]) -> [String: Any]? {
+    guard let url = URL(string: "https://passport.bilibili.com" + path) else { return nil }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 20
+    request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+    request.setValue("https://passport.bilibili.com/login", forHTTPHeaderField: "Referer")
+    request.setValue("https://passport.bilibili.com", forHTTPHeaderField: "Origin")
+    request.setValue("application/x-www-form-urlencoded; charset=UTF-8", forHTTPHeaderField: "Content-Type")
+    let cookie = cookies.header()
+    if !cookie.isEmpty { request.setValue(cookie, forHTTPHeaderField: "Cookie") }
+    request.httpBody = formEncode(fields).data(using: .utf8)
+    guard let (data, response) = perform(request, session: apiSession) else { return nil }
+    cookies.absorb(response)
+    return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
   }
 
   /* ---------- account / community / discovery ---------- */
@@ -1110,7 +1129,8 @@ final class O11A1BiliClient {
     var output: [String: Any] = [
       "ok": true,
       "cid": cid,
-      "url": "http://127.0.0.1:\(port)/media?u=\(token(for: mediaUrls))",
+      "url": remote,
+      "remote": remote,
       "quality": quality,
       "qualityLabel": o11a1QualityLabel(quality),
       "format": o11a1String(result["format"]),
@@ -1122,7 +1142,8 @@ final class O11A1BiliClient {
     }
     if output["available"] == nil { output["available"] = [o11a1QualityLabel(quality)] }
     if let backups = first["backup_url"] as? [String], let backup = backups.first, !backup.isEmpty {
-      output["backup"] = "http://127.0.0.1:\(port)/media?u=\(token(for: [backup]))"
+      output["backup"] = backup
+      output["backupRemote"] = backup
     }
     return o11a1Data(output)
   }
@@ -1817,15 +1838,29 @@ final class O11A1BiliClient {
       "codecs": o11a1String(track["codecs"]),
       "width": o11a1Int(track["width"]),
       "height": o11a1Int(track["height"]),
-      "url": "http://127.0.0.1:\(port)/media?u=\(token(for: mediaUrls))"
+      "url": base,
+      "remote": base
     ]
     if !backup.isEmpty {
-      row["backup"] = "http://127.0.0.1:\(port)/media?u=\(token(for: [backup]))"
+      row["backup"] = backup
+      row["backupRemote"] = backup
     }
     return row
   }
 
   func proxyInfo() -> Data {
-    return o11a1Data(["ok": true, "port": port])
+    return o11a1Data(["ok": true, "port": 0, "disabled": true])
+  }
+
+  func mediaHeaders() -> [String: String] {
+    var headers: [String: String] = [
+      "User-Agent": Self.userAgent,
+      "Referer": "https://www.bilibili.com/",
+      "Origin": "https://www.bilibili.com",
+      "Accept": "*/*",
+    ]
+    let cookie = cookies.header()
+    if !cookie.isEmpty { headers["Cookie"] = cookie }
+    return headers
   }
 }

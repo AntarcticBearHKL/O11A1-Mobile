@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>B 站安全验证</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0d12;color:#eef3fa;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;box-sizing:border-box}
+  .card{width:100%;max-width:420px;background:#151a22;border:1px solid #2a3342;border-radius:20px;padding:22px 18px 18px;box-sizing:border-box;box-shadow:0 24px 80px rgba(0,0,0,.45)}
+  .head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+  h1{font-size:18px;margin:0;font-weight:700}
+  .close{width:34px;height:34px;border-radius:50%;border:0;background:#232b38;color:#c8d4e5;font-size:20px;line-height:34px;text-align:center;padding:0}
+  p{color:#91a1b8;font-size:13px;line-height:1.6;margin:0 0 14px}
+  #captcha{min-height:44px;display:flex;justify-content:center}
+  .status{min-height:20px;color:#8ea3bf;font-size:12px;text-align:center;margin-top:10px}
+  .status.error{color:#ff8d8d}
+  .retry{display:none;margin:12px auto 0;border:1px solid #38475d;background:#202938;color:#d7e4f5;border-radius:10px;padding:8px 16px;font-size:13px}
+  .verify{display:block;width:100%;margin:14px 0 0;border:0;border-radius:12px;background:#00aeec;color:#06131c;font-size:15px;font-weight:700;padding:13px 16px}
+  .verify:active{opacity:.75}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="head">
+      <h1>B 站安全验证</h1>
+      <button class="close" type="button" onclick="cancel()">×</button>
+    </div>
+    <p>请完成下方验证，验证通过后会发送短信验证码。</p>
+    <div id="captcha"></div>
+    <button class="verify" id="verify" type="button" onclick="verifyCaptcha()" style="display:none">开始安全验证</button>
+    <div class="status" id="status">正在加载验证组件…</div>
+    <button class="retry" id="retry" type="button" onclick="location.reload()">重新加载</button>
+  </div>
+<script>
+  var gt = "__GT__";
+  var challenge = "__CHALLENGE__";
+  var done = false;
+  var captcha = null;
+  function verifyCaptcha() {
+    if (!captcha) return;
+    try { captcha.verify(); } catch (error) { setStatus(String(error), true); }
+  }
+  function setStatus(text, error) {
+    var node = document.getElementById('status');
+    node.textContent = text || '';
+    node.className = 'status' + (error ? ' error' : '');
+  }
+  function cancel() {
+    if (window.O11A1Geetest && window.O11A1Geetest.cancel) window.O11A1Geetest.cancel();
+  }
+  function complete(result) {
+    if (done) return;
+    if (!result || !result.geetest_validate || !result.geetest_seccode) {
+      setStatus('验证结果不完整，请重试', true);
+      return;
+    }
+    done = true;
+    setStatus('验证通过');
+    try {
+      window.O11A1Geetest.complete(
+        result.geetest_challenge || challenge,
+        result.geetest_validate,
+        result.geetest_seccode
+      );
+    } catch (error) {
+      setStatus(String(error), true);
+    }
+  }
+  function boot() {
+    if (!window.initGeetest) {
+      setStatus('验证组件加载失败，请检查网络后重试', true);
+      document.getElementById('retry').style.display = 'block';
+      return;
+    }
+    try {
+      initGeetest({
+        gt: gt,
+        challenge: challenge,
+        offline: false,
+        new_captcha: true,
+        product: 'bind',
+        lang: 'zh-cn',
+        width: '100%'
+      }, function (captchaObj) {
+        captcha = captchaObj;
+        captchaObj.appendTo('#captcha');
+        captchaObj.onReady(function () {
+          setStatus('请完成滑块验证');
+          document.getElementById('verify').style.display = 'block';
+        });
+        captchaObj.onSuccess(function () { complete(captchaObj.getValidate()); });
+        captchaObj.onError(function () {
+          setStatus('验证失败，请关闭后重新发送', true);
+          document.getElementById('retry').style.display = 'block';
+        });
+      });
+    } catch (error) {
+      setStatus(String(error), true);
+      document.getElementById('retry').style.display = 'block';
+    }
+  }
+</script>
+<script src="https://static.geetest.com/static/js/gt.0.4.9.js" onload="boot()" onerror="setStatus('验证组件加载失败，请检查网络后重试', true);document.getElementById('retry').style.display='block'"></script>
+</body>
+</html>

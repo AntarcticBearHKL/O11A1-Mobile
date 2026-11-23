@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
+import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -15,13 +16,14 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 
 /** Full-screen V2 UI (bundled web design) with a native Bilibili bridge. */
 public final class MainActivity extends Activity {
     private static final String TAG = "O11A1App";
     private WebView webView;
-    private StreamProxy proxy;
     private CookieStore cookieStore;
+    private NativePlayerHost nativePlayers;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -29,10 +31,11 @@ public final class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         getWindow().setBackgroundDrawable(
-            new android.graphics.drawable.ColorDrawable(Color.rgb(250, 250, 252)));
+            new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         applyMaxRefreshRate();
         hideSystemUi();
+        getWindow().setFormat(PixelFormat.TRANSLUCENT);
         if (Build.VERSION.SDK_INT >= 28) {
             getWindow().getAttributes().layoutInDisplayCutoutMode =
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
@@ -40,16 +43,23 @@ public final class MainActivity extends Activity {
 
         CookieStore cookies = new CookieStore(this);
         cookieStore = cookies;
-        try {
-            proxy = new StreamProxy(cookies);
-        } catch (Throwable error) {
-            Log.e(TAG, "stream proxy failed", error);
-        }
-        BiliApi api = new BiliApi(cookies, proxy);
-        WebAppBridge bridge = new WebAppBridge(this, api, proxy, cookies);
+        BiliApi api = new BiliApi(cookies);
+        WebAppBridge bridge = new WebAppBridge(this, api, cookies);
 
         webView = new WebView(this);
-        webView.setBackgroundColor(Color.rgb(243, 239, 231));
+        bridge.setWebView(webView);
+        nativePlayers = new NativePlayerHost(this, cookies, js -> {
+            WebView view = webView;
+            if (view != null) {
+                view.post(() -> {
+                    try {
+                        view.evaluateJavascript(js, null);
+                    } catch (Throwable ignored) {}
+                });
+            }
+        });
+        bridge.setNativePlayers(nativePlayers);
+        webView.setBackgroundColor(Color.TRANSPARENT);
         webView.setLongClickable(false);
         webView.setHapticFeedbackEnabled(false);
 
@@ -90,8 +100,19 @@ public final class MainActivity extends Activity {
             }
         });
 
-        setContentView(webView);
-        webView.loadUrl("file:///android_asset/web/index.html?v=229");
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(Color.TRANSPARENT);
+        root.addView(nativePlayers.backgroundView(), new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT));
+        root.addView(webView, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT));
+        root.addView(nativePlayers.overlayView(), new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT));
+        setContentView(root);
+        webView.loadUrl("file:///android_asset/web/index.html?v=232");
         Thread warm = new Thread(() -> cookies.ensureBuvid(), "o11a1-buvid");
         warm.setDaemon(true);
         warm.start();
@@ -177,7 +198,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        if (proxy != null) proxy.stop();
+        if (nativePlayers != null) nativePlayers.releaseAll();
         if (webView != null) {
             webView.removeJavascriptInterface("O11A1Native");
             webView.destroy();

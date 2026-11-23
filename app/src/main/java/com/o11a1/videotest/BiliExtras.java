@@ -23,16 +23,14 @@ final class BiliExtras {
         22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52
     };
     private final CookieStore cookies;
-    private final StreamProxy proxy;
     private final BiliApi api;
     private long cachedMid = 0;
     private long cachedFolderId = 0;
     private String cachedWbiKey = "";
     private long cachedWbiAt = 0;
 
-    BiliExtras(CookieStore cookies, StreamProxy proxy, BiliApi api) {
+    BiliExtras(CookieStore cookies, BiliApi api) {
         this.cookies = cookies;
-        this.proxy = proxy;
         this.api = api;
     }
 
@@ -689,11 +687,15 @@ final class BiliExtras {
             String backup = "";
             if (first.optJSONArray("backup_url") != null && first.getJSONArray("backup_url").length() > 0) {
                 backup = first.getJSONArray("backup_url").getString(0);
-                if (!backup.isEmpty()) out.put("backup", proxy.localUrl(backup));
             }
             out.put("ok", true);
             out.put("cid", cid);
-            out.put("url", proxy.localUrl(remote, backup));
+            out.put("url", remote);
+            out.put("remote", remote);
+            if (!backup.isEmpty()) {
+                out.put("backup", backup);
+                out.put("backupRemote", backup);
+            }
             out.put("quality", quality);
             out.put("qualityLabel", qualityLabel(quality));
             JSONArray available = new JSONArray();
@@ -1147,10 +1149,10 @@ final class BiliExtras {
             JSONArray backups = track.optJSONArray("backupUrl");
             if (backups == null) backups = track.optJSONArray("backup_url");
             String backup = backups != null && backups.length() > 0 ? backups.optString(0, "") : "";
-            row.put("url", proxy.localUrl(base, backup));
+            row.put("url", base);
             if (!backup.isEmpty()) {
                 row.put("backupRemote", backup);
-                row.put("backup", proxy.localUrl(backup));
+                row.put("backup", backup);
             }
             return row;
         } catch (Throwable ignored) {

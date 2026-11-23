@@ -55,6 +55,10 @@ final class CookieStore {
         return out.toString();
     }
 
+    synchronized Map<String, String> snapshot() {
+        return new LinkedHashMap<>(cookies);
+    }
+
     synchronized boolean loggedIn() {
         String sess = cookies.get("SESSDATA");
         return sess != null && !sess.isEmpty();

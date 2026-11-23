@@ -13,11 +13,9 @@ import java.util.Locale;
 final class BiliApi {
     private static final String TAG = "O11A1Api";
     private final CookieStore cookies;
-    private final StreamProxy proxy;
 
-    BiliApi(CookieStore cookies, StreamProxy proxy) {
+    BiliApi(CookieStore cookies) {
         this.cookies = cookies;
-        this.proxy = proxy;
     }
 
     JSONObject popular(int page, int ps) {
@@ -247,15 +245,17 @@ final class BiliApi {
             String backup = "";
             if (first.optJSONArray("backup_url") != null && first.getJSONArray("backup_url").length() > 0) {
                 backup = first.getJSONArray("backup_url").getString(0);
-                if (!backup.isEmpty()) out.put("backup", proxy.localUrl(backup));
             }
             if (remote.isEmpty()) throw new IllegalStateException("empty stream url");
             int quality = data.optInt("quality", 16);
             out.put("ok", true);
             out.put("cid", cid);
-            out.put("url", proxy.localUrl(remote, backup, prefetchPreview));
+            out.put("url", remote);
             out.put("remote", remote);
-            if (!backup.isEmpty()) out.put("backupRemote", backup);
+            if (!backup.isEmpty()) {
+                out.put("backup", backup);
+                out.put("backupRemote", backup);
+            }
             out.put("quality", quality);
             out.put("qualityLabel", qualityLabel(quality));
             out.put("available", availableQualities(data, quality));
@@ -364,6 +364,107 @@ final class BiliApi {
             } catch (Throwable ignored) {}
         }
         return out;
+    }
+
+    JSONObject loginCaptcha() {
+        JSONObject out = new JSONObject();
+        try {
+            String raw = cookies.request(
+                "https://passport.bilibili.com/x/passport-login/captcha?source=main_web",
+                null, null);
+            JSONObject json = new JSONObject(raw);
+            if (json.optInt("code", -1) != 0) {
+                out.put("ok", false);
+                out.put("error", json.optString("message", "验证码初始化失败"));
+                return out;
+            }
+            JSONObject data = json.optJSONObject("data");
+            JSONObject gee = data == null ? null : data.optJSONObject("geetest");
+            if (data == null || gee == null) {
+                out.put("ok", false);
+                out.put("error", "验证码参数为空");
+                return out;
+            }
+            out.put("ok", true);
+            out.put("type", data.optString("type", "geetest"));
+            out.put("token", data.optString("token", ""));
+            out.put("gt", gee.optString("gt", ""));
+            out.put("challenge", gee.optString("challenge", ""));
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out;
+    }
+
+    JSONObject smsSend(String tel, String cid, String token, String challenge,
+                       String validate, String seccode) {
+        JSONObject out = new JSONObject();
+        try {
+            String body = "cid=" + enc(cid)
+                + "&tel=" + enc(tel)
+                + "&source=main_web"
+                + "&token=" + enc(token)
+                + "&challenge=" + enc(challenge)
+                + "&validate=" + enc(validate)
+                + "&seccode=" + enc(seccode);
+            String raw = cookies.request(
+                "https://passport.bilibili.com/x/passport-login/web/sms/send",
+                passportHeaders(), "POST", body);
+            JSONObject json = new JSONObject(raw);
+            int code = json.optInt("code", -1);
+            out.put("ok", code == 0);
+            out.put("code", code);
+            out.put("message", json.optString("message", ""));
+            JSONObject data = json.optJSONObject("data");
+            out.put("captchaKey", data == null ? "" : data.optString("captcha_key", ""));
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out;
+    }
+
+    JSONObject smsLogin(String tel, String cid, String code, String captchaKey) {
+        JSONObject out = new JSONObject();
+        try {
+            String body = "cid=" + enc(cid)
+                + "&tel=" + enc(tel)
+                + "&code=" + enc(code)
+                + "&source=main_web"
+                + "&captcha_key=" + enc(captchaKey);
+            String raw = cookies.request(
+                "https://passport.bilibili.com/x/passport-login/web/login/sms",
+                passportHeaders(), "POST", body);
+            JSONObject json = new JSONObject(raw);
+            int result = json.optInt("code", -1);
+            if (result != 0) {
+                out.put("ok", false);
+                out.put("code", result);
+                out.put("error", json.optString("message", "短信登录失败"));
+                return out;
+            }
+            JSONObject session = session();
+            session.put("ok", true);
+            session.put("loggedIn", true);
+            return session;
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out;
+    }
+
+    private static java.util.Map<String, String> passportHeaders() {
+        java.util.Map<String, String> headers = new java.util.HashMap<>();
+        headers.put("Referer", "https://passport.bilibili.com/login");
+        headers.put("Origin", "https://passport.bilibili.com");
+        return headers;
+    }
+
+    private static String enc(String value) {
+        try {
+            return URLEncoder.encode(value == null ? "" : value, "UTF-8");
+        } catch (Throwable ignored) {
+            return "";
+        }
     }
 
     void logout() {

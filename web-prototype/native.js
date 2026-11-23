@@ -21,6 +21,14 @@
     if (typeof bridge[name] !== 'function') return { ok: false, error: `不支持 ${name}` };
     try { return parse(bridge[name](...args)); } catch (error) { return { ok: false, error: String(error) }; }
   };
+  const NATIVE_MEDIA = Boolean(window.O11A1NativeMedia && window.O11A1NativeMedia.available);
+  const NATIVE_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const nativeUrl = (result) => NATIVE_MEDIA
+    ? String(result && (result.remote || '') || '')
+    : String(result && (result.url || '') || '');
+  const nativeBackup = (result) => NATIVE_MEDIA
+    ? String(result && (result.backupRemote || '') || '')
+    : String(result && (result.backup || '') || '');
 
   let netBytes = 0;
   let netAt = 0;
@@ -715,6 +723,7 @@
   function createPreviewVideo(preload) {
     const video = document.createElement('video');
     video.className = preload ? 'feed-preview-video preview-preload' : 'feed-preview-video';
+    if (NATIVE_MEDIA && window.O11A1NativeMedia) window.O11A1NativeMedia.attach(video);
     video.muted = true;
     video.defaultMuted = true;
     video.loop = true;
@@ -836,8 +845,8 @@
     prewarmPlayerUrl(item);
     const url = previewUrlFor(item);
     if (!url) return;
-    const video = createPreviewVideo(true);    video.src = url;
-    video.load();
+    const video = createPreviewVideo(true);
+    loadPreviewNative(video, item, url, false);
     thumb.appendChild(video);
     preloadVideo = video;
     preloadStartedAt = Date.now();
@@ -938,6 +947,7 @@
   }
 
   function promoteFeedPreview(thumb) {
+    if (NATIVE_MEDIA) return false;
     if (!previewRow || !previewVideo || !previewVideo.src) return false;
     if (previewVideo.error || previewVideo.readyState < 2) return false;
     const rowThumb = previewRow.querySelector('.row-thumb');
@@ -1066,9 +1076,15 @@
     if (cached && Date.now() - cached.at < PREVIEW_URL_TTL) return cached.url;
     if (typeof bridge.previewCached === 'function') {
       const cachedResult = call('previewCached', item.bvid, item.cid || 0);
-      const cachedUrl = cachedResult && cachedResult.ok ? String(cachedResult.url || '') : '';
+      const cachedUrl = cachedResult && cachedResult.ok
+        ? (NATIVE_MEDIA ? String(cachedResult.remote || '') : String(cachedResult.url || ''))
+        : '';
       if (cachedUrl) {
-        previewUrlCache.set(key, { url: cachedUrl, at: Date.now() });
+        previewUrlCache.set(key, {
+          url: cachedUrl,
+          backup: cachedResult.backupRemote || '',
+          at: Date.now(),
+        });
         return cachedUrl;
       }
       if (!previewPending.has(key) && typeof bridge.prewarmPreviews === 'function') {
@@ -1079,10 +1095,43 @@
       return '';
     }
     const result = call('playLow', item.bvid, item.cid || 0);
-    const url = result && result.ok ? String(result.url || '') : '';
-    if (url) previewUrlCache.set(key, { url, at: Date.now() });
-    else previewUrlCache.delete(key);
+    const url = result && result.ok
+      ? (NATIVE_MEDIA ? String(result.remote || '') : String(result.url || ''))
+      : '';
+    if (url) {
+      previewUrlCache.set(key, {
+        url,
+        backup: NATIVE_MEDIA ? String(result.backupRemote || '') : String(result.backup || ''),
+        at: Date.now(),
+      });
+    } else {
+      previewUrlCache.delete(key);
+    }
     return url;
+  }
+
+  function previewBackupFor(item) {
+    const key = `${item.bvid}:${item.cid || 0}`;
+    const cached = previewUrlCache.get(key);
+    return cached ? String(cached.backup || '') : '';
+  }
+
+  function loadPreviewNative(video, item, url, autoplay) {
+    if (!NATIVE_MEDIA || typeof video.__nativeLoad !== 'function') {
+      video.src = url;
+      video.load();
+      if (autoplay) video.play().catch(() => {});
+      return;
+    }
+    video.__nativeLoad({
+      videoUrl: url,
+      backupUrl: previewBackupFor(item),
+      kind: 'file',
+      loop: true,
+      muted: true,
+      autoplay: Boolean(autoplay),
+    });
+    if (autoplay) video.play().catch(() => {});
   }
 
   function prewarmPlayerUrl(item) {
@@ -1128,7 +1177,7 @@
           const video = ensurePreviewVideo();
           previewRow = row;
           row.classList.add('preview-active');
-          video.src = url;
+          loadPreviewNative(video, item, url, true);
           thumb.appendChild(video);
           previewProgressFill = attachPreviewOverlays(thumb);
           thumb.classList.add('preview-loading');
@@ -2579,6 +2628,15 @@
       return;
     }
     connectLiveDanmaku(Number(item.roomId || 0));
+    if (NATIVE_MEDIA) {
+      video.__nativeLoad({
+        videoUrl: source,
+        kind: /\.m3u8(\?|$)/i.test(source) ? 'hls' : 'file',
+        autoplay: Boolean(autoplay),
+      });
+      if (autoplay) video.play().catch(() => {});
+      return;
+    }
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = source;
       video.load();
@@ -2892,6 +2950,37 @@
     mediaLive = false;
     mediaBackup = '';
     loadDanmaku(item.cid);
+    if (NATIVE_MEDIA && typeof video.__nativeLoad === 'function') {
+      playerVideo.classList.remove('video-error');
+      playerVideo.classList.add('has-video');
+      playerVideo.classList.remove('video-loading');
+      setStatus('', '');
+      const actualTrackQuality = qualityLabelFromQn(videoTrack.qn) || dash.qualityLabel;
+      if (actualTrackQuality) {
+        window.O11A1Host.state.settings.quality = actualTrackQuality;
+        host.updatePlayerLabels();
+        showQualityFallback(requestedQuality, actualTrackQuality);
+      }
+      const keep = Number(video.currentTime) || 0;
+      video.__nativeLoad({
+        videoUrl: videoTrack.remote || videoTrack.url,
+        audioUrl: audioTrack.remote || audioTrack.url,
+        backupUrl: videoTrack.backupRemote || '',
+        backupAudioUrl: audioTrack.backupRemote || '',
+        kind: 'dash',
+        startMs: keep * 1000,
+        autoplay: Boolean(autoplay),
+        muted: Boolean(promotedPreview),
+      });
+      if (autoplay) {
+        video.play().then(() => {
+          state.playing = true;
+          host.setPlayIcon(true);
+          host.updatePlaylistDock();
+        }).catch(() => {});
+      }
+      return;
+    }
     const mediaSource = new MediaSourceCtor();
     const url = URL.createObjectURL(mediaSource);
     const managed = !window.MediaSource && Boolean(window.ManagedMediaSource);
@@ -3042,7 +3131,7 @@
     playerVideo.classList.add('video-loading');
     setStatus('加载中…', 'loading');
     let dashTried = false;
-    if (DASH_PLAYBACK && allowDash && qualityQn(state.settings.quality) > 64
+    if (DASH_PLAYBACK && !NATIVE_IOS && allowDash && qualityQn(state.settings.quality) > 64
       && item.bvid && !item.epId && typeof bridge.dash === 'function') {
       dashTried = true;
       const dash = call('dash', item.bvid, item.cid || 0, 120);
@@ -3065,7 +3154,7 @@
       ? call('playPgc', item.epId, item.bvid || '', item.cid || 0, qualityQn(state.settings.quality))
       : playQualityCached(item, qualityQn(state.settings.quality));
     if (!result.ok) {
-      if (!dashTried && DASH_PLAYBACK && allowDash && item.bvid && !item.epId && typeof bridge.dash === 'function') {
+      if (!dashTried && !NATIVE_IOS && DASH_PLAYBACK && allowDash && item.bvid && !item.epId && typeof bridge.dash === 'function') {
         const dash = call('dash', item.bvid, item.cid || 0, 120);
         if (dash.ok && Array.isArray(dash.video) && Array.isArray(dash.audio) && dash.video.length && dash.audio.length) {
           if (dash.cid) {
@@ -3101,8 +3190,12 @@
       showQualityFallback(requestedQuality, result.qualityLabel);
     }
     loadDanmaku(result.cid || item.cid);
-    mediaBackup = result.backup || '';
-    video.src = result.url;
+    mediaBackup = NATIVE_MEDIA
+      ? String(result.backupRemote || '')
+      : String(result.backup || '');
+    video.src = NATIVE_MEDIA
+      ? (String(result.remote || '') || result.url)
+      : result.url;
     video.load();
     playerVideo.classList.add('has-video');
     if (autoplay) {
@@ -3281,7 +3374,7 @@
       host.updatePlayerLabels();
       const keepTime = promotedPreview ? promotedPreview.video.currentTime : (video.currentTime || 0);
       const keepDuration = promotedPreview ? promotedPreview.video.duration : video.duration;
-      if (DASH_PLAYBACK && qualityQn(value) > 64 && typeof bridge.dash === 'function' && !mediaItem.epId) {
+      if (DASH_PLAYBACK && !NATIVE_IOS && qualityQn(value) > 64 && typeof bridge.dash === 'function' && !mediaItem.epId) {
         const item = mediaItem;
         if (keepTime > 0.5) {
           pendingMediaStart = { key: mediaKeyFor(item), time: keepTime };
@@ -3304,7 +3397,9 @@
         if (host.showPlayerNotice) host.showPlayerNotice('画质', `${value} 切换失败`, 2600);
         return;
       }
-      mediaBackup = result.backup || '';
+      mediaBackup = NATIVE_MEDIA
+        ? String(result.backupRemote || '')
+        : String(result.backup || '');
       mediaTriedBackup = false;
       if (result.qualityLabel) {
         state.settings.quality = result.qualityLabel;
@@ -3330,7 +3425,9 @@
         setStatus('', '');
       };
       video.addEventListener('loadedmetadata', onMeta);
-      video.src = result.url;
+      video.src = NATIVE_MEDIA
+        ? (String(result.remote || '') || result.url)
+        : result.url;
       video.load();
     },
   };
@@ -4586,7 +4683,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方页面完成登录';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

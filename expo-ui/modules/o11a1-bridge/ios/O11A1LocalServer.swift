@@ -5,16 +5,12 @@ import Network
 import UIKit
 
 final class O11A1LocalServer {
-  private static let mediaChunkSize: Int64 = 8 * 1024 * 1024
-
   private let files: [String: String]
   private let client = O11A1BiliClient()
   private let listener: NWListener
   private let queue = DispatchQueue(label: "o11a1.local-server", qos: .userInitiated)
   private let lock = NSLock()
   private var active: [ObjectIdentifier: NWConnection] = [:]
-  private var mediaBytes: Int64 = 0
-  private var mediaRequests: Int64 = 0
   private var previewCache: [String: (data: Data, at: Date)] = [:]
   private let previewQueue = DispatchQueue(label: "o11a1.preview", qos: .utility)
   private var savedBrightness: CGFloat?
@@ -211,10 +207,6 @@ final class O11A1LocalServer {
       serveFile(resource, method: method, connection: connection)
       return
     }
-    if path == "/media" {
-      handleMedia(query: query, headers: headers, method: method, connection: connection)
-      return
-    }
     if path.hasPrefix("/api/") {
       handleAPI(name: String(path.dropFirst(5)), query: query, method: method, connection: connection)
       return
@@ -390,7 +382,7 @@ final class O11A1LocalServer {
         qn: o11a1Int(query["qn"] ?? "120")
       )
     case "mediaStats":
-      data = o11a1Data(["ok": true, "bytes": mediaBytes, "requests": mediaRequests])
+      data = o11a1Data(["ok": true, "bytes": 0, "requests": 0, "direct": true])
     case "displayHz":
       data = o11a1Data([
         "ok": true,
@@ -532,13 +524,77 @@ final class O11A1LocalServer {
       setSystemVolume(value)
       data = o11a1Data(["ok": true, "v": value])
     case "webLogin":
-      let client = self.client
-      DispatchQueue.main.async {
-        O11A1WebLogin.present { header in
-          client.importCookieHeader(header)
-        }
+      data = o11a1Error("网页登录已停用，请使用短信登录")
+    case "smsSendCode":
+      let tel = query["tel"] ?? ""
+      let cid = query["cid"] ?? "86"
+      if tel.range(of: "^\\d{5,20}$", options: .regularExpression) == nil {
+        data = o11a1Error("请输入正确的手机号")
+        break
       }
-      data = o11a1Data(["ok": true, "opened": true])
+      let captcha = client.loginCaptcha()
+      if captcha["ok"] as? Bool != true {
+        data = o11a1Data(captcha)
+        break
+      }
+      let challenge = O11A1Geetest.present(
+        gt: o11a1String(captcha["gt"]),
+        challenge: o11a1String(captcha["challenge"])
+      )
+      if challenge["ok"] as? Bool != true {
+        data = o11a1Data(challenge)
+        break
+      }
+      var sent = client.smsSend(
+        tel: tel,
+        cid: cid,
+        token: o11a1String(captcha["token"]),
+        challenge: o11a1String(captcha["challenge"]),
+        validate: o11a1String(challenge["validate"]),
+        seccode: o11a1String(challenge["seccode"])
+      )
+      sent["tel"] = tel
+      sent["cid"] = cid
+      data = o11a1Data(sent)
+    case "smsLogin":
+      data = client.smsLogin(
+        tel: query["tel"] ?? "",
+        cid: query["cid"] ?? "86",
+        code: query["code"] ?? "",
+        captchaKey: query["captchaKey"] ?? ""
+      )
+    case "nativePlayerLoad":
+      let slot = query["slot"] ?? "main"
+      let raw = query["json"] ?? "{}"
+      var payload = (try? JSONSerialization.jsonObject(with: Data(raw.utf8))) as? [String: Any] ?? [:]
+      payload["headers"] = client.mediaHeaders()
+      O11A1PlayerHost.shared.load(slot: slot, json: payload)
+      data = o11a1Data(["ok": true])
+    case "nativePlayerControl":
+      O11A1PlayerHost.shared.control(
+        slot: query["slot"] ?? "main",
+        action: query["action"] ?? "",
+        value: Double(query["value"] ?? "0") ?? 0
+      )
+      data = o11a1Data(["ok": true])
+    case "nativePlayerRect":
+      O11A1PlayerHost.shared.rect(
+        slot: query["slot"] ?? "main",
+        x: Double(query["x"] ?? "0") ?? 0,
+        y: Double(query["y"] ?? "0") ?? 0,
+        width: Double(query["w"] ?? "0") ?? 0,
+        height: Double(query["h"] ?? "0") ?? 0,
+        visible: (query["visible"] ?? "1") != "0",
+        rotation: Double(query["rotation"] ?? "0") ?? 0
+      )
+      data = o11a1Data(["ok": true])
+    case "nativePlayerRelease":
+      O11A1PlayerHost.shared.release(slot: query["slot"] ?? "main")
+      data = o11a1Data(["ok": true])
+    case "nativePlayerLayer":
+      data = o11a1Data(["ok": true])
+    case "nativePlayerState":
+      data = o11a1Data(O11A1PlayerHost.shared.state(slot: query["slot"] ?? "main"))
     case "setOrientation":
       let mode = query["mode"] ?? "portrait"
       DispatchQueue.main.async {
@@ -564,68 +620,6 @@ final class O11A1LocalServer {
       body: data,
       headOnly: method == "HEAD"
     )
-  }
-
-  private func handleMedia(
-    query: [String: String],
-    headers: [String: String],
-    method: String,
-    connection: NWConnection
-  ) {
-    guard let token = query["u"],
-          let decoded = o11a1Base64URLDecode(token) else {
-      sendText(connection, status: 400, text: "missing media token")
-      return
-    }
-    var urls: [String] = []
-    if let object = try? JSONSerialization.jsonObject(with: decoded),
-       let list = object as? [String] {
-      urls = list
-    } else if let single = String(data: decoded, encoding: .utf8) {
-      urls = [single]
-    }
-    urls = urls.filter { $0.hasPrefix("http://") || $0.hasPrefix("https://") }
-    guard !urls.isEmpty else {
-      sendText(connection, status: 400, text: "bad media url")
-      return
-    }
-
-    var start: Int64 = 0
-    var end = Self.mediaChunkSize - 1
-    if let range = headers["range"]?.lowercased(), range.hasPrefix("bytes=") {
-      let spec = range.dropFirst("bytes=".count)
-      let pieces = spec.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
-      let firstPiece = pieces.first.map { String($0) } ?? "0"
-      start = Int64(firstPiece) ?? 0
-      if pieces.count > 1, let value = Int64(String(pieces[1])) { end = value }
-      if end < start { end = start + Self.mediaChunkSize - 1 }
-      if end - start + 1 > Self.mediaChunkSize { end = start + Self.mediaChunkSize - 1 }
-    }
-
-    for url in urls {
-      guard let chunk = client.fetchMedia(urlString: url, start: start, end: end) else { continue }
-      let actualEnd = start + Int64(chunk.data.count) - 1
-      lock.lock()
-      mediaBytes += Int64(chunk.data.count)
-      mediaRequests += 1
-      lock.unlock()
-      send(
-        connection,
-        status: 206,
-        headers: [
-          "Content-Type": "video/mp4",
-          "Accept-Ranges": "bytes",
-          "Content-Range": "bytes \(start)-\(actualEnd)/\(chunk.total)",
-          "Content-Length": "\(chunk.data.count)",
-          "Cache-Control": "no-store",
-          "Access-Control-Allow-Origin": "*"
-        ],
-        body: chunk.data,
-        headOnly: method == "HEAD"
-      )
-      return
-    }
-    sendText(connection, status: 502, text: "media unavailable")
   }
 
   /* ---------- response helpers ---------- */

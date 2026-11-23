@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#F3EFE7">
   <title>O11A1 Mobile · V2 Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=229">
-  <link rel="stylesheet" href="./fonts.css?v=229">
+  <link rel="stylesheet" href="./styles.css?v=232">
+  <link rel="stylesheet" href="./fonts.css?v=232">
 </head>
 <body data-platform="ios">
   <button class="proto-fab" id="protoFab" title="原型工具"><span>◧</span> PROTO</button>
@@ -62,13 +62,30 @@
 
         <!-- 我的页改为从左侧滑入的独立覆盖层，见 app-main 外 -->
 
-        <!-- 登录 gate：官方网页登录 -->
+        <!-- 登录 gate：原生短信登录 -->
         <section class="page" data-page="login">
           <button class="back login-back" data-goto="my" title="返回">‹</button>
           <div class="login-gate">
             <h1 class="login-title">登录 B 站账号</h1>
-            <button class="login-start" id="loginStart" type="button">前往 B 站登录</button>
+            <div class="login-form">
+              <label class="login-field login-phone-field">
+                <span class="login-field-label">手机号</span>
+                <span class="login-phone-row">
+                  <input class="login-cid" id="loginCid" value="86" inputmode="numeric" maxlength="4" aria-label="国家码">
+                  <input class="login-input" id="loginPhone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="请输入手机号" maxlength="20">
+                </span>
+              </label>
+              <label class="login-field">
+                <span class="login-field-label">短信验证码</span>
+                <span class="login-code-row">
+                  <input class="login-input" id="loginCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="请输入短信验证码" maxlength="8">
+                  <button class="login-send" id="loginSend" type="button">获取验证码</button>
+                </span>
+              </label>
+              <button class="login-start" id="loginSubmit" type="button">登录</button>
+            </div>
             <p class="login-status" id="loginStatus" role="status" aria-live="polite"></p>
+            <p class="login-note">验证码由 B 站官方短信服务发送，登录成功后直接使用原生 Cookie 访问接口。</p>
           </div>
         </section>
 
@@ -464,8 +481,9 @@
     <button class="psheet-close" id="psheetClose">关闭</button>
   </div>
 
-  <script src="./vendor/hls.min.js?v=229"></script>
-  <script src="./app.js?v=229"></script>
-  <script src="./native.js?v=229"></script>
+  <script src="./vendor/hls.min.js?v=232"></script>
+  <script src="./app.js?v=232"></script>
+  <script src="./native-player.js?v=232"></script>
+  <script src="./native.js?v=232"></script>
 </body>
 </html>

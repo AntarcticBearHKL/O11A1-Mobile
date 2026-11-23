@@ -19,6 +19,7 @@ import android.view.PixelCopy;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -41,7 +42,6 @@ final class WebAppBridge {
     private final Activity activity;
     private final BiliApi api;
     private final BiliExtras extras;
-    private final StreamProxy proxy;
     private final CookieStore cookies;
     private static final long PREVIEW_URL_TTL = 10 * 60 * 1000L;
     private static final long QUALITY_URL_TTL = 4 * 60 * 1000L;
@@ -51,6 +51,14 @@ final class WebAppBridge {
     private final Set<String> qualityLoading = ConcurrentHashMap.newKeySet();
     private final ConcurrentHashMap<String, PreviewEntry> dashInfos = new ConcurrentHashMap<>();
     private final Set<String> dashLoading = ConcurrentHashMap.newKeySet();
+    private final ExecutorService smsPool = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "o11a1-sms-login");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private volatile WebView webView;
+    private volatile NativePlayerHost nativePlayers;
+    private final java.util.concurrent.atomic.AtomicBoolean smsBusy = new java.util.concurrent.atomic.AtomicBoolean(false);
     private final ExecutorService previewPool = Executors.newFixedThreadPool(2, runnable -> {
         Thread thread = new Thread(runnable, "o11a1-preview");
         thread.setDaemon(true);
@@ -72,12 +80,102 @@ final class WebAppBridge {
         }
     }
 
-    WebAppBridge(Activity activity, BiliApi api, StreamProxy proxy, CookieStore cookies) {
+    WebAppBridge(Activity activity, BiliApi api, CookieStore cookies) {
         this.activity = activity;
         this.api = api;
-        this.extras = new BiliExtras(cookies, proxy, api);
-        this.proxy = proxy;
+        this.extras = new BiliExtras(cookies, api);
         this.cookies = cookies;
+    }
+
+    void setWebView(WebView view) {
+        this.webView = view;
+    }
+
+    void setNativePlayers(NativePlayerHost players) {
+        this.nativePlayers = players;
+    }
+
+    @JavascriptInterface
+    public String nativePlayerLoad(String slot, String json) {
+        JSONObject out = new JSONObject();
+        try {
+            NativePlayerHost players = nativePlayers;
+            if (players == null) {
+                out.put("ok", false);
+                out.put("error", "native player unavailable");
+                return out.toString();
+            }
+            players.load(slot, new JSONObject(json == null ? "{}" : json));
+            out.put("ok", true);
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out.toString();
+    }
+
+    @JavascriptInterface
+    public String nativePlayerControl(String slot, String action, double value) {
+        JSONObject out = new JSONObject();
+        try {
+            NativePlayerHost players = nativePlayers;
+            if (players != null) players.control(slot, action, value);
+            out.put("ok", players != null);
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out.toString();
+    }
+
+    @JavascriptInterface
+    public String nativePlayerRect(String slot, double x, double y, double width, double height,
+                                   boolean visible, double rotation) {
+        JSONObject out = new JSONObject();
+        try {
+            NativePlayerHost players = nativePlayers;
+            if (players != null) {
+                players.rect(slot, (float) x, (float) y, (float) width, (float) height, visible,
+                    (float) rotation);
+            }
+            out.put("ok", players != null);
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out.toString();
+    }
+
+    @JavascriptInterface
+    public String nativePlayerRelease(String slot) {        JSONObject out = new JSONObject();
+        try {
+            NativePlayerHost players = nativePlayers;
+            if (players != null) players.release(slot);
+            out.put("ok", players != null);
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out.toString();
+    }
+
+    @JavascriptInterface
+    public String nativePlayerLayer(String slot, boolean background) {
+        JSONObject out = new JSONObject();
+        try {
+            NativePlayerHost players = nativePlayers;
+            if (players != null) players.layer(slot, background);
+            out.put("ok", players != null);
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out.toString();
+    }
+
+    @JavascriptInterface
+    public String nativePlayerState(String slot) {
+        try {
+            NativePlayerHost players = nativePlayers;
+            return players == null ? "{\"ok\":false}" : players.snapshot(slot);
+        } catch (Throwable error) {
+            return error(error).toString();
+        }
     }
 
     @JavascriptInterface
@@ -237,7 +335,7 @@ final class WebAppBridge {
 
     @JavascriptInterface
     public String mediaStats() {
-        return proxy.statsJson();
+        return "{\"ok\":true,\"bytes\":0,\"requests\":0,\"direct\":true}";
     }
 
     @JavascriptInterface
@@ -266,6 +364,132 @@ final class WebAppBridge {
             out = error(error);
         }
         return out.toString();
+    }
+
+    @JavascriptInterface
+    public String sendSmsCode(String tel, String cid) {
+        JSONObject out = new JSONObject();
+        try {
+            final String phone = tel == null ? "" : tel.trim();
+            final String country = cid == null || cid.trim().isEmpty() ? "86" : cid.trim();
+            if (!phone.matches("\\d{5,20}")) {
+                out.put("ok", false);
+                out.put("error", "请输入正确的手机号");
+                return out.toString();
+            }
+            if (!smsBusy.compareAndSet(false, true)) {
+                out.put("ok", false);
+                out.put("pending", true);
+                out.put("error", "正在验证，请稍候");
+                return out.toString();
+            }
+            smsPool.execute(() -> {
+                JSONObject result = new JSONObject();
+                try {
+                    result.put("tel", phone);
+                    result.put("cid", country);
+                    JSONObject captcha = api.loginCaptcha();
+                    if (!captcha.optBoolean("ok", false)) {
+                        result.put("ok", false);
+                        result.put("error", captcha.optString("error", "验证码初始化失败"));
+                    } else {
+                        GeetestDialog.Result challenge = GeetestDialog.show(
+                            activity,
+                            captcha.optString("gt", ""),
+                            captcha.optString("challenge", ""));
+                        if (!challenge.ok) {
+                            result.put("ok", false);
+                            result.put("cancelled", challenge.cancelled);
+                            result.put("error", challenge.cancelled ? "已取消验证" : challenge.error);
+                        } else {
+                            JSONObject send = api.smsSend(phone, country,
+                                captcha.optString("token", ""),
+                                captcha.optString("challenge", ""),
+                                challenge.validate, challenge.seccode);
+                            if (!send.optBoolean("ok", false)) {
+                                result.put("ok", false);
+                                result.put("error", send.optString("message",
+                                    send.optString("error", "短信发送失败")));
+                            } else {
+                                result.put("ok", true);
+                                result.put("captchaKey", send.optString("captchaKey", ""));
+                            }
+                        }
+                    }
+                } catch (Throwable error) {
+                    result = error(error);
+                } finally {
+                    smsBusy.set(false);
+                    notifySmsCode(result);
+                }
+            });
+            out.put("ok", true);
+            out.put("pending", true);
+        } catch (Throwable error) {
+            out = error(error);
+            smsBusy.set(false);
+        }
+        return out.toString();
+    }
+
+    private void notifySmsCode(JSONObject result) {
+        WebView view = webView;
+        if (view == null) return;
+        final String payload = result == null ? "{}" : result.toString();
+        view.post(() -> {
+            try {
+                view.evaluateJavascript(
+                    "window.O11A1Login&&window.O11A1Login.onSmsCode&&window.O11A1Login.onSmsCode("
+                        + JSONObject.quote(payload) + ")", null);
+            } catch (Throwable ignored) {}
+        });
+    }
+
+    @JavascriptInterface
+    public String smsLogin(String tel, String cid, String code, String captchaKey) {
+        JSONObject out = new JSONObject();
+        try {
+            String phone = tel == null ? "" : tel.trim();
+            String country = cid == null || cid.trim().isEmpty() ? "86" : cid.trim();
+            String smsCode = code == null ? "" : code.trim();
+            if (phone.isEmpty() || smsCode.isEmpty()) {
+                out.put("ok", false);
+                out.put("error", "手机号或验证码为空");
+                return out.toString();
+            }
+            JSONObject result = api.smsLogin(phone, country, smsCode,
+                captchaKey == null ? "" : captchaKey);
+            if (!result.optBoolean("ok", false)) {
+                out.put("ok", false);
+                out.put("error", result.optString("error",
+                    result.optString("message", "短信登录失败")));
+                return out.toString();
+            }
+            syncCookiesToWebView();
+            out.put("ok", true);
+            out.put("loggedIn", true);
+            out.put("name", result.optString("name", ""));
+            out.put("mid", result.optLong("mid", 0));
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out.toString();
+    }
+
+    private void syncCookiesToWebView() {
+        try {
+            CookieManager manager = CookieManager.getInstance();
+            manager.setAcceptCookie(true);
+            java.util.Map<String, String> snapshot = cookies.snapshot();
+            for (java.util.Map.Entry<String, String> entry : snapshot.entrySet()) {
+                String cookie = entry.getKey() + "=" + entry.getValue()
+                    + "; Domain=.bilibili.com; Path=/";
+                manager.setCookie("https://www.bilibili.com", cookie);
+                manager.setCookie("https://api.bilibili.com", cookie);
+                manager.setCookie("https://passport.bilibili.com", cookie);
+            }
+            manager.flush();
+        } catch (Throwable ignored) {}
     }
 
     @JavascriptInterface
@@ -355,15 +579,7 @@ final class WebAppBridge {
 
     @JavascriptInterface
     public void previewWarm(String bvid, long cid) {
-        String key = bvid + ":" + cid;
-        PreviewEntry entry = previewUrls.get(key);
-        if (entry == null || System.currentTimeMillis() - entry.at >= PREVIEW_URL_TTL) return;
-        try {
-            JSONObject json = new JSONObject(entry.json);
-            String remote = json.optString("remote", "");
-            String backup = json.optString("backupRemote", "");
-            if (!remote.isEmpty()) proxy.prefetchPreview(remote, backup);
-        } catch (Throwable ignored) {}
+        // Native players fetch directly from the CDN; nothing to prewarm here.
     }
 
     @JavascriptInterface
@@ -622,7 +838,8 @@ final class WebAppBridge {
         JSONObject out = new JSONObject();
         try {
             out.put("ok", true);
-            out.put("port", proxy.port());
+            out.put("port", 0);
+            out.put("disabled", true);
         } catch (Throwable ignored) {}
         return out.toString();
     }

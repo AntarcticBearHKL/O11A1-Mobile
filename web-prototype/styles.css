@@ -1325,8 +1325,38 @@ body.playlist-reordering{cursor:grabbing}
   min-height:17px;margin:14px 0 0;font-size:12.5px;line-height:1.35;
   color:var(--muted);text-align:left;
 }
+body.native-media .feed-preview-video{background:transparent!important;visibility:hidden!important;}
+body.native-media video.real-video{visibility:hidden!important;}
+body.native-media .row-thumb.native-preview-active > img{opacity:0!important;}
+body.native-media.native-player-ready{background:transparent!important;}
+html.native-media.native-player-ready{background:transparent!important;}
+body.native-media.native-player-ready .stage{background:transparent!important;}
+body.native-media.native-player-ready #app,
+body.native-media.native-player-ready #appMain{background:transparent!important;}
+body.native-media.native-player-ready #appMain,
+body.native-media.native-player-ready .app-main,
+body.native-media.native-player-ready .proto-fab{visibility:hidden!important;}
+body.native-media.native-player-ready .player,
+body.native-media.native-player-ready .player-rotor,
+body.native-media.native-player-ready .player-body,
+body.native-media.native-player-ready .player-stage,
+body.native-media.native-player-ready .player-video{background:transparent!important;}
 .login-status.error{color:var(--coral)}
+
 .login-status.success{color:var(--green)}
+.login-form{display:flex;flex-direction:column;gap:12px}
+.login-field{display:block}
+.login-field-label{display:block;margin:0 0 7px 2px;font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--faint)}
+.login-phone-row,.login-code-row{display:flex;gap:8px;align-items:center}
+.login-cid{width:56px;flex:0 0 56px;height:52px;padding:0 10px;border:1px solid var(--line-strong);border-radius:14px;background:transparent;color:var(--ink);font:inherit;font-size:15px;text-align:center;outline:none}
+.login-input{width:100%;min-width:0;height:52px;padding:0 14px;border:1px solid var(--line-strong);border-radius:14px;background:transparent;color:var(--ink);font:inherit;font-size:15px;outline:none;box-sizing:border-box}
+.login-input::placeholder{color:var(--faint)}
+.login-input:focus,.login-cid:focus{border-color:var(--ink)}
+.login-code-row .login-input{flex:1}
+.login-send{flex:0 0 auto;height:52px;padding:0 13px;border:1px solid var(--line-strong);border-radius:14px;background:transparent;color:var(--ink);font:inherit;font-size:13px;font-weight:700;white-space:nowrap}
+.login-send:active{opacity:.65}
+.login-send:disabled{opacity:.45}
+.login-note{margin:16px 0 0;color:var(--faint);font-size:11.5px;line-height:1.55}
 .app.auth-gate .login-back{display:none}
 
 /* ---------- module settings ---------- */

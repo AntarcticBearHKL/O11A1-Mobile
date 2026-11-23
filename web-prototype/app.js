@@ -114,6 +114,11 @@
   const messageFilter = $('#messageFilter');
   const loginStatus = $('#loginStatus');
   const loginStart = $('#loginStart');
+  const loginCid = $('#loginCid');
+  const loginPhone = $('#loginPhone');
+  const loginCode = $('#loginCode');
+  const loginSend = $('#loginSend');
+  const loginSubmit = $('#loginSubmit');
   const searchClear = $('#searchClear');
   const protoDrawer = $('#protoDrawer');
   const protoBackdrop = $('#protoBackdrop');
@@ -936,6 +941,9 @@
 
   function resetLoginForm() {
     setLoginStatus('');
+    if (loginCode) loginCode.value = '';
+    loginCaptchaKey = '';
+    loginCaptchaPhone = '';
   }
 
   function loginSucceeded(options = {}) {
@@ -949,6 +957,129 @@
       if (state.loggedIn) showPage('home');
       resetLoginForm();
     }, options.immediate ? 0 : 600);
+  }
+
+  let loginCaptchaKey = '';
+  let loginCaptchaPhone = '';
+  let loginCountdownTimer = null;
+  let loginSending = false;
+
+  function loginCountryCode() {
+    const value = loginCid ? loginCid.value.replace(/\D/g, '') : '86';
+    return value || '86';
+  }
+
+  function loginPhoneValue() {
+    return loginPhone ? loginPhone.value.replace(/\D/g, '') : '';
+  }
+
+  function setLoginSending(sending, message) {
+    loginSending = sending;
+    if (loginSend) loginSend.disabled = sending;
+    if (loginSubmit) loginSubmit.disabled = sending;
+    if (message) setLoginStatus(message);
+  }
+
+  function startLoginCountdown(seconds) {
+    clearInterval(loginCountdownTimer);
+    let left = Math.max(1, Number(seconds) || 60);
+    if (loginSend) loginSend.textContent = `${left}s 后重发`;
+    loginCountdownTimer = setInterval(() => {
+      left -= 1;
+      if (left <= 0) {
+        clearInterval(loginCountdownTimer);
+        loginCountdownTimer = null;
+        if (loginSend) {
+          loginSend.disabled = false;
+          loginSend.textContent = '获取验证码';
+        }
+        return;
+      }
+      if (loginSend) loginSend.textContent = `${left}s 后重发`;
+    }, 1000);
+  }
+
+  function sendLoginCode() {
+    if (loginSending) return;
+    const phone = loginPhoneValue();
+    if (!/^\d{5,20}$/.test(phone)) {
+      setLoginStatus('请输入正确的手机号', 'error');
+      return;
+    }
+    if (typeof window.O11A1Native?.sendSmsCode !== 'function') {
+      setLoginStatus('当前环境不支持原生短信登录', 'error');
+      return;
+    }
+    const cid = loginCountryCode();
+    setLoginSending(true, '正在准备 B 站安全验证…');
+    requestAnimationFrame(() => setTimeout(() => {
+      const result = nativeLoginCall('sendSmsCode', [phone, cid]);
+      if (!result || (!result.ok && !result.pending)) {
+        setLoginSending(false);
+        setLoginStatus(result?.error || (result?.cancelled ? '已取消安全验证' : '短信发送失败'), 'error');
+        return;
+      }
+      if (result.pending) {
+        setLoginSending(true, '请在安全验证窗口完成验证…');
+        return;
+      }
+      setLoginSending(false);
+      setLoginStatus('验证码已发送，请在 5 分钟内输入', 'success');
+      startLoginCountdown(60);
+      if (loginCode) loginCode.focus();
+    }, 40));
+  }
+
+  window.O11A1Login = {
+    onSmsCode(result) {
+      let value = result;
+      try {
+        if (typeof value === 'string') value = JSON.parse(value);
+      } catch (_) {
+        value = null;
+      }
+      setLoginSending(false);
+      if (!value || !value.ok) {
+        setLoginStatus(value?.error || (value?.cancelled ? '已取消安全验证' : '短信发送失败'), 'error');
+        return;
+      }
+      const phone = value.tel || loginPhoneValue();
+      const cid = value.cid || loginCountryCode();
+      loginCaptchaKey = value.captchaKey || '';
+      loginCaptchaPhone = `${cid}:${phone}`;
+      setLoginStatus('验证码已发送，请在 5 分钟内输入', 'success');
+      startLoginCountdown(60);
+      if (loginCode) loginCode.focus();
+    },
+  };
+
+  function submitSmsLogin() {
+    if (loginSending) return;
+    const phone = loginPhoneValue();
+    const code = loginCode ? loginCode.value.replace(/\D/g, '') : '';
+    const cid = loginCountryCode();
+    if (!/^\d{5,20}$/.test(phone)) {
+      setLoginStatus('请输入正确的手机号', 'error');
+      return;
+    }
+    if (!code) {
+      setLoginStatus('请输入短信验证码', 'error');
+      return;
+    }
+    if (!loginCaptchaKey || loginCaptchaPhone !== `${cid}:${phone}`) {
+      setLoginStatus('请先获取当前手机号的短信验证码', 'error');
+      return;
+    }
+    setLoginSending(true, '正在登录…');
+    setTimeout(() => {
+      const result = nativeLoginCall('smsLogin', [phone, cid, code, loginCaptchaKey]);
+      setLoginSending(false);
+      if (!result || !result.ok) {
+        setLoginStatus(result?.error || '登录失败，请检查验证码', 'error');
+        return;
+      }
+      loginSucceeded();
+    }, 30);
   }
 
   function openOfficialLogin() {
@@ -5754,7 +5885,11 @@
     renderNavSettings();
   });
 
-  if (loginStart) loginStart.addEventListener('click', openOfficialLogin);
+  if (loginSend) loginSend.addEventListener('click', sendLoginCode);
+  if (loginSubmit) loginSubmit.addEventListener('click', submitSmsLogin);
+  if (loginCode) loginCode.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') submitSmsLogin();
+  });
 
   dynamicFilter.addEventListener('click', () => {
     state.dynamicFilterIndex = (state.dynamicFilterIndex + 1) % DYNAMIC_FILTERS.length;
