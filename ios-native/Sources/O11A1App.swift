@@ -53,7 +53,6 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
         DispatchQueue.main.async {
           guard let self = self else { return }
           self.server = server
-          self.hideLoading()
           self.installWebView(port: server.port)
         }
       } catch {
@@ -148,6 +147,9 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
     web.scrollView.bounces = false
     web.navigationDelegate = self
     view.addSubview(web)
+    if let loading = loadingView {
+      view.bringSubviewToFront(loading)
+    }
     webView = web
     guard let url = URL(string: "http://127.0.0.1:\(port)/index.html") else {
       showError("invalid local url")
@@ -293,6 +295,7 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     print("[O11A1] page finished")
+    hideLoading()
   }
 
   func webView(
@@ -301,6 +304,7 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
     withError error: Error
   ) {
     print("[O11A1] navigation failed \(error.localizedDescription)")
+    showError("页面加载失败\n\(error.localizedDescription)")
   }
 
   func webView(
@@ -309,5 +313,6 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
     withError error: Error
   ) {
     print("[O11A1] provisional navigation failed \(error.localizedDescription)")
+    showError("页面加载失败\n\(error.localizedDescription)")
   }
 }

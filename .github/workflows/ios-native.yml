@@ -110,7 +110,7 @@ jobs:
           test -n "$APP"
           xcrun simctl install "$DEVICE_ID" "$APP"
           xcrun simctl launch "$DEVICE_ID" com.o11a1.videotest
-          sleep 12
+          sleep 20
           xcrun simctl io "$DEVICE_ID" screenshot artifacts/ios-native.png
           xcrun simctl terminate "$DEVICE_ID" com.o11a1.videotest 2>/dev/null || true
           SIMCTL_CHILD_O11A1_TEST_FLOW=player xcrun simctl launch "$DEVICE_ID" com.o11a1.videotest
