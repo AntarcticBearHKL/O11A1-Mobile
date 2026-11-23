@@ -69,6 +69,8 @@
   const FEED_WINDOW_BLOCKS = 3;
   const more = { dynamic: true, messages: true };
   let upSort = 'pubdate';
+  let recommendSeed = 1;
+  let recommendSeen = new Set();
   const dynamicFilterNames = ['全部', '视频', '图文'];
   const messageFilterNames = ['回复', '@我', '收到的赞', '私信'];
   const moduleFilterNames = {
@@ -765,7 +767,8 @@
   function moduleKind(name) {
     const moduleName = name || state.moduleName || '推荐';
     const filterIndex = Math.max(0, Number(state.moduleFilterIndex) || 0);
-    if (moduleName === '推荐' || moduleName === '热门') return { api: 'popular', args: [], label: 'B 站热门' };
+    if (moduleName === '推荐') return { api: 'recommend', args: [], label: '首页推荐' };
+    if (moduleName === '热门') return { api: 'popular', args: [], label: 'B 站热门' };
     if (moduleName === '排行') return { api: 'ranking', args: [], label: '全站排行' };
     if (moduleName === '番剧') {
       const types = moduleSeasonTypes['番剧'];
@@ -809,7 +812,12 @@
       if (!append) renderEmpty(feed, `登录后查看${kind.label}`, '登录后同步 B 站账号。', '去登录', () => host.showPage('login'));
       return { ok: true, items: [], title: kind.label, needLogin: true, hasMore: false };
     }
-    const args = kind.api === 'popular' ? [pageNo, 20]
+    if (kind.api === 'recommend' && !append) {
+      recommendSeed = 1 + Math.floor(Math.random() * 900);
+      recommendSeen = new Set();
+    }
+    const args = kind.api === 'recommend' ? [pageNo, 30, recommendSeed + pageNo - 1]
+      : kind.api === 'popular' ? [pageNo, 20]
       : kind.api === 'history' ? [pageNo, cursor || '']
         : kind.api === 'favorites' || kind.api === 'ranking' || kind.api === 'live' || kind.api === 'following'
           ? [pageNo]
@@ -832,7 +840,16 @@
       }
       return { ok: false, items: [], title: kind.label, needLogin: Boolean(result.needLogin), hasMore: true };
     }
-    const items = Array.isArray(result.items) ? result.items : [];
+    let items = Array.isArray(result.items) ? result.items : [];
+    if (kind.api === 'recommend') {
+      items = items.filter((item) => {
+        const key = String(item && item.bvid ? item.bvid : '');
+        if (!key) return false;
+        if (recommendSeen.has(key)) return false;
+        recommendSeen.add(key);
+        return true;
+      });
+    }
     if (items.length === 0) {
       if (!append) renderEmpty(feed, result.note || `${kind.label}暂无内容`, result.hasMore === false ? '' : '稍后再试');
       else setTail(feed, 'idle');

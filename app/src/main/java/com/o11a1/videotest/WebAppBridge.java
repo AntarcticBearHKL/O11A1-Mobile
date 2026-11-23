@@ -62,6 +62,11 @@ final class WebAppBridge {
     }
 
     @JavascriptInterface
+    public String recommend(int page, int ps, int fresh) {
+        return runExtra(() -> api.recommend(page, ps, fresh).toString());
+    }
+
+    @JavascriptInterface
     public String search(String keyword, int page) {
         return runExtra(() -> api.search(keyword, page).toString());
     }

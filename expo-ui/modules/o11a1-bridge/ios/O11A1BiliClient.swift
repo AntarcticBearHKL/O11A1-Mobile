@@ -231,6 +231,42 @@ final class O11A1BiliClient {
     return o11a1Data(["ok": true, "items": items, "page": pageNumber])
   }
 
+  func recommend(page: Int, ps: Int, fresh: Int) -> Data {
+    ensureBuvid()
+    let pageNumber = max(1, page)
+    let pageSize = max(1, ps)
+    let freshIndex = max(1, fresh)
+    guard let payload = json(
+      base: Self.apiBase,
+      path: "/x/web-interface/index/top/feed/rcmd",
+      query: [
+        "ps": "\(pageSize)",
+        "fresh_type": "3",
+        "fresh_idx": "\(freshIndex)",
+        "fresh_idx_1h": "\(freshIndex)",
+        "homepage_ver": "1",
+        "brush": "\(max(0, freshIndex - 1))",
+        "screen": "1920-1080",
+        "platform": "web"
+      ]
+    ),
+      o11a1Int(payload["code"]) == 0,
+      let data = payload["data"] as? [String: Any],
+      let list = data["item"] as? [[String: Any]] else {
+      return popular(page: page, ps: ps)
+    }
+    var items: [[String: Any]] = []
+    for item in list {
+      let gotoType = o11a1String(item["goto"])
+      if !gotoType.isEmpty && gotoType != "av" { continue }
+      if o11a1String(item["bvid"]).isEmpty { continue }
+      items.append(video(item, search: false))
+    }
+    if items.isEmpty { return popular(page: page, ps: ps) }
+    print("[O11A1] recommend page=\(pageNumber) fresh=\(freshIndex) items=\(items.count)")
+    return o11a1Data(["ok": true, "items": items, "page": pageNumber, "fresh": freshIndex])
+  }
+
   func search(keyword: String, page: Int) -> Data {
     let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.isEmpty { return popular(page: page, ps: 20) }

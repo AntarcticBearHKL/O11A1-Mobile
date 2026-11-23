@@ -44,6 +44,44 @@ final class BiliApi {
         return out;
     }
 
+    JSONObject recommend(int page, int ps, int fresh) {
+        JSONObject out = new JSONObject();
+        try {
+            int pn = Math.max(1, page);
+            int size = ps <= 0 ? 20 : ps;
+            int freshIndex = fresh <= 0 ? pn : fresh;
+            String raw = cookies.request(
+                "https://api.bilibili.com/x/web-interface/index/top/feed/rcmd?ps=" + size
+                    + "&fresh_type=3&fresh_idx=" + freshIndex
+                    + "&fresh_idx_1h=" + freshIndex
+                    + "&homepage_ver=1&brush=" + Math.max(0, freshIndex - 1)
+                    + "&screen=1920-1080&platform=web",
+                null, null);
+            JSONObject data = new JSONObject(raw).optJSONObject("data");
+            JSONArray list = data == null ? null : data.optJSONArray("item");
+            JSONArray items = new JSONArray();
+            if (list != null) {
+                for (int i = 0; i < list.length(); i += 1) {
+                    JSONObject item = list.optJSONObject(i);
+                    if (item == null) continue;
+                    String gotoType = item.optString("goto", "av");
+                    if (!gotoType.isEmpty() && !"av".equals(gotoType)) continue;
+                    if (item.optString("bvid", "").isEmpty()) continue;
+                    items.put(video(item, false));
+                }
+            }
+            if (items.length() == 0) return popular(page, ps);
+            out.put("ok", true);
+            out.put("items", items);
+            out.put("page", pn);
+            out.put("fresh", freshIndex);
+        } catch (Throwable error) {
+            Log.w(TAG, "recommend failed", error);
+            out = popular(page, ps);
+        }
+        return out;
+    }
+
     JSONObject search(String keyword, int page) {
         JSONObject out = new JSONObject();
         try {

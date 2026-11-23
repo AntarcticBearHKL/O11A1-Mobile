@@ -282,6 +282,12 @@ final class O11A1LocalServer {
         page: max(1, o11a1Int(query["page"] ?? "1")),
         ps: max(1, o11a1Int(query["ps"] ?? "20"))
       )
+    case "recommend":
+      data = client.recommend(
+        page: max(1, o11a1Int(query["page"] ?? "1")),
+        ps: max(1, o11a1Int(query["ps"] ?? "20")),
+        fresh: max(1, o11a1Int(query["fresh"] ?? "1"))
+      )
     case "search":
       data = client.search(
         keyword: query["keyword"] ?? "",
