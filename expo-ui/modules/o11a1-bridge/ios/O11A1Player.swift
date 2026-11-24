@@ -392,7 +392,7 @@ final class O11A1PlayerHost {
           viaLoader ? "loader" : "direct", durationMs / 1000)
     installItem(slot, item: videoItem, startMs: startMs, autoplay: autoplay)
     let seq = slot.seq
-    let dashDeadline = viaLoader ? 10.0 : (slot.dashPromoted ? 6.0 : 2.5)
+    let dashDeadline = viaLoader ? 10.0 : (slot.dashPromoted ? 6.0 : 5.0)
     DispatchQueue.main.asyncAfter(deadline: .now() + dashDeadline) { [weak self, weak slot] in
       guard let self = self, let slot = slot, slot.seq == seq, slot.dashAudio,
             slot.dashViaLoader == viaLoader,

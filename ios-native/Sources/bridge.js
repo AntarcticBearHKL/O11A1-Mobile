@@ -60,7 +60,7 @@
   }
   window.O11A1Native = {
     available: function () { return true; },
-    version: function () { return '0.4.7-ios'; },
+    version: function () { return '0.4.8-ios'; },
     popular: function (page, ps) { return call('popular', { page: page, ps: ps }); },
     recommend: function (page, ps, fresh) { return call('recommend', { page: page, ps: ps, fresh: fresh }); },
     search: function (keyword, page) { return call('search', { keyword: keyword, page: page }); },
@@ -141,13 +141,18 @@
         host.state.loggedIn = true;
         host.save();
         host.showPage('home');
-        if (TEST_FLOW === 'player') {
+        if (TEST_FLOW === 'player' || TEST_FLOW === 'playerseek') {
           setTimeout(function () {
             try {
               var row = document.querySelector('#homeFeed .real-row');
               if (row) row.click();
             } catch (error) {}
           }, 3500);
+          if (TEST_FLOW === 'playerseek') {
+            setTimeout(function () {
+              try { if (window.O11A1Media) window.O11A1Media.seek(25); } catch (error) {}
+            }, 10000);
+          }
         }
         if (TEST_FLOW === 'feedscroll') {
           var last = 0;
