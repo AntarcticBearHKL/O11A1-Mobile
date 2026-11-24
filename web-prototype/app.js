@@ -684,6 +684,11 @@
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', dark ? '#0F1013' : '#F3EFE7');
     syncStatusBarStyle();
+    try {
+      if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'theme', theme }));
+      }
+    } catch (_) {}
   }
 
   if (window.matchMedia) {

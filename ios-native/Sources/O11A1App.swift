@@ -51,6 +51,7 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
   private let launchProgress = UIProgressView(progressViewStyle: .bar)
   private var launchTimer: Timer?
   private var launchFaceTask: URLSessionDataTask?
+  private var launchTheme = ""
 
   override var prefersStatusBarHidden: Bool { false }
   override var preferredStatusBarStyle: UIStatusBarStyle { statusBarStyle }
@@ -224,11 +225,24 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
     return String(text.dropFirst().dropLast())
   }
 
+  private func resolvedLaunchTheme() -> String {
+    if launchTheme == "dark" || launchTheme == "light" { return launchTheme }
+    let saved = UserDefaults.standard.string(forKey: "o11a1.theme") ?? ""
+    if saved == "dark" || saved == "light" { return saved }
+    return traitCollection.userInterfaceStyle == .dark ? "dark" : "light"
+  }
+
   private var launchBackground: UIColor {
-    if traitCollection.userInterfaceStyle == .dark {
+    if resolvedLaunchTheme() == "dark" {
       return UIColor(red: 0.059, green: 0.063, blue: 0.075, alpha: 1)
     }
     return UIColor(red: 0.953, green: 0.937, blue: 0.906, alpha: 1)
+  }
+
+  private func applyLaunchChrome() {
+    statusBarStyle = resolvedLaunchTheme() == "dark" ? .lightContent : .darkContent
+    setNeedsStatusBarAppearanceUpdate()
+    loadingView?.backgroundColor = launchBackground
   }
 
   private func loadLaunchIdentity() {
@@ -300,6 +314,7 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
     loadLaunchIdentity()
     view.addSubview(holder)
     loadingView = holder
+    applyLaunchChrome()
     launchTimer?.invalidate()
     launchTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
       guard let self = self, self.loadingView != nil else { return }
@@ -400,6 +415,11 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
       defaults.set(object["face"] as? String ?? "", forKey: "o11a1.user.face")
       defaults.set(object["name"] as? String ?? "", forKey: "o11a1.user.name")
       if loadingView != nil { loadLaunchIdentity() }
+    case "theme":
+      let theme = object["theme"] as? String == "dark" ? "dark" : "light"
+      launchTheme = theme
+      UserDefaults.standard.set(theme, forKey: "o11a1.theme")
+      if loadingView != nil { applyLaunchChrome() }
     case "statusbar":
       let tone = object["style"] as? String == "light" ? "light" : "dark"
       let next: UIStatusBarStyle = tone == "light" ? .lightContent : .darkContent
