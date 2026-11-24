@@ -257,18 +257,27 @@ final class O11A1PlayerHost {
       "AVURLAssetAllowsConstrainedNetworkAccess": true,
     ])
     let seq = slot.seq
-    videoAsset.loadTracks(withMediaType: .video) { [weak self] videoTracks, _ in
-      guard let self = self, let videoTrack = videoTracks?.first else {
-        self?.emitDASHFailure(slot, seq: seq)
+    videoAsset.loadTracks(withMediaType: .video) { [weak self] videoTracks, videoError in
+      guard let self = self else { return }
+      guard let videoTrack = videoTracks?.first else {
+        NSLog("[O11A1] dash video tracks missing %@ err=%@", slot.id,
+              videoError?.localizedDescription ?? "none")
+        self.emitDASHFailure(slot, seq: seq, reason: "video track missing")
         return
       }
-      audioAsset.loadTracks(withMediaType: .audio) { [weak self] audioTracks, _ in
-        guard let self = self, let audioTrack = audioTracks?.first else {
-          self?.emitDASHFailure(slot, seq: seq)
+      audioAsset.loadTracks(withMediaType: .audio) { [weak self] audioTracks, audioError in
+        guard let self = self else { return }
+        guard let audioTrack = audioTracks?.first else {
+          NSLog("[O11A1] dash audio tracks missing %@ err=%@", slot.id,
+                audioError?.localizedDescription ?? "none")
+          self.emitDASHFailure(slot, seq: seq, reason: "audio track missing")
           return
         }
         DispatchQueue.main.async {
-          guard slot.seq == seq else { return }
+          guard slot.seq == seq else {
+            NSLog("[O11A1] dash stale %@ seq=%lld latest=%lld", slot.id, seq, slot.seq)
+            return
+          }
           let composition = AVMutableComposition()
           guard let videoTrackOut = composition.addMutableTrack(
             withMediaType: .video,
@@ -277,21 +286,32 @@ final class O11A1PlayerHost {
             withMediaType: .audio,
             preferredTrackID: kCMPersistentTrackID_Invalid
           ) else {
-            self.emitDASHFailure(slot, seq: seq)
+            self.emitDASHFailure(slot, seq: seq, reason: "add mutable track")
             return
           }
-          let trackDuration = CMTimeMinimum(videoTrack.timeRange.duration, audioTrack.timeRange.duration)
-          let knownDuration = durationMs > 0
-            ? CMTime(seconds: durationMs / 1000.0, preferredTimescale: 600)
-            : .zero
-          var duration = knownDuration
-          if CMTimeCompare(trackDuration, .zero) > 0 {
-            duration = CMTimeCompare(duration, .zero) > 0
-              ? CMTimeMinimum(duration, trackDuration)
-              : trackDuration
+          let videoCodec = self.fourCC(videoTrack.formatDescriptions.first as? CMFormatDescription)
+          let audioCodec = self.fourCC(audioTrack.formatDescriptions.first as? CMFormatDescription)
+          NSLog(
+            "[O11A1] dash tracks %@ v=%@ %.0fx%.0f range=%.2f+%.2f a=%@ range=%.2f+%.2f",
+            slot.id, videoCodec,
+            videoTrack.naturalSize.width, videoTrack.naturalSize.height,
+            videoTrack.timeRange.start.seconds, videoTrack.timeRange.duration.seconds,
+            audioCodec,
+            audioTrack.timeRange.start.seconds, audioTrack.timeRange.duration.seconds
+          )
+          var durations: [CMTime] = []
+          if durationMs > 0 {
+            durations.append(CMTime(seconds: durationMs / 1000.0, preferredTimescale: 600))
           }
+          for range in [videoTrack.timeRange, audioTrack.timeRange] {
+            if range.duration.isValid, !range.duration.isIndefinite,
+               range.duration.isNumeric, range.duration.seconds > 0 {
+              durations.append(range.duration)
+            }
+          }
+          let duration = durations.min { CMTimeCompare($0, $1) < 0 } ?? .zero
           guard CMTimeCompare(duration, .zero) > 0 else {
-            self.emitDASHFailure(slot, seq: seq)
+            self.emitDASHFailure(slot, seq: seq, reason: "unknown duration")
             return
           }
           do {
@@ -300,13 +320,22 @@ final class O11A1PlayerHost {
               of: videoTrack,
               at: .zero
             )
+          } catch {
+            NSLog("[O11A1] dash insert video failed %@ %@", slot.id,
+                  String(describing: error))
+            self.emitDASHFailure(slot, seq: seq, reason: "insert video")
+            return
+          }
+          do {
             try audioTrackOut.insertTimeRange(
               CMTimeRange(start: .zero, duration: duration),
               of: audioTrack,
               at: .zero
             )
           } catch {
-            self.emitDASHFailure(slot, seq: seq)
+            NSLog("[O11A1] dash insert audio failed %@ %@", slot.id,
+                  String(describing: error))
+            self.emitDASHFailure(slot, seq: seq, reason: "insert audio")
             return
           }
           let item = AVPlayerItem(asset: composition)
@@ -317,11 +346,27 @@ final class O11A1PlayerHost {
     }
   }
 
-  private func emitDASHFailure(_ slot: Slot, seq: Int64) {
+  private func fourCC(_ description: CMFormatDescription?) -> String {
+    guard let description = description else { return "?" }
+    let code = CMFormatDescriptionGetMediaSubType(description)
+    let bytes = [
+      UInt8((code >> 24) & 0xff),
+      UInt8((code >> 16) & 0xff),
+      UInt8((code >> 8) & 0xff),
+      UInt8(code & 0xff)
+    ]
+    return String(bytes: bytes, encoding: .ascii) ?? "?"
+  }
+
+  private func emitDASHFailure(_ slot: Slot, seq: Int64, reason: String) {
     DispatchQueue.main.async {
       guard slot.seq == seq else { return }
-      NSLog("[O11A1] dash composition failed %@", slot.id)
-      self.emit(slot, "error", ["error": "dash composition failed", "seq": seq])
+      NSLog("[O11A1] dash composition failed %@ reason=%@", slot.id, reason)
+      self.emit(slot, "error", [
+        "error": "dash composition failed",
+        "reason": reason,
+        "seq": seq
+      ])
     }
   }
 

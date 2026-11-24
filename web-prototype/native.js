@@ -2961,6 +2961,8 @@
     resetNetMeter();
     const videoMime = trackMime(videoTrack, false);
     const audioMime = trackMime(audioTrack, true);
+    log(`dash pick v=${videoTrack.qn || 0}/${videoTrack.codecid || 0} ${videoMime}`
+      + ` a=${audioTrack.qn || 0}/${audioTrack.codecid || 0} ${audioMime}`);
     if (!supportsMime(videoMime) || !supportsMime(audioMime)) {
       mediaItem = null;
       loadVideo(item, autoplay, false);
@@ -4720,7 +4722,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.3.6';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.3.7';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

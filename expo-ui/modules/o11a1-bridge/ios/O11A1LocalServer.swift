@@ -15,6 +15,8 @@ final class O11A1LocalServer {
   private var active: [ObjectIdentifier: NWConnection] = [:]
   private var previewCache: [String: (data: Data, at: Date)] = [:]
   private let previewQueue = DispatchQueue(label: "o11a1.preview", qos: .utility, attributes: .concurrent)
+  private var dashCache: [String: (data: Data, at: Date)] = [:]
+  private var qualityCache: [String: (data: Data, at: Date)] = [:]
   private var savedBrightness: CGFloat?
   private lazy var volumeView: MPVolumeView = {
     let view = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 1, height: 1))
@@ -351,11 +353,39 @@ final class O11A1LocalServer {
         data = fetched
       }
     case "playQuality":
-      data = client.playQuality(
-        bvid: query["bvid"] ?? "",
-        cid: o11a1Int64(query["cid"] ?? "0"),
-        qn: o11a1Int(query["qn"] ?? "64")
-      )
+      let qualityBvid = query["bvid"] ?? ""
+      let qualityCid = o11a1Int64(query["cid"] ?? "0")
+      let qualityQn = o11a1Int(query["qn"] ?? "64")
+      let qualityKey = "\(qualityBvid):\(qualityCid):\(qualityQn)"
+      lock.lock()
+      let qualityHit = qualityCache[qualityKey]
+      lock.unlock()
+      if let qualityHit = qualityHit, Date().timeIntervalSince(qualityHit.at) < 240 {
+        data = qualityHit.data
+      } else {
+        let fetched = client.playQuality(bvid: qualityBvid, cid: qualityCid, qn: qualityQn)
+        lock.lock()
+        qualityCache[qualityKey] = (data: fetched, at: Date())
+        lock.unlock()
+        data = fetched
+      }
+    case "prewarmQuality":
+      let warmBvid = query["bvid"] ?? ""
+      let warmCid = o11a1Int64(query["cid"] ?? "0")
+      let warmQn = o11a1Int(query["qn"] ?? "64")
+      let warmKey = "\(warmBvid):\(warmCid):\(warmQn)"
+      DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        guard let self = self, !warmBvid.isEmpty else { return }
+        self.lock.lock()
+        let cached = self.qualityCache[warmKey]
+        self.lock.unlock()
+        if let cached = cached, Date().timeIntervalSince(cached.at) < 240 { return }
+        let fetched = self.client.playQuality(bvid: warmBvid, cid: warmCid, qn: warmQn)
+        self.lock.lock()
+        self.qualityCache[warmKey] = (data: fetched, at: Date())
+        self.lock.unlock()
+      }
+      data = o11a1Data(["ok": true])
     case "comments":
       data = client.comments(
         aid: o11a1Int64(query["aid"] ?? "0"),
@@ -378,11 +408,39 @@ final class O11A1LocalServer {
         prompt: query["prompt"] ?? ""
       )
     case "dash":
-      data = client.dash(
-        bvid: query["bvid"] ?? "",
-        cid: o11a1Int64(query["cid"] ?? "0"),
-        qn: o11a1Int(query["qn"] ?? "120")
-      )
+      let dashBvid = query["bvid"] ?? ""
+      let dashCid = o11a1Int64(query["cid"] ?? "0")
+      let dashQn = o11a1Int(query["qn"] ?? "120")
+      let dashKey = "\(dashBvid):\(dashCid):\(dashQn)"
+      lock.lock()
+      let dashHit = dashCache[dashKey]
+      lock.unlock()
+      if let dashHit = dashHit, Date().timeIntervalSince(dashHit.at) < 240 {
+        data = dashHit.data
+      } else {
+        let fetched = client.dash(bvid: dashBvid, cid: dashCid, qn: dashQn)
+        lock.lock()
+        dashCache[dashKey] = (data: fetched, at: Date())
+        lock.unlock()
+        data = fetched
+      }
+    case "prewarmDash":
+      let warmBvid = query["bvid"] ?? ""
+      let warmCid = o11a1Int64(query["cid"] ?? "0")
+      let warmQn = o11a1Int(query["qn"] ?? "120")
+      let warmKey = "\(warmBvid):\(warmCid):\(warmQn)"
+      DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        guard let self = self, !warmBvid.isEmpty else { return }
+        self.lock.lock()
+        let cached = self.dashCache[warmKey]
+        self.lock.unlock()
+        if let cached = cached, Date().timeIntervalSince(cached.at) < 240 { return }
+        let fetched = self.client.dash(bvid: warmBvid, cid: warmCid, qn: warmQn)
+        self.lock.lock()
+        self.dashCache[warmKey] = (data: fetched, at: Date())
+        self.lock.unlock()
+      }
+      data = o11a1Data(["ok": true])
     case "mediaStats":
       data = o11a1Data(["ok": true, "bytes": 0, "requests": 0, "direct": true])
     case "displayHz":
