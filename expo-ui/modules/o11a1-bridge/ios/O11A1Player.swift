@@ -246,16 +246,16 @@ final class O11A1PlayerHost {
     durationMs: Double,
     autoplay: Bool
   ) {
-    let videoAsset = AVURLAsset(url: video, options: [
-      "AVURLAssetHTTPHeaderFieldsKey": headers,
-      "AVURLAssetAllowsExpensiveNetworkAccess": true,
-      "AVURLAssetAllowsConstrainedNetworkAccess": true,
-    ])
-    let audioAsset = AVURLAsset(url: audio, options: [
-      "AVURLAssetHTTPHeaderFieldsKey": headers,
-      "AVURLAssetAllowsExpensiveNetworkAccess": true,
-      "AVURLAssetAllowsConstrainedNetworkAccess": true,
-    ])
+    let videoAsset = O11A1MediaLoader.shared.asset(
+      for: video,
+      headers: headers,
+      contentType: "public.mpeg-4"
+    )
+    let audioAsset = O11A1MediaLoader.shared.asset(
+      for: audio,
+      headers: headers,
+      contentType: "public.mpeg-4-audio"
+    )
     let seq = slot.seq
     videoAsset.loadTracks(withMediaType: .video) { [weak self] videoTracks, videoError in
       guard let self = self else { return }
