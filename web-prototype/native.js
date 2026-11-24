@@ -2997,6 +2997,7 @@
         backupUrl: videoTrack.backupRemote || '',
         backupAudioUrl: audioTrack.backupRemote || '',
         kind: 'dash',
+        promoted: Boolean(promotedPreview),
         durationMs: Number(dash.durationMs) || 0,
         startMs: keep * 1000,
         autoplay: Boolean(autoplay),
@@ -4729,7 +4730,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.3.12';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.3.13';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

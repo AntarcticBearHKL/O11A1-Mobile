@@ -28,6 +28,7 @@ final class O11A1PlayerHost {
     var dashStartMs: Double = 0
     var dashDurationMs: Double = 0
     var dashAutoplay = false
+    var dashPromoted = false
     var audioStatusObservation: NSKeyValueObservation?
     var seq: Int64 = 0
     var visible = false
@@ -188,6 +189,7 @@ final class O11A1PlayerHost {
       slot.volume = Float(o11a1PlayerDouble(json["volume"], fallback: 1))
       slot.rate = Float(max(0.1, min(4.0, o11a1PlayerDouble(json["rate"], fallback: 1))))
       slot.loop = o11a1Bool(json["loop"])
+      slot.dashPromoted = o11a1Bool(json["promoted"])
       slot.player.isMuted = slot.muted
       slot.player.volume = slot.volume
       slot.player.automaticallyWaitsToMinimizeStalling = !slot.preview && !slot.dashAudio
@@ -377,7 +379,8 @@ final class O11A1PlayerHost {
           viaLoader ? "loader" : "direct", durationMs / 1000)
     installItem(slot, item: videoItem, startMs: startMs, autoplay: autoplay)
     let seq = slot.seq
-    DispatchQueue.main.asyncAfter(deadline: .now() + (viaLoader ? 10 : 6)) { [weak self, weak slot] in
+    let dashDeadline = viaLoader ? 10.0 : (slot.dashPromoted ? 6.0 : 2.5)
+    DispatchQueue.main.asyncAfter(deadline: .now() + dashDeadline) { [weak self, weak slot] in
       guard let self = self, let slot = slot, slot.seq == seq, slot.dashAudio,
             slot.dashViaLoader == viaLoader,
             slot.item?.status != .readyToPlay else { return }
