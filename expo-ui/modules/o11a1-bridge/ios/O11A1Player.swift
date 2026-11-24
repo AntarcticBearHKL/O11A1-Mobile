@@ -371,7 +371,7 @@ final class O11A1PlayerHost {
         slot.player.pause()
         slot.player.replaceCurrentItem(with: nil)
         slot.item = nil
-        clearDASH(slot)
+        self.clearDASH(slot)
         self.emit(slot, "pause", [:])
       default:
         break
@@ -422,7 +422,7 @@ final class O11A1PlayerHost {
       self.clearObservers(slot)
       slot.player.pause()
       slot.player.replaceCurrentItem(with: nil)
-      clearDASH(slot)
+      self.clearDASH(slot)
       slot.view.removeFromSuperview()
     }
   }
