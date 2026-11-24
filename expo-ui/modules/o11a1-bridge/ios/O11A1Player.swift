@@ -246,20 +246,24 @@ final class O11A1PlayerHost {
     durationMs: Double,
     autoplay: Bool
   ) {
-    NSLog("[O11A1] dash video url %@", video.absoluteString)
-    NSLog("[O11A1] dash headers cookie=%d referer=%@ ua=%@",
-          (headers["Cookie"] ?? "").count,
-          headers["Referer"] ?? "none",
-          String((headers["User-Agent"] ?? "none").prefix(48)))
-    probeDASH(video, headers: headers)
+    // The DASH URLs are signed with platform=pc; sending the Android API
+    // user agent makes the CDN answer 403, while the desktop agent and a
+    // bilibili referer are accepted. Cookies are not needed for the signed
+    // media URL and are deliberately left out.
+    let mediaHeaders = [
+      "Referer": "https://www.bilibili.com/",
+      "User-Agent": O11A1BiliClient.desktopUserAgent,
+      "Accept": "*/*"
+    ]
+    NSLog("[O11A1] dash %@", video.host ?? "?")
     let videoAsset = O11A1MediaLoader.shared.asset(
       for: video,
-      headers: headers,
+      headers: mediaHeaders,
       contentType: "public.mpeg-4"
     )
     let audioAsset = O11A1MediaLoader.shared.asset(
       for: audio,
-      headers: headers,
+      headers: mediaHeaders,
       contentType: "public.mpeg-4-audio"
     )
     let seq = slot.seq
@@ -349,36 +353,6 @@ final class O11A1PlayerHost {
           self.installItem(slot, item: item, startMs: startMs, autoplay: autoplay)
         }
       }
-    }
-  }
-
-  private func probeDASH(_ url: URL, headers: [String: String]) {
-    let referer = headers["Referer"] ?? "https://www.bilibili.com/"
-    let ua = headers["User-Agent"] ?? ""
-    let noCookie = headers.filter { $0.key.lowercased() != "cookie" }
-    let variants: [(String, [String: String], String?)] = [
-      ("full", headers, "bytes=0-1023"),
-      ("nocookie", noCookie, "bytes=0-1023"),
-      ("refua", ["Referer": referer, "User-Agent": ua, "Origin": "https://www.bilibili.com"], "bytes=0-1023"),
-      ("ref", ["Referer": referer], "bytes=0-1023"),
-      ("desktop", ["Referer": referer, "User-Agent": O11A1BiliClient.desktopUserAgent], "bytes=0-1023"),
-      ("fullopen", headers, "bytes=0-"),
-      ("fullnone", headers, nil),
-    ]
-    for (name, variantHeaders, range) in variants {
-      var request = URLRequest(url: url)
-      for (key, value) in variantHeaders {
-        request.setValue(value, forHTTPHeaderField: key)
-      }
-      if let range = range {
-        request.setValue(range, forHTTPHeaderField: "Range")
-      }
-      URLSession.shared.dataTask(with: request) { data, response, error in
-        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
-        NSLog("[O11A1] dash probe %@ range=%@ status=%d bytes=%d err=%@",
-              name, range ?? "none", status, data?.count ?? 0,
-              error?.localizedDescription ?? "none")
-      }.resume()
     }
   }
 
