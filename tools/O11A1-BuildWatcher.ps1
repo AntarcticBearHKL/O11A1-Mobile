@@ -131,9 +131,50 @@ function Get-WorkflowBuild {
   }
 }
 
+function Get-ReleaseAsset {
+  param(
+    [Parameter(Mandatory = $true)][string]$Tag,
+    [Parameter(Mandatory = $true)][string]$AssetName
+  )
+  try {
+    $release = Invoke-GitHubApi -Path "/repos/$Repo/releases/tags/$Tag"
+    return @($release.assets | Where-Object { $_ -and $_.name -eq $AssetName }) |
+      Select-Object -First 1
+  } catch {}
+  return $null
+}
+
+function Get-ReleaseAssetSize {
+  param(
+    [Parameter(Mandatory = $true)][string]$Tag,
+    [Parameter(Mandatory = $true)][string]$AssetName
+  )
+  try {
+    $release = Invoke-GitHubApi -Path "/repos/$Repo/releases/tags/$Tag"
+    $asset = @($release.assets | Where-Object { $_ -and $_.name -eq $AssetName }) |
+      Select-Object -First 1
+    if ($asset) { return [double]$asset.size }
+  } catch {}
+  return $null
+}
+
+function Get-PackageSize {
+  param([Parameter(Mandatory = $true)]$Build)
+  if (-not $Build -or -not $Build.Artifact) { return $null }
+  if ($Build.Artifact.name -eq "o11a1-ios-native") {
+    return Get-ReleaseAssetSize -Tag "ios-unsigned" -AssetName "o11a1-ios-unsigned.ipa"
+  }
+  if ($Build.Artifact.name -eq "o11a1-video-test-debug") {
+    return Get-ReleaseAssetSize -Tag "android-debug" -AssetName "app-debug.apk"
+  }
+  return $null
+}
+
 function Save-GitHubArtifact {
   param(
-    [Parameter(Mandatory = $true)][long]$ArtifactId,
+    [long]$ArtifactId = 0,
+    [string]$ApiUrl = "",
+    [string]$Accept = "",
     [Parameter(Mandatory = $true)][string]$OutFile,
     [string]$Label = "下载",
     [scriptblock]$OnProgress = $null
@@ -143,7 +184,7 @@ function Save-GitHubArtifact {
     throw "没有找到 GitHub token（~/.git-credentials），无法下载 Actions 产物"
   }
 
-  $apiUrl = "$ApiBase/repos/$Repo/actions/artifacts/$ArtifactId/zip"
+  $apiUrl = if ($ApiUrl) { $ApiUrl } else { "$ApiBase/repos/$Repo/actions/artifacts/$ArtifactId/zip" }
   $handler = New-Object System.Net.Http.HttpClientHandler
   $handler.AllowAutoRedirect = $false
   $handler.SslProtocols = [System.Security.Authentication.SslProtocols]::Tls12
@@ -152,6 +193,7 @@ function Save-GitHubArtifact {
   $request = New-Object -TypeName System.Net.Http.HttpRequestMessage -ArgumentList ([System.Net.Http.HttpMethod]::Get), $apiUrl
   $request.Headers.Authorization = New-Object -TypeName System.Net.Http.Headers.AuthenticationHeaderValue -ArgumentList "Bearer", $script:Token
   $request.Headers.UserAgent.ParseAdd("O11A1-BuildWatcher")
+  if ($Accept) { $request.Headers.Accept.ParseAdd($Accept) }
 
   try {
     $response = $client.SendAsync($request, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
@@ -277,9 +319,25 @@ function Download-BuildCore {
   $partial = "$destination.part"
 
   try {
-    Save-GitHubArtifact -ArtifactId $Build.Artifact.id -OutFile $zipPath -Label $Kind -OnProgress $OnProgress
-    Extract-ArtifactFile -ZipPath $zipPath -EntryName $EntryName -Destination $partial
-    Move-Item -LiteralPath $partial -Destination $destination -Force
+    $releaseTag = if ($Kind -eq "iOS") { "ios-unsigned" } else { "android-debug" }
+    $releaseAssetName = if ($Kind -eq "iOS") { "o11a1-ios-unsigned.ipa" } else { "app-debug.apk" }
+    $releaseAsset = Get-ReleaseAsset -Tag $releaseTag -AssetName $releaseAssetName
+    $fromRelease = $false
+    if ($releaseAsset) {
+      try {
+        $assetUrl = "$ApiBase/repos/$Repo/releases/assets/$($releaseAsset.id)"
+        Save-GitHubArtifact -ArtifactId 0 -ApiUrl $assetUrl -Accept "application/octet-stream" -OutFile $partial -Label $Kind -OnProgress $OnProgress
+        Move-Item -LiteralPath $partial -Destination $destination -Force
+        $fromRelease = $true
+      } catch {
+        Remove-Item -LiteralPath $partial -Force -ErrorAction SilentlyContinue
+      }
+    }
+    if (-not $fromRelease) {
+      Save-GitHubArtifact -ArtifactId $Build.Artifact.id -OutFile $zipPath -Label $Kind -OnProgress $OnProgress
+      Extract-ArtifactFile -ZipPath $zipPath -EntryName $EntryName -Destination $partial
+      Move-Item -LiteralPath $partial -Destination $destination -Force
+    }
     Get-ChildItem -LiteralPath $OutDir -Filter $oldPattern -ErrorAction SilentlyContinue |
       Remove-Item -Force -ErrorAction SilentlyContinue
   } finally {
@@ -291,7 +349,7 @@ function Download-BuildCore {
 }
 
 function Write-SelfTest {
-  $ios = Get-WorkflowBuild -WorkflowFile "ios-unsigned.yml" -ArtifactName "o11a1-ios-unsigned"
+  $ios = Get-WorkflowBuild -WorkflowFile "ios-native.yml" -ArtifactName "o11a1-ios-native"
   $android = Get-WorkflowBuild -WorkflowFile "android-debug.yml" -ArtifactName "o11a1-video-test-debug"
 
   foreach ($item in @(
@@ -303,7 +361,8 @@ function Write-SelfTest {
       Write-Output "$($item.Name)|none"
       continue
     }
-    $size = if ($build.Artifact) { [math]::Round($build.Artifact.size_in_bytes / 1MB, 2) } else { 0 }
+    $packageSize = Get-PackageSize -Build $build
+    $size = if ($packageSize) { [math]::Round($packageSize / 1MB, 2) } elseif ($build.Artifact) { [math]::Round($build.Artifact.size_in_bytes / 1MB, 2) } else { 0 }
     $artifact = if ($build.Artifact) { $build.Artifact.name } else { "none" }
     Write-Output ("{0}|#{1}|{2}|{3}|{4}|{5}|{6}|{7}" -f `
         $item.Name,
@@ -325,7 +384,7 @@ if ($SelfTest) {
 
 if ($DownloadTest) {
   $script:Token = Get-GitHubToken
-  $ios = Get-WorkflowBuild -WorkflowFile "ios-unsigned.yml" -ArtifactName "o11a1-ios-unsigned"
+  $ios = Get-WorkflowBuild -WorkflowFile "ios-native.yml" -ArtifactName "o11a1-ios-native"
   $android = Get-WorkflowBuild -WorkflowFile "android-debug.yml" -ArtifactName "o11a1-video-test-debug"
   $onProgress = {
     param($label, $percent, $read, $total)
@@ -673,8 +732,15 @@ function Update-Card {
   $Card.Meta.Text = "提交 $sha`n$when"
 
   if ($Build.Artifact) {
-    $size = [math]::Round($Build.Artifact.size_in_bytes / 1MB, 1)
-    $Card.Artifact.Text = "产物 $($Build.Artifact.name) · $size MB"
+    $packageSize = Get-PackageSize -Build $Build
+    if ($packageSize -and $packageSize -gt 0) {
+      $size = [math]::Round($packageSize / 1MB, 1)
+      $name = if ($Kind -eq "iOS") { "IPA" } else { "APK" }
+      $Card.Artifact.Text = "$name 安装包 · $size MB"
+    } else {
+      $size = [math]::Round($Build.Artifact.size_in_bytes / 1MB, 1)
+      $Card.Artifact.Text = "构建产物 $($Build.Artifact.name) · $size MB"
+    }
     $Card.Artifact.ForeColor = $Muted
   } else {
     $Card.Artifact.Text = "产物已过期"
@@ -707,7 +773,7 @@ function Refresh-Builds {
   [Windows.Forms.Application]::DoEvents()
 
   try {
-    $ios = Get-WorkflowBuild -WorkflowFile "ios-unsigned.yml" -ArtifactName "o11a1-ios-unsigned"
+    $ios = Get-WorkflowBuild -WorkflowFile "ios-native.yml" -ArtifactName "o11a1-ios-native"
     $android = Get-WorkflowBuild -WorkflowFile "android-debug.yml" -ArtifactName "o11a1-video-test-debug"
 
     $script:IosBuild = $ios
