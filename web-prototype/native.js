@@ -1039,10 +1039,11 @@
     }
     const promoted = promotedPreview;
     if (promoted.video.paused && !promoted.video.ended) {
-      if (video.__o11a1Native && video.__o11a1Native.gotFirstFrame) {
-        try { if (!video.paused) video.pause(); } catch (_) {}
-      }
-      return;
+      // Starting the native main item can take the audio session away from the
+      // inline preview and pause it. Try to wake it once; if the main item is
+      // already ready, hand off immediately instead of pausing the whole player.
+      promoted.video.play().catch(() => {});
+      if (!(video.__o11a1Native && video.__o11a1Native.gotFirstFrame)) return;
     }
     const duration = Number(video.duration);
     const overlayTime = Number(promoted.video.currentTime) || promoted.time;
@@ -4871,7 +4872,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.5';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.6';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
