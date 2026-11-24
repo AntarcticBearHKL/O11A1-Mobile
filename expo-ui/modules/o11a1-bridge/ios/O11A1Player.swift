@@ -289,8 +289,8 @@ final class O11A1PlayerHost {
             self.emitDASHFailure(slot, seq: seq, reason: "add mutable track")
             return
           }
-          let videoCodec = self.fourCC(videoTrack.formatDescriptions.first as? CMFormatDescription)
-          let audioCodec = self.fourCC(audioTrack.formatDescriptions.first as? CMFormatDescription)
+          let videoCodec = self.fourCC(videoTrack.formatDescriptions)
+          let audioCodec = self.fourCC(audioTrack.formatDescriptions)
           NSLog(
             "[O11A1] dash tracks %@ v=%@ %.0fx%.0f range=%.2f+%.2f a=%@ range=%.2f+%.2f",
             slot.id, videoCodec,
@@ -346,8 +346,9 @@ final class O11A1PlayerHost {
     }
   }
 
-  private func fourCC(_ description: CMFormatDescription?) -> String {
-    guard let description = description else { return "?" }
+  private func fourCC(_ descriptions: [Any]) -> String {
+    guard let raw = descriptions.first else { return "?" }
+    let description = raw as! CMFormatDescription
     let code = CMFormatDescriptionGetMediaSubType(description)
     let bytes = [
       UInt8((code >> 24) & 0xff),
