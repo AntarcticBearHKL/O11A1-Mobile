@@ -910,8 +910,22 @@
     video.play().catch(() => {});
     requestAnimationFrame(reveal);
     prewarmPlayerUrl(row.__nativeItem);
+    setTimeout(() => preloadPreviewNeighbor(feed, row), 180);
     setTimeout(retire, 3000);
     return true;
+  }
+
+  function preloadPreviewNeighbor(feed, row) {
+    if (!feed || !row || state.playerOpen || state.miniVisible || previewRow !== row) return;
+    if (preloadVideo || previewCommitTimer) return;
+    const rows = $$('.feed-item:not(.feed-skeleton)', feed);
+    const index = rows.indexOf(row);
+    if (index < 0) return;
+    const next = rows[index + 1] || rows[index - 1];
+    if (!next || next === previewRow || next === preloadRow) return;
+    const item = next.__nativeItem;
+    if (!item || item.live || item.epId || !item.bvid) return;
+    startPreviewPreload(feed, next);
   }
 
   function schedulePreviewCommit(feed, row) {
@@ -1247,9 +1261,10 @@
           video.addEventListener('canplay', reveal, { once: true });
           video.addEventListener('playing', reveal, { once: true });
           video.currentTime = 0;
-          try { video.playbackRate = previewPlaybackRate(); } catch (_) {}
+          try { video.playbackRate = 1; } catch (_) {}
           video.play().catch(() => {});
           prewarmPlayerUrl(item);
+          setTimeout(() => preloadPreviewNeighbor(feed, row), 500);
           return;
         }
       }
@@ -4825,7 +4840,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.0';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.1';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

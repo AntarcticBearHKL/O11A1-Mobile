@@ -75,6 +75,8 @@ final class O11A1PlayerHost {
   private weak var background: UIView?
   private weak var overlay: UIView?
   private var rectLink: CADisplayLink?
+  private var rectSamples = 0
+  private var rectLogAt = CFAbsoluteTimeGetCurrent()
 
   private init() {}
 
@@ -455,6 +457,7 @@ final class O11A1PlayerHost {
         let token = slot.seekToken
         slot.seeking = true
         let resume = slot.pendingPlay || slot.player.timeControlStatus == .playing
+        NSLog("[O11A1] seek %@ -> %.2f resume=%d", slot.id, cm.seconds, resume ? 1 : 0)
         slot.player.pause()
         slot.audioPlayer.pause()
         slot.positionMs = cm.seconds * 1000
@@ -466,6 +469,7 @@ final class O11A1PlayerHost {
             guard slot.seekToken == token else { return }
             slot.seeking = false
             slot.positionMs = cm.seconds * 1000
+            NSLog("[O11A1] seeked %@ -> %.2f", slot.id, cm.seconds)
             self.emit(slot, "seeked", self.timePayload(slot))
             if resume && slot.pendingPlay {
               slot.player.play()
@@ -552,6 +556,17 @@ final class O11A1PlayerHost {
       slot.view.frame = frame
       if abs(rotation) > 0.5 {
         slot.view.transform = CGAffineTransform(rotationAngle: CGFloat(rotation * .pi / 180))
+      }
+      if slot.preview {
+        self.rectSamples += 1
+        let now = CFAbsoluteTimeGetCurrent()
+        let elapsed = now - self.rectLogAt
+        if elapsed >= 2 {
+          NSLog("[O11A1] preview rect hz=%.1f y=%.0f",
+                Double(self.rectSamples) / elapsed, frame.origin.y)
+          self.rectSamples = 0
+          self.rectLogAt = now
+        }
       }
       self.startRectLinkIfNeeded()
     }
