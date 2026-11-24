@@ -346,7 +346,8 @@
         sendLayer(rec, shouldBackground);
       }
       const dragHidden = Boolean(window.__o11a1HideMainVideo && rec.slot === 'main');
-      const visible = rectVisible(rect) && !isPreload && !dragHidden
+      const waitingForFirstFrame = inLivePlayer && rec.slot === 'main' && !rec.gotFirstFrame;
+      const visible = rectVisible(rect) && !isPreload && !dragHidden && !waitingForFirstFrame
         && !(panelOpen && rec.slot !== 'main')
         && (inLivePlayer || (!inPlayer && baseVisible));
       if (rec.gotFirstFrame && !isPreload) {

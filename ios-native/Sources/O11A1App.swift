@@ -137,6 +137,32 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
     let controller = WKUserContentController()
     controller.add(self, name: "o11a1")
     controller.add(self, name: "o11a1player")
+    let savedPrefs = UserDefaults.standard.string(forKey: "o11a1.webPrefs") ?? ""
+    let themeSetting = UserDefaults.standard.string(forKey: "o11a1.theme.setting") ?? ""
+    let prefsScript = """
+    window.__O11A1_THEME_SETTING__ = \(jsonString(themeSetting));
+    (function () {
+      try {
+        var saved = \(jsonString(savedPrefs));
+        if (!saved || saved.length < 2) return;
+        window.__O11A1_SAVED_PREFS__ = saved;
+        var key = 'o11a1.v2.prototype';
+        var current = null;
+        try { current = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
+        var next = null;
+        try { next = JSON.parse(saved); } catch (e) { return; }
+        if (!next) return;
+        var nextAt = Number(next.savedAt || 0);
+        var currentAt = current ? Number(current.savedAt || 0) : -1;
+        if (!current || nextAt >= currentAt) localStorage.setItem(key, saved);
+      } catch (e) {}
+    })();
+    """
+    controller.addUserScript(WKUserScript(
+      source: prefsScript,
+      injectionTime: .atDocumentStart,
+      forMainFrameOnly: true
+    ))
     let bootstrap = """
     (function () {
       window.ReactNativeWebView = {
@@ -414,6 +440,10 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
         UIScreen.main.brightness = saved
         savedBrightness = nil
       }
+    case "prefs":
+      if let data = object["data"] as? String, data.count > 2 {
+        UserDefaults.standard.set(data, forKey: "o11a1.webPrefs")
+      }
     case "user":
       let defaults = UserDefaults.standard
       defaults.set(object["face"] as? String ?? "", forKey: "o11a1.user.face")
@@ -421,8 +451,13 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
       if loadingView != nil { loadLaunchIdentity() }
     case "theme":
       let theme = object["theme"] as? String == "dark" ? "dark" : "light"
+      let setting = object["setting"] as? String ?? ""
       launchTheme = theme
-      UserDefaults.standard.set(theme, forKey: "o11a1.theme")
+      let defaults = UserDefaults.standard
+      defaults.set(theme, forKey: "o11a1.theme")
+      if setting == "浅色" || setting == "深色" || setting == "跟随系统" {
+        defaults.set(setting, forKey: "o11a1.theme.setting")
+      }
       if loadingView != nil { applyLaunchChrome() }
     case "statusbar":
       let tone = object["style"] as? String == "light" ? "light" : "dark"

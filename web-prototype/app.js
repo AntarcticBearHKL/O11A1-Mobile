@@ -246,10 +246,17 @@
     autoUpdate: true,
   };
 
+  let prefsPostTimer = null;
+
   const loaded = (() => {
     try {
       if (new URLSearchParams(window.location.search).has('reset')) {
         localStorage.removeItem(STORAGE_KEY);
+      }
+      if (!localStorage.getItem(STORAGE_KEY)
+        && typeof window.__O11A1_SAVED_PREFS__ === 'string'
+        && window.__O11A1_SAVED_PREFS__.length > 2) {
+        localStorage.setItem(STORAGE_KEY, window.__O11A1_SAVED_PREFS__);
       }
     } catch (_) {}
     return loadPersisted();
@@ -305,6 +312,12 @@
     playlistReturnNav: null,
   };
 
+  /* Native UserDefaults is a second copy of the theme choice; it survives a
+     changed loopback origin or a cleared WKWebView storage. */
+  const nativeThemeSetting = window.__O11A1_THEME_SETTING__;
+  if (nativeThemeSetting === '浅色' || nativeThemeSetting === '深色' || nativeThemeSetting === '跟随系统') {
+    state.settings.theme = nativeThemeSetting;
+  }
   if (loaded?.bgStyleVersion !== 2) {
     state.settings.bgTransparency = 0;
     state.settings.bgBlur = 100;
@@ -597,11 +610,36 @@
     }
   }
 
+  function postNativePrefs(payload) {
+    try {
+      if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'prefs', data: payload }));
+      }
+    } catch (_) {}
+  }
+
+  function scheduleNativePrefs(payload) {
+    clearTimeout(prefsPostTimer);
+    prefsPostTimer = setTimeout(() => {
+      prefsPostTimer = null;
+      postNativePrefs(payload);
+    }, 120);
+  }
+
+  function flushNativePrefs() {
+    clearTimeout(prefsPostTimer);
+    prefsPostTimer = null;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) postNativePrefs(raw);
+    } catch (_) {}
+  }
+
   function save() {
     try {
       const modules = {};
       state.modules.forEach((mod) => { modules[mod.id] = mod.on; });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      const payload = JSON.stringify({
         loggedIn: state.loggedIn,
         userFace: state.userFace,
         userName: state.userName,
@@ -615,7 +653,10 @@
         navSelected: state.navSelected,
         bgStyleVersion: 2,
         playbackVersion: 3,
-      }));
+        savedAt: Date.now(),
+      });
+      localStorage.setItem(STORAGE_KEY, payload);
+      scheduleNativePrefs(payload);
     } catch (_) {}
   }
 
@@ -686,7 +727,9 @@
     syncStatusBarStyle();
     try {
       if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'theme', theme }));
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'theme', theme, setting: state.settings.theme,
+        }));
       }
     } catch (_) {}
   }
@@ -4023,10 +4066,23 @@
     const poster = document.createElement('div');
     poster.className = 'player-poster';
     poster.style.backgroundImage = `url("${String(url).replace(/"/g, '%22')}")`;
+    /* CSS background images cannot set a referrer policy. Bilibili image
+       hotlinking then returns a placeholder; use a real <img> for the blur. */
+    const background = document.createElement('img');
+    background.className = 'player-poster-bg';
+    background.src = url;
+    background.alt = '';
+    background.draggable = false;
+    background.decoding = 'async';
+    background.referrerPolicy = 'no-referrer';
+    poster.appendChild(background);
     const image = document.createElement('img');
     image.className = 'player-poster-fg';
     image.src = url;
     image.alt = '';
+    image.draggable = false;
+    image.decoding = 'async';
+    image.referrerPolicy = 'no-referrer';
     poster.appendChild(image);
     playerVideo.insertBefore(poster, playerVideo.firstChild);
     playerPoster = poster;
@@ -4093,8 +4149,9 @@
       // aspect-fit image on top, acting as the video until the native item has
       // its first frame.
       playerVideo.style.backgroundImage = '';
+      const currentEntry = state.playlist[state.currentIndex];
       const posterUrl = (origin && origin.image)
-        || (state.playlist[state.currentIndex] && state.playlist[state.currentIndex].pic)
+        || (currentEntry ? playlistCoverUrl(currentEntry) : '')
         || '';
       showPlayerPoster(posterUrl);
     }
@@ -4115,12 +4172,8 @@
     player.setAttribute('aria-hidden', 'false');
     player.inert = false;
     player.classList.remove('ui-hidden');
-    setTimeout(() => {
-      if (state.playerOpen) {
-        app.classList.add('player-open');
-        syncStatusBarStyle();
-      }
-    }, 520);
+    app.classList.add('player-open');
+    syncStatusBarStyle();
     lockBadge.classList.remove('show');
     updatePlaylistDock();
     closeSheet();
@@ -4155,7 +4208,7 @@
         playerMediaOpenTimer = null;
         if (openToken !== playerMediaOpenToken || !state.playerOpen) return;
         requestAnimationFrame(() => startMedia());
-      }, promotedPreview ? 480 : 0);
+      }, promotedPreview ? 60 : 0);
     }
   }
 
@@ -4958,7 +5011,6 @@
   function beginPlayerDragSnapshot() {
     if (!state.playerOpen || playerDragSnapshot) return;
     app.classList.add('player-dragging');
-    window.__o11a1HideMainVideo = true;
     let image = '';
     try {
       const raw = window.O11A1Native && typeof window.O11A1Native.playerSnapshot === 'function'
@@ -4967,6 +5019,9 @@
       const result = raw ? JSON.parse(raw) : null;
       if (result && result.ok && result.image) image = String(result.image);
     } catch (_) {}
+    const hasPoster = Boolean(playerVideo && playerVideo.querySelector('.player-poster'));
+    if (!image && !hasPoster) return;
+    window.__o11a1HideMainVideo = true;
     if (!image || !playerVideo) return;
     const snapshot = document.createElement('div');
     snapshot.className = 'player-drag-snapshot';
@@ -5709,6 +5764,7 @@
           state.settings[row.key] = option;
           $$('.choice-btn', line).forEach((item) => item.classList.toggle('on', item === button));
           save();
+          if (row.key === 'theme') flushNativePrefs();
           if (row.onChange) row.onChange();
         });
         line.appendChild(button);

@@ -2383,6 +2383,7 @@
     state.playing = true;
     host.save();
     host.updatePlayerLabels();
+    prefetchPlayerDanmaku(item);
     host.openPlayer({ resume: true });
   }
 
@@ -2423,6 +2424,7 @@
     state.playing = true;
     host.save();
     host.updatePlayerLabels();
+    prefetchPlayerDanmaku(state.playlist[firstIndex]);
     host.openPlayer({ resume: true });
   }
 
@@ -2480,6 +2482,7 @@
     posterDanmakuTimer = null;
   }
   let mediaItem = null;
+  let mediaLoadToken = 0;
   let mediaBackup = '';
   let mediaTriedBackup = false;
   const nativeFallbackKeys = new Set();
@@ -2818,6 +2821,7 @@
   }
 
   function clearVideo() {
+    mediaLoadToken += 1;
     stopPosterDanmaku();
     removePromotedPreview();
     destroyHls();
@@ -3424,6 +3428,68 @@
     return value;
   }
 
+  function bridgeAsync(name, ...args) {
+    const fn = bridge && bridge[name];
+    if (typeof fn !== 'function') return Promise.resolve(null);
+    return fn.apply(bridge, args).then((raw) => {
+      try { return JSON.parse(raw); } catch (_) { return null; }
+    }).catch(() => null);
+  }
+
+  function bridgeCallMaybe(name, asyncName, ...args) {
+    if (bridge && typeof bridge[asyncName] === 'function') {
+      return bridgeAsync(asyncName, ...args);
+    }
+    const fn = bridge && bridge[name];
+    if (typeof fn !== 'function') return Promise.resolve(null);
+    try {
+      const raw = fn.apply(bridge, args);
+      return Promise.resolve(typeof raw === 'string' ? JSON.parse(raw) : raw);
+    } catch (_) {
+      return Promise.resolve(null);
+    }
+  }
+
+  async function playQualityCachedAsync(item, qn) {
+    const key = playInfoKey(item, qn);
+    const hit = playInfoCache.get(key);
+    if (hit && Date.now() - hit.at < PLAY_INFO_TTL) return hit.value;
+    const value = await bridgeCallMaybe('playQuality', 'playQualityAsync', item.bvid, item.cid || 0, qn)
+      || { ok: false, error: 'network' };
+    if (value && value.ok) {
+      if (value.cid) item.cid = value.cid;
+      playInfoCache.set(key, { at: Date.now(), value });
+    }
+    return value;
+  }
+
+  const danmakuCidPending = new Set();
+
+  function prefetchPlayerDanmaku(item) {
+    if (!item || item.live) return;
+    const key = mediaKeyFor(item);
+    if (item.cid) {
+      prefetchDanmaku(item.cid);
+      return;
+    }
+    if (!item.bvid || danmakuCidPending.has(key)) return;
+    danmakuCidPending.add(key);
+    bridgeCallMaybe('videoInfo', 'videoInfoAsync', item.bvid).then((info) => {
+      danmakuCidPending.delete(key);
+      if (!info || !info.ok || !info.cid) return;
+      item.cid = info.cid;
+      const entry = currentItem();
+      if (entry && mediaKeyFor(entry) === key) entry.cid = info.cid;
+      prefetchDanmaku(info.cid);
+      if (state.playerOpen && currentItem() && mediaKeyFor(currentItem()) === key) {
+        loadDanmaku(info.cid);
+        if (!promotedPreview) startPosterDanmaku();
+      }
+    }).catch(() => {
+      danmakuCidPending.delete(key);
+    });
+  }
+
   function prefetchPlayInfo(item) {
     if (!item || item.live || !item.bvid || item.epId) return;
     const qn = qualityQn(state.settings.quality);
@@ -3462,7 +3528,7 @@
     } catch (_) {}
   }
 
-  function loadVideo(item, autoplay, allowDash = true) {
+  async function loadVideo(item, autoplay, allowDash = true) {
     state.streamInfo = { videoBitrate: 0, audioBitrate: 0, sourceWidth: 0, sourceHeight: 0, frameRate: 0, netBps: 0, netAt: 0, direct: false };
     state.availableQualities = [];
     resetNetMeter();
@@ -3478,7 +3544,9 @@
       clearVideo();
       return;
     }
+    const loadToken = ++mediaLoadToken;
     if (item.cid) loadDanmaku(item.cid);
+    prefetchPlayerDanmaku(item);
     if (!promotedPreview) startPosterDanmaku();
     const key = item.epId ? `ep:${item.epId}` : `bvid:${item.bvid}`;
     if (mediaItem && mediaKeyFor(mediaItem) === key && video.src) {
@@ -3503,9 +3571,11 @@
     setStatus('加载中…', 'loading');
     let dashTried = false;
     if (DASH_PLAYBACK && allowDash && qualityQn(state.settings.quality) > 64
-      && item.bvid && !item.epId && typeof bridge.dash === 'function') {
+      && item.bvid && !item.epId
+      && (typeof bridge.dash === 'function' || typeof bridge.dashAsync === 'function')) {
       dashTried = true;
-      const dash = call('dash', item.bvid, item.cid || 0, 120);
+      const dash = await bridgeCallMaybe('dash', 'dashAsync', item.bvid, item.cid || 0, 120) || {};
+      if (loadToken !== mediaLoadToken) return;
       const dashMax = dash.ok && Array.isArray(dash.video)
         ? dash.video.reduce((max, track) => Math.max(max, Number(track.qn) || 0), 0)
         : 0;
@@ -3521,12 +3591,16 @@
       log('dash unavailable ' + (dash.error || ''));
     }
     const requestedQuality = state.settings.quality;
+    const qn = qualityQn(state.settings.quality);
     const result = item.epId
-      ? call('playPgc', item.epId, item.bvid || '', item.cid || 0, qualityQn(state.settings.quality))
-      : playQualityCached(item, qualityQn(state.settings.quality));
-    if (!result.ok) {
-      if (!dashTried && DASH_PLAYBACK && allowDash && item.bvid && !item.epId && typeof bridge.dash === 'function') {
-        const dash = call('dash', item.bvid, item.cid || 0, 120);
+      ? await bridgeCallMaybe('playPgc', 'playPgcAsync', item.epId, item.bvid || '', item.cid || 0, qn)
+      : await playQualityCachedAsync(item, qn);
+    if (loadToken !== mediaLoadToken) return;
+    if (!result || !result.ok) {
+      if (!dashTried && DASH_PLAYBACK && allowDash && item.bvid && !item.epId
+        && (typeof bridge.dash === 'function' || typeof bridge.dashAsync === 'function')) {
+        const dash = await bridgeCallMaybe('dash', 'dashAsync', item.bvid, item.cid || 0, 120) || {};
+        if (loadToken !== mediaLoadToken) return;
         if (dash.ok && Array.isArray(dash.video) && Array.isArray(dash.audio) && dash.video.length && dash.audio.length) {
           if (dash.cid) {
             item.cid = dash.cid;
@@ -3538,7 +3612,7 @@
         }
       }
       setStatus('加载失败 · 点击重试', 'error');
-      log('play error ' + (item.bvid || item.epId || '') + ' ' + (result.error || ''));
+      log('play error ' + (item.bvid || item.epId || '') + ' ' + ((result && result.error) || ''));
       if (host.showPlayerNotice) host.showPlayerNotice('画质', `${requestedQuality} 加载失败`, 3200);
       return;
     }
@@ -5078,7 +5152,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.38';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.39';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
