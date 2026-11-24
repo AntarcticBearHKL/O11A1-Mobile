@@ -21,6 +21,13 @@ final class O11A1PlayerHost {
     var item: AVPlayerItem?
     var audioItem: AVPlayerItem?
     var dashAudio = false
+    var dashViaLoader = false
+    var dashRetrying = false
+    var dashVideoURL: URL?
+    var dashAudioURL: URL?
+    var dashStartMs: Double = 0
+    var dashDurationMs: Double = 0
+    var dashAutoplay = false
     var audioStatusObservation: NSKeyValueObservation?
     var seq: Int64 = 0
     var visible = false
@@ -255,10 +262,44 @@ final class O11A1PlayerHost {
     durationMs: Double,
     autoplay: Bool
   ) {
+    slot.dashVideoURL = video
+    slot.dashAudioURL = audio
+    slot.dashStartMs = startMs
+    slot.dashDurationMs = durationMs
+    slot.dashAutoplay = autoplay
     // The DASH URLs are signed with platform=pc; sending the Android API
     // user agent makes the CDN answer 403, while the desktop agent and a
     // bilibili referer are accepted. Cookies are not needed for the signed
     // media URL and are deliberately left out.
+    let mediaHeaders = [
+      "Referer": "https://www.bilibili.com/",
+      "User-Agent": O11A1BiliClient.desktopUserAgent,
+      "Accept": "*/*"
+    ]
+    let options: [String: Any] = [
+      "AVURLAssetHTTPHeaderFieldsKey": mediaHeaders,
+      "AVURLAssetAllowsExpensiveNetworkAccess": true,
+      "AVURLAssetAllowsConstrainedNetworkAccess": true,
+    ]
+    let videoAsset = AVURLAsset(url: video, options: options)
+    let audioAsset = AVURLAsset(url: audio, options: options)
+    installDASHItems(
+      slot,
+      videoAsset: videoAsset,
+      audioAsset: audioAsset,
+      startMs: startMs,
+      durationMs: durationMs,
+      autoplay: autoplay,
+      viaLoader: false
+    )
+  }
+
+  private func installDASHLoader(_ slot: Slot) {
+    guard let video = slot.dashVideoURL, let audio = slot.dashAudioURL else { return }
+    clearObservers(slot)
+    slot.player.pause()
+    slot.player.replaceCurrentItem(with: nil)
+    slot.item = nil
     let mediaHeaders = [
       "Referer": "https://www.bilibili.com/",
       "User-Agent": O11A1BiliClient.desktopUserAgent,
@@ -274,12 +315,34 @@ final class O11A1PlayerHost {
       headers: mediaHeaders,
       contentType: "public.mpeg-4-audio"
     )
+    installDASHItems(
+      slot,
+      videoAsset: videoAsset,
+      audioAsset: audioAsset,
+      startMs: slot.dashStartMs,
+      durationMs: slot.dashDurationMs,
+      autoplay: slot.dashAutoplay || slot.pendingPlay,
+      viaLoader: true
+    )
+  }
+
+  private func installDASHItems(
+    _ slot: Slot,
+    videoAsset: AVAsset,
+    audioAsset: AVAsset,
+    startMs: Double,
+    durationMs: Double,
+    autoplay: Bool,
+    viaLoader: Bool
+  ) {
     let videoItem = AVPlayerItem(asset: videoAsset)
     let audioItem = AVPlayerItem(asset: audioAsset)
     videoItem.preferredForwardBufferDuration = slot.preview ? 8 : 30
     audioItem.preferredForwardBufferDuration = slot.preview ? 8 : 30
     clearDASH(slot)
     slot.dashAudio = true
+    slot.dashViaLoader = viaLoader
+    slot.dashRetrying = false
     slot.durationMs = durationMs
     slot.audioItem = audioItem
     slot.audioPlayer.isMuted = slot.muted
@@ -290,7 +353,12 @@ final class O11A1PlayerHost {
       DispatchQueue.main.async {
         NSLog("[O11A1] dash audio failed %@ %@", slot.id,
               item.error?.localizedDescription ?? "unknown")
-        self.emit(slot, "error", ["error": "dash audio failed"])
+        if !slot.dashViaLoader, !slot.dashRetrying, slot.dashVideoURL != nil {
+          slot.dashRetrying = true
+          self.installDASHLoader(slot)
+        } else {
+          self.emit(slot, "error", ["error": "dash audio failed"])
+        }
       }
     }
     if startMs > 0 {
@@ -298,8 +366,8 @@ final class O11A1PlayerHost {
       slot.audioPlayer.seek(to: cm, toleranceBefore: .zero, toleranceAfter: .zero)
     }
     slot.player.isMuted = true
-    NSLog("[O11A1] dash dual %@ audio=%@ %.0fs", slot.id,
-          audio.host ?? "?", durationMs / 1000)
+    NSLog("[O11A1] dash %@ via=%@ %.0fs", slot.id,
+          viaLoader ? "loader" : "direct", durationMs / 1000)
     installItem(slot, item: videoItem, startMs: startMs, autoplay: autoplay)
     if autoplay || slot.pendingPlay {
       slot.audioPlayer.play()
@@ -491,6 +559,12 @@ final class O11A1PlayerHost {
         } else if item.status == .failed {
           NSLog("[O11A1] item failed %@ %@", slot.id,
                 item.error?.localizedDescription ?? "unknown")
+          if slot.dashAudio, !slot.dashViaLoader, !slot.dashRetrying,
+             slot.dashVideoURL != nil {
+            slot.dashRetrying = true
+            self.installDASHLoader(slot)
+            return
+          }
           slot.audioPlayer.pause()
           self.emit(slot, "error", ["error": item.error?.localizedDescription ?? "playback failed"])
         }
