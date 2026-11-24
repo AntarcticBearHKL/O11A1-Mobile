@@ -7389,6 +7389,13 @@
       state.userName = nextName;
       save();
       refreshUserNav();
+      try {
+        if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'user', face: nextFace, name: nextName,
+          }));
+        }
+      } catch (_) {}
     },
   };
 

@@ -46,6 +46,11 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
   private var tiltDirection = 0
   private var savedBrightness: CGFloat?
   private var statusBarStyle: UIStatusBarStyle = .default
+  private let launchAvatar = UIImageView()
+  private let launchName = UILabel()
+  private let launchProgress = UIProgressView(progressViewStyle: .bar)
+  private var launchTimer: Timer?
+  private var launchFaceTask: URLSessionDataTask?
 
   override var prefersStatusBarHidden: Bool { false }
   override var preferredStatusBarStyle: UIStatusBarStyle { statusBarStyle }
@@ -219,26 +224,100 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
     return String(text.dropFirst().dropLast())
   }
 
+  private var launchBackground: UIColor {
+    if traitCollection.userInterfaceStyle == .dark {
+      return UIColor(red: 0.059, green: 0.063, blue: 0.075, alpha: 1)
+    }
+    return UIColor(red: 0.953, green: 0.937, blue: 0.906, alpha: 1)
+  }
+
+  private func loadLaunchIdentity() {
+    let defaults = UserDefaults.standard
+    let name = defaults.string(forKey: "o11a1.user.name") ?? ""
+    launchName.text = name.isEmpty ? "正在进入" : name
+    let face = defaults.string(forKey: "o11a1.user.face") ?? ""
+    launchFaceTask?.cancel()
+    launchFaceTask = nil
+    launchAvatar.image = UIImage(systemName: "person.crop.circle.fill")
+    launchAvatar.tintColor = .secondaryLabel
+    guard !face.isEmpty, let url = URL(string: face) else { return }
+    launchFaceTask = URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+      guard let self = self, let data = data, let image = UIImage(data: data) else { return }
+      DispatchQueue.main.async {
+        self.launchAvatar.image = image
+        self.launchAvatar.tintColor = nil
+      }
+    }
+    launchFaceTask?.resume()
+  }
+
   private func showLoading() {
     let holder = UIView(frame: view.bounds)
     holder.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    holder.backgroundColor = view.backgroundColor
-    let spinner = UIActivityIndicatorView(style: .medium)
-    spinner.color = UIColor(red: 0.70, green: 0.27, blue: 0.23, alpha: 1)
-    spinner.translatesAutoresizingMaskIntoConstraints = false
-    spinner.startAnimating()
-    holder.addSubview(spinner)
+    holder.backgroundColor = launchBackground
+
+    let avatar = launchAvatar
+    avatar.removeFromSuperview()
+    avatar.translatesAutoresizingMaskIntoConstraints = false
+    avatar.contentMode = .scaleAspectFill
+    avatar.clipsToBounds = true
+    avatar.layer.cornerRadius = 43
+    avatar.layer.cornerCurve = .continuous
+    avatar.layer.borderWidth = 1
+    avatar.layer.borderColor = UIColor.separator.cgColor
+    avatar.backgroundColor = .secondarySystemBackground
+
+    let name = launchName
+    name.removeFromSuperview()
+    name.translatesAutoresizingMaskIntoConstraints = false
+    name.font = .systemFont(ofSize: 15, weight: .semibold)
+    name.textColor = .label
+    name.textAlignment = .center
+
+    let progress = launchProgress
+    progress.removeFromSuperview()
+    progress.translatesAutoresizingMaskIntoConstraints = false
+    progress.progressTintColor = UIColor(red: 0.184, green: 0.486, blue: 0.965, alpha: 1)
+    progress.trackTintColor = .separator
+    progress.progress = 0.06
+    progress.transform = CGAffineTransform(scaleX: 1, y: 1.7)
+
+    holder.addSubview(avatar)
+    holder.addSubview(name)
+    holder.addSubview(progress)
     NSLayoutConstraint.activate([
-      spinner.centerXAnchor.constraint(equalTo: holder.centerXAnchor),
-      spinner.centerYAnchor.constraint(equalTo: holder.centerYAnchor),
+      avatar.widthAnchor.constraint(equalToConstant: 86),
+      avatar.heightAnchor.constraint(equalToConstant: 86),
+      avatar.centerXAnchor.constraint(equalTo: holder.centerXAnchor),
+      avatar.centerYAnchor.constraint(equalTo: holder.centerYAnchor, constant: -34),
+      name.topAnchor.constraint(equalTo: avatar.bottomAnchor, constant: 16),
+      name.centerXAnchor.constraint(equalTo: holder.centerXAnchor),
+      name.leadingAnchor.constraint(greaterThanOrEqualTo: holder.leadingAnchor, constant: 32),
+      progress.topAnchor.constraint(equalTo: name.bottomAnchor, constant: 18),
+      progress.centerXAnchor.constraint(equalTo: holder.centerXAnchor),
+      progress.widthAnchor.constraint(equalToConstant: 136),
     ])
+    loadLaunchIdentity()
     view.addSubview(holder)
     loadingView = holder
+    launchTimer?.invalidate()
+    launchTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
+      guard let self = self, self.loadingView != nil else { return }
+      self.launchProgress.setProgress(min(0.9, self.launchProgress.progress + 0.045), animated: true)
+    }
   }
 
   private func hideLoading() {
-    loadingView?.removeFromSuperview()
+    launchTimer?.invalidate()
+    launchTimer = nil
+    guard let holder = loadingView else { return }
     loadingView = nil
+    launchProgress.setProgress(1, animated: true)
+    UIView.animate(withDuration: 0.2, animations: {
+      holder.alpha = 0
+    }, completion: { _ in
+      holder.removeFromSuperview()
+    })
   }
 
   private func showError(_ message: String) {
@@ -316,6 +395,11 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
         UIScreen.main.brightness = saved
         savedBrightness = nil
       }
+    case "user":
+      let defaults = UserDefaults.standard
+      defaults.set(object["face"] as? String ?? "", forKey: "o11a1.user.face")
+      defaults.set(object["name"] as? String ?? "", forKey: "o11a1.user.name")
+      if loadingView != nil { loadLaunchIdentity() }
     case "statusbar":
       let tone = object["style"] as? String == "light" ? "light" : "dark"
       let next: UIStatusBarStyle = tone == "light" ? .lightContent : .darkContent
