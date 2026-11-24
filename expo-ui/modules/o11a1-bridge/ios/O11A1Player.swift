@@ -155,6 +155,10 @@ final class O11A1PlayerHost {
         return
       }
       let headers = (json["headers"] as? [String: Any])?.compactMapValues { $0 as? String } ?? [:]
+      let audioURL = o11a1String(json["audioUrl"])
+      let kind = o11a1String(json["kind"])
+      let startMs = max(0, o11a1PlayerDouble(json["startMs"], fallback: 0))
+      let autoplay = o11a1Bool(json["autoplay"])
       slot.seq = o11a1Int64(json["seq"])
       slot.started = false
       slot.firstFrame = false
@@ -169,6 +173,10 @@ final class O11A1PlayerHost {
       slot.rate = Float(max(0.1, min(4.0, o11a1PlayerDouble(json["rate"], fallback: 1))))
       slot.player.isMuted = slot.muted
       slot.player.volume = slot.volume
+      slot.player.automaticallyWaitsToMinimizeStalling = !slot.preview
+      NSLog("[O11A1] load %@ kind=%@ audio=%@ muted=%d preview=%d",
+            id, kind, audioURL.isEmpty ? "no" : "yes",
+            slot.muted ? 1 : 0, slot.preview ? 1 : 0)
       if slot.preview {
         slot.view.alpha = 0
       }
@@ -177,18 +185,128 @@ final class O11A1PlayerHost {
       if id == "main" {
         self.webView = web
       }
-      let asset = AVURLAsset(url: url, options: [
-        "AVURLAssetHTTPHeaderFieldsKey": headers,
-      ])
-      let item = AVPlayerItem(asset: asset)
-      item.preferredForwardBufferDuration = slot.preview ? 4 : 30
-      slot.item = item
-      slot.player.replaceCurrentItem(with: item)
-      self.observe(slot)
       self.emit(slot, "loadstart", [:])
-      if o11a1Bool(json["autoplay"]) {
+      if !audioURL.isEmpty && kind == "dash", let audio = URL(string: audioURL) {
+        self.installDASH(
+          slot,
+          video: url,
+          audio: audio,
+          headers: headers,
+          startMs: startMs,
+          autoplay: autoplay
+        )
+      } else {
+        let item = self.playerItem(url: url, headers: headers)
+        self.installItem(slot, item: item, startMs: startMs, autoplay: autoplay)
+      }
+    }
+  }
+
+  private func playerItem(url: URL, headers: [String: String]) -> AVPlayerItem {
+    let asset = AVURLAsset(url: url, options: [
+      "AVURLAssetHTTPHeaderFieldsKey": headers,
+      "AVURLAssetAllowsExpensiveNetworkAccess": true,
+      "AVURLAssetAllowsConstrainedNetworkAccess": true,
+    ])
+    return AVPlayerItem(asset: asset)
+  }
+
+  private func installItem(_ slot: Slot, item: AVPlayerItem, startMs: Double, autoplay: Bool) {
+    item.preferredForwardBufferDuration = slot.preview ? 8 : 120
+    slot.item = item
+    slot.player.replaceCurrentItem(with: item)
+    if startMs > 0 {
+      slot.player.seek(
+        to: CMTime(seconds: startMs / 1000.0, preferredTimescale: 600),
+        toleranceBefore: .zero,
+        toleranceAfter: .zero
+      )
+    }
+    observe(slot)
+    if autoplay {
+      if slot.preview {
+        slot.player.playImmediately(atRate: max(0.1, slot.rate))
+      } else {
         slot.player.play()
       }
+    }
+  }
+
+  private func installDASH(
+    _ slot: Slot,
+    video: URL,
+    audio: URL,
+    headers: [String: String],
+    startMs: Double,
+    autoplay: Bool
+  ) {
+    let videoAsset = AVURLAsset(url: video, options: [
+      "AVURLAssetHTTPHeaderFieldsKey": headers,
+      "AVURLAssetAllowsExpensiveNetworkAccess": true,
+      "AVURLAssetAllowsConstrainedNetworkAccess": true,
+    ])
+    let audioAsset = AVURLAsset(url: audio, options: [
+      "AVURLAssetHTTPHeaderFieldsKey": headers,
+      "AVURLAssetAllowsExpensiveNetworkAccess": true,
+      "AVURLAssetAllowsConstrainedNetworkAccess": true,
+    ])
+    let seq = slot.seq
+    videoAsset.loadTracks(withMediaType: .video) { [weak self] videoTracks, _ in
+      guard let self = self, let videoTrack = videoTracks?.first else {
+        self?.emitDASHFailure(slot, seq: seq)
+        return
+      }
+      audioAsset.loadTracks(withMediaType: .audio) { [weak self] audioTracks, _ in
+        guard let self = self, let audioTrack = audioTracks?.first else {
+          self?.emitDASHFailure(slot, seq: seq)
+          return
+        }
+        DispatchQueue.main.async {
+          guard slot.seq == seq else { return }
+          let composition = AVMutableComposition()
+          guard let videoTrackOut = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+          ), let audioTrackOut = composition.addMutableTrack(
+            withMediaType: .audio,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+          ) else {
+            self.emitDASHFailure(slot, seq: seq)
+            return
+          }
+          let duration = CMTimeMinimum(videoTrack.timeRange.duration, audioTrack.timeRange.duration)
+          guard CMTimeCompare(duration, .zero) > 0 else {
+            self.emitDASHFailure(slot, seq: seq)
+            return
+          }
+          do {
+            try videoTrackOut.insertTimeRange(
+              CMTimeRange(start: .zero, duration: duration),
+              of: videoTrack,
+              at: .zero
+            )
+            try audioTrackOut.insertTimeRange(
+              CMTimeRange(start: .zero, duration: duration),
+              of: audioTrack,
+              at: .zero
+            )
+          } catch {
+            self.emitDASHFailure(slot, seq: seq)
+            return
+          }
+          let item = AVPlayerItem(asset: composition)
+          NSLog("[O11A1] dash composition %@ duration=%.1fs", slot.id, duration.seconds)
+          self.installItem(slot, item: item, startMs: startMs, autoplay: autoplay)
+        }
+      }
+    }
+  }
+
+  private func emitDASHFailure(_ slot: Slot, seq: Int64) {
+    DispatchQueue.main.async {
+      guard slot.seq == seq else { return }
+      NSLog("[O11A1] dash composition failed %@", slot.id)
+      self.emit(slot, "error", ["error": "dash composition failed", "seq": seq])
     }
   }
 
@@ -429,6 +547,7 @@ final class O11A1PlayerHost {
     guard !slot.firstFrame else { return }
     slot.firstFrame = true
     slot.view.alpha = 1
+    NSLog("[O11A1] firstframe %@ size=%dx%d", slot.id, slot.videoWidth, slot.videoHeight)
     updateMetadata(slot)
     emit(slot, "firstframe", metadataPayload(slot))
     emit(slot, "canplay", metadataPayload(slot))

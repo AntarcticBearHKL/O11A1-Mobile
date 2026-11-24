@@ -1009,6 +1009,10 @@
   function maybeFinishPromotedPreview() {
     if (!promotedPreview || !video || !video.src) return;
     if (video.readyState < 2 || playerVideo.classList.contains('video-error')) return;
+    if (NATIVE_MEDIA && video.__o11a1Native && !video.__o11a1Native.gotFirstFrame) {
+      if (video.paused) video.play().catch(() => {});
+      return;
+    }
     const promoted = promotedPreview;
     if (promoted.video.paused) {
       try { if (!video.paused) video.pause(); } catch (_) {}
@@ -3146,7 +3150,7 @@
     playerVideo.classList.add('video-loading');
     setStatus('加载中…', 'loading');
     let dashTried = false;
-    if (DASH_PLAYBACK && !NATIVE_IOS && allowDash && qualityQn(state.settings.quality) > 64
+    if (DASH_PLAYBACK && allowDash && qualityQn(state.settings.quality) > 64
       && item.bvid && !item.epId && typeof bridge.dash === 'function') {
       dashTried = true;
       const dash = call('dash', item.bvid, item.cid || 0, 120);
@@ -3169,7 +3173,7 @@
       ? call('playPgc', item.epId, item.bvid || '', item.cid || 0, qualityQn(state.settings.quality))
       : playQualityCached(item, qualityQn(state.settings.quality));
     if (!result.ok) {
-      if (!dashTried && !NATIVE_IOS && DASH_PLAYBACK && allowDash && item.bvid && !item.epId && typeof bridge.dash === 'function') {
+      if (!dashTried && DASH_PLAYBACK && allowDash && item.bvid && !item.epId && typeof bridge.dash === 'function') {
         const dash = call('dash', item.bvid, item.cid || 0, 120);
         if (dash.ok && Array.isArray(dash.video) && Array.isArray(dash.audio) && dash.video.length && dash.audio.length) {
           if (dash.cid) {
@@ -3284,6 +3288,12 @@
       video.play().catch(() => {});
       return;
     }
+    if (NATIVE_MEDIA && mediaItem && mediaItem.bvid && !mediaItem.live && !mediaTriedBackup) {
+      mediaTriedBackup = true;
+      log('native media failed, retry progressive ' + mediaItem.bvid);
+      loadVideo(mediaItem, true, false);
+      return;
+    }
     if (promotedPreview) {
       playerVideo.classList.remove('video-loading', 'video-error');
       if (status) status.textContent = '';
@@ -3389,7 +3399,7 @@
       host.updatePlayerLabels();
       const keepTime = promotedPreview ? promotedPreview.video.currentTime : (video.currentTime || 0);
       const keepDuration = promotedPreview ? promotedPreview.video.duration : video.duration;
-      if (DASH_PLAYBACK && !NATIVE_IOS && qualityQn(value) > 64 && typeof bridge.dash === 'function' && !mediaItem.epId) {
+      if (DASH_PLAYBACK && qualityQn(value) > 64 && typeof bridge.dash === 'function' && !mediaItem.epId) {
         const item = mediaItem;
         if (keepTime > 0.5) {
           pendingMediaStart = { key: mediaKeyFor(item), time: keepTime };
@@ -4698,7 +4708,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.3.2';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.3.3';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

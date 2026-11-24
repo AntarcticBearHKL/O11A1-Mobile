@@ -183,7 +183,7 @@
 
   const DEFAULT_SETTINGS = {
     defaultQuality: '最高',
-    quality: '720P',
+    quality: '1080P',
     speed: '1.0×',
     loop: '循环',
     aspect: '适应',
@@ -287,10 +287,9 @@
     state.settings.bgTransparency = 0;
     state.settings.bgBlur = 100;
   }
-  if (loaded?.playbackVersion !== 2) {
-    if (['4K', '1080P60', '1080P+', '1080P'].includes(state.settings.quality)) {
-      state.settings.quality = '720P';
-    }
+  if (loaded?.playbackVersion !== 3) {
+    state.settings.quality = '1080P';
+    state.playbackVersion = 3;
     save();
   }
   if (!state.modules.some((mod) => mod.id === state.moduleId && mod.on)) {
@@ -591,7 +590,7 @@
         navAllVisible: state.navAllVisible,
         navSelected: state.navSelected,
         bgStyleVersion: 2,
-        playbackVersion: 2,
+        playbackVersion: 3,
       }));
     } catch (_) {}
   }

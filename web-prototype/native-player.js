@@ -292,9 +292,11 @@
           rec.background = true;
           sendLayer(rec, true);
         }
-      } else if (shouldBackground !== Boolean(rec.background)) {
-        rec.background = shouldBackground;
-        sendLayer(rec, shouldBackground);
+      } else {
+        /* A promoted preview stays above the WebView until the main player has
+           its first frame.  Moving it below early exposes the opaque player
+           page and produces the black-screen transition. */
+        rec.background = false;
       }
       const visible = rectVisible(rect) && !isPreload && (inPlayer || baseVisible);
       if (rec.gotFirstFrame && !isPreload) {
