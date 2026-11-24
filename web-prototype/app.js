@@ -861,6 +861,8 @@
   }
 
   let searchDismissing = false;
+  let searchOpeningTimer = null;
+  let searchDismissTimer = null;
   let keyboardSyncFrame = 0;
 
   function openSearch() {
@@ -891,7 +893,11 @@
     searchPanel.setAttribute('aria-hidden', 'false');
     searchPanel.classList.add('open');
     app.classList.add('search-open');
-    document.body.classList.add('search-mode');
+    document.body.classList.add('search-mode', 'search-opening');
+    clearTimeout(searchOpeningTimer);
+    searchOpeningTimer = setTimeout(() => {
+      document.body.classList.remove('search-opening');
+    }, 420);
     setDockExpanded(false);
     // Let the slide-in start on the compositor before the keyboard resize.
     setTimeout(() => {
@@ -915,7 +921,12 @@
     if (!searchPanel || !state.searchOpen) return false;
     state.searchOpen = false;
     app.classList.remove('search-open');
-    document.body.classList.remove('search-mode');
+    document.body.classList.remove('search-mode', 'search-opening');
+    document.body.classList.add('search-dismissing');
+    clearTimeout(searchDismissTimer);
+    searchDismissTimer = setTimeout(() => {
+      document.body.classList.remove('search-dismissing');
+    }, 420);
     if (document.activeElement === searchInput) searchInput.blur();
     syncKeyboardOffset();
     searchPanel.setAttribute('aria-hidden', 'true');
@@ -956,7 +967,12 @@
     /* Return the page underneath at the same moment the panel starts leaving;
        waiting for the panel to finish made the background pop back late. */
     app.classList.remove('search-open');
-    document.body.classList.remove('search-mode');
+    document.body.classList.remove('search-mode', 'search-opening');
+    document.body.classList.add('search-dismissing');
+    clearTimeout(searchDismissTimer);
+    searchDismissTimer = setTimeout(() => {
+      document.body.classList.remove('search-dismissing');
+    }, 420);
     if (document.activeElement === searchInput) searchInput.blur();
     searchPanel.classList.remove('dragging');
     searchPanel.classList.add('settling');

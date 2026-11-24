@@ -599,7 +599,8 @@ body[data-theme="dark"] .search-panel{box-shadow:-22px 0 54px rgba(0,0,0,.55)}
 .search-panel{will-change:transform;contain:layout paint}
 .search-panel.dragging{box-shadow:-18px 0 46px rgba(10,12,20,.18)}
 .search-panel-head{contain:paint}
-body.search-dismissing .search-panel-head{backdrop-filter:none;-webkit-backdrop-filter:none}
+body.search-dismissing .search-panel-head,
+body.search-opening .search-panel-head{backdrop-filter:none;-webkit-backdrop-filter:none}
 
 /* search home: hot words and suggestions */
 .search-home{transition:transform .28s cubic-bezier(.22,1,.36,1),opacity .22s ease}

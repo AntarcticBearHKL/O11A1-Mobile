@@ -159,6 +159,17 @@
             }, 22000);
           }
         }
+        if (TEST_FLOW === 'landscape') {
+          setTimeout(function () {
+            try {
+              var row = document.querySelector('#homeFeed .real-row');
+              if (row) row.click();
+            } catch (error) {}
+          }, 3500);
+          setTimeout(function () {
+            try { window.O11A1Host.setPlayerOrientation(1); } catch (error) {}
+          }, 9000);
+        }
         if (TEST_FLOW === 'theme') {
           setTimeout(function () {
             try {
