@@ -2899,7 +2899,14 @@
   function beginSidebarDrag() {
     if (!state.loggedIn) return false;
     cancelSidebarSettle();
-    renderSidebar();
+    /* Rebuilding the whole nav at the first drag frame caused a visible hitch.
+       The list is already rendered at launch and refreshed when settings change. */
+    if (sidebarNav.childElementCount || sidebarFoot.childElementCount) {
+      updateNavActive();
+      updatePlaylistCounts();
+    } else {
+      renderSidebar();
+    }
     updateMiniPlayer();
     clearSidebarPicked();
     sidebar.classList.remove('selecting');
@@ -6812,12 +6819,6 @@
         rowSwipe.sidebarActive = true;
         rowSwipe.sidebarBase = Math.min(SWIPE_LOCK_PX, dx);
         applySidebarDrag(0);
-        rowSwipe.sidebarHoldTimer = setTimeout(() => {
-          if (!rowSwipe || rowSwipe.direction !== 'right' || rowSwipe.sidebarProgress < 0.18) return;
-          rowSwipe.sidebarSelecting = true;
-          sidebar.classList.add('selecting');
-          beginSidebarSelect(rowSwipe);
-        }, 240);
         return;
       }
       if (intent === 'left') {
