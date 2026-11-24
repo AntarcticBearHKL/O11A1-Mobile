@@ -2454,6 +2454,25 @@
   const danmakuCache = new Map();
   const danmakuPending = new Map();
   let danmakuToken = 0;
+  let posterDanmakuTimer = null;
+  let posterDanmakuStart = 0;
+
+  function startPosterDanmaku() {
+    if (posterDanmakuTimer) return;
+    posterDanmakuStart = performance.now();
+    posterDanmakuTimer = setInterval(() => {
+      if (!state.playerOpen || promotedPreview) {
+        stopPosterDanmaku();
+        return;
+      }
+      tickDanmaku((performance.now() - posterDanmakuStart) / 1000);
+    }, 120);
+  }
+
+  function stopPosterDanmaku() {
+    if (posterDanmakuTimer) clearInterval(posterDanmakuTimer);
+    posterDanmakuTimer = null;
+  }
   let mediaItem = null;
   let mediaBackup = '';
   let mediaTriedBackup = false;
@@ -2793,6 +2812,7 @@
   }
 
   function clearVideo() {
+    stopPosterDanmaku();
     removePromotedPreview();
     destroyHls();
     destroyDash();
@@ -3453,6 +3473,7 @@
       return;
     }
     if (item.cid) loadDanmaku(item.cid);
+    if (!promotedPreview) startPosterDanmaku();
     const key = item.epId ? `ep:${item.epId}` : `bvid:${item.bvid}`;
     if (mediaItem && mediaKeyFor(mediaItem) === key && video.src) {
       applyPendingMediaStart();
@@ -3571,6 +3592,7 @@
   });
   video.addEventListener('playing', () => {
     applyPendingMediaStart();
+    stopPosterDanmaku();
     maybeFinishPromotedPreview();
   });
   video.addEventListener('seeked', maybeFinishPromotedPreview);
@@ -3579,6 +3601,7 @@
       maybeFinishPromotedPreview();
       return;
     }
+    stopPosterDanmaku();
     if (mediaLive) return;
     if (!video.duration || !Number.isFinite(video.duration)) return;
     host.setProgress(video.currentTime / video.duration * 100);
@@ -5043,7 +5066,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.25';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.26';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
