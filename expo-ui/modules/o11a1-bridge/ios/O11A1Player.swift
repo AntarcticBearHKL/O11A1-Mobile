@@ -438,14 +438,6 @@ final class O11A1PlayerHost {
             slot.dashViaLoader == viaLoader,
             slot.item?.status != .readyToPlay else { return }
       NSLog("[O11A1] dash timeout %@ via=%@", slot.id, slot.dashViaLoader ? "loader" : "direct")
-      if !viaLoader, !slot.dashRetrying {
-        // The direct AVURLAsset path occasionally waits on a CDN edge. Retry
-        // once through URLSession with explicit headers before giving up on
-        // 1080P and falling back to progressive.
-        slot.dashRetrying = true
-        self.installDASHLoader(slot)
-        return
-      }
       slot.audioPlayer.pause()
       self.emit(slot, "error", ["error": "dash timeout"])
     }
