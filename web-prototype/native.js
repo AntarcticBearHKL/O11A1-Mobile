@@ -706,6 +706,7 @@
   let previewCommitTimer = null;
   let previewCandidate = null;
   let previewCandidateTimer = 0;
+  let previewProgressGuardUntil = 0;
 
   function mediaKeyFor(item) {
     if (!item) return '';
@@ -748,6 +749,10 @@
         return;
       }
       if (video !== previewVideo || !previewProgressFill || !video.duration) return;
+      if (performance.now() < previewProgressGuardUntil) {
+        previewProgressFill.style.transform = 'scaleX(0)';
+        return;
+      }
       previewProgressFill.style.transform = `scaleX(${Math.min(1, Math.max(0, video.currentTime / video.duration))})`;
     });
     video.addEventListener('play', () => {
@@ -777,15 +782,23 @@
   }
 
   function attachPreviewOverlays(thumb) {
-    const muted = document.createElement('span');
-    muted.className = 'preview-muted';
-    muted.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.4L12 5.8v12.4L7.4 14.5H4z"/><path d="m16.5 9.5 5 5M21.5 9.5l-5 5"/></svg>';
+    const live = document.createElement('span');
+    live.className = 'preview-live';
+    live.innerHTML = '<i aria-hidden="true"></i><b>预览中</b>';
+    const ring = document.createElement('span');
+    ring.className = 'preview-ring';
+    ring.setAttribute('aria-hidden', 'true');
     const progress = document.createElement('span');
     progress.className = 'preview-progress';
     const fill = document.createElement('span');
     progress.appendChild(fill);
-    thumb.appendChild(muted);
+    thumb.appendChild(live);
+    thumb.appendChild(ring);
     thumb.appendChild(progress);
+    previewProgressGuardUntil = performance.now() + 380;
+    fill.style.transition = 'none';
+    fill.style.transform = 'scaleX(0)';
+    requestAnimationFrame(() => { fill.style.transition = ''; });
     return fill;
   }
 
@@ -823,7 +836,7 @@
       const thumb = previewRow.querySelector('.row-thumb');
       if (thumb) {
         thumb.classList.remove('preview-loading');
-        thumb.querySelectorAll('.preview-muted, .preview-progress').forEach((node) => node.remove());
+        thumb.querySelectorAll('.preview-live, .preview-ring, .preview-progress').forEach((node) => node.remove());
       }
       previewRow = null;
     }
@@ -882,7 +895,7 @@
       const oldThumb = previewRow.querySelector('.row-thumb');
       if (oldThumb) {
         oldThumb.classList.remove('preview-loading');
-        oldThumb.querySelectorAll('.preview-muted, .preview-progress').forEach((node) => node.remove());
+        oldThumb.querySelectorAll('.preview-live, .preview-ring, .preview-progress').forEach((node) => node.remove());
       }
     }
     const previousVideo = previewVideo;
@@ -902,7 +915,7 @@
     row.classList.add('preview-active');
     thumb.appendChild(video);
     video.classList.remove('preview-preload');
-    thumb.querySelectorAll('.preview-muted, .preview-progress').forEach((node) => node.remove());
+    thumb.querySelectorAll('.preview-live, .preview-ring, .preview-progress').forEach((node) => node.remove());
     previewProgressFill = attachPreviewOverlays(thumb);
     const reveal = () => {
       thumb.classList.remove('preview-loading');
@@ -980,7 +993,7 @@
     stopPreviewPreload();
     const time = Number(previewVideo.currentTime) || 0;
     previewRow.classList.remove('preview-active');
-    previewRow.querySelectorAll('.preview-muted, .preview-progress').forEach((node) => node.remove());
+    previewRow.querySelectorAll('.preview-live, .preview-ring, .preview-progress').forEach((node) => node.remove());
     previewRow = null;
     previewProgressFill = null;
     lastPreviewProgress = null;
@@ -1130,7 +1143,7 @@
       const next = row.getBoundingClientRect();
       const activeDistance = Math.abs(active.top + active.height / 2 - cy);
       const nextDistance = Math.abs(next.top + next.height / 2 - cy);
-      if (activeDistance < nextDistance + viewport.height * 0.08) return previewRow;
+      if (activeDistance < nextDistance - viewport.height * 0.025) return previewRow;
     }
     return row;
   }
@@ -1272,7 +1285,7 @@
         const current = previewFocusRow(feed, view.scroll);
         if (current !== row) return;
         activatePreviewFocus(feed, row);
-      }, 65);
+      }, 40);
     }
   }
 
@@ -4887,7 +4900,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.13';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.14';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

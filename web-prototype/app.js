@@ -2889,8 +2889,8 @@
     sidebar.inert = false;
     sidebar.setAttribute('aria-hidden', 'false');
     app.classList.add('sidebar-open', 'sidebar-dragging');
-    sidebar.classList.add('open');
-    sidebarBackdrop.classList.add('show');
+    sidebar.classList.add('open', 'dragging');
+    sidebarBackdrop.classList.add('show', 'dragging');
     appMain.style.boxShadow = sidebarCompact
       ? '0 12px 30px rgba(10,12,20,.24)'
       : '0 12px 32px rgba(10,12,20,.26)';
@@ -2942,7 +2942,8 @@
 
   function finishSidebarDrag() {
     app.classList.remove('sidebar-dragging');
-    sidebar.classList.remove('selecting');
+    sidebar.classList.remove('selecting', 'dragging');
+    sidebarBackdrop.classList.remove('dragging');
     clearSidebarPicked();
     appMain.style.transform = '';
     appMain.style.borderRadius = '';
@@ -2953,7 +2954,8 @@
 
   function closeSidebarFromDrag() {
     app.classList.remove('sidebar-dragging');
-    sidebar.classList.remove('selecting');
+    sidebar.classList.remove('selecting', 'dragging');
+    sidebarBackdrop.classList.remove('dragging');
     clearSidebarPicked();
     closeSidebar();
     appMain.style.transform = '';
@@ -2983,7 +2985,7 @@
       if (item) handleNav(item, picked);
       return;
     }
-    if (!cancelled && progress >= 0.22) {
+    if (!cancelled && progress >= 0.14) {
       settleSidebarDrag(progress, 1, () => {
         finishSidebarDrag();
         updatePlaylistDock();
@@ -6611,7 +6613,8 @@
         rowSwipe.direction = 'vertical';
         return;
       }
-      if (dx > 8) {
+      if (dx > 10) {
+        if (event.cancelable) event.preventDefault();
         if (rowSwipe.surface === 'detail' || rowSwipe.surface === 'my') {
           rowSwipe.direction = 'vertical';
           return;

@@ -163,7 +163,11 @@
       markThumb(rec);
       if (rec.el.closest && rec.el.closest('#playerVideo') && playerOpen()) {
         const cover = document.getElementById('playerVideo');
-        if (rec.slot === 'main' && cover) cover.style.backgroundImage = '';
+        if (rec.slot === 'main' && cover) {
+          // Hold the poster through the first composited native frame; clearing
+          // it in the same runloop as the event produced the full-screen flash.
+          setTimeout(() => { cover.style.backgroundImage = ''; }, 70);
+        }
         bodyReady(true);
       }
       dispatch(rec, 'nativefirstframe');

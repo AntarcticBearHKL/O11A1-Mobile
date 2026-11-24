@@ -9,9 +9,50 @@ import QuartzCore
 final class O11A1PlayerHost {
   static let shared = O11A1PlayerHost()
 
-  private final class PlayerView: UIView {
+  private final class PlayerSurface: UIView {
     override class var layerClass: AnyClass { AVPlayerLayer.self }
     var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+  }
+
+  private final class PlayerView: UIView {
+    private let backdrop = PlayerSurface()
+    private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
+    private let foreground = PlayerSurface()
+    var playerLayer: AVPlayerLayer { foreground.playerLayer }
+
+    override init(frame: CGRect) {
+      super.init(frame: frame)
+      backgroundColor = .black
+      clipsToBounds = true
+      layer.cornerRadius = 22
+      layer.cornerCurve = .continuous
+      backdrop.isUserInteractionEnabled = false
+      foreground.isUserInteractionEnabled = false
+      blur.isUserInteractionEnabled = false
+      backdrop.playerLayer.videoGravity = .resizeAspectFill
+      foreground.playerLayer.videoGravity = .resizeAspect
+      backdrop.alpha = 0.92
+      blur.alpha = 0.9
+      addSubview(backdrop)
+      addSubview(blur)
+      addSubview(foreground)
+    }
+
+    required init?(coder: NSCoder) {
+      super.init(coder: coder)
+    }
+
+    func bind(_ player: AVPlayer) {
+      backdrop.playerLayer.player = player
+      foreground.playerLayer.player = player
+    }
+
+    override func layoutSubviews() {
+      super.layoutSubviews()
+      backdrop.frame = bounds
+      blur.frame = bounds
+      foreground.frame = bounds
+    }
   }
 
   private final class Slot {
@@ -61,10 +102,9 @@ final class O11A1PlayerHost {
 
     init(_ id: String) {
       self.id = id
-      view.playerLayer.videoGravity = .resizeAspect
       view.backgroundColor = .black
       view.isUserInteractionEnabled = false
-      view.playerLayer.player = player
+      view.bind(player)
       audioPlayer.automaticallyWaitsToMinimizeStalling = true
       audioPlayer.actionAtItemEnd = .none
     }
@@ -618,7 +658,7 @@ final class O11A1PlayerHost {
   @objc private func rectTick() {
     let now = CACurrentMediaTime()
     for slot in slots.values {
-      guard slot.preview, slot.visible, !slot.view.isHidden,
+      guard slot.visible, !slot.view.isHidden,
             let target = slot.targetFrame else { continue }
       let age = now - slot.targetAt
       if age > 0.12 {
