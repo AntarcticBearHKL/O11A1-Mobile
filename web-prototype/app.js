@@ -6611,6 +6611,8 @@
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
       if (Math.abs(dy) > Math.abs(dx) * 1.15) {
         rowSwipe.direction = 'vertical';
+        // A fling that starts on a row must never turn its lift into a click.
+        suppressFeedClickUntil = Date.now() + 420;
         return;
       }
       if (dx > 10) {
@@ -7058,6 +7060,12 @@
     activeFeed,
     refreshPlaylistPage,
     isFeedClickSuppressed: () => Date.now() < suppressFeedClickUntil,
+    suppressFeedClicks: (ms) => {
+      suppressFeedClickUntil = Math.max(
+        suppressFeedClickUntil,
+        Date.now() + Math.max(0, Math.min(1200, Number(ms) || 0))
+      );
+    },
     openComments,
     closeVideoDetail,
     openUpFromDetail,

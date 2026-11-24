@@ -1548,6 +1548,7 @@
 
   function scheduleWindowUpdate(feed) {
     if (!feed) return;
+    if (host.suppressFeedClicks) host.suppressFeedClicks(300);
     // Do not cancel an in-flight preview preload on every scroll event; the
     // focus row is re-evaluated on the next animation frame now.
     const now = Date.now();
@@ -4933,7 +4934,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.19';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.20';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

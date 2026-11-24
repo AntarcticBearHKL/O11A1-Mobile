@@ -60,7 +60,7 @@
   }
   window.O11A1Native = {
     available: function () { return true; },
-    version: function () { return '0.4.19-ios'; },
+    version: function () { return '0.4.20-ios'; },
     popular: function (page, ps) { return call('popular', { page: page, ps: ps }); },
     recommend: function (page, ps, fresh) { return call('recommend', { page: page, ps: ps, fresh: fresh }); },
     search: function (keyword, page) { return call('search', { keyword: keyword, page: page }); },
