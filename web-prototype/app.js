@@ -7040,6 +7040,7 @@
     stopPlayback,
     updatePlayerLabels,
     updatePlaylistDock,
+    setDockExpanded,
     refreshQualityChoices,
     updatePlaylistCounts,
     showPlayerNotice,
