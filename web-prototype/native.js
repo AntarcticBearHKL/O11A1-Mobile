@@ -1209,6 +1209,11 @@
           backup: cachedResult.backupRemote || '',
           at: Date.now(),
         });
+        if (!item.cid && cachedResult.cid) {
+          item.cid = Number(cachedResult.cid) || 0;
+          if (previewRow && previewRow.__nativeItem === item) previewRow.__nativeItem.cid = item.cid;
+          prefetchDanmaku(item.cid);
+        }
         return cachedUrl;
       }
       if (!previewPending.has(key) && typeof bridge.prewarmPreviews === 'function') {
@@ -1228,6 +1233,11 @@
         backup: NATIVE_MEDIA ? String(result.backupRemote || '') : String(result.backup || ''),
         at: Date.now(),
       });
+      if (!item.cid && result.cid) {
+        item.cid = Number(result.cid) || 0;
+        if (previewRow && previewRow.__nativeItem === item) previewRow.__nativeItem.cid = item.cid;
+        prefetchDanmaku(item.cid);
+      }
     } else {
       previewUrlCache.delete(key);
     }
@@ -1360,6 +1370,7 @@
       const thumb = row.querySelector('.row-thumb');
       if (thumb) {
         const url = previewUrlFor(item);
+        prefetchDanmaku(item.cid);
         if (!url) {
           // The play URL is still being warmed by /api/prewarm. Retry shortly
           // instead of letting this row become a permanently stuck candidate.
@@ -5023,7 +5034,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.21';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.22';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
