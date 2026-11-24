@@ -1053,18 +1053,15 @@
     const target = Number.isFinite(duration) && duration > 0
       ? Math.min(overlayTime, Math.max(0, duration - 0.2))
       : overlayTime;
+    if (video.__o11a1Native && video.__o11a1Native.seeking) return;
     const rate = parseFloat(state.settings.speed || '1');
     const playbackRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
     const delta = Number(video.currentTime) - target;
-    if (delta < -0.45) {
-      const catchUp = Math.min(3, Math.max(1.05, 1 + (-delta) / 3));
-      try { video.playbackRate = catchUp; } catch (_) {}
-      if (video.paused) video.play().catch(() => {});
-      return;
-    }
-    if (delta > 0.8) {
-      try { if (!video.paused) video.pause(); } catch (_) {}
-      try { video.playbackRate = playbackRate; } catch (_) {}
+    if (delta < -0.45 || delta > 0.8) {
+      // Seek the ready native item to the overlay's playhead instead of
+      // letting it crawl there at 2-3x. The preview stays visible for the
+      // ~120 ms seek, then the normal seeked event completes the handoff.
+      try { video.currentTime = target; } catch (_) {}
       return;
     }
     try { video.playbackRate = playbackRate; } catch (_) {}
@@ -4890,7 +4887,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.10';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.11';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
