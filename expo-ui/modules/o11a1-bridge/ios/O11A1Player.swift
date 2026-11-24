@@ -77,6 +77,8 @@ final class O11A1PlayerHost {
   private var rectLink: CADisplayLink?
   private var rectSamples = 0
   private var rectLogAt = CFAbsoluteTimeGetCurrent()
+  private var jsClockOffset: CFTimeInterval?
+  private var lastRectTimestamp: Double = 0
 
   private init() {}
 
@@ -521,7 +523,8 @@ final class O11A1PlayerHost {
   }
 
   func rect(slot id: String, x: Double, y: Double, width: Double, height: Double,
-            visible: Bool, rotation: Double) {
+            visible: Bool, rotation: Double, velocity: Double = 0,
+            timestamp: Double = 0) {
     let apply = { [weak self] in
       guard let self = self, let slot = self.slots[id] else { return }
       if !visible || width < 2 || height < 2 {
@@ -540,13 +543,31 @@ final class O11A1PlayerHost {
       if slot.view.superview == nil {
         self.ensureParent(slot)
       }
-      let frame = CGRect(x: x, y: y, width: width, height: height)
+      var frame = CGRect(x: x, y: y, width: width, height: height)
       let now = CACurrentMediaTime()
+      var deliveredAge: CFTimeInterval = 0
+      if timestamp > 0 {
+        let jsNow = timestamp / 1000.0
+        if let offset = self.jsClockOffset {
+          self.jsClockOffset = min(offset, now - jsNow)
+        } else {
+          self.jsClockOffset = now - jsNow
+        }
+        deliveredAge = max(0, now - jsNow - (self.jsClockOffset ?? 0))
+        self.lastRectTimestamp = timestamp
+      }
+      if velocity != 0, deliveredAge > 0 {
+        // The WebView message queue may deliver only 40-60 rects/s. Move the
+        // target to where the row is now, not where it was when JS sampled it.
+        frame.origin.y += CGFloat(velocity * min(deliveredAge, 0.045))
+      }
       if let previous = slot.targetFrame, slot.targetAt > 0 {
         let dt = now - slot.targetAt
         if dt > 0.002 && dt < 0.2 {
           slot.rectVelocity = (frame.origin.y - previous.origin.y) / CGFloat(dt)
         }
+      } else if velocity != 0 {
+        slot.rectVelocity = CGFloat(velocity)
       }
       slot.targetFrame = frame
       slot.targetAt = now

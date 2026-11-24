@@ -134,12 +134,13 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
         }
       };
       window.O11A1PlayerNative = {
-        rect: function (slot, x, y, w, h, visible, rotation) {
+        rect: function (slot, x, y, w, h, visible, rotation, vy, ts) {
           try {
             window.webkit.messageHandlers.o11a1player.postMessage({
               type: "rect", slot: String(slot),
               x: Number(x), y: Number(y), w: Number(w), h: Number(h),
-              visible: visible ? 1 : 0, rotation: Number(rotation) || 0
+              visible: visible ? 1 : 0, rotation: Number(rotation) || 0,
+              vy: Number(vy) || 0, ts: Number(ts) || 0
             });
           } catch (error) {}
         },
@@ -267,7 +268,9 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
           width: (body["w"] as? NSNumber)?.doubleValue ?? 0,
           height: (body["h"] as? NSNumber)?.doubleValue ?? 0,
           visible: ((body["visible"] as? NSNumber)?.intValue ?? 0) != 0,
-          rotation: (body["rotation"] as? NSNumber)?.doubleValue ?? 0
+          rotation: (body["rotation"] as? NSNumber)?.doubleValue ?? 0,
+          velocity: (body["vy"] as? NSNumber)?.doubleValue ?? 0,
+          timestamp: (body["ts"] as? NSNumber)?.doubleValue ?? 0
         )
       case "layer":
         O11A1PlayerHost.shared.layer(

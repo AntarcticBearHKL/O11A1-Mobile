@@ -245,9 +245,16 @@
   }
 
   function sendRect(rec, x, y, w, h, visible, rotation) {
+    const at = performance.now();
+    let vy = 0;
+    if (rec.lastSentAt && at - rec.lastSentAt > 1 && rec.lastSentY != null) {
+      vy = (y - rec.lastSentY) / ((at - rec.lastSentAt) / 1000);
+    }
+    rec.lastSentAt = at;
+    rec.lastSentY = y;
     if (fast && typeof fast.rect === 'function') {
       try {
-        fast.rect(rec.slot, x, y, w, h, visible, rotation);
+        fast.rect(rec.slot, x, y, w, h, visible, rotation, vy, at);
         return;
       } catch (_) {}
     }
@@ -406,6 +413,8 @@
       lastRect: null,
       lastVisible: null,
       lastRectAt: 0,
+      lastSentAt: 0,
+      lastSentY: null,
       thumb: null,
     };
     el.__o11a1Native = rec;
