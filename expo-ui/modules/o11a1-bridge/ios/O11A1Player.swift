@@ -57,6 +57,12 @@ final class O11A1PlayerHost {
       foreground.playerLayer.player = player
     }
 
+    func setForegroundGravity(_ gravity: AVLayerVideoGravity) {
+      if foreground.playerLayer.videoGravity != gravity {
+        foreground.playerLayer.videoGravity = gravity
+      }
+    }
+
     override func layoutSubviews() {
       super.layoutSubviews()
       backdrop.frame = bounds
@@ -613,9 +619,20 @@ final class O11A1PlayerHost {
 
   func rect(slot id: String, x: Double, y: Double, width: Double, height: Double,
             visible: Bool, rotation: Double, velocity: Double = 0,
-            timestamp: Double = 0) {
+            timestamp: Double = 0, aspect: String = "") {
     let apply = { [weak self] in
       guard let self = self, let slot = self.slots[id] else { return }
+      /* Landscape always fills the long edge of the screen. An aspect-fit video
+         on a 19.5:9 phone would otherwise sit in a small centered rectangle. */
+      let gravity: AVLayerVideoGravity
+      if aspect == "拉伸" {
+        gravity = .resize
+      } else if aspect == "裁切" || abs(rotation) > 0.5 {
+        gravity = .resizeAspectFill
+      } else {
+        gravity = .resizeAspect
+      }
+      slot.view.setForegroundGravity(gravity)
       if !visible || width < 2 || height < 2 {
         slot.visible = false
         slot.targetFrame = nil

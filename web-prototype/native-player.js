@@ -255,7 +255,7 @@
     return true;
   }
 
-  function sendRect(rec, x, y, w, h, visible, rotation) {
+  function sendRect(rec, x, y, w, h, visible, rotation, aspect) {
     const at = performance.now();
     let vy = 0;
     if (rec.lastSentAt && at - rec.lastSentAt > 1 && rec.lastSentY != null) {
@@ -265,11 +265,11 @@
     rec.lastSentY = y;
     if (fast && typeof fast.rect === 'function') {
       try {
-        fast.rect(rec.slot, x, y, w, h, visible, rotation, vy, at);
+        fast.rect(rec.slot, x, y, w, h, visible, rotation, vy, at, aspect);
         return;
       } catch (_) {}
     }
-    evalBridge('nativePlayerRect', [rec.slot, x, y, w, h, visible, rotation]);
+    evalBridge('nativePlayerRect', [rec.slot, x, y, w, h, visible, rotation, aspect]);
   }
 
   function sendLayer(rec, background) {
@@ -356,6 +356,9 @@
           markThumb(rec);
         }
       }
+      const aspect = (window.O11A1Host && window.O11A1Host.state
+        && window.O11A1Host.state.settings && window.O11A1Host.state.settings.aspect)
+        || '适应';
       const minGap = IOS ? 0 : (inPlayer ? 8 : 16);
       if (visible && at - rec.lastRectAt >= minGap) {
         const scale = IOS ? 1 : dpr;
@@ -368,15 +371,17 @@
           || Math.abs(rec.lastRect.w - w) > 0.75
           || Math.abs(rec.lastRect.h - h) > 0.75
           || rec.lastRotate !== rotation
+          || rec.lastAspect !== aspect
           || rec.lastVisible !== true) {
-          sendRect(rec, x, y, w, h, true, rotation);
+          sendRect(rec, x, y, w, h, true, rotation, aspect);
           rec.lastRect = { x, y, w, h };
           rec.lastRotate = rotation;
+          rec.lastAspect = aspect;
           rec.lastVisible = true;
           rec.lastRectAt = at;
         }
       } else if (!visible && rec.lastVisible !== false) {
-        sendRect(rec, 0, 0, 0, 0, false, 0);
+        sendRect(rec, 0, 0, 0, 0, false, 0, aspect);
         rec.lastVisible = false;
         rec.lastRect = null;
         rec.lastRectAt = at;

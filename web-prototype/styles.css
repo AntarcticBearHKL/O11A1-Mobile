@@ -1916,6 +1916,10 @@ body[data-theme="light"] .grid-progress .grid-cell.on{background:var(--blue,#2F7
 .player-settings #pcDanmakuPanel .sheet-switch.on{background:var(--ps-accent)}
 .player-settings #pcDanmakuPanel .sheet-switch.on::after{transform:translateX(16px)}
 .player.landscape .player-settings-card{height:74%;max-height:94%;padding-bottom:10px}
+.player.landscape .real-video,
+.player.landscape .player-promoted-video,
+.player.landscape .player-poster-fg,
+.player.landscape .player-drag-snapshot img{object-fit:cover}
 .player.landscape .player-rotor > .psheet{max-height:76%}
 .seek-ripple{
   position:absolute;top:46%;left:50%;z-index:7;pointer-events:none;

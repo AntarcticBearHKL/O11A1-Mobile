@@ -3875,7 +3875,7 @@
       if (stageGesture || player.classList.contains('to-playlist') || player.classList.contains('dragging')) return;
       setPlayerOrientation(target, { silent: false });
       if (navigator.vibrate) navigator.vibrate(6);
-    }, 360);
+    }, 180);
   }
 
   function setTiltDirection(dir) {
@@ -3893,8 +3893,8 @@
     if (!Number.isFinite(gamma)) return;
     const magnitude = Math.abs(gamma);
     let next = null;
-    if (magnitude >= 55) next = gamma > 0 ? -1 : 1;
-    else if (magnitude <= 28) next = 0;
+    if (magnitude >= 48) next = gamma > 0 ? -1 : 1;
+    else if (magnitude <= 30) next = 0;
     if (next === null) return;
     setTiltDirection(next);
   }

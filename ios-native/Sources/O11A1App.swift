@@ -44,6 +44,8 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
   private let motion = CMMotionManager()
   private var tiltWatching = false
   private var tiltDirection = 0
+  private var tiltCandidate = 0
+  private var tiltCandidateAt: CFTimeInterval = 0
   private var savedBrightness: CGFloat?
   private var statusBarStyle: UIStatusBarStyle = .default
   private let launchAvatar = UIImageView()
@@ -143,13 +145,14 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
         }
       };
       window.O11A1PlayerNative = {
-        rect: function (slot, x, y, w, h, visible, rotation, vy, ts) {
+        rect: function (slot, x, y, w, h, visible, rotation, vy, ts, aspect) {
           try {
             window.webkit.messageHandlers.o11a1player.postMessage({
               type: "rect", slot: String(slot),
               x: Number(x), y: Number(y), w: Number(w), h: Number(h),
               visible: visible ? 1 : 0, rotation: Number(rotation) || 0,
-              vy: Number(vy) || 0, ts: Number(ts) || 0
+              vy: Number(vy) || 0, ts: Number(ts) || 0,
+              aspect: String(aspect || "")
             });
           } catch (error) {}
         },
@@ -370,7 +373,8 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
           visible: ((body["visible"] as? NSNumber)?.intValue ?? 0) != 0,
           rotation: (body["rotation"] as? NSNumber)?.doubleValue ?? 0,
           velocity: (body["vy"] as? NSNumber)?.doubleValue ?? 0,
-          timestamp: (body["ts"] as? NSNumber)?.doubleValue ?? 0
+          timestamp: (body["ts"] as? NSNumber)?.doubleValue ?? 0,
+          aspect: body["aspect"] as? String ?? ""
         )
       case "layer":
         O11A1PlayerHost.shared.layer(
@@ -445,11 +449,42 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
         guard let self = self, self.tiltWatching,
               let acceleration = data?.acceleration else { return }
         let x = acceleration.x
+        let y = acceleration.y
+        let planar = sqrt(x * x + y * y)
+        // Nearly flat on a table: gravity is mostly on z, so the roll is
+        // ambiguous. Keep the current orientation instead of flapping.
+        guard planar >= 0.32 else {
+          self.tiltCandidate = 0
+          return
+        }
+        // Project gravity onto the screen plane. This measures the roll even
+        // when the phone is tilted forward/back, unlike a raw x threshold.
+        let angle = atan2(x, abs(y)) * 180 / .pi
+        let magnitude = abs(angle)
         var next = self.tiltDirection
-        if abs(x) >= 0.8 { next = x > 0 ? -1 : 1 }
-        else if abs(x) <= 0.45 { next = 0 }
-        if next == self.tiltDirection { return }
+        if magnitude >= 48 {
+          next = x > 0 ? -1 : 1
+        } else if magnitude <= 30 {
+          next = 0
+        } else {
+          // Hysteresis band: do not flip back and forth around 45 degrees.
+          self.tiltCandidate = 0
+          return
+        }
+        if next == self.tiltDirection {
+          self.tiltCandidate = 0
+          return
+        }
+        let now = CACurrentMediaTime()
+        if self.tiltCandidate != next {
+          self.tiltCandidate = next
+          self.tiltCandidateAt = now
+          return
+        }
+        // Require the new orientation to be stable for ~220ms.
+        guard now - self.tiltCandidateAt >= 0.22 else { return }
         self.tiltDirection = next
+        self.tiltCandidate = 0
         self.webView?.evaluateJavaScript(
           "window.O11A1Host&&window.O11A1Host.setTiltDir(\(next));true;",
           completionHandler: nil
@@ -459,6 +494,7 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
     } else {
       motion.stopAccelerometerUpdates()
       tiltDirection = 0
+      tiltCandidate = 0
       webView?.evaluateJavaScript("window.__O11A1_NATIVE_TILT=false;true;", completionHandler: nil)
     }
   }
