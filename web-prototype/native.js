@@ -1333,8 +1333,10 @@
         previewRow = row;
         log('preview html ' + (item.bvid || item.epId || ''));
         row.classList.add('preview-active');
-        loadPreviewNative(video, item, url, true);
+        // The video must be in the document before src/play; playing a
+        // detached media element makes WebKit reject it with NotSupportedError.
         thumb.appendChild(video);
+        loadPreviewNative(video, item, url, true);
         previewProgressFill = attachPreviewOverlays(thumb);
         thumb.classList.add('preview-loading');
         const reveal = () => {
@@ -4922,7 +4924,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.17';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.18';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
