@@ -3214,9 +3214,12 @@
     mediaBackup = NATIVE_MEDIA
       ? String(result.backupRemote || '')
       : String(result.backup || '');
-    video.src = NATIVE_MEDIA
+    const progressiveUrl = NATIVE_MEDIA
       ? (String(result.remote || '') || result.url)
       : result.url;
+    log('progressive ' + (item.bvid || item.epId || '') + ' q=' + (result.qualityLabel || '')
+      + ' ' + String(progressiveUrl).split('?')[0]);
+    video.src = progressiveUrl;
     video.load();
     playerVideo.classList.add('has-video');
     if (autoplay) {
@@ -4717,7 +4720,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.3.5';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.3.6';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

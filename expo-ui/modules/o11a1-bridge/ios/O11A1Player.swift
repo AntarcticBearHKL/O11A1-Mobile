@@ -26,6 +26,7 @@ final class O11A1PlayerHost {
     var muted = false
     var volume: Float = 1
     var rate: Float = 1
+    var pendingPlay = false
     var positionMs: Double = 0
     var durationMs: Double = 0
     var bufferedMs: Double = 0
@@ -175,9 +176,11 @@ final class O11A1PlayerHost {
       slot.player.isMuted = slot.muted
       slot.player.volume = slot.volume
       slot.player.automaticallyWaitsToMinimizeStalling = !slot.preview
-      NSLog("[O11A1] load %@ kind=%@ audio=%@ muted=%d preview=%d",
+      slot.pendingPlay = autoplay
+      NSLog("[O11A1] load %@ kind=%@ audio=%@ muted=%d preview=%d url=%@%@",
             id, kind, audioURL.isEmpty ? "no" : "yes",
-            slot.muted ? 1 : 0, slot.preview ? 1 : 0)
+            slot.muted ? 1 : 0, slot.preview ? 1 : 0,
+            url.host ?? "?", url.path)
       if slot.preview {
         slot.view.alpha = 0
       }
@@ -225,7 +228,7 @@ final class O11A1PlayerHost {
       )
     }
     observe(slot)
-    if autoplay {
+    if autoplay || slot.pendingPlay {
       if slot.preview {
         slot.player.playImmediately(atRate: max(0.1, slot.rate))
       } else {
@@ -327,9 +330,13 @@ final class O11A1PlayerHost {
       guard let slot = self.slots[id] else { return }
       switch action {
       case "play":
-        slot.player.play()
-        slot.player.rate = slot.rate
+        slot.pendingPlay = true
+        if slot.item != nil {
+          slot.player.play()
+          slot.player.rate = slot.rate
+        }
       case "pause":
+        slot.pendingPlay = false
         slot.player.pause()
       case "seek":
         let cm = CMTime(seconds: max(0, value / 1000.0), preferredTimescale: 600)
@@ -459,6 +466,9 @@ final class O11A1PlayerHost {
       guard let self = self, let slot = slot else { return }
       DispatchQueue.main.async {
         if item.status == .readyToPlay {
+          NSLog("[O11A1] item ready %@ duration=%.1f size=%.0fx%.0f",
+                slot.id, item.duration.seconds,
+                item.presentationSize.width, item.presentationSize.height)
           self.updateMetadata(slot)
           self.emit(slot, "loadedmetadata", self.metadataPayload(slot))
           self.emit(slot, "canplay", self.metadataPayload(slot))
@@ -466,6 +476,8 @@ final class O11A1PlayerHost {
             slot.started = true
           }
         } else if item.status == .failed {
+          NSLog("[O11A1] item failed %@ %@", slot.id,
+                item.error?.localizedDescription ?? "unknown")
           self.emit(slot, "error", ["error": item.error?.localizedDescription ?? "playback failed"])
         }
       }
@@ -480,6 +492,7 @@ final class O11A1PlayerHost {
         switch player.timeControlStatus {
         case .playing:
           slot.playing = true
+          NSLog("[O11A1] playing %@", slot.id)
           self.emit(slot, "playing", self.timePayload(slot))
         case .paused:
           if slot.playing {
@@ -549,6 +562,13 @@ final class O11A1PlayerHost {
     if size.width > 0 && size.height > 0 {
       slot.videoWidth = Int(size.width)
       slot.videoHeight = Int(size.height)
+      if !slot.firstFrame {
+        NSLog("[O11A1] video size %@ %dx%d ready=%d", slot.id, slot.videoWidth, slot.videoHeight,
+              slot.view.playerLayer.isReadyForDisplay ? 1 : 0)
+      }
+      if slot.view.playerLayer.isReadyForDisplay && !slot.firstFrame {
+        onFirstFrame(slot)
+      }
     }
     if let range = item.loadedTimeRanges.last?.timeRangeValue {
       slot.bufferedMs = max(0, range.end.seconds * 1000)
@@ -557,6 +577,7 @@ final class O11A1PlayerHost {
 
   private func onFirstFrame(_ slot: Slot) {
     guard !slot.firstFrame else { return }
+    guard slot.videoWidth > 0, slot.videoHeight > 0 else { return }
     slot.firstFrame = true
     slot.view.alpha = 1
     NSLog("[O11A1] firstframe %@ size=%dx%d", slot.id, slot.videoWidth, slot.videoHeight)
