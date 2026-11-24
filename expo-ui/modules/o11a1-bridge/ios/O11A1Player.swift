@@ -188,7 +188,7 @@ final class O11A1PlayerHost {
       slot.rate = Float(max(0.1, min(4.0, o11a1PlayerDouble(json["rate"], fallback: 1))))
       slot.player.isMuted = slot.muted
       slot.player.volume = slot.volume
-      slot.player.automaticallyWaitsToMinimizeStalling = !slot.preview
+      slot.player.automaticallyWaitsToMinimizeStalling = !slot.preview && !slot.dashAudio
       slot.pendingPlay = autoplay
       NSLog("[O11A1] load %@ kind=%@ audio=%@ muted=%d preview=%d url=%@%@",
             id, kind, audioURL.isEmpty ? "no" : "yes",
@@ -337,8 +337,8 @@ final class O11A1PlayerHost {
   ) {
     let videoItem = AVPlayerItem(asset: videoAsset)
     let audioItem = AVPlayerItem(asset: audioAsset)
-    videoItem.preferredForwardBufferDuration = slot.preview ? 8 : 30
-    audioItem.preferredForwardBufferDuration = slot.preview ? 8 : 30
+    videoItem.preferredForwardBufferDuration = slot.preview ? 4 : 3
+    audioItem.preferredForwardBufferDuration = slot.preview ? 4 : 3
     clearDASH(slot)
     slot.dashAudio = true
     slot.dashViaLoader = viaLoader
@@ -347,17 +347,22 @@ final class O11A1PlayerHost {
     slot.audioItem = audioItem
     slot.audioPlayer.isMuted = slot.muted
     slot.audioPlayer.volume = slot.volume
+    slot.audioPlayer.automaticallyWaitsToMinimizeStalling = false
     slot.audioPlayer.replaceCurrentItem(with: audioItem)
     slot.audioStatusObservation = audioItem.observe(\.status, options: [.new]) { [weak self, weak slot] item, _ in
-      guard let self = self, let slot = slot, item.status == .failed else { return }
+      guard let self = self, let slot = slot else { return }
       DispatchQueue.main.async {
-        NSLog("[O11A1] dash audio failed %@ %@", slot.id,
-              item.error?.localizedDescription ?? "unknown")
-        if !slot.dashViaLoader, !slot.dashRetrying, slot.dashVideoURL != nil {
-          slot.dashRetrying = true
-          self.installDASHLoader(slot)
-        } else {
-          self.emit(slot, "error", ["error": "dash audio failed"])
+        if item.status == .failed {
+          NSLog("[O11A1] dash audio failed %@ %@", slot.id,
+                item.error?.localizedDescription ?? "unknown")
+          if !slot.dashViaLoader, !slot.dashRetrying, slot.dashVideoURL != nil {
+            slot.dashRetrying = true
+            self.installDASHLoader(slot)
+          } else {
+            self.emit(slot, "error", ["error": "dash audio failed"])
+          }
+        } else if item.status == .readyToPlay, slot.playing {
+          self.startDASHAudio(slot)
         }
       }
     }
@@ -369,7 +374,23 @@ final class O11A1PlayerHost {
     NSLog("[O11A1] dash %@ via=%@ %.0fs", slot.id,
           viaLoader ? "loader" : "direct", durationMs / 1000)
     installItem(slot, item: videoItem, startMs: startMs, autoplay: autoplay)
-    if autoplay || slot.pendingPlay {
+    let seq = slot.seq
+    DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self, weak slot] in
+      guard let self = self, let slot = slot, slot.seq == seq, slot.dashAudio else { return }
+      NSLog("[O11A1] audio state %@ muted=%d vol=%.1f item=%d player=%d rate=%.2f time=%.1f",
+            slot.id, slot.audioPlayer.isMuted ? 1 : 0, slot.audioPlayer.volume,
+            slot.audioItem?.status.rawValue ?? -1,
+            slot.audioPlayer.timeControlStatus.rawValue,
+            slot.audioPlayer.rate,
+            slot.audioPlayer.currentTime().seconds)
+      self.startDASHAudio(slot)
+    }
+  }
+
+  private func startDASHAudio(_ slot: Slot) {
+    guard slot.dashAudio, slot.audioItem != nil,
+          slot.player.timeControlStatus == .playing else { return }
+    if slot.audioPlayer.timeControlStatus != .playing {
       slot.audioPlayer.play()
       slot.audioPlayer.rate = slot.rate
     }
@@ -395,9 +416,8 @@ final class O11A1PlayerHost {
           slot.player.play()
           slot.player.rate = slot.rate
         }
-        if slot.dashAudio, slot.audioItem != nil {
-          slot.audioPlayer.play()
-          slot.audioPlayer.rate = slot.rate
+        if slot.dashAudio {
+          self.startDASHAudio(slot)
         }
       case "pause":
         slot.pendingPlay = false
@@ -580,6 +600,9 @@ final class O11A1PlayerHost {
         switch player.timeControlStatus {
         case .playing:
           slot.playing = true
+          if slot.dashAudio {
+            self.startDASHAudio(slot)
+          }
           NSLog("[O11A1] playing %@", slot.id)
           self.emit(slot, "playing", self.timePayload(slot))
         case .paused:
