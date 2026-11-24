@@ -2998,8 +2998,8 @@
     const selecting = start.sidebarSelecting === true;
     const picked = sidebarPicked;
     const cancelled = event && event.type === 'pointercancel';
-    suppressFeedClickUntil = Date.now() + 420;
-    suppressSidebarClickUntil = Date.now() + 420;
+    suppressFeedClickUntil = Date.now() + 700;
+    suppressSidebarClickUntil = Date.now() + 700;
     if (selecting && picked && !cancelled) {
       if (progress < 0.12) {
         closeSidebarFromDrag();
@@ -3010,7 +3010,9 @@
       if (item) handleNav(item, picked);
       return;
     }
-    if (!cancelled && (progress >= 0.14 || velocity > 0.32)) {
+    /* If the system cancels a slow touch after the drawer is already mostly
+       open, keep it open instead of snapping it shut. */
+    if ((!cancelled && (progress >= 0.14 || velocity > 0.32)) || progress >= 0.5) {
       settleSidebarDrag(progress, 1, () => {
         finishSidebarDrag();
         updatePlaylistDock();
