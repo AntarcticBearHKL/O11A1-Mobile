@@ -391,6 +391,8 @@ final class O11A1PlayerHost {
     guard slot.dashAudio, slot.audioItem != nil,
           slot.player.timeControlStatus == .playing else { return }
     if slot.audioPlayer.timeControlStatus != .playing {
+      NSLog("[O11A1] dash audio start %@ muted=%d vol=%.1f",
+            slot.id, slot.audioPlayer.isMuted ? 1 : 0, slot.audioPlayer.volume)
       slot.audioPlayer.play()
       slot.audioPlayer.rate = slot.rate
     }
@@ -411,6 +413,7 @@ final class O11A1PlayerHost {
       guard let slot = self.slots[id] else { return }
       switch action {
       case "play":
+        NSLog("[O11A1] control play %@", slot.id)
         slot.pendingPlay = true
         if slot.item != nil {
           slot.player.play()
@@ -420,6 +423,7 @@ final class O11A1PlayerHost {
           self.startDASHAudio(slot)
         }
       case "pause":
+        NSLog("[O11A1] control pause %@", slot.id)
         slot.pendingPlay = false
         slot.player.pause()
         slot.audioPlayer.pause()

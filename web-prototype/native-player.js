@@ -286,7 +286,13 @@
       }
       const opening = Boolean(playerEl && (playerEl.classList.contains('window-opening')
         || playerEl.classList.contains('promoting-preview')));
-      const shouldBackground = inPlayer && playerOpen() && !opening;
+      const mainRec = bySlot.get('main');
+      const mainReady = Boolean(mainRec && mainRec.gotFirstFrame);
+      // A promoted preview must stay above the WebView until the main DASH
+      // player has its first frame; otherwise the player's loading backdrop
+      // hides both layers and the user sees a black screen.
+      const shouldBackground = inPlayer && playerOpen() && !opening
+        && (rec.slot === 'main' || mainReady);
       if (rec.slot === 'main') {
         if (shouldBackground && rec.background !== true) {
           rec.background = true;
