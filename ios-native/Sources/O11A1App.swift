@@ -186,6 +186,9 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
     web.scrollView.contentInsetAdjustmentBehavior = .never
     web.scrollView.isScrollEnabled = false
     web.scrollView.bounces = false
+    if #available(iOS 16.4, *) {
+      web.isInspectable = true
+    }
     web.navigationDelegate = self
     view.addSubview(web)
     if let loading = loadingView {

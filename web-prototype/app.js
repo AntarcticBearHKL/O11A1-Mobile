@@ -760,6 +760,7 @@
 
   function closeSidebar() {
     if (!sidebar.classList.contains('open')) return;
+    try { window.__sidebarCloseDebug = { at: Date.now(), stack: String((new Error()).stack || '') }; } catch (_) {}
     cancelSidebarSettle();
     appMain.style.transform = '';
     appMain.style.borderRadius = '';
@@ -2998,8 +2999,14 @@
     const selecting = start.sidebarSelecting === true;
     const picked = sidebarPicked;
     const cancelled = event && event.type === 'pointercancel';
-    suppressFeedClickUntil = Date.now() + 700;
-    suppressSidebarClickUntil = Date.now() + 700;
+    try {
+      window.__swipeDebug = {
+        kind: 'end', at: Date.now(), progress, velocity, cancelled, selecting,
+        eventType: event && event.type,
+      };
+    } catch (_) {}
+    suppressFeedClickUntil = Date.now() + 1200;
+    suppressSidebarClickUntil = Date.now() + 1200;
     if (selecting && picked && !cancelled) {
       if (progress < 0.12) {
         closeSidebarFromDrag();
@@ -3012,7 +3019,7 @@
     }
     /* If the system cancels a slow touch after the drawer is already mostly
        open, keep it open instead of snapping it shut. */
-    if ((!cancelled && (progress >= 0.14 || velocity > 0.32)) || progress >= 0.5) {
+    if ((!cancelled && (progress >= 0.14 || velocity > 0.32)) || progress >= 0.12) {
       settleSidebarDrag(progress, 1, () => {
         finishSidebarDrag();
         updatePlaylistDock();
@@ -6198,6 +6205,12 @@
   window.addEventListener('pointercancel', () => { toolbarDrag = null; });
 
   sidebarBackdrop.addEventListener('click', () => {
+    try {
+      window.__backdropDebug = {
+        at: Date.now(), suppressed: Date.now() < suppressSidebarClickUntil,
+        until: suppressSidebarClickUntil,
+      };
+    } catch (_) {}
     if (Date.now() < suppressSidebarClickUntil) return;
     closeSidebar();
   });
@@ -6976,6 +6989,12 @@
     const start = rowSwipe;
     rowSwipe = null;
     if (!start) return;
+    try {
+      window.__swipeCancelDebug = {
+        at: Date.now(), direction: start.direction,
+        progress: start.sidebarProgress || 0,
+      };
+    } catch (_) {}
     clearTimeout(start.holdTimer);
     start.holdTimer = null;
     if (start.direction === 'right') endSidebarDrag(start, { type: 'pointercancel' });
