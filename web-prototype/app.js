@@ -1834,19 +1834,36 @@
   }
 
   /* ---------- playlist (floating dock + page) ---------- */
+  function playlistCoverUrl(item) {
+    let value = String(item && (item.pic || item.cover || item.image) || '').trim();
+    if (!value) return '';
+    if (value.startsWith('//')) value = `https:${value}`;
+    if (!/^https?:\/\//i.test(value)) return '';
+    if (/hdslb\.com\//i.test(value) && !/@[^/?#]+/.test(value)) {
+      value += '@480w_270h_1c.webp';
+    }
+    return value;
+  }
+
   function playlistItemMarkup(item, index) {
     const number = String(index + 1).padStart(2, '0');
     const current = index === state.currentIndex;
     const meta = item.meta || [item.owner, item.duration].filter(Boolean).join(' · ');
+    const cover = playlistCoverUrl(item);
     return `
-      <span class="pl-queue">${number}</span>
       <span class="pl-swipe-track">
         <span class="pl-swipe-bg" aria-hidden="true">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1.2 13h9.6L18 7"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>
           <b>删除</b>
         </span>
         <span class="pl-swipe-content">
-          <span class="pl-thumb">${item.pic ? `<img src="${escapeHTML(item.pic)}" alt="" draggable="false">` : '<span class="ph-label">封面</span>'}</span>
+          <span class="pl-queue">${number}</span>
+          <span class="pl-thumb">
+            <span class="pl-thumb-fallback" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </span>
+            ${cover ? `<img src="${escapeHTML(cover)}" alt="" draggable="false" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : ''}
+          </span>
           <span class="pl-copy">
             <span class="pl-title">${escapeHTML(item.title || '视频')}</span>
             <span class="pl-meta">
@@ -1984,7 +2001,7 @@
   }
 
   function setPlaylistDisc(item) {
-    const src = item ? (item.pic || item.cover || '') : '';
+    const src = item ? playlistCoverUrl(item) : '';
     if (pdDisc) {
       pdDisc.classList.toggle('playing', Boolean(item && state.playing));
     }
@@ -7351,6 +7368,7 @@
     openSearch,
     closeSearch: closeSearchFromSwipe,
     closeMyPage: closeMyPageFromSwipe,
+    openPlaylistPage,
     setPlayerOrientation,
     openPlayer,
     minimizePlayer,
