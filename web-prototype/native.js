@@ -987,9 +987,12 @@
     if (previewVideo.parentNode) previewVideo.parentNode.removeChild(previewVideo);
     previewVideo.classList.remove('feed-preview-video', 'show');
     previewVideo.classList.add('player-promoted-video');
-    previewVideo.muted = false;
-    previewVideo.defaultMuted = false;
-    previewVideo.volume = 1;
+    // Keep the inline preview muted until the native main item is ready. If it
+    // owns the audio session, starting AVPlayer pauses the HTML preview and the
+    // transition looks frozen. Main audio is unmuted at handoff instead.
+    previewVideo.muted = true;
+    previewVideo.defaultMuted = true;
+    previewVideo.volume = 0;
     // Keep looping while the 1080P DASH item prepares; stopping at the end
     // used to pause the incoming main player and leave a black screen.
     previewVideo.loop = true;
@@ -4887,7 +4890,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.9';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.10';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
