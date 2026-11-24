@@ -7,7 +7,7 @@ import UIKit
 final class O11A1LocalServer {
   private let files: [String: String]
   private let client = O11A1BiliClient()
-  private let listener: NWListener
+  private var listener: NWListener
   private let queue = DispatchQueue(label: "o11a1.local-server", qos: .userInitiated)
   private let lock = NSLock()
   private let smsLock = NSLock()
@@ -18,6 +18,7 @@ final class O11A1LocalServer {
   private var dashCache: [String: (data: Data, at: Date)] = [:]
   private var qualityCache: [String: (data: Data, at: Date)] = [:]
   private var suggestCache: [String: (data: Data, at: Date)] = [:]
+  private var danmakuCache: [String: (data: Data, at: Date)] = [:]
   private var savedBrightness: CGFloat?
   private lazy var volumeView: MPVolumeView = {
     let view = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 1, height: 1))
@@ -32,8 +33,32 @@ final class O11A1LocalServer {
     self.files = files
     let parameters = NWParameters.tcp
     parameters.allowLocalEndpointReuse = true
-    parameters.requiredLocalEndpoint = NWEndpoint.hostPort(host: "127.0.0.1", port: .any)
-    self.listener = try NWListener(using: parameters)
+    // WKWebView keys localStorage by origin, including the port. A random
+    // port reset every app launch and silently wiped all settings. Bind a
+    // stable loopback port (with a couple of fallbacks) so the origin is
+    // stable across relaunches.
+    var selected: NWListener?
+    var lastError: Error?
+    for candidate: UInt16 in [47821, 47822, 47823, 47824, 0] {
+      parameters.requiredLocalEndpoint = NWEndpoint.hostPort(
+        host: "127.0.0.1",
+        port: candidate == 0 ? .any : NWEndpoint.Port(rawValue: candidate)!
+      )
+      do {
+        selected = try NWListener(using: parameters)
+        break
+      } catch {
+        lastError = error
+      }
+    }
+    guard let listener = selected else {
+      throw lastError ?? NSError(
+        domain: "O11A1Bridge",
+        code: 1,
+        userInfo: [NSLocalizedDescriptionKey: "local server port unavailable"]
+      )
+    }
+    self.listener = listener
   }
 
   func start() throws {
@@ -470,7 +495,24 @@ final class O11A1LocalServer {
         "fps": O11A1HighRefresh.shared.compositorFps()
       ])
     case "danmaku":
-      data = client.danmaku(cid: o11a1Int64(query["cid"] ?? "0"))
+      let cid = o11a1Int64(query["cid"] ?? "0")
+      let key = String(cid)
+      lock.lock()
+      let hit = danmakuCache[key]
+      lock.unlock()
+      if let hit = hit, Date().timeIntervalSince(hit.at) < 600 {
+        data = hit.data
+      } else {
+        let fetched = client.danmaku(cid: cid)
+        lock.lock()
+        danmakuCache[key] = (data: fetched, at: Date())
+        if danmakuCache.count > 80 {
+          let cutoff = Date().addingTimeInterval(-600)
+          danmakuCache = danmakuCache.filter { $0.value.at > cutoff }
+        }
+        lock.unlock()
+        data = fetched
+      }
     case "account":
       data = client.account()
     case "favorites":
@@ -692,6 +734,11 @@ final class O11A1LocalServer {
       data = o11a1Data(["ok": true])
     case "nativePlayerState":
       data = o11a1Data(O11A1PlayerHost.shared.state(slot: query["slot"] ?? "main"))
+    case "playerSnapshot":
+      data = o11a1Data([
+        "ok": true,
+        "image": O11A1PlayerHost.shared.snapshot(slot: query["slot"] ?? "main") ?? ""
+      ])
     case "setOrientation":
       let mode = query["mode"] ?? "portrait"
       DispatchQueue.main.async {

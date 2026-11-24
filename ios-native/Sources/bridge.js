@@ -60,7 +60,7 @@
   }
   window.O11A1Native = {
     available: function () { return true; },
-    version: function () { return '0.4.20-ios'; },
+    version: function () { return '0.4.21-ios'; },
     popular: function (page, ps) { return call('popular', { page: page, ps: ps }); },
     recommend: function (page, ps, fresh) { return call('recommend', { page: page, ps: ps, fresh: fresh }); },
     search: function (keyword, page) { return call('search', { keyword: keyword, page: page }); },
@@ -113,6 +113,7 @@
     copy: function (text) { return call('copy', { text: text }); },
     screenshot: function () { return call('screenshot', {}); },
     danmaku: function (cid) { return call('danmaku', { cid: cid }); },
+    danmakuAsync: function (cid) { return callAsync('danmaku', { cid: cid }); },
     session: function () { return call('session', {}); },
     logout: function () { return call('logout', {}); },
     openWebLogin: function () { return call('webLogin', {}); },
@@ -124,6 +125,7 @@
     nativePlayerRelease: function (slot) { return call('nativePlayerRelease', { slot: slot }); },
     nativePlayerLayer: function (slot, background) { return call('nativePlayerLayer', { slot: slot, background: background ? 1 : 0 }); },
     nativePlayerState: function (slot) { return call('nativePlayerState', { slot: slot }); },
+    playerSnapshot: function (slot) { return call('playerSnapshot', { slot: slot }); },
     brightness: function () { try { return Number(JSON.parse(call('brightness', {})).v || 0); } catch (error) { return 0; } },
     setBrightness: function (value) { return call('setBrightness', { v: value }); },
     restoreBrightness: function () { return call('restoreBrightness', {}); },

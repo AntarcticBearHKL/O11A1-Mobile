@@ -702,6 +702,7 @@
   let lastPreviewProgress = null;
   let pendingMediaStart = null;
   let promotedPreview = null;
+  let promotedBackdrop = null;
   let preloadVideo = null;
   let preloadRow = null;
   let preloadReady = false;
@@ -1021,6 +1022,23 @@
     playerVideo.classList.add('promoted-preview');
     const promotedVideo = previewVideo;
     previewVideo = null;
+    removePromotedBackdrop();
+    const backdropSource = promotedVideo.currentSrc || promotedVideo.src;
+    if (backdropSource) {
+      const backdrop = document.createElement('video');
+      backdrop.className = 'player-promoted-backdrop';
+      backdrop.muted = true;
+      backdrop.defaultMuted = true;
+      backdrop.loop = true;
+      backdrop.playsInline = true;
+      backdrop.setAttribute('playsinline', '');
+      backdrop.setAttribute('webkit-playsinline', '');
+      backdrop.setAttribute('aria-hidden', 'true');
+      backdrop.src = backdropSource;
+      playerVideo.insertBefore(backdrop, promotedVideo);
+      backdrop.play().catch(() => {});
+      promotedBackdrop = backdrop;
+    }
     const key = mediaKeyFor(item);
     promotedPreview = { video: promotedVideo, key, time };
     pendingMediaStart = time > 0.25 ? { key, time } : pendingMediaStart;
@@ -1035,10 +1053,20 @@
     return true;
   }
 
+  function removePromotedBackdrop() {
+    if (!promotedBackdrop) return;
+    try { promotedBackdrop.pause(); } catch (_) {}
+    try { promotedBackdrop.removeAttribute('src'); } catch (_) {}
+    try { promotedBackdrop.load(); } catch (_) {}
+    if (promotedBackdrop.parentNode) promotedBackdrop.parentNode.removeChild(promotedBackdrop);
+    promotedBackdrop = null;
+  }
+
   function removePromotedPreview() {
     if (!promotedPreview) return;
     const promoted = promotedPreview;
     promotedPreview = null;
+    removePromotedBackdrop();
     try { promoted.video.pause(); } catch (_) {}
     promoted.video.removeAttribute('src');
     try { promoted.video.load(); } catch (_) {}
@@ -1085,6 +1113,7 @@
     }
     try { video.playbackRate = playbackRate; } catch (_) {}
     try { promoted.video.pause(); } catch (_) {}
+    removePromotedBackdrop();
     if (promoted.video.parentNode) promoted.video.parentNode.removeChild(promoted.video);
     promotedPreview = null;
     if (previewVideo === promoted.video) previewVideo = null;
@@ -1326,6 +1355,7 @@
       previewCandidate = null;
       return;
     }
+    prefetchDanmaku(item.cid);
     if (!previewVideo && !preloadVideo) {
       const thumb = row.querySelector('.row-thumb');
       if (thumb) {
@@ -2401,6 +2431,9 @@
   let danmakuIndex = 0;
   let danmakuLastTime = 0;
   let danmakuLane = 0;
+  const danmakuCache = new Map();
+  const danmakuPending = new Map();
+  let danmakuToken = 0;
   let mediaItem = null;
   let mediaBackup = '';
   let mediaTriedBackup = false;
@@ -2447,24 +2480,79 @@
     });
   }
 
-  function loadDanmaku(cid) {
-    applyDanmakuStyle();
-    danmakuItems = [];
+  function normalizeDanmaku(result) {
+    if (!result || !result.ok || !Array.isArray(result.items)) return null;
+    return result.items
+      .filter((row) => row && Number.isFinite(Number(row.t)) && row.text)
+      .map((row) => ({
+        t: Number(row.t),
+        text: String(row.text),
+        color: Number(row.color || 0xffffff),
+        mode: Number(row.mode || 1),
+      }))
+      .sort((a, b) => a.t - b.t);
+  }
+
+  function fetchDanmaku(cid) {
+    const key = String(cid || 0);
+    if (!cid) return Promise.resolve([]);
+    const cached = danmakuCache.get(key);
+    if (cached) return Promise.resolve(cached);
+    const pending = danmakuPending.get(key);
+    if (pending) return pending;
+    let request;
+    if (bridge && typeof bridge.danmakuAsync === 'function') {
+      request = bridge.danmakuAsync(cid).then((raw) => {
+        const items = normalizeDanmaku(parse(raw)) || [];
+        danmakuCache.set(key, items);
+        if (danmakuCache.size > 80) danmakuCache.delete(danmakuCache.keys().next().value);
+        danmakuPending.delete(key);
+        return items;
+      }).catch(() => {
+        danmakuPending.delete(key);
+        return [];
+      });
+    } else if (typeof bridge.danmaku === 'function') {
+      const items = normalizeDanmaku(parse(bridge.danmaku(cid))) || [];
+      danmakuCache.set(key, items);
+      return Promise.resolve(items);
+    } else {
+      return Promise.resolve([]);
+    }
+    danmakuPending.set(key, request);
+    return request;
+  }
+
+  function prefetchDanmaku(cid) {
+    if (cid) fetchDanmaku(cid);
+  }
+
+  function applyDanmaku(items) {
+    danmakuItems = Array.isArray(items) ? items : [];
     danmakuIndex = 0;
     danmakuLastTime = 0;
     danmakuLane = 0;
-    if (danmakuLayer) danmakuLayer.innerHTML = '';
-    if (!cid || typeof bridge.danmaku !== 'function') return;
-    const result = parse(bridge.danmaku(cid));
-    if (!result.ok || !Array.isArray(result.items)) {
-      log('danmaku error ' + (result.error || ''));
+    if (danmakuLayer) {
+      danmakuLayer.innerHTML = '';
+      danmakuLayer.style.display = state.settings.danmaku ? 'block' : 'none';
+    }
+  }
+
+  function loadDanmaku(cid) {
+    applyDanmakuStyle();
+    const token = ++danmakuToken;
+    const numeric = Number(cid) || 0;
+    applyDanmaku([]);
+    if (!numeric) return;
+    const cached = danmakuCache.get(String(numeric));
+    if (cached) {
+      applyDanmaku(cached);
       return;
     }
-    danmakuItems = result.items
-      .filter((row) => row && Number.isFinite(Number(row.t)) && row.text)
-      .map((row) => ({ t: Number(row.t), text: String(row.text), color: Number(row.color || 0xffffff), mode: Number(row.mode || 1) }))
-      .sort((a, b) => a.t - b.t);
-    if (danmakuLayer) danmakuLayer.style.display = state.settings.danmaku ? 'block' : 'none';
+    fetchDanmaku(numeric).then((items) => {
+      if (token !== danmakuToken) return;
+      applyDanmaku(items);
+    });
   }
 
   function spawnDanmaku(row) {
@@ -3344,6 +3432,7 @@
       clearVideo();
       return;
     }
+    if (item.cid) loadDanmaku(item.cid);
     const key = item.epId ? `ep:${item.epId}` : `bvid:${item.bvid}`;
     if (mediaItem && mediaKeyFor(mediaItem) === key && video.src) {
       applyPendingMediaStart();
@@ -4934,7 +5023,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.20';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.21';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

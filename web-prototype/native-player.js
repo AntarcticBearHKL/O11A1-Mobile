@@ -166,7 +166,14 @@
         if (rec.slot === 'main' && cover) {
           // Hold the poster through the first composited native frame; clearing
           // it in the same runloop as the event produced the full-screen flash.
-          setTimeout(() => { cover.style.backgroundImage = ''; }, 70);
+          setTimeout(() => {
+            cover.style.backgroundImage = '';
+            const poster = cover.querySelector('.player-poster');
+            if (poster) {
+              poster.classList.add('hide');
+              setTimeout(() => poster.remove(), 220);
+            }
+          }, 70);
         }
         bodyReady(true);
       }
@@ -338,7 +345,8 @@
         rec.background = shouldBackground;
         sendLayer(rec, shouldBackground);
       }
-      const visible = rectVisible(rect) && !isPreload
+      const dragHidden = Boolean(window.__o11a1HideMainVideo && rec.slot === 'main');
+      const visible = rectVisible(rect) && !isPreload && !dragHidden
         && !(panelOpen && rec.slot !== 'main')
         && (inLivePlayer || (!inPlayer && baseVisible));
       if (rec.gotFirstFrame && !isPreload) {

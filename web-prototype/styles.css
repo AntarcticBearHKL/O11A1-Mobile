@@ -761,11 +761,11 @@ body.search-mode .proto-fab{opacity:0;pointer-events:none}
   z-index:76;width:100%;height:calc(96px + env(safe-area-inset-bottom));
   display:flex;flex-direction:column;align-items:stretch;
   padding:0 0 env(safe-area-inset-bottom);
-  border:1px solid rgba(255,255,255,.64);border-bottom:0;
+  border:0;border-top:1px solid rgba(255,255,255,.64);
   border-radius:26px 26px 0 0;
   background:
-    linear-gradient(180deg,rgba(255,255,255,.44),rgba(255,255,255,.07) 28%,rgba(255,255,255,0) 56%),
-    linear-gradient(180deg,rgba(250,251,253,.84),rgba(243,245,249,.93));
+    linear-gradient(180deg,rgba(255,255,255,.40),rgba(255,255,255,.06) 28%,rgba(255,255,255,0) 56%),
+    linear-gradient(180deg,rgba(250,251,253,.74),rgba(243,245,249,.84));
   box-shadow:
     0 -24px 54px rgba(20,24,32,.20),
     0 -1px 0 rgba(255,255,255,.82),
@@ -782,8 +782,8 @@ body.search-mode .proto-fab{opacity:0;pointer-events:none}
   height:calc(min(55dvh,540px) + env(safe-area-inset-bottom));
   border-top-left-radius:34px;border-top-right-radius:34px;
   background:
-    linear-gradient(180deg,rgba(255,255,255,.52),rgba(255,255,255,.09) 22%,rgba(255,255,255,0) 48%),
-    linear-gradient(180deg,rgba(250,251,253,.94),rgba(243,245,249,.97));
+    linear-gradient(180deg,rgba(255,255,255,.50),rgba(255,255,255,.08) 22%,rgba(255,255,255,0) 48%),
+    linear-gradient(180deg,rgba(250,251,253,.87),rgba(243,245,249,.92));
   box-shadow:
     0 -30px 62px rgba(18,22,30,.22),
     0 -1px 0 rgba(255,255,255,.9),
@@ -2565,8 +2565,43 @@ body[data-theme="dark"] .video-row.real-row .row-thumb{background:#1A202A}
 .player-video.has-video > .video-hint{display:none}
 .player-promoted-video{
   position:absolute;inset:0;width:100%;height:100%;z-index:3;
-  object-fit:contain;background:#000;pointer-events:none;
+  object-fit:contain;background:transparent;pointer-events:none;
 }
+.player-promoted-backdrop{
+  position:absolute;inset:-26px;width:calc(100% + 52px);height:calc(100% + 52px);
+  z-index:2;object-fit:cover;pointer-events:none;
+  filter:blur(28px) saturate(1.12) brightness(.72);
+  opacity:.9;
+}
+.player-poster{
+  position:absolute;inset:0;z-index:1;overflow:hidden;pointer-events:none;
+  background:#05070b center/cover no-repeat;
+  transition:opacity .2s ease;
+}
+.player-poster.hide{opacity:0}
+.player-poster::before{
+  content:"";position:absolute;inset:-30px;
+  background-image:inherit;background-size:cover;background-position:center;
+  filter:blur(30px) saturate(1.08) brightness(.66);
+  transform:scale(1.06);
+}
+.player-poster-fg{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
+}
+.player-drag-snapshot{
+  position:absolute;inset:0;z-index:2;overflow:hidden;pointer-events:none;
+  background:#05070b center/cover no-repeat;
+}
+.player-drag-snapshot::before{
+  content:"";position:absolute;inset:-30px;
+  background-image:inherit;background-size:cover;background-position:center;
+  filter:blur(30px) saturate(1.08) brightness(.66);
+  transform:scale(1.06);
+}
+.player-drag-snapshot img{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:contain;z-index:1;
+}
+.app.player-open.player-dragging .app-main{visibility:visible!important}
 .player-video.promoted-preview > .ph-label,
 .player-video.promoted-preview > .play-big,
 .player-video.promoted-preview > .video-hint,
@@ -2809,10 +2844,10 @@ body[data-theme="dark"] .sidebar-item.on{background:var(--blue-soft);color:var(-
 body[data-theme="dark"] .sidebar-item.picked{background:var(--blue);color:#0B1020}
 body[data-theme="dark"] .sidebar-item.picked .sidebar-ico{background:none;border-color:transparent;color:#0B1020}
 body[data-theme="dark"] .playlist-dock{
-  border-color:rgba(255,255,255,.15);
+  border:0;border-top:1px solid rgba(255,255,255,.15);
   background:
     linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,0) 32%),
-    linear-gradient(180deg,rgba(28,34,46,.88),rgba(12,16,23,.95));
+    linear-gradient(180deg,rgba(28,34,46,.78),rgba(12,16,23,.88));
   color:var(--ink);
   box-shadow:
     0 -24px 54px rgba(0,0,0,.48),
@@ -2823,7 +2858,7 @@ body[data-theme="dark"] .playlist-dock{
 body[data-theme="dark"] .playlist-dock.expanded{
   background:
     linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,0) 24%),
-    linear-gradient(180deg,rgba(30,37,50,.96),rgba(13,17,25,.98));
+    linear-gradient(180deg,rgba(30,37,50,.9),rgba(13,17,25,.94));
   box-shadow:
     0 -30px 62px rgba(0,0,0,.52),
     inset 0 1px 0 rgba(255,255,255,.14),

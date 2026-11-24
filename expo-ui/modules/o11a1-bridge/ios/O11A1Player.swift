@@ -3,6 +3,7 @@ import AVFoundation
 import UIKit
 import WebKit
 import QuartzCore
+import CoreImage
 
 /// AVPlayer overlay for iOS.  Media is fetched directly from Bilibili's CDN with
 /// the account's UA/Referer/Cookie headers; no localhost media proxy is used.
@@ -61,6 +62,7 @@ final class O11A1PlayerHost {
     let player = AVPlayer()
     let audioPlayer = AVPlayer()
     var item: AVPlayerItem?
+    var videoOutput: AVPlayerItemVideoOutput?
     var audioItem: AVPlayerItem?
     var dashAudio = false
     var dashViaLoader = false
@@ -291,6 +293,11 @@ final class O11A1PlayerHost {
 
   private func installItem(_ slot: Slot, item: AVPlayerItem, startMs: Double, autoplay: Bool) {
     item.preferredForwardBufferDuration = slot.preview ? 8 : 120
+    let output = AVPlayerItemVideoOutput(pixelBufferAttributes: [
+      kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+    ])
+    item.add(output)
+    slot.videoOutput = output
     slot.item = item
     slot.player.replaceCurrentItem(with: item)
     if startMs > 0 {
@@ -472,6 +479,39 @@ final class O11A1PlayerHost {
     slot.audioItem = nil
     slot.audioPlayer.pause()
     slot.audioPlayer.replaceCurrentItem(with: nil)
+  }
+
+  func snapshot(slot id: String) -> String? {
+    var value: String?
+    let capture = {
+      guard let slot = self.slots[id], let item = slot.item,
+            let output = slot.videoOutput else { return }
+      var buffer = output.copyPixelBuffer(
+        forItemTime: item.currentTime(),
+        itemTimeForDisplay: nil
+      )
+      if buffer == nil {
+        let earlier = CMTimeSubtract(
+          item.currentTime(),
+          CMTime(seconds: 0.18, preferredTimescale: 600)
+        )
+        if CMTimeCompare(earlier, .zero) > 0 {
+          buffer = output.copyPixelBuffer(forItemTime: earlier, itemTimeForDisplay: nil)
+        }
+      }
+      guard let buffer = buffer else { return }
+      let image = CIImage(cvPixelBuffer: buffer)
+      let context = CIContext()
+      guard let cgImage = context.createCGImage(image, from: image.extent) else { return }
+      guard let data = UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.72) else { return }
+      value = data.base64EncodedString()
+    }
+    if Thread.isMainThread {
+      capture()
+    } else {
+      DispatchQueue.main.sync(execute: capture)
+    }
+    return value
   }
 
   func control(slot id: String, action: String, value: Double) {

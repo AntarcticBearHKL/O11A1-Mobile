@@ -3905,7 +3905,37 @@
     playerOpenWindowTimer = setTimeout(complete, 520);
   }
 
+  let playerPoster = null;
+
+  function hidePlayerPoster(immediate) {
+    const node = playerPoster || (playerVideo && playerVideo.querySelector('.player-poster'));
+    playerPoster = null;
+    if (!node) return;
+    if (immediate) {
+      node.remove();
+      return;
+    }
+    node.classList.add('hide');
+    setTimeout(() => node.remove(), 220);
+  }
+
+  function showPlayerPoster(url) {
+    hidePlayerPoster(true);
+    if (!playerVideo || !url) return;
+    const poster = document.createElement('div');
+    poster.className = 'player-poster';
+    poster.style.backgroundImage = `url("${String(url).replace(/"/g, '%22')}")`;
+    const image = document.createElement('img');
+    image.className = 'player-poster-fg';
+    image.src = url;
+    image.alt = '';
+    poster.appendChild(image);
+    playerVideo.insertBefore(poster, playerVideo.firstChild);
+    playerPoster = poster;
+  }
+
   function openPlayer(options = {}) {
+    endPlayerDragSnapshot();
     const origin = pendingPlayerOrigin;
     pendingPlayerOrigin = null;
     if (!state.loggedIn) {
@@ -3961,15 +3991,14 @@
     playerRotor.style.backgroundImage = '';
     const nativeMedia = Boolean(window.O11A1NativeMedia && window.O11A1NativeMedia.available);
     if (playerVideo) {
-      // Keep the row cover as a poster while the native main item loads. The
-      // native first frame clears it, so a non-preview row never shows the
-      // empty striped backdrop for several seconds.
-      playerVideo.style.backgroundImage = origin && origin.image
-        ? `url("${String(origin.image).replace(/"/g, '%22')}")`
-        : '';
-      playerVideo.style.backgroundSize = 'cover';
-      playerVideo.style.backgroundPosition = 'center';
-      playerVideo.style.backgroundRepeat = 'no-repeat';
+      // The poster follows the player design: blurred fill behind, sharp
+      // aspect-fit image on top, acting as the video until the native item has
+      // its first frame.
+      playerVideo.style.backgroundImage = '';
+      const posterUrl = (origin && origin.image)
+        || (state.playlist[state.currentIndex] && state.playlist[state.currentIndex].pic)
+        || '';
+      showPlayerPoster(posterUrl);
     }
     const expandFromRow = !wasOpen && Boolean(origin && origin.rect && origin.rect.width && origin.rect.height);
     if (expandFromRow) {
@@ -4360,6 +4389,8 @@
       window.O11A1Media.onStop();
     }
     updatePlayerLabels();
+    hidePlayerPoster(true);
+    endPlayerDragSnapshot();
   }
 
   function lockPlayer() {
@@ -4820,6 +4851,41 @@
     return 'middle';
   }
 
+  let playerDragSnapshot = null;
+
+  function beginPlayerDragSnapshot() {
+    if (!state.playerOpen || playerDragSnapshot) return;
+    app.classList.add('player-dragging');
+    window.__o11a1HideMainVideo = true;
+    let image = '';
+    try {
+      const raw = window.O11A1Native && typeof window.O11A1Native.playerSnapshot === 'function'
+        ? window.O11A1Native.playerSnapshot('main')
+        : '';
+      const result = raw ? JSON.parse(raw) : null;
+      if (result && result.ok && result.image) image = String(result.image);
+    } catch (_) {}
+    if (!image || !playerVideo) return;
+    const snapshot = document.createElement('div');
+    snapshot.className = 'player-drag-snapshot';
+    snapshot.style.backgroundImage = `url("data:image/jpeg;base64,${image}")`;
+    const frame = document.createElement('img');
+    frame.src = `data:image/jpeg;base64,${image}`;
+    frame.alt = '';
+    snapshot.appendChild(frame);
+    playerVideo.appendChild(snapshot);
+    playerDragSnapshot = snapshot;
+  }
+
+  function endPlayerDragSnapshot() {
+    window.__o11a1HideMainVideo = false;
+    app.classList.remove('player-dragging');
+    if (playerDragSnapshot) {
+      playerDragSnapshot.remove();
+      playerDragSnapshot = null;
+    }
+  }
+
   function startStageGesture(event) {
     if (!state.playerOpen || state.locked) return;
     if (event.button !== undefined && event.button !== 0) return;
@@ -4883,6 +4949,7 @@
         gesture.mode = 'horizontal';
       } else if (localY > 0 && state.settings.middleCollapse) {
         gesture.mode = 'collapse';
+        beginPlayerDragSnapshot();
       } else if (localY < 0) {
         gesture.mode = 'settings';
       } else {
@@ -5037,13 +5104,16 @@
           hidePlayerDrop();
           if (zone === 0) closePlayerFromDrop(0, fromY, scale);
           else minimizePlayer(fromY, scale);
+          setTimeout(endPlayerDragSnapshot, 720);
           return;
         }
         hidePlayerDrop();
         minimizePlayer(fromY, scale);
+        setTimeout(endPlayerDragSnapshot, 720);
         return;
       }
       hidePlayerDrop(0, { restore: true });
+      setTimeout(endPlayerDragSnapshot, 280);
       player.style.transition = 'transform .24s cubic-bezier(.16,1,.3,1), opacity .2s ease, border-radius .2s ease';
       player.style.transform = 'none';
       player.style.opacity = '1';
