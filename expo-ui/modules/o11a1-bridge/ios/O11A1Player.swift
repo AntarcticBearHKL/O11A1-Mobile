@@ -158,6 +158,7 @@ final class O11A1PlayerHost {
       let audioURL = o11a1String(json["audioUrl"])
       let kind = o11a1String(json["kind"])
       let startMs = max(0, o11a1PlayerDouble(json["startMs"], fallback: 0))
+      let durationMs = max(0, o11a1PlayerDouble(json["durationMs"], fallback: 0))
       let autoplay = o11a1Bool(json["autoplay"])
       slot.seq = o11a1Int64(json["seq"])
       slot.started = false
@@ -193,6 +194,7 @@ final class O11A1PlayerHost {
           audio: audio,
           headers: headers,
           startMs: startMs,
+          durationMs: durationMs,
           autoplay: autoplay
         )
       } else {
@@ -238,6 +240,7 @@ final class O11A1PlayerHost {
     audio: URL,
     headers: [String: String],
     startMs: Double,
+    durationMs: Double,
     autoplay: Bool
   ) {
     let videoAsset = AVURLAsset(url: video, options: [
@@ -274,7 +277,16 @@ final class O11A1PlayerHost {
             self.emitDASHFailure(slot, seq: seq)
             return
           }
-          let duration = CMTimeMinimum(videoTrack.timeRange.duration, audioTrack.timeRange.duration)
+          let trackDuration = CMTimeMinimum(videoTrack.timeRange.duration, audioTrack.timeRange.duration)
+          let knownDuration = durationMs > 0
+            ? CMTime(seconds: durationMs / 1000.0, preferredTimescale: 600)
+            : .zero
+          var duration = knownDuration
+          if CMTimeCompare(trackDuration, .zero) > 0 {
+            duration = CMTimeCompare(duration, .zero) > 0
+              ? CMTimeMinimum(duration, trackDuration)
+              : trackDuration
+          }
           guard CMTimeCompare(duration, .zero) > 0 else {
             self.emitDASHFailure(slot, seq: seq)
             return

@@ -2193,6 +2193,7 @@
   let mediaItem = null;
   let mediaBackup = '';
   let mediaTriedBackup = false;
+  const nativeFallbackKeys = new Set();
   let mediaLive = false;
   let hls = null;
   let liveSocket = null;
@@ -2987,6 +2988,7 @@
         backupUrl: videoTrack.backupRemote || '',
         backupAudioUrl: audioTrack.backupRemote || '',
         kind: 'dash',
+        durationMs: Number(dash.durationMs) || 0,
         startMs: keep * 1000,
         autoplay: Boolean(autoplay),
         muted: Boolean(promotedPreview),
@@ -3288,11 +3290,18 @@
       video.play().catch(() => {});
       return;
     }
-    if (NATIVE_MEDIA && mediaItem && mediaItem.bvid && !mediaItem.live && !mediaTriedBackup) {
-      mediaTriedBackup = true;
-      log('native media failed, retry progressive ' + mediaItem.bvid);
-      loadVideo(mediaItem, true, false);
-      return;
+    if (NATIVE_MEDIA && mediaItem && mediaItem.bvid && !mediaItem.live) {
+      const fallbackKey = mediaKeyFor(mediaItem);
+      if (!nativeFallbackKeys.has(fallbackKey)) {
+        nativeFallbackKeys.add(fallbackKey);
+        const item = mediaItem;
+        mediaItem = null;
+        mediaTriedBackup = true;
+        try { video.removeAttribute('src'); } catch (_) {}
+        log('native media failed, retry progressive ' + item.bvid);
+        loadVideo(item, true, false);
+        return;
+      }
     }
     if (promotedPreview) {
       playerVideo.classList.remove('video-loading', 'video-error');
@@ -4708,7 +4717,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.3.4';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.3.5';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

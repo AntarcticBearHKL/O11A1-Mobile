@@ -1814,6 +1814,12 @@ final class O11A1BiliClient {
       if !labels.isEmpty { output["available"] = labels }
     }
     if output["available"] == nil { output["available"] = [o11a1QualityLabel(quality)] }
+    let durationMs = o11a1Int(data["timelength"])
+    if durationMs > 0 {
+      output["durationMs"] = durationMs
+    } else if let seconds = dash["duration"] as? NSNumber, seconds.doubleValue > 0 {
+      output["durationMs"] = Int(seconds.doubleValue * 1000)
+    }
     return o11a1Data(output)
   }
 
