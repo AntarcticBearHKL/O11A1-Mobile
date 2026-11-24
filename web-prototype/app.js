@@ -6667,8 +6667,8 @@
   function guardIntent(dx, dy) {
     const ax = Math.abs(dx);
     const ay = Math.abs(dy);
-    if (dx >= 4 && ay <= dx * 1.8) return 'right';
-    if (dx <= -4 && ay <= ax * 1.4) return 'left';
+    if (dx >= 4 && ay <= dx * 1.25) return 'right';
+    if (dx <= -4 && ay <= ax * 1.05) return 'left';
     if (ay >= 6) return 'vertical';
     return null;
   }
