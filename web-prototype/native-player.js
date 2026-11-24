@@ -11,6 +11,7 @@
 
   const bridge = window.O11A1Native;
   const root = window.O11A1NativePlayer;
+  const fast = window.O11A1PlayerNative;
   const canNative = Boolean(bridge
     && typeof bridge.nativePlayerLoad === 'function'
     && typeof bridge.nativePlayerRect === 'function'
@@ -212,6 +213,41 @@
     return Boolean(player && player.classList.contains('open'));
   }
 
+  function feedPreviewAllowed() {
+    const app = document.getElementById('app');
+    if (!app) return false;
+    const page = app.dataset.page || '';
+    if (page !== 'home' && page !== 'module') return false;
+    if (app.classList.contains('sidebar-open')) return false;
+    const blocked = ['player', 'playerSettings', 'commentsPanel', 'videoDetailPanel', 'psheet', 'sheet', 'protoDrawer', 'searchPanel'];
+    for (let i = 0; i < blocked.length; i += 1) {
+      const el = document.getElementById(blocked[i]);
+      if (!el) continue;
+      if (el.classList.contains('open') || el.classList.contains('show')) return false;
+    }
+    return true;
+  }
+
+  function sendRect(rec, x, y, w, h, visible, rotation) {
+    if (fast && typeof fast.rect === 'function') {
+      try {
+        fast.rect(rec.slot, x, y, w, h, visible, rotation);
+        return;
+      } catch (_) {}
+    }
+    evalBridge('nativePlayerRect', [rec.slot, x, y, w, h, visible, rotation]);
+  }
+
+  function sendLayer(rec, background) {
+    if (fast && typeof fast.layer === 'function') {
+      try {
+        fast.layer(rec.slot, background);
+        return;
+      } catch (_) {}
+    }
+    if (IOS) evalBridge('nativePlayerLayer', [rec.slot, background]);
+  }
+
   function rectVisible(rect) {
     return rect.width > 2 && rect.height > 2
       && rect.bottom > 0 && rect.right > 0
@@ -224,7 +260,7 @@
     dpr = window.devicePixelRatio || 1;
     const at = now();
     let ready = false;
-    let delay = 40;
+    const baseVisible = feedPreviewAllowed();
     for (const rec of attached) {
       if (!rec.active) continue;
       const el = rec.el;
@@ -248,12 +284,19 @@
         rx = (vw - rw) / 2;
         ry = (vh - rh) / 2;
       }
-      const shouldBackground = inPlayer && playerOpen();
-      if (shouldBackground !== Boolean(rec.background)) {
+      const opening = Boolean(playerEl && (playerEl.classList.contains('window-opening')
+        || playerEl.classList.contains('promoting-preview')));
+      const shouldBackground = inPlayer && playerOpen() && !opening;
+      if (rec.slot === 'main') {
+        if (shouldBackground && rec.background !== true) {
+          rec.background = true;
+          sendLayer(rec, true);
+        }
+      } else if (shouldBackground !== Boolean(rec.background)) {
         rec.background = shouldBackground;
-        if (!IOS) evalBridge('nativePlayerLayer', [rec.slot, shouldBackground]);
+        sendLayer(rec, shouldBackground);
       }
-      const visible = rectVisible(rect) && !isPreload;
+      const visible = rectVisible(rect) && !isPreload && (inPlayer || baseVisible);
       if (rec.gotFirstFrame && !isPreload) {
         if (inPlayer && playerOpen()) {
           ready = true;
@@ -261,7 +304,7 @@
           markThumb(rec);
         }
       }
-      const minGap = inPlayer ? (IOS ? 32 : 16) : (IOS ? 60 : 40);
+      const minGap = IOS ? 0 : (inPlayer ? 8 : 16);
       if (visible && at - rec.lastRectAt >= minGap) {
         const scale = IOS ? 1 : dpr;
         const x = rx * scale;
@@ -274,27 +317,26 @@
           || Math.abs(rec.lastRect.h - h) > 0.75
           || rec.lastRotate !== rotation
           || rec.lastVisible !== true) {
-          evalBridge('nativePlayerRect', [rec.slot, x, y, w, h, true, rotation]);
+          sendRect(rec, x, y, w, h, true, rotation);
           rec.lastRect = { x, y, w, h };
           rec.lastRotate = rotation;
           rec.lastVisible = true;
           rec.lastRectAt = at;
         }
       } else if (!visible && rec.lastVisible !== false) {
-        evalBridge('nativePlayerRect', [rec.slot, 0, 0, 0, 0, false, 0]);
+        sendRect(rec, 0, 0, 0, 0, false, 0);
         rec.lastVisible = false;
         rec.lastRect = null;
         rec.lastRectAt = at;
       }
-      if (inPlayer) delay = IOS ? 32 : 16;
     }
     bodyReady(ready);
-    if (attached.size) raf = window.setTimeout(tick, delay);
+    if (attached.size) raf = window.requestAnimationFrame(tick);
   }
 
   function schedule() {
     if (raf) return;
-    raf = window.setTimeout(tick, 16);
+    raf = window.requestAnimationFrame(tick);
   }
 
   function attach(el, slot) {
@@ -317,6 +359,7 @@
       volume: 1,
       muted: Boolean(el.muted),
       paused: true,
+      background: slot === 'main',
       ended: false,
       duration: 0,
       position: 0,

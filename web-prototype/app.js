@@ -3934,8 +3934,9 @@
     player.style.pointerEvents = '';
     player.classList.remove('dragging', 'collapsing', 'window-opening', 'promoting-preview');
     playerRotor.style.backgroundImage = '';
+    const nativeMedia = Boolean(window.O11A1NativeMedia && window.O11A1NativeMedia.available);
     if (playerVideo) {
-      playerVideo.style.backgroundImage = origin && origin.image
+      playerVideo.style.backgroundImage = !nativeMedia && origin && origin.image
         ? `url("${String(origin.image).replace(/"/g, '%22')}")`
         : '';
       playerVideo.style.backgroundSize = 'cover';
@@ -3948,7 +3949,7 @@
       if (promotedPreview) player.classList.add('promoting-preview');
       player.style.animation = 'none';
       player.style.pointerEvents = 'none';
-      if (origin.image) {
+      if (!nativeMedia && origin.image) {
         playerRotor.style.backgroundImage = `url("${String(origin.image).replace(/"/g, '%22')}")`;
         playerRotor.style.backgroundSize = 'cover';
         playerRotor.style.backgroundPosition = 'center';

@@ -1,6 +1,7 @@
 import UIKit
 import WebKit
 import CoreMotion
+import AVFoundation
 
 @UIApplicationMain
 final class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -15,6 +16,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     window.rootViewController = O11A1RootController()
     self.window = window
     window.makeKeyAndVisible()
+    do {
+      let session = AVAudioSession.sharedInstance()
+      try session.setCategory(.playback, mode: .moviePlayback, options: [])
+      try session.setActive(true)
+    } catch {
+      print("[O11A1] audio session failed \(error)")
+    }
     return true
   }
 
@@ -114,11 +122,37 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
 
     let controller = WKUserContentController()
     controller.add(self, name: "o11a1")
+    controller.add(self, name: "o11a1player")
     let bootstrap = """
     (function () {
       window.ReactNativeWebView = {
         postMessage: function (message) {
           try { window.webkit.messageHandlers.o11a1.postMessage(String(message)); } catch (error) {}
+        }
+      };
+      window.O11A1PlayerNative = {
+        rect: function (slot, x, y, w, h, visible, rotation) {
+          try {
+            window.webkit.messageHandlers.o11a1player.postMessage({
+              type: "rect", slot: String(slot),
+              x: Number(x), y: Number(y), w: Number(w), h: Number(h),
+              visible: visible ? 1 : 0, rotation: Number(rotation) || 0
+            });
+          } catch (error) {}
+        },
+        layer: function (slot, background) {
+          try {
+            window.webkit.messageHandlers.o11a1player.postMessage({
+              type: "layer", slot: String(slot), background: background ? 1 : 0
+            });
+          } catch (error) {}
+        },
+        control: function (slot, action, value) {
+          try {
+            window.webkit.messageHandlers.o11a1player.postMessage({
+              type: "control", slot: String(slot), action: String(action), value: Number(value) || 0
+            });
+          } catch (error) {}
         }
       };
     })();
@@ -217,6 +251,37 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
     _ userContentController: WKUserContentController,
     didReceive message: WKScriptMessage
   ) {
+    if message.name == "o11a1player" {
+      guard let body = message.body as? [String: Any],
+            let type = body["type"] as? String else { return }
+      let slot = body["slot"] as? String ?? "main"
+      switch type {
+      case "rect":
+        O11A1PlayerHost.shared.rect(
+          slot: slot,
+          x: (body["x"] as? NSNumber)?.doubleValue ?? 0,
+          y: (body["y"] as? NSNumber)?.doubleValue ?? 0,
+          width: (body["w"] as? NSNumber)?.doubleValue ?? 0,
+          height: (body["h"] as? NSNumber)?.doubleValue ?? 0,
+          visible: ((body["visible"] as? NSNumber)?.intValue ?? 0) != 0,
+          rotation: (body["rotation"] as? NSNumber)?.doubleValue ?? 0
+        )
+      case "layer":
+        O11A1PlayerHost.shared.layer(
+          slot: slot,
+          background: ((body["background"] as? NSNumber)?.intValue ?? 0) != 0
+        )
+      case "control":
+        O11A1PlayerHost.shared.control(
+          slot: slot,
+          action: body["action"] as? String ?? "",
+          value: (body["value"] as? NSNumber)?.doubleValue ?? 0
+        )
+      default:
+        break
+      }
+      return
+    }
     guard message.name == "o11a1", let body = message.body as? String,
           let data = body.data(using: .utf8),
           let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],

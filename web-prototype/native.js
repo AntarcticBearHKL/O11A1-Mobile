@@ -616,6 +616,7 @@
 
   function renderRows(feed, items, label, page) {
     stopFeedPreview();
+    prewarmFeedRows(items);
     clearFeedSkeletons(feed);
     resetFeedWindow(feed);
     feed.innerHTML = '';
@@ -947,7 +948,7 @@
   }
 
   function promoteFeedPreview(thumb) {
-    if (NATIVE_MEDIA) return false;
+    if (NATIVE_MEDIA && !NATIVE_IOS) return false;
     if (!previewRow || !previewVideo || !previewVideo.src) return false;
     if (previewVideo.error || previewVideo.readyState < 2) return false;
     const rowThumb = previewRow.querySelector('.row-thumb');
@@ -1059,6 +1060,18 @@
     try { bridge.previewWarm(item.bvid, item.cid || 0); } catch (_) {}
   }
 
+  function prewarmFeedRows(items) {
+    if (!NATIVE_MEDIA || typeof bridge.prewarmPreviews !== 'function' || !Array.isArray(items)) return;
+    const list = [];
+    for (let index = 0; index < items.length && list.length < 12; index += 1) {
+      const item = items[index];
+      if (!item || item.live || item.epId || !item.bvid) continue;
+      list.push({ bvid: item.bvid, cid: Number(item.cid) || 0 });
+    }
+    if (!list.length) return;
+    try { bridge.prewarmPreviews(JSON.stringify(list)); } catch (_) {}
+  }
+
   function warmFocusPreview(feed) {
     if (!feed || state.playerOpen || state.miniVisible) return;
     const view = feedViewport(feed);
@@ -1157,7 +1170,9 @@
     const paused = state.playerOpen
       || state.miniVisible
       || host.app.classList.contains('sidebar-open')
-      || (state.searchOpen && feed !== feeds.search);
+      || (state.searchOpen && feed !== feeds.search)
+      || (state.page !== 'home' && state.page !== 'module')
+      || Boolean(document.querySelector('.player-settings.open, .comments-panel.open, #videoDetailPanel.open, #psheet.open, #sheet.open, .proto-drawer.open'));
     if (!view.isActive || paused) {
       if (previewRow && feed.contains(previewRow)) stopFeedPreview();
       stopPreviewPreload();
@@ -4683,7 +4698,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.3.1';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.3.2';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

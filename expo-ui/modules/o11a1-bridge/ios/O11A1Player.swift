@@ -142,6 +142,11 @@ final class O11A1PlayerHost {
   func load(slot id: String, json: [String: Any]) {
     DispatchQueue.main.async {
       guard let web = self.attachIfNeeded() else { return }
+      do {
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playback, mode: .moviePlayback, options: [])
+        try session.setActive(true)
+      } catch {}
       let slot = self.slot(id)
       self.ensureParent(slot)
       let urlString = o11a1String(json["videoUrl"])
@@ -247,7 +252,19 @@ final class O11A1PlayerHost {
   }
 
   func layer(slot id: String, background: Bool) {
-    // iOS keeps fullscreen below the webview and previews above it.
+    DispatchQueue.main.async {
+      guard let slot = self.slots[id] else { return }
+      let parent = background ? self.background : self.overlay
+      guard let parent = parent else { return }
+      guard slot.view.superview !== parent else { return }
+      let frame = slot.view.frame
+      slot.view.removeFromSuperview()
+      parent.addSubview(slot.view)
+      slot.view.frame = frame
+      if background {
+        parent.bringSubviewToFront(slot.view)
+      }
+    }
   }
 
   func release(slot id: String) {
