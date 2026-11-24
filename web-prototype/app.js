@@ -6664,6 +6664,15 @@
      pointermove-based gesture can lock its axis. This capture-phase guard
      claims horizontal touches early so a right swipe with some vertical wobble
      still reaches the drawer instead of scrolling the feed. */
+  function guardIntent(dx, dy) {
+    const ax = Math.abs(dx);
+    const ay = Math.abs(dy);
+    if (dx >= 4 && ay <= dx * 1.8) return 'right';
+    if (dx <= -4 && ay <= ax * 1.4) return 'left';
+    if (ay >= 6) return 'vertical';
+    return null;
+  }
+
   function installSwipeGuard(surface) {
     if (!surface) return;
     let guard = null;
@@ -6680,7 +6689,7 @@
       if (!guard || event.touches.length !== 1) return;
       const point = event.touches[0];
       if (!guard.decided) {
-        const intent = swipeIntent(point.clientX - guard.x, point.clientY - guard.y);
+        const intent = guardIntent(point.clientX - guard.x, point.clientY - guard.y);
         if (!intent) return;
         guard.decided = true;
         guard.horizontal = intent === 'right' || intent === 'left';
