@@ -704,6 +704,8 @@
   let preloadReady = false;
   let preloadStartedAt = 0;
   let previewCommitTimer = null;
+  let previewCandidate = null;
+  let previewCandidateTimer = 0;
 
   function mediaKeyFor(item) {
     if (!item) return '';
@@ -1232,13 +1234,39 @@
       || (state.page !== 'home' && state.page !== 'module')
       || Boolean(document.querySelector('#playlistDock.expanded, .page[data-page="playlist"].active, .player-settings.open, .comments-panel.open, #videoDetailPanel.open, #psheet.open, #sheet.open, .proto-drawer.open'));
     if (!view.isActive || paused) {
+      previewCandidate = null;
+      clearTimeout(previewCandidateTimer);
+      previewCandidateTimer = 0;
       if (previewRow && feed.contains(previewRow)) stopFeedPreview();
       stopPreviewPreload();
       return;
     }
     if (previewVideo && !promotedPreview) setPreviewPlaybackRate(1);
     const row = previewFocusRow(feed, view.scroll);
-    if (!row || row === previewRow) return;
+    if (!row || row === previewRow) {
+      previewCandidate = null;
+      clearTimeout(previewCandidateTimer);
+      previewCandidateTimer = 0;
+      return;
+    }
+    if (row !== previewCandidate) {
+      previewCandidate = row;
+      clearTimeout(previewCandidateTimer);
+      // A fast fling crosses several rows in a few frames. Starting a new
+      // AVPlayer for every intermediate row starves the main thread and makes
+      // the visible preview lag; wait for the row to be the focus for a couple
+      // of frames, then swap.
+      previewCandidateTimer = setTimeout(() => {
+        previewCandidateTimer = 0;
+        if (previewCandidate !== row || !document.contains(row)) return;
+        const current = previewFocusRow(feed, view.scroll);
+        if (current !== row) return;
+        activatePreviewFocus(feed, row);
+      }, 65);
+    }
+  }
+
+  function activatePreviewFocus(feed, row) {
     const item = row.__nativeItem;
     if (!item || item.live || !item.bvid) return;
     if (!previewVideo && !preloadVideo) {
@@ -4840,7 +4868,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.2';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.3';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

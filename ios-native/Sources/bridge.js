@@ -60,7 +60,7 @@
   }
   window.O11A1Native = {
     available: function () { return true; },
-    version: function () { return '0.4.2-ios'; },
+    version: function () { return '0.4.3-ios'; },
     popular: function (page, ps) { return call('popular', { page: page, ps: ps }); },
     recommend: function (page, ps, fresh) { return call('recommend', { page: page, ps: ps, fresh: fresh }); },
     search: function (keyword, page) { return call('search', { keyword: keyword, page: page }); },
@@ -152,12 +152,12 @@
         if (TEST_FLOW === 'feedscroll') {
           var last = 0;
           var pump = function (ts) {
-            if (ts - last > 8) {
+            if (ts - last > 15) {
               last = ts;
               var scroller = document.querySelector('#appScroll');
               if (scroller) {
                 var max = Math.max(1, scroller.scrollHeight - scroller.clientHeight);
-                var next = scroller.scrollTop + 14;
+                var next = scroller.scrollTop + 4;
                 scroller.scrollTop = next > max - 1200 ? Math.max(0, next - max) : next;
               }
             }
