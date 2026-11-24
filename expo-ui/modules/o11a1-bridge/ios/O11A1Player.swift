@@ -37,6 +37,7 @@ final class O11A1PlayerHost {
     var muted = false
     var volume: Float = 1
     var rate: Float = 1
+    var loop = false
     var pendingPlay = false
     var positionMs: Double = 0
     var durationMs: Double = 0
@@ -186,6 +187,7 @@ final class O11A1PlayerHost {
       slot.muted = o11a1Bool(json["muted"])
       slot.volume = Float(o11a1PlayerDouble(json["volume"], fallback: 1))
       slot.rate = Float(max(0.1, min(4.0, o11a1PlayerDouble(json["rate"], fallback: 1))))
+      slot.loop = o11a1Bool(json["loop"])
       slot.player.isMuted = slot.muted
       slot.player.volume = slot.volume
       slot.player.automaticallyWaitsToMinimizeStalling = !slot.preview && !slot.dashAudio
@@ -603,12 +605,14 @@ final class O11A1PlayerHost {
       DispatchQueue.main.async {
         switch player.timeControlStatus {
         case .playing:
-          slot.playing = true
           if slot.dashAudio {
             self.startDASHAudio(slot)
           }
-          NSLog("[O11A1] playing %@", slot.id)
-          self.emit(slot, "playing", self.timePayload(slot))
+          if !slot.playing {
+            slot.playing = true
+            NSLog("[O11A1] playing %@", slot.id)
+            self.emit(slot, "playing", self.timePayload(slot))
+          }
         case .paused:
           if slot.playing {
             slot.playing = false
@@ -641,6 +645,15 @@ final class O11A1PlayerHost {
       forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
     ) { [weak self, weak slot] _ in
       guard let self = self, let slot = slot else { return }
+      if slot.loop {
+        slot.player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { _ in
+          if slot.pendingPlay {
+            slot.player.play()
+            slot.audioPlayer.play()
+          }
+        }
+        return
+      }
       slot.playing = false
       slot.audioPlayer.pause()
       self.emit(slot, "ended", self.timePayload(slot))
