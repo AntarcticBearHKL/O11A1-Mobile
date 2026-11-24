@@ -317,6 +317,9 @@
   const nativeThemeSetting = window.__O11A1_THEME_SETTING__;
   if (nativeThemeSetting === '浅色' || nativeThemeSetting === '深色' || nativeThemeSetting === '跟随系统') {
     state.settings.theme = nativeThemeSetting;
+  } else if (!loaded && (window.__O11A1_THEME_FALLBACK__ === 'light'
+    || window.__O11A1_THEME_FALLBACK__ === 'dark')) {
+    state.settings.theme = window.__O11A1_THEME_FALLBACK__ === 'dark' ? '深色' : '浅色';
   }
   if (loaded?.bgStyleVersion !== 2) {
     state.settings.bgTransparency = 0;

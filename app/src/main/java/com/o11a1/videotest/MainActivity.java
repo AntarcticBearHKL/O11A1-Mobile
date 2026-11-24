@@ -112,7 +112,7 @@ public final class MainActivity extends Activity {
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT));
         setContentView(root);
-        webView.loadUrl("file:///android_asset/web/index.html?v=286");
+        webView.loadUrl("file:///android_asset/web/index.html?v=287");
         Thread warm = new Thread(() -> cookies.ensureBuvid(), "o11a1-buvid");
         warm.setDaemon(true);
         warm.start();

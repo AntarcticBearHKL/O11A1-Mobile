@@ -139,8 +139,10 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
     controller.add(self, name: "o11a1player")
     let savedPrefs = UserDefaults.standard.string(forKey: "o11a1.webPrefs") ?? ""
     let themeSetting = UserDefaults.standard.string(forKey: "o11a1.theme.setting") ?? ""
+    let themeFallback = UserDefaults.standard.string(forKey: "o11a1.theme") ?? ""
     let prefsScript = """
     window.__O11A1_THEME_SETTING__ = \(jsonString(themeSetting));
+    window.__O11A1_THEME_FALLBACK__ = \(jsonString(themeFallback));
     (function () {
       try {
         var saved = \(jsonString(savedPrefs));
