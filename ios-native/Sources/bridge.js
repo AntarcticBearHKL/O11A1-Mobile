@@ -60,7 +60,7 @@
   }
   window.O11A1Native = {
     available: function () { return true; },
-    version: function () { return '0.4.8-ios'; },
+    version: function () { return '0.4.9-ios'; },
     popular: function (page, ps) { return call('popular', { page: page, ps: ps }); },
     recommend: function (page, ps, fresh) { return call('recommend', { page: page, ps: ps, fresh: fresh }); },
     search: function (keyword, page) { return call('search', { keyword: keyword, page: page }); },
@@ -151,7 +151,10 @@
           if (TEST_FLOW === 'playerseek') {
             setTimeout(function () {
               try { if (window.O11A1Media) window.O11A1Media.seek(25); } catch (error) {}
-            }, 10000);
+            }, 16000);
+            setTimeout(function () {
+              try { if (window.O11A1Media) window.O11A1Media.seek(60); } catch (error) {}
+            }, 22000);
           }
         }
         if (TEST_FLOW === 'feedscroll') {
