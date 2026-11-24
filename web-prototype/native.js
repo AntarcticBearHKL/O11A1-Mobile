@@ -1207,15 +1207,37 @@
 
   function loadPreviewNative(video, item, url, autoplay) {
     if (!NATIVE_MEDIA || typeof video.__nativeLoad !== 'function') {
+      const nativeFallback = () => {
+        if (video.__o11a1NativeFallback) return;
+        video.__o11a1NativeFallback = true;
+        log('preview html fallback native ' + (item.bvid || ''));
+        if (NATIVE_MEDIA && window.O11A1NativeMedia) {
+          try { window.O11A1NativeMedia.attach(video); } catch (_) {}
+        }
+        if (typeof video.__nativeLoad === 'function') {
+          video.__nativeLoad({
+            videoUrl: url,
+            backupUrl: previewBackupFor(item),
+            kind: 'file',
+            loop: true,
+            muted: true,
+            autoplay: true,
+          });
+        }
+      };
       if (!video.__o11a1HtmlWired) {
         video.__o11a1HtmlWired = true;
         video.addEventListener('error', () => {
           log('preview html error ' + String(video.error && video.error.code) + ' ' + String(video.currentSrc || '').split('?')[0]);
+          nativeFallback();
         });
       }
       video.src = url;
       video.load();
-      if (autoplay) video.play().catch((error) => log('preview html play failed ' + error));
+      if (autoplay) video.play().catch((error) => {
+        log('preview html play failed ' + error);
+        nativeFallback();
+      });
       return;
     }
     video.__nativeLoad({
@@ -4900,7 +4922,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.16';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.17';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
