@@ -45,8 +45,10 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
   private var tiltWatching = false
   private var tiltDirection = 0
   private var savedBrightness: CGFloat?
+  private var statusBarStyle: UIStatusBarStyle = .default
 
-  override var prefersStatusBarHidden: Bool { true }
+  override var prefersStatusBarHidden: Bool { false }
+  override var preferredStatusBarStyle: UIStatusBarStyle { statusBarStyle }
   override var prefersHomeIndicatorAutoHidden: Bool { true }
   override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .portrait }
 
@@ -310,6 +312,14 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
       if let saved = savedBrightness {
         UIScreen.main.brightness = saved
         savedBrightness = nil
+      }
+    case "statusbar":
+      let tone = object["style"] as? String == "light" ? "light" : "dark"
+      let next: UIStatusBarStyle = tone == "light" ? .lightContent : .darkContent
+      if next != statusBarStyle {
+        statusBarStyle = next
+        NSLog("[O11A1] statusbar %@", tone)
+        setNeedsStatusBarAppearanceUpdate()
       }
     case "orientation":
       O11A1Orientation.apply(object["mode"] as? String ?? "portrait")
