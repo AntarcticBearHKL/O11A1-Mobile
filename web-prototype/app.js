@@ -7113,6 +7113,8 @@
     updatePlayerLabels,
     updatePlaylistDock,
     setDockExpanded,
+    beginPlayerDragSnapshot,
+    endPlayerDragSnapshot,
     refreshQualityChoices,
     updatePlaylistCounts,
     showPlayerNotice,

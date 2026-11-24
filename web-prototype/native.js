@@ -1197,7 +1197,13 @@
   function previewUrlFor(item) {
     const key = `${item.bvid}:${item.cid || 0}`;
     const cached = previewUrlCache.get(key);
-    if (cached && Date.now() - cached.at < PREVIEW_URL_TTL) return cached.url;
+    if (cached && Date.now() - cached.at < PREVIEW_URL_TTL) {
+      if (!item.cid && cached.cid) {
+        item.cid = Number(cached.cid) || 0;
+        prefetchDanmaku(item.cid);
+      }
+      return cached.url;
+    }
     if (typeof bridge.previewCached === 'function') {
       const cachedResult = call('previewCached', item.bvid, item.cid || 0);
       const cachedUrl = cachedResult && cachedResult.ok
@@ -1207,6 +1213,7 @@
         previewUrlCache.set(key, {
           url: cachedUrl,
           backup: cachedResult.backupRemote || '',
+          cid: Number(cachedResult.cid) || 0,
           at: Date.now(),
         });
         if (!item.cid && cachedResult.cid) {
@@ -1231,6 +1238,7 @@
       previewUrlCache.set(key, {
         url,
         backup: NATIVE_MEDIA ? String(result.backupRemote || '') : String(result.backup || ''),
+        cid: Number(result.cid) || 0,
         at: Date.now(),
       });
       if (!item.cid && result.cid) {
@@ -5034,7 +5042,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.22';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.23';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

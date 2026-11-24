@@ -2615,7 +2615,7 @@ body[data-theme="dark"] .video-row.real-row .row-thumb{background:#1A202A}
 }
 .real-video-status:empty{display:none}
 .danmaku-layer{
-  position:absolute;left:0;right:0;top:0;bottom:auto;z-index:2;pointer-events:none;overflow:hidden;
+  position:absolute;left:0;right:0;top:0;bottom:auto;z-index:5;pointer-events:none;overflow:hidden;
   height:var(--dm-area-height,100%);
   transition:height .18s ease;
 }

@@ -60,7 +60,7 @@
   }
   window.O11A1Native = {
     available: function () { return true; },
-    version: function () { return '0.4.22-ios'; },
+    version: function () { return '0.4.23-ios'; },
     popular: function (page, ps) { return call('popular', { page: page, ps: ps }); },
     recommend: function (page, ps, fresh) { return call('recommend', { page: page, ps: ps, fresh: fresh }); },
     search: function (keyword, page) { return call('search', { keyword: keyword, page: page }); },
@@ -158,6 +158,25 @@
               try { if (window.O11A1Media) window.O11A1Media.seek(60); } catch (error) {}
             }, 22000);
           }
+        }
+        if (TEST_FLOW === 'dragsnapshot') {
+          setTimeout(function () {
+            try {
+              var row = document.querySelector('#homeFeed .real-row');
+              if (row) row.click();
+            } catch (error) {}
+          }, 3500);
+          setTimeout(function () {
+            try {
+              window.O11A1Host.beginPlayerDragSnapshot();
+              var player = document.querySelector('#player');
+              if (player) {
+                player.style.transition = 'none';
+                player.style.transform = 'translateY(30%) scale(.84)';
+                player.style.borderRadius = '44px';
+              }
+            } catch (error) {}
+          }, 14000);
         }
         if (TEST_FLOW === 'dock') {
           setTimeout(function () {
