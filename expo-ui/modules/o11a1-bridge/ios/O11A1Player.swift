@@ -17,7 +17,11 @@ final class O11A1PlayerHost {
     let id: String
     let view = PlayerView()
     let player = AVPlayer()
+    let audioPlayer = AVPlayer()
     var item: AVPlayerItem?
+    var audioItem: AVPlayerItem?
+    var dashAudio = false
+    var audioStatusObservation: NSKeyValueObservation?
     var seq: Int64 = 0
     var visible = false
     var preview: Bool { id != "main" }
@@ -46,6 +50,8 @@ final class O11A1PlayerHost {
       view.backgroundColor = .black
       view.isUserInteractionEnabled = false
       view.playerLayer.player = player
+      audioPlayer.automaticallyWaitsToMinimizeStalling = true
+      audioPlayer.actionAtItemEnd = .none
     }
   }
 
@@ -190,6 +196,9 @@ final class O11A1PlayerHost {
         self.webView = web
       }
       self.emit(slot, "loadstart", [:])
+      if audioURL.isEmpty || kind != "dash" {
+        self.clearDASH(slot)
+      }
       if !audioURL.isEmpty && kind == "dash", let audio = URL(string: audioURL) {
         self.installDASH(
           slot,
@@ -255,7 +264,6 @@ final class O11A1PlayerHost {
       "User-Agent": O11A1BiliClient.desktopUserAgent,
       "Accept": "*/*"
     ]
-    NSLog("[O11A1] dash %@", video.host ?? "?")
     let videoAsset = O11A1MediaLoader.shared.asset(
       for: video,
       headers: mediaHeaders,
@@ -266,119 +274,47 @@ final class O11A1PlayerHost {
       headers: mediaHeaders,
       contentType: "public.mpeg-4-audio"
     )
-    let seq = slot.seq
-    videoAsset.loadTracks(withMediaType: .video) { [weak self] videoTracks, videoError in
-      guard let self = self else { return }
-      guard let videoTrack = videoTracks?.first else {
-        NSLog("[O11A1] dash video tracks missing %@ err=%@", slot.id,
-              videoError?.localizedDescription ?? "none")
-        self.emitDASHFailure(slot, seq: seq, reason: "video track missing")
-        return
+    let videoItem = AVPlayerItem(asset: videoAsset)
+    let audioItem = AVPlayerItem(asset: audioAsset)
+    videoItem.preferredForwardBufferDuration = slot.preview ? 8 : 30
+    audioItem.preferredForwardBufferDuration = slot.preview ? 8 : 30
+    clearDASH(slot)
+    slot.dashAudio = true
+    slot.durationMs = durationMs
+    slot.audioItem = audioItem
+    slot.audioPlayer.isMuted = slot.muted
+    slot.audioPlayer.volume = slot.volume
+    slot.audioPlayer.replaceCurrentItem(with: audioItem)
+    slot.audioStatusObservation = audioItem.observe(\.status, options: [.new]) { [weak self, weak slot] item, _ in
+      guard let self = self, let slot = slot, item.status == .failed else { return }
+      DispatchQueue.main.async {
+        NSLog("[O11A1] dash audio failed %@ %@", slot.id,
+              item.error?.localizedDescription ?? "unknown")
+        self.emit(slot, "error", ["error": "dash audio failed"])
       }
-      audioAsset.loadTracks(withMediaType: .audio) { [weak self] audioTracks, audioError in
-        guard let self = self else { return }
-        guard let audioTrack = audioTracks?.first else {
-          NSLog("[O11A1] dash audio tracks missing %@ err=%@", slot.id,
-                audioError?.localizedDescription ?? "none")
-          self.emitDASHFailure(slot, seq: seq, reason: "audio track missing")
-          return
-        }
-        DispatchQueue.main.async {
-          guard slot.seq == seq else {
-            NSLog("[O11A1] dash stale %@ seq=%lld latest=%lld", slot.id, seq, slot.seq)
-            return
-          }
-          let composition = AVMutableComposition()
-          guard let videoTrackOut = composition.addMutableTrack(
-            withMediaType: .video,
-            preferredTrackID: kCMPersistentTrackID_Invalid
-          ), let audioTrackOut = composition.addMutableTrack(
-            withMediaType: .audio,
-            preferredTrackID: kCMPersistentTrackID_Invalid
-          ) else {
-            self.emitDASHFailure(slot, seq: seq, reason: "add mutable track")
-            return
-          }
-          let videoCodec = self.fourCC(videoTrack.formatDescriptions)
-          let audioCodec = self.fourCC(audioTrack.formatDescriptions)
-          NSLog(
-            "[O11A1] dash tracks %@ v=%@ %.0fx%.0f range=%.2f+%.2f a=%@ range=%.2f+%.2f",
-            slot.id, videoCodec,
-            videoTrack.naturalSize.width, videoTrack.naturalSize.height,
-            videoTrack.timeRange.start.seconds, videoTrack.timeRange.duration.seconds,
-            audioCodec,
-            audioTrack.timeRange.start.seconds, audioTrack.timeRange.duration.seconds
-          )
-          var durations: [CMTime] = []
-          if durationMs > 0 {
-            durations.append(CMTime(seconds: durationMs / 1000.0, preferredTimescale: 600))
-          }
-          for range in [videoTrack.timeRange, audioTrack.timeRange] {
-            if range.duration.isValid, !range.duration.isIndefinite,
-               range.duration.isNumeric, range.duration.seconds > 0 {
-              durations.append(range.duration)
-            }
-          }
-          let duration = durations.min { CMTimeCompare($0, $1) < 0 } ?? .zero
-          guard CMTimeCompare(duration, .zero) > 0 else {
-            self.emitDASHFailure(slot, seq: seq, reason: "unknown duration")
-            return
-          }
-          do {
-            try videoTrackOut.insertTimeRange(
-              CMTimeRange(start: .zero, duration: duration),
-              of: videoTrack,
-              at: .zero
-            )
-          } catch {
-            NSLog("[O11A1] dash insert video failed %@ %@", slot.id,
-                  String(describing: error))
-            self.emitDASHFailure(slot, seq: seq, reason: "insert video")
-            return
-          }
-          do {
-            try audioTrackOut.insertTimeRange(
-              CMTimeRange(start: .zero, duration: duration),
-              of: audioTrack,
-              at: .zero
-            )
-          } catch {
-            NSLog("[O11A1] dash insert audio failed %@ %@", slot.id,
-                  String(describing: error))
-            self.emitDASHFailure(slot, seq: seq, reason: "insert audio")
-            return
-          }
-          let item = AVPlayerItem(asset: composition)
-          NSLog("[O11A1] dash composition %@ duration=%.1fs", slot.id, duration.seconds)
-          self.installItem(slot, item: item, startMs: startMs, autoplay: autoplay)
-        }
-      }
+    }
+    if startMs > 0 {
+      let cm = CMTime(seconds: startMs / 1000.0, preferredTimescale: 600)
+      slot.audioPlayer.seek(to: cm, toleranceBefore: .zero, toleranceAfter: .zero)
+    }
+    slot.player.isMuted = true
+    NSLog("[O11A1] dash dual %@ audio=%@ %.0fs", slot.id,
+          audio.host ?? "?", durationMs / 1000)
+    installItem(slot, item: videoItem, startMs: startMs, autoplay: autoplay)
+    if autoplay || slot.pendingPlay {
+      slot.audioPlayer.play()
+      slot.audioPlayer.rate = slot.rate
     }
   }
 
-  private func fourCC(_ descriptions: [Any]) -> String {
-    guard let raw = descriptions.first else { return "?" }
-    let description = raw as! CMFormatDescription
-    let code = CMFormatDescriptionGetMediaSubType(description)
-    let bytes = [
-      UInt8((code >> 24) & 0xff),
-      UInt8((code >> 16) & 0xff),
-      UInt8((code >> 8) & 0xff),
-      UInt8(code & 0xff)
-    ]
-    return String(bytes: bytes, encoding: .ascii) ?? "?"
-  }
-
-  private func emitDASHFailure(_ slot: Slot, seq: Int64, reason: String) {
-    DispatchQueue.main.async {
-      guard slot.seq == seq else { return }
-      NSLog("[O11A1] dash composition failed %@ reason=%@", slot.id, reason)
-      self.emit(slot, "error", [
-        "error": "dash composition failed",
-        "reason": reason,
-        "seq": seq
-      ])
-    }
+  private func clearDASH(_ slot: Slot) {
+    guard slot.dashAudio || slot.audioItem != nil else { return }
+    slot.dashAudio = false
+    slot.audioStatusObservation?.invalidate()
+    slot.audioStatusObservation = nil
+    slot.audioItem = nil
+    slot.audioPlayer.pause()
+    slot.audioPlayer.replaceCurrentItem(with: nil)
   }
 
   func control(slot id: String, action: String, value: Double) {
@@ -391,31 +327,51 @@ final class O11A1PlayerHost {
           slot.player.play()
           slot.player.rate = slot.rate
         }
+        if slot.dashAudio, slot.audioItem != nil {
+          slot.audioPlayer.play()
+          slot.audioPlayer.rate = slot.rate
+        }
       case "pause":
         slot.pendingPlay = false
         slot.player.pause()
+        slot.audioPlayer.pause()
       case "seek":
         let cm = CMTime(seconds: max(0, value / 1000.0), preferredTimescale: 600)
         slot.player.seek(to: cm, toleranceBefore: .zero, toleranceAfter: .zero) { _ in
           self.emit(slot, "seeked", self.timePayload(slot))
         }
+        if slot.dashAudio {
+          slot.audioPlayer.seek(to: cm, toleranceBefore: .zero, toleranceAfter: .zero)
+        }
         self.emit(slot, "seeking", self.timePayload(slot))
       case "rate":
         slot.rate = Float(max(0.1, min(4.0, value)))
         if slot.player.rate != 0 { slot.player.rate = slot.rate }
+        if slot.dashAudio, slot.audioPlayer.rate != 0 {
+          slot.audioPlayer.rate = slot.rate
+        }
         self.emit(slot, "ratechange", [:])
       case "mute":
         slot.muted = value > 0.5
-        slot.player.isMuted = slot.muted
+        if slot.dashAudio {
+          slot.audioPlayer.isMuted = slot.muted
+        } else {
+          slot.player.isMuted = slot.muted
+        }
         self.emit(slot, "volumechange", [:])
       case "volume":
         slot.volume = Float(max(0, min(1, value)))
-        slot.player.volume = slot.volume
+        if slot.dashAudio {
+          slot.audioPlayer.volume = slot.volume
+        } else {
+          slot.player.volume = slot.volume
+        }
         self.emit(slot, "volumechange", [:])
       case "stop":
         slot.player.pause()
         slot.player.replaceCurrentItem(with: nil)
         slot.item = nil
+        clearDASH(slot)
         self.emit(slot, "pause", [:])
       default:
         break
@@ -466,6 +422,7 @@ final class O11A1PlayerHost {
       self.clearObservers(slot)
       slot.player.pause()
       slot.player.replaceCurrentItem(with: nil)
+      clearDASH(slot)
       slot.view.removeFromSuperview()
     }
   }
@@ -534,6 +491,7 @@ final class O11A1PlayerHost {
         } else if item.status == .failed {
           NSLog("[O11A1] item failed %@ %@", slot.id,
                 item.error?.localizedDescription ?? "unknown")
+          slot.audioPlayer.pause()
           self.emit(slot, "error", ["error": item.error?.localizedDescription ?? "playback failed"])
         }
       }
@@ -568,6 +526,13 @@ final class O11A1PlayerHost {
     ) { [weak self, weak slot] time in
       guard let self = self, let slot = slot else { return }
       slot.positionMs = max(0, time.seconds * 1000)
+      if slot.dashAudio, slot.playing,
+         slot.audioPlayer.timeControlStatus == .playing {
+        let audioSeconds = slot.audioPlayer.currentTime().seconds
+        if audioSeconds.isFinite, abs(audioSeconds - time.seconds) > 0.5 {
+          slot.audioPlayer.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
+        }
+      }
       self.updateMetadata(slot)
       self.emit(slot, "timeupdate", self.timePayload(slot))
     }
@@ -576,6 +541,7 @@ final class O11A1PlayerHost {
     ) { [weak self, weak slot] _ in
       guard let self = self, let slot = slot else { return }
       slot.playing = false
+      slot.audioPlayer.pause()
       self.emit(slot, "ended", self.timePayload(slot))
     }
     slot.failObserver = NotificationCenter.default.addObserver(
@@ -583,6 +549,7 @@ final class O11A1PlayerHost {
     ) { [weak self, weak slot] note in
       guard let self = self, let slot = slot else { return }
       let error = note.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error
+      slot.audioPlayer.pause()
       self.emit(slot, "error", ["error": error?.localizedDescription ?? "playback failed"])
     }
   }
@@ -606,6 +573,7 @@ final class O11A1PlayerHost {
       NotificationCenter.default.removeObserver(observer)
       slot.failObserver = nil
     }
+    clearDASH(slot)
   }
 
   private func updateMetadata(_ slot: Slot) {

@@ -14,6 +14,7 @@ final class O11A1MediaLoader: NSObject, AVAssetResourceLoaderDelegate, URLSessio
     let url: URL
     let headers: [String: String]
     let contentType: String
+    var loggedStatus = false
 
     init(url: URL, headers: [String: String], contentType: String) {
       self.url = url
@@ -135,8 +136,8 @@ final class O11A1MediaLoader: NSObject, AVAssetResourceLoaderDelegate, URLSessio
     }
     let http = response as? HTTPURLResponse
     let status = http?.statusCode ?? 0
-    if !context.logged {
-      context.logged = true
+    if !context.asset.loggedStatus {
+      context.asset.loggedStatus = true
       NSLog("[O11A1] media %@ status=%d range=%@ total=%lld",
             context.asset.url.host ?? "?", status, context.range ?? "-",
             response.expectedContentLength)
