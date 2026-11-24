@@ -1194,9 +1194,15 @@
 
   function loadPreviewNative(video, item, url, autoplay) {
     if (!NATIVE_MEDIA || typeof video.__nativeLoad !== 'function') {
+      if (!video.__o11a1HtmlWired) {
+        video.__o11a1HtmlWired = true;
+        video.addEventListener('error', () => {
+          log('preview html error ' + String(video.error && video.error.code) + ' ' + String(video.currentSrc || '').split('?')[0]);
+        });
+      }
       video.src = url;
       video.load();
-      if (autoplay) video.play().catch(() => {});
+      if (autoplay) video.play().catch((error) => log('preview html play failed ' + error));
       return;
     }
     video.__nativeLoad({
@@ -1272,33 +1278,42 @@
 
   function activatePreviewFocus(feed, row) {
     const item = row.__nativeItem;
-    if (!item || item.live || !item.bvid) return;
+    if (!item || item.live || !item.bvid) {
+      previewCandidate = null;
+      return;
+    }
     if (!previewVideo && !preloadVideo) {
       const thumb = row.querySelector('.row-thumb');
       if (thumb) {
         const url = previewUrlFor(item);
-        if (url) {
-          stopPreviewPreload();
-          const video = ensurePreviewVideo();
-          previewRow = row;
-          row.classList.add('preview-active');
-          loadPreviewNative(video, item, url, true);
-          thumb.appendChild(video);
-          previewProgressFill = attachPreviewOverlays(thumb);
-          thumb.classList.add('preview-loading');
-          const reveal = () => {
-            thumb.classList.remove('preview-loading');
-            video.classList.add('show');
-          };
-          video.addEventListener('canplay', reveal, { once: true });
-          video.addEventListener('playing', reveal, { once: true });
-          video.currentTime = 0;
-          try { video.playbackRate = 1; } catch (_) {}
-          video.play().catch(() => {});
-          prewarmPlayerUrl(item);
-          setTimeout(() => preloadPreviewNeighbor(feed, row), 500);
+        if (!url) {
+          // The play URL is still being warmed by /api/prewarm. Retry shortly
+          // instead of letting this row become a permanently stuck candidate.
+          previewCandidate = null;
+          setTimeout(() => updateFeedPreview(feed), 320);
           return;
         }
+        stopPreviewPreload();
+        const video = ensurePreviewVideo();
+        previewRow = row;
+        log('preview html ' + (item.bvid || item.epId || ''));
+        row.classList.add('preview-active');
+        loadPreviewNative(video, item, url, true);
+        thumb.appendChild(video);
+        previewProgressFill = attachPreviewOverlays(thumb);
+        thumb.classList.add('preview-loading');
+        const reveal = () => {
+          thumb.classList.remove('preview-loading');
+          video.classList.add('show');
+        };
+        video.addEventListener('canplay', reveal, { once: true });
+        video.addEventListener('playing', reveal, { once: true });
+        video.currentTime = 0;
+        try { video.playbackRate = 1; } catch (_) {}
+        video.play().catch((error) => log('preview play failed ' + error));
+        prewarmPlayerUrl(item);
+        setTimeout(() => preloadPreviewNeighbor(feed, row), 500);
+        return;
       }
     }
     if (preloadRow !== row) startPreviewPreload(feed, row);
@@ -4872,7 +4887,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.6';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.7';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
