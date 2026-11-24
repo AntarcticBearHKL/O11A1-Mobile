@@ -377,6 +377,14 @@ final class O11A1PlayerHost {
           viaLoader ? "loader" : "direct", durationMs / 1000)
     installItem(slot, item: videoItem, startMs: startMs, autoplay: autoplay)
     let seq = slot.seq
+    DispatchQueue.main.asyncAfter(deadline: .now() + (viaLoader ? 10 : 6)) { [weak self, weak slot] in
+      guard let self = self, let slot = slot, slot.seq == seq, slot.dashAudio,
+            slot.dashViaLoader == viaLoader,
+            slot.item?.status != .readyToPlay else { return }
+      NSLog("[O11A1] dash timeout %@ via=%@", slot.id, slot.dashViaLoader ? "loader" : "direct")
+      slot.audioPlayer.pause()
+      self.emit(slot, "error", ["error": "dash timeout"])
+    }
     DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self, weak slot] in
       guard let self = self, let slot = slot, slot.seq == seq, slot.dashAudio else { return }
       NSLog("[O11A1] audio state %@ muted=%d vol=%.1f item=%d player=%d rate=%.2f time=%.1f",
@@ -447,6 +455,7 @@ final class O11A1PlayerHost {
         self.emit(slot, "ratechange", [:])
       case "mute":
         slot.muted = value > 0.5
+        NSLog("[O11A1] control mute %@ %d", slot.id, slot.muted ? 1 : 0)
         if slot.dashAudio {
           slot.audioPlayer.isMuted = slot.muted
         } else {
