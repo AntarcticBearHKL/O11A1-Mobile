@@ -1331,7 +1331,7 @@ body.playlist-reordering{cursor:grabbing}
   min-height:17px;margin:14px 0 0;font-size:12.5px;line-height:1.35;
   color:var(--muted);text-align:left;
 }
-body.native-media .feed-preview-video{background:transparent!important;visibility:hidden!important;}
+body.native-media .feed-preview-video{background:transparent!important;}
 body.native-media video.real-video{visibility:hidden!important;}
 body.native-media .row-thumb.native-preview-active > img{opacity:0!important;}
 body.native-media.native-player-ready{background:transparent!important;}

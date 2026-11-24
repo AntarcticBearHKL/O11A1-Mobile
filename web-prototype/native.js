@@ -726,7 +726,10 @@
   function createPreviewVideo(preload) {
     const video = document.createElement('video');
     video.className = preload ? 'feed-preview-video preview-preload' : 'feed-preview-video';
-    if (NATIVE_MEDIA && window.O11A1NativeMedia) window.O11A1NativeMedia.attach(video);
+    // Feed previews stay in the WebView. An inline HTML video is part of the
+    // scrolled compositor, so it follows a 120 Hz fling natively instead of
+    // waiting for a message-handler rect update. The full-screen player still
+    // uses the native AVPlayer path.
     video.muted = true;
     video.defaultMuted = true;
     video.loop = true;
@@ -4868,7 +4871,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.4';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.5';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
