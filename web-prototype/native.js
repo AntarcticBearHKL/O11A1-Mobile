@@ -460,6 +460,9 @@
     }
     row.addEventListener('click', (event) => {
       if (host.isFeedClickSuppressed && host.isFeedClickSuppressed()) return;
+      // iOS can synthesize a click when a finger lift ends a fling. Never let
+      // that accidental click open the player right after scrolling.
+      if (Date.now() - (lastFeedScrollAt || 0) < 380) return;
       event.preventDefault();
       event.stopPropagation();
       if (item.live) playLive(item);
@@ -982,6 +985,9 @@
   function promoteFeedPreview(thumb) {
     if (NATIVE_MEDIA && !NATIVE_IOS) return false;
     if (!previewRow || !previewVideo || !previewVideo.src) return false;
+    // A native fallback preview lives above the WebView; promoting it would
+    // cover the player controls. Open with the normal poster/main path instead.
+    if (previewVideo.__o11a1Native) return false;
     if (previewVideo.error || previewVideo.readyState < 2) return false;
     const rowThumb = previewRow.querySelector('.row-thumb');
     if (thumb && rowThumb !== thumb) return false;
@@ -1209,6 +1215,9 @@
     if (!NATIVE_MEDIA || typeof video.__nativeLoad !== 'function') {
       const nativeFallback = () => {
         if (video.__o11a1NativeFallback) return;
+        if (video !== previewVideo || !document.contains(video)) return;
+        if (state.playerOpen || (video.closest && video.closest('#playerVideo'))) return;
+        if (promotedPreview && promotedPreview.video === video) return;
         video.__o11a1NativeFallback = true;
         log('preview html fallback native ' + (item.bvid || ''));
         if (NATIVE_MEDIA && window.O11A1NativeMedia) {
@@ -4924,7 +4933,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.18';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.19';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
