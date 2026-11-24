@@ -460,9 +460,9 @@
     }
     row.addEventListener('click', (event) => {
       if (host.isFeedClickSuppressed && host.isFeedClickSuppressed()) return;
-      // iOS can synthesize a click when a finger lift ends a fling. Never let
-      // that accidental click open the player right after scrolling.
-      if (Date.now() - (lastFeedScrollAt || 0) < 380) return;
+      // iOS can synthesize a click when a finger lift ends a fling. Only block
+      // taps that are still inside the fling, not every tap after a scroll.
+      if (Date.now() - (lastFeedScrollAt || 0) < 80) return;
       event.preventDefault();
       event.stopPropagation();
       if (item.live) playLive(item);
@@ -807,6 +807,18 @@
     return fill;
   }
 
+  function retirePreviewVideo(video) {
+    if (!video) return;
+    try { video.pause(); } catch (_) {}
+    video.removeAttribute('src');
+    /* video.load() tears down media synchronously and used to block the first
+       frame of opening the player. Let the tap/transition start first. */
+    setTimeout(() => {
+      try { video.load(); } catch (_) {}
+      if (video.parentNode) video.parentNode.removeChild(video);
+    }, 36);
+  }
+
   function stopPreviewPreload() {
     clearTimeout(previewCommitTimer);
     previewCommitTimer = null;
@@ -816,10 +828,7 @@
     if (!preloadVideo) return;
     const video = preloadVideo;
     preloadVideo = null;
-    try { video.pause(); } catch (_) {}
-    video.removeAttribute('src');
-    try { video.load(); } catch (_) {}
-    if (video.parentNode) video.parentNode.removeChild(video);
+    retirePreviewVideo(video);
   }
 
   function stopFeedPreview() {
@@ -846,14 +855,11 @@
       previewRow = null;
     }
     if (!previewVideo) return;
-    previewProgressFill = null;
-    try { previewVideo.pause(); } catch (_) {}
-    previewVideo.classList.remove('show');
-    previewVideo.removeAttribute('src');
-    try { previewVideo.load(); } catch (_) {}
-    if (previewVideo.parentNode) previewVideo.parentNode.removeChild(previewVideo);
+    const retiring = previewVideo;
     previewVideo = null;
     previewProgressFill = null;
+    retiring.classList.remove('show');
+    retirePreviewVideo(retiring);
   }
 
   function startPreviewPreload(feed, row) {
@@ -1598,7 +1604,7 @@
 
   function scheduleWindowUpdate(feed) {
     if (!feed) return;
-    if (host.suppressFeedClicks) host.suppressFeedClicks(300);
+    if (host.suppressFeedClicks) host.suppressFeedClicks(80);
     // Do not cancel an in-flight preview preload on every scroll event; the
     // focus row is re-evaluated on the next animation frame now.
     const now = Date.now();
@@ -4678,6 +4684,12 @@
         action.classList.remove('on');
       }
     }
+    if (host && typeof host.setUserIdentity === 'function') {
+      host.setUserIdentity(
+        loggedIn ? (accountInfo.face || '') : '',
+        loggedIn ? (accountInfo.name || '') : ''
+      );
+    }
   }
 
   function loadAccount(immediate) {
@@ -5066,7 +5078,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.31';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.32';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

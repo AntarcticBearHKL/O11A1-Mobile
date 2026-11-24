@@ -30,6 +30,15 @@ final class O11A1PlayerHost {
       backdrop.isUserInteractionEnabled = false
       foreground.isUserInteractionEnabled = false
       blur.isUserInteractionEnabled = false
+      /* AVPlayerLayer draws black in the letterbox area when it is opaque;
+         that hid the blurred video behind the aspect-fit foreground, which is
+         especially obvious in landscape. Keep both surfaces transparent. */
+      backdrop.isOpaque = false
+      backdrop.backgroundColor = .clear
+      backdrop.playerLayer.backgroundColor = UIColor.clear.cgColor
+      foreground.isOpaque = false
+      foreground.backgroundColor = .clear
+      foreground.playerLayer.backgroundColor = UIColor.clear.cgColor
       backdrop.playerLayer.videoGravity = .resizeAspectFill
       foreground.playerLayer.videoGravity = .resizeAspect
       backdrop.alpha = 0.92

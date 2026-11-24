@@ -157,7 +157,7 @@
     { id: 'dynamic', label: '动态', icon: 'dynamic', type: 'page', target: 'dynamic', group: '桌面端' },
     { id: 'messages', label: '消息', icon: 'messages', type: 'page', target: 'messages', group: '桌面端' },
     { id: 'history', label: '历史', icon: 'history', type: 'module', target: '历史', group: '桌面端' },
-    { id: 'my', label: '我的', icon: 'my', type: 'page', target: 'my', group: '移动端' },
+    { id: 'my', label: '用户', icon: 'my', type: 'page', target: 'my', group: '移动端' },
   ];
 
   const NAV_ICONS = {
@@ -176,6 +176,26 @@
     const body = NAV_ICONS[name];
     if (!body) return '';
     return `<svg class="nav-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+  }
+
+  function sidebarIconMarkup(item) {
+    if (item.id === 'my' && state.userFace) {
+      return `<img class="nav-avatar" src="${escapeHTML(state.userFace)}" alt="">`;
+    }
+    return navIcon(item.icon);
+  }
+
+  function refreshUserNav() {
+    $$('.sidebar-item[data-nav="my"] .sidebar-ico').forEach((icon) => {
+      icon.innerHTML = sidebarIconMarkup({ id: 'my', icon: 'my' });
+    });
+    const launchAvatar = document.getElementById('launchAvatar');
+    if (launchAvatar && state.userFace) {
+      launchAvatar.style.backgroundImage = `url("${String(state.userFace).replace(/"/g, '%22')}")`;
+      launchAvatar.textContent = '';
+    }
+    const launchName = document.getElementById('launchName');
+    if (launchName && state.userName) launchName.textContent = state.userName;
   }
 
   const DEFAULT_NAV_SELECTED = ['home', 'favorite', 'dynamic', 'messages', 'my'];
@@ -238,6 +258,8 @@
   const state = {
     page: 'home',
     loggedIn: loaded?.loggedIn === true,
+    userFace: typeof loaded?.userFace === 'string' ? loaded.userFace : '',
+    userName: typeof loaded?.userName === 'string' ? loaded.userName : '',
     platform: loaded?.platform === 'android' ? 'android' : 'ios',
     moduleId: loaded?.moduleId || 'recommend',
     modules: DEFAULT_MODULES.map((mod) => ({
@@ -581,6 +603,8 @@
       state.modules.forEach((mod) => { modules[mod.id] = mod.on; });
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         loggedIn: state.loggedIn,
+        userFace: state.userFace,
+        userName: state.userName,
         platform: state.platform,
         moduleId: state.moduleId,
         modules,
@@ -714,7 +738,7 @@
       row.className = 'sidebar-item';
       row.dataset.nav = item.id;
       row.innerHTML = `
-        <span class="sidebar-ico">${navIcon(item.icon)}</span>
+        <span class="sidebar-ico">${sidebarIconMarkup(item)}</span>
         <span class="sidebar-label">${escapeHTML(item.label)}</span>`;
       row.addEventListener('click', () => {
         closeSidebar();
@@ -924,18 +948,20 @@
     if (!searchPanel || !state.searchOpen || searchDismissing) return;
     state.searchOpen = false;
     searchDismissing = true;
+    /* Return the page underneath at the same moment the panel starts leaving;
+       waiting for the panel to finish made the background pop back late. */
+    app.classList.remove('search-open');
+    document.body.classList.remove('search-mode');
     if (document.activeElement === searchInput) searchInput.blur();
     searchPanel.classList.remove('dragging');
     searchPanel.classList.add('settling');
-    searchPanel.style.transition = 'transform .32s cubic-bezier(.22,1,.36,1)';
+    searchPanel.style.transition = 'transform .36s cubic-bezier(.16,1,.3,1)';
     searchPanel.style.transform = 'translate3d(105%,0,0)';
     searchPanel.style.boxShadow = '';
     searchPanel.style.pointerEvents = 'none';
     setTimeout(() => {
       searchDismissing = false;
       if (state.searchOpen) return;
-      app.classList.remove('search-open');
-      document.body.classList.remove('search-mode');
       searchPanel.classList.remove('open', 'settling');
       searchPanel.style.transition = '';
       searchPanel.style.transform = '';
@@ -1218,7 +1244,7 @@
 
   function setMyRecede(progress, options = {}) {
     const p = Math.max(0, Math.min(1, Number(progress) || 0));
-    app.style.setProperty('--my-x', `${(7 * p).toFixed(2)}%`);
+    app.style.setProperty('--my-x', `${(-7 * p).toFixed(2)}%`);
     app.style.setProperty('--my-scale', (1 - p * 0.06).toFixed(4));
     app.classList.toggle('my-open', p > 0.001);
     app.classList.toggle('my-dragging', options.dragging === true && p > 0.001);
@@ -2797,9 +2823,9 @@
     setMyRecede(0);
     myPage.classList.remove('my-dragging', 'entering');
     myPage.classList.add('my-settling');
-    myPage.style.transition = 'transform .3s cubic-bezier(.22,1,.36,1)';
-    myPage.style.transform = 'translate3d(-105%,0,0)';
-    myPage.style.boxShadow = '18px 0 46px rgba(10,12,20,.18)';
+    myPage.style.transition = 'transform .36s cubic-bezier(.16,1,.3,1)';
+    myPage.style.transform = 'translate3d(105%,0,0)';
+    myPage.style.boxShadow = '-18px 0 46px rgba(10,12,20,.18)';
     setTimeout(() => {
       myPage.classList.remove('my-settling', 'active');
       myPage.style.transition = '';
@@ -2809,7 +2835,7 @@
       myPage.setAttribute('aria-hidden', 'true');
       myPage.inert = true;
       if (callback) callback();
-    }, 300);
+    }, 370);
   }
 
   function closeMyPageFromSwipe() {
@@ -5562,7 +5588,39 @@
     });
   }
 
+  function openModulesSheet() {
+    openSheet('主页模块', '选择要在首页显示的模块', (body) => {
+      const visible = state.modules.filter((mod) => !(state.settings.hideFish && mod.id === 'fish'));
+      visible.forEach((mod) => {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'sheet-row tapable';
+        row.innerHTML = `<span class="sr-label">${escapeHTML(mod.name)}</span>`
+          + `<span class="sr-value">${escapeHTML(mod.desc || '')}</span>`
+          + `<span class="sheet-switch${mod.on ? ' on' : ''}" aria-hidden="true"></span>`;
+        row.addEventListener('click', () => {
+          mod.on = !mod.on;
+          if (!mod.on && state.moduleId === mod.id) {
+            state.moduleId = state.modules.find((item) => item.on)?.id || null;
+          }
+          if (!state.moduleId) {
+            state.moduleId = state.modules.find((item) => item.on)?.id || null;
+          }
+          row.querySelector('.sheet-switch')?.classList.toggle('on', mod.on);
+          renderModuleSettings();
+          refreshHomeHeader();
+          save();
+        });
+        body.appendChild(row);
+      });
+    });
+  }
+
   function openSettingsSheet(id, options = {}) {
+    if (id === 'settings-modules') {
+      openModulesSheet();
+      return;
+    }
     const def = settingsDefinition(id);
     if (!def) return;
     if (id === 'settings-playback') ensureQualityOptions();
@@ -6032,7 +6090,6 @@
       performSearch(searchTerm.dataset.searchTerm);
       return;
     }
-    if (Date.now() < suppressFeedClickUntil) return;
     const playlistTarget = event.target.closest('[data-queue]');
     if (playlistTarget) {
       openPlaylistPage();
@@ -6057,6 +6114,7 @@
 
     const play = event.target.closest('[data-open-player]');
     if (play) {
+      if (Date.now() < suppressFeedClickUntil) return;
       openPlayer({ autoplay: true });
       return;
     }
@@ -6078,6 +6136,8 @@
   });
 
   if (searchBack) searchBack.addEventListener('click', closeSearchFromSwipe);
+  const myBackButton = $('#myBack');
+  if (myBackButton) myBackButton.addEventListener('click', closeMyPageFromSwipe);
   searchClear.addEventListener('click', () => {
     searchInput.value = '';
     updateSearch();
@@ -6806,8 +6866,17 @@
       if (!intent) return;
       if (intent === 'right') {
         if (event.cancelable) event.preventDefault();
-        if (rowSwipe.surface === 'detail' || rowSwipe.surface === 'my') {
+        if (rowSwipe.surface === 'detail') {
           rowSwipe.direction = 'vertical';
+          return;
+        }
+        if (rowSwipe.surface === 'my') {
+          rowSwipe.direction = 'my-close';
+          rowSwipe.myBase = Math.min(SWIPE_LOCK_PX, dx);
+          rowSwipe.myOffset = 0;
+          setMyRecede(1, { dragging: true });
+          myPage.classList.add('my-dragging');
+          myPage.style.transition = 'none';
           return;
         }
         if (state.searchOpen && searchResultsPage) {
@@ -6842,12 +6911,7 @@
           return;
         }
         if (rowSwipe.surface === 'my') {
-          rowSwipe.direction = 'my-close';
-          rowSwipe.myBase = Math.min(SWIPE_LOCK_PX, -dx);
-          rowSwipe.myOffset = 0;
-          setMyRecede(1, { dragging: true });
-          myPage.classList.add('my-dragging');
-          myPage.style.transition = 'none';
+          rowSwipe.direction = 'vertical';
           return;
         }
         if (!rowSwipe.wrapper) {
@@ -6885,10 +6949,10 @@
     if (rowSwipe.direction === 'my-close') {
       if (event.cancelable) event.preventDefault();
       const width = app.clientWidth || window.innerWidth;
-      const offset = Math.max(0, Math.min(width, -dx - (rowSwipe.myBase || 0)));
+      const offset = Math.max(0, Math.min(width, dx - (rowSwipe.myBase || 0)));
       rowSwipe.myOffset = offset;
-      myPage.style.transform = `translate3d(${-offset}px,0,0)`;
-      myPage.style.boxShadow = offset > 0 ? '18px 0 46px rgba(10,12,20,.18)' : '';
+      myPage.style.transform = `translate3d(${offset}px,0,0)`;
+      myPage.style.boxShadow = offset > 0 ? '-18px 0 46px rgba(10,12,20,.18)' : '';
       setMyRecede(1 - offset / width, { dragging: true });
       return;
     }
@@ -6972,7 +7036,7 @@
     if (start.direction === 'my-close') {
       suppressFeedClickUntil = Date.now() + 420;
       const width = app.clientWidth || window.innerWidth;
-      if ((start.myOffset || 0) > width * 0.24 || vx < -0.35) closeMyPageFromSwipe();
+      if ((start.myOffset || 0) > width * 0.24 || vx > 0.35) closeMyPageFromSwipe();
       else resetMyPageDrag();
       return;
     }
@@ -7263,6 +7327,10 @@
     state,
     app,
     showPage,
+    openSearch,
+    closeSearch: closeSearchFromSwipe,
+    closeMyPage: closeMyPageFromSwipe,
+    setPlayerOrientation,
     openPlayer,
     minimizePlayer,
     stopPlayback,
@@ -7313,10 +7381,93 @@
     commentsBody,
     loginStatus,
     playlistDock,
+    setUserIdentity: (face, name) => {
+      const nextFace = typeof face === 'string' ? face : '';
+      const nextName = typeof name === 'string' ? name : '';
+      if (state.userFace === nextFace && state.userName === nextName) return;
+      state.userFace = nextFace;
+      state.userName = nextName;
+      save();
+      refreshUserNav();
+    },
   };
 
   /* init */
   document.body.dataset.platform = state.platform;
+
+  const launchScreen = $('#launchScreen');
+  const launchAvatar = $('#launchAvatar');
+  const launchName = $('#launchName');
+  const launchBarFill = $('#launchBarFill');
+  let launchHideTimer = null;
+  let launchPollTimer = null;
+
+  function paintLaunchIdentity() {
+    if (!launchAvatar) return;
+    if (state.userFace) {
+      launchAvatar.style.backgroundImage = `url("${String(state.userFace).replace(/"/g, '%22')}")`;
+      launchAvatar.textContent = '';
+    } else {
+      launchAvatar.style.backgroundImage = '';
+      launchAvatar.textContent = (state.userName || 'B').slice(0, 1);
+    }
+    if (launchName) launchName.textContent = state.userName || '正在进入';
+  }
+
+  function hideLaunchSplash(delay = 140) {
+    if (!launchScreen || !launchScreen.classList.contains('show')) return;
+    if (launchBarFill) launchBarFill.style.width = '100%';
+    clearTimeout(launchHideTimer);
+    launchHideTimer = setTimeout(() => {
+      launchScreen.classList.add('hide');
+      setTimeout(() => {
+        launchScreen.classList.remove('show', 'hide');
+        launchScreen.setAttribute('aria-hidden', 'true');
+      }, 300);
+    }, delay);
+  }
+
+  function waitForLaunchReady() {
+    clearInterval(launchPollTimer);
+    let elapsed = 0;
+    launchPollTimer = setInterval(() => {
+      elapsed += 100;
+      const feed = document.querySelector('#homeFeed');
+      const ready = Boolean(feed && (feed.querySelector('.real-row') || feed.querySelector('.feed-item:not(.feed-skeleton)')));
+      if (launchBarFill) {
+        const target = ready ? 100 : Math.min(92, 16 + elapsed / 16);
+        launchBarFill.style.width = `${target}%`;
+      }
+      if (ready || elapsed >= 1700) {
+        clearInterval(launchPollTimer);
+        launchPollTimer = null;
+        hideLaunchSplash(ready ? 90 : 0);
+      }
+    }, 100);
+  }
+
+  /* A native cookie/session is enough to skip the SMS gate on launch. */
+  if (!state.loggedIn) {
+    const nativeSession = nativeLoginCall('session', []);
+    if (nativeSession && nativeSession.ok && nativeSession.loggedIn) {
+      state.loggedIn = true;
+      save();
+    }
+  }
+  const showLaunch = state.loggedIn;
+  if (showLaunch && launchScreen) {
+    paintLaunchIdentity();
+    launchScreen.setAttribute('aria-hidden', 'false');
+    launchScreen.classList.add('show');
+    if (launchBarFill) launchBarFill.style.width = '8%';
+    requestAnimationFrame(() => {
+      if (launchBarFill) launchBarFill.style.width = '22%';
+    });
+  } else if (launchScreen) {
+    launchScreen.classList.remove('show', 'hide');
+    launchScreen.setAttribute('aria-hidden', 'true');
+  }
+
   app.classList.toggle('auth-gate', !state.loggedIn);
   $$('#platformSwitch button').forEach((button) => {
     button.classList.toggle('on', button.dataset.platform === state.platform);
@@ -7330,6 +7481,7 @@
   updateSearch();
   syncLandscape();
   showPage(state.loggedIn ? 'home' : 'login');
+  if (showLaunch) waitForLaunchReady();
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) syncNativeLogin();
   });
