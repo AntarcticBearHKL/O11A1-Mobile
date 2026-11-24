@@ -290,6 +290,9 @@
       }
       const opening = Boolean(playerEl && (playerEl.classList.contains('window-opening')
         || playerEl.classList.contains('promoting-preview')));
+      const appEl = document.getElementById('app');
+      const panelOpen = Boolean((appEl && appEl.classList.contains('sidebar-open'))
+        || document.querySelector('.player-settings.open, .comments-panel.open, #videoDetailPanel.open, #psheet.open, #sheet.open, .proto-drawer.open'));
       const mainRec = bySlot.get('main');
       const mainReady = Boolean(mainRec && mainRec.gotFirstFrame);
       // A promoted preview must stay above the WebView until the main DASH
@@ -306,7 +309,9 @@
         rec.background = shouldBackground;
         sendLayer(rec, shouldBackground);
       }
-      const visible = rectVisible(rect) && !isPreload && (inPlayer || baseVisible);
+      const visible = rectVisible(rect) && !isPreload
+        && !(panelOpen && rec.slot !== 'main')
+        && (inPlayer || baseVisible);
       if (rec.gotFirstFrame && !isPreload) {
         if (inPlayer && playerOpen()) {
           ready = true;
