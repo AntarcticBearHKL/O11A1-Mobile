@@ -117,6 +117,7 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
   }
 
   private func installWebView(port: Int) {
+    NSLog("[O11A1] local origin 127.0.0.1:%d", port)
     let config = WKWebViewConfiguration()
     config.websiteDataStore = .default()
     config.allowsInlineMediaPlayback = true
