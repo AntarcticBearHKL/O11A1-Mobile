@@ -12,7 +12,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     let window = UIWindow(frame: UIScreen.main.bounds)
-    window.backgroundColor = UIColor(red: 0.953, green: 0.937, blue: 0.906, alpha: 1)
+    // The WebView is transparent while a native video is on screen. A light
+    // window colour showed as a white flash while closing/dragging the player,
+    // so keep the layer behind the page dark.
+    window.backgroundColor = .black
     window.rootViewController = O11A1RootController()
     self.window = window
     window.makeKeyAndVisible()
@@ -49,7 +52,7 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    view.backgroundColor = UIColor(red: 0.953, green: 0.937, blue: 0.906, alpha: 1)
+    view.backgroundColor = .black
     UIApplication.shared.isIdleTimerDisabled = true
     O11A1Orientation.apply("portrait")
     showLoading()

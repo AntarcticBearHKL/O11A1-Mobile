@@ -593,6 +593,10 @@ body[data-theme="dark"] .search-panel-head{
 }
 .search-panel .feed{padding-top:0}
 body[data-theme="dark"] .search-panel{box-shadow:-22px 0 54px rgba(0,0,0,.55)}
+.search-panel{will-change:transform;contain:layout paint}
+.search-panel.dragging{box-shadow:-18px 0 46px rgba(10,12,20,.18)}
+.search-panel-head{contain:paint}
+body.search-dismissing .search-panel-head{backdrop-filter:none;-webkit-backdrop-filter:none}
 
 /* search home: hot words and suggestions */
 .search-home{transition:transform .28s cubic-bezier(.22,1,.36,1),opacity .22s ease}
@@ -770,6 +774,8 @@ body.search-mode .proto-fab{opacity:0;pointer-events:none}
 .playlist-dock.expanded{
   height:calc(min(55dvh,540px) + env(safe-area-inset-bottom));
   border-top-left-radius:34px;border-top-right-radius:34px;
+  background:var(--paper);
+  backdrop-filter:none;-webkit-backdrop-filter:none;
 }
 .pd-head{
   position:relative;display:flex;align-items:center;gap:14px;height:96px;flex:none;
@@ -1333,8 +1339,9 @@ html.native-media.native-player-ready{background:transparent!important;}
 body.native-media.native-player-ready .stage{background:transparent!important;}
 body.native-media.native-player-ready #app,
 body.native-media.native-player-ready #appMain{background:transparent!important;}
-body.native-media.native-player-ready #appMain,
-body.native-media.native-player-ready .app-main,
+/* Keep the feed painted behind the native player. When the player is
+   dragged down or sent to the playlist dock, the feed is already there
+   instead of a white/blank frame. */
 body.native-media.native-player-ready .proto-fab{visibility:hidden!important;}
 body.native-media.native-player-ready .player,
 body.native-media.native-player-ready .player-rotor,

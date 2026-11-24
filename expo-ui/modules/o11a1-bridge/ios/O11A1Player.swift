@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import UIKit
 import WebKit
+import QuartzCore
 
 /// AVPlayer overlay for iOS.  Media is fetched directly from Bilibili's CDN with
 /// the account's UA/Referer/Cookie headers; no localhost media proxy is used.
@@ -33,6 +34,11 @@ final class O11A1PlayerHost {
     var seq: Int64 = 0
     var visible = false
     var preview: Bool { id != "main" }
+    var targetFrame: CGRect?
+    var targetAt: CFTimeInterval = 0
+    var rectVelocity: CGFloat = 0
+    var seeking = false
+    var seekToken = 0
     var started = false
     var firstFrame = false
     var muted = false
@@ -68,6 +74,7 @@ final class O11A1PlayerHost {
   private weak var webView: WKWebView?
   private weak var background: UIView?
   private weak var overlay: UIView?
+  private var rectLink: CADisplayLink?
 
   private init() {}
 
@@ -178,6 +185,8 @@ final class O11A1PlayerHost {
       let autoplay = o11a1Bool(json["autoplay"])
       slot.seq = o11a1Int64(json["seq"])
       slot.started = false
+      slot.seeking = false
+      slot.seekToken += 1
       slot.firstFrame = false
       slot.durationMs = 0
       slot.bufferedMs = 0
@@ -442,13 +451,35 @@ final class O11A1PlayerHost {
         slot.audioPlayer.pause()
       case "seek":
         let cm = CMTime(seconds: max(0, value / 1000.0), preferredTimescale: 600)
-        slot.player.seek(to: cm, toleranceBefore: .zero, toleranceAfter: .zero) { _ in
-          self.emit(slot, "seeked", self.timePayload(slot))
-        }
-        if slot.dashAudio {
-          slot.audioPlayer.seek(to: cm, toleranceBefore: .zero, toleranceAfter: .zero)
-        }
+        slot.seekToken += 1
+        let token = slot.seekToken
+        slot.seeking = true
+        let resume = slot.pendingPlay || slot.player.timeControlStatus == .playing
+        slot.player.pause()
+        slot.audioPlayer.pause()
+        slot.positionMs = cm.seconds * 1000
         self.emit(slot, "seeking", self.timePayload(slot))
+        let tolerance = CMTime(seconds: 0.12, preferredTimescale: 600)
+        slot.player.seek(to: cm, toleranceBefore: tolerance, toleranceAfter: tolerance) { [weak self, weak slot] _ in
+          guard let self = self, let slot = slot, slot.seekToken == token else { return }
+          let finish = {
+            guard slot.seekToken == token else { return }
+            slot.seeking = false
+            slot.positionMs = cm.seconds * 1000
+            self.emit(slot, "seeked", self.timePayload(slot))
+            if resume && slot.pendingPlay {
+              slot.player.play()
+              if slot.dashAudio { slot.audioPlayer.play() }
+            }
+          }
+          if slot.dashAudio, slot.audioItem != nil {
+            slot.audioPlayer.seek(to: cm, toleranceBefore: tolerance, toleranceAfter: tolerance) { _ in
+              DispatchQueue.main.async(execute: finish)
+            }
+          } else {
+            DispatchQueue.main.async(execute: finish)
+          }
+        }
       case "rate":
         slot.rate = Float(max(0.1, min(4.0, value)))
         if slot.player.rate != 0 { slot.player.rate = slot.rate }
@@ -487,22 +518,75 @@ final class O11A1PlayerHost {
 
   func rect(slot id: String, x: Double, y: Double, width: Double, height: Double,
             visible: Bool, rotation: Double) {
-    DispatchQueue.main.async {
-      guard let web = self.attachIfNeeded() else { return }
-      self.updateContainerFrames(web)
-      guard let slot = self.slots[id] else { return }
+    let apply = { [weak self] in
+      guard let self = self, let slot = self.slots[id] else { return }
       if !visible || width < 2 || height < 2 {
         slot.visible = false
+        slot.targetFrame = nil
+        slot.rectVelocity = 0
         slot.view.isHidden = true
         return
       }
+      if self.webView == nil {
+        guard self.attachIfNeeded() != nil else { return }
+      }
+      if let web = self.webView, let bg = self.background, bg.frame != web.frame {
+        self.updateContainerFrames(web)
+      }
+      if slot.view.superview == nil {
+        self.ensureParent(slot)
+      }
+      let frame = CGRect(x: x, y: y, width: width, height: height)
+      let now = CACurrentMediaTime()
+      if let previous = slot.targetFrame, slot.targetAt > 0 {
+        let dt = now - slot.targetAt
+        if dt > 0.002 && dt < 0.2 {
+          slot.rectVelocity = (frame.origin.y - previous.origin.y) / CGFloat(dt)
+        }
+      }
+      slot.targetFrame = frame
+      slot.targetAt = now
       slot.visible = true
       slot.view.isHidden = false
       slot.view.transform = .identity
-      slot.view.frame = CGRect(x: x, y: y, width: width, height: height)
+      slot.view.frame = frame
       if abs(rotation) > 0.5 {
         slot.view.transform = CGAffineTransform(rotationAngle: CGFloat(rotation * .pi / 180))
       }
+      self.startRectLinkIfNeeded()
+    }
+    if Thread.isMainThread {
+      apply()
+    } else {
+      DispatchQueue.main.async(execute: apply)
+    }
+  }
+
+  private func startRectLinkIfNeeded() {
+    guard rectLink == nil else { return }
+    let link = CADisplayLink(target: self, selector: #selector(rectTick))
+    let hz = Float(UIScreen.main.maximumFramesPerSecond)
+    link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: hz, preferred: hz)
+    link.add(to: .main, forMode: .common)
+    rectLink = link
+  }
+
+  @objc private func rectTick() {
+    let now = CACurrentMediaTime()
+    for slot in slots.values {
+      guard slot.preview, slot.visible, !slot.view.isHidden,
+            let target = slot.targetFrame else { continue }
+      let age = now - slot.targetAt
+      if age > 0.12 {
+        slot.rectVelocity = 0
+        slot.view.frame = target
+        continue
+      }
+      guard age > 0.012, slot.rectVelocity != 0 else { continue }
+      let step = max(-10.0, min(10.0, slot.rectVelocity * CGFloat(min(age, 0.05))))
+      var frame = target
+      frame.origin.y += step
+      slot.view.frame = frame
     }
   }
 
@@ -615,6 +699,7 @@ final class O11A1PlayerHost {
     slot.timeObservation = slot.player.observe(\.timeControlStatus, options: [.new]) { [weak self, weak slot] player, _ in
       guard let self = self, let slot = slot else { return }
       DispatchQueue.main.async {
+        guard !slot.seeking else { return }
         switch player.timeControlStatus {
         case .playing:
           if slot.dashAudio {
@@ -641,7 +726,7 @@ final class O11A1PlayerHost {
       forInterval: CMTime(seconds: 0.2, preferredTimescale: 600),
       queue: .main
     ) { [weak self, weak slot] time in
-      guard let self = self, let slot = slot else { return }
+      guard let self = self, let slot = slot, !slot.seeking else { return }
       slot.positionMs = max(0, time.seconds * 1000)
       if slot.dashAudio, slot.playing,
          slot.audioPlayer.timeControlStatus == .playing {

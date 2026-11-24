@@ -852,7 +852,7 @@
     preloadVideo = video;
     preloadStartedAt = Date.now();
     preloadReady = video.readyState >= 2;
-    try { video.playbackRate = 0.5; } catch (_) {}
+    try { video.playbackRate = 1; } catch (_) {}
     video.play().catch(() => {});
     const ready = () => {
       if (preloadVideo === video && video.readyState >= 2) preloadReady = true;
@@ -906,7 +906,7 @@
     };
     video.addEventListener('playing', reveal, { once: true });
     thumb.classList.add('preview-loading');
-    try { video.playbackRate = previewPlaybackRate(); } catch (_) {}
+    try { video.playbackRate = 1; } catch (_) {}
     video.play().catch(() => {});
     requestAnimationFrame(reveal);
     prewarmPlayerUrl(row.__nativeItem);
@@ -938,13 +938,13 @@
       if (!preloadReady && preloadVideo && preloadVideo.readyState >= 2) preloadReady = true;
       if (preloadReady && commitPreview(feed, row)) return;
       tries += 1;
-      if (tries > 24) {
+      if (tries > 30) {
         stopPreviewPreload();
         return;
       }
-      previewCommitTimer = setTimeout(attempt, 220);
+      previewCommitTimer = setTimeout(attempt, 80);
     };
-    previewCommitTimer = setTimeout(attempt, 120);
+    previewCommitTimer = setTimeout(attempt, 24);
   }
 
   function promoteFeedPreview(thumb) {
@@ -1083,11 +1083,43 @@
     try { bridge.prewarmPreviews(JSON.stringify(list)); } catch (_) {}
   }
 
+  function previewFocusRow(feed, scroll) {
+    if (!scroll) return null;
+    const viewport = scroll.getBoundingClientRect();
+    if (viewport.width < 2 || viewport.height < 2) return null;
+    const cx = viewport.left + viewport.width * 0.5;
+    const cy = viewport.top + viewport.height * 0.5;
+    let row = null;
+    const hit = document.elementFromPoint(cx, cy);
+    if (hit) row = hit.closest && hit.closest('.feed-item:not(.feed-skeleton)');
+    if (!row || !feed.contains(row)) {
+      const rows = $$('.feed-item:not(.feed-skeleton)', feed);
+      let best = Infinity;
+      for (let index = 0; index < rows.length; index += 1) {
+        const rect = rows[index].getBoundingClientRect();
+        if (rect.bottom <= viewport.top || rect.top >= viewport.bottom) continue;
+        const distance = Math.abs(rect.top + rect.height / 2 - cy);
+        if (distance < best) { best = distance; row = rows[index]; }
+      }
+    }
+    if (!row) return null;
+    // A small hysteresis keeps a row from flapping while its edge sits on the
+    // viewport centre; switch as soon as the new row is genuinely closer.
+    if (previewRow && previewRow !== row && feed.contains(previewRow)) {
+      const active = previewRow.getBoundingClientRect();
+      const next = row.getBoundingClientRect();
+      const activeDistance = Math.abs(active.top + active.height / 2 - cy);
+      const nextDistance = Math.abs(next.top + next.height / 2 - cy);
+      if (activeDistance < nextDistance + viewport.height * 0.08) return previewRow;
+    }
+    return row;
+  }
+
   function warmFocusPreview(feed) {
     if (!feed || state.playerOpen || state.miniVisible) return;
     const view = feedViewport(feed);
     if (!view.isActive) return;
-    const row = feedFocusRow(feed, view.scroll);
+    const row = previewFocusRow(feed, view.scroll);
     if (!row || row === previewRow) return;
     const item = row.__nativeItem;
     if (!item || item.live || !item.bvid) return;
@@ -1181,16 +1213,17 @@
     const paused = state.playerOpen
       || state.miniVisible
       || host.app.classList.contains('sidebar-open')
+      || state.page === 'playlist'
       || (state.searchOpen && feed !== feeds.search)
       || (state.page !== 'home' && state.page !== 'module')
-      || Boolean(document.querySelector('.player-settings.open, .comments-panel.open, #videoDetailPanel.open, #psheet.open, #sheet.open, .proto-drawer.open'));
+      || Boolean(document.querySelector('#playlistDock.expanded, .page[data-page="playlist"].active, .player-settings.open, .comments-panel.open, #videoDetailPanel.open, #psheet.open, #sheet.open, .proto-drawer.open'));
     if (!view.isActive || paused) {
       if (previewRow && feed.contains(previewRow)) stopFeedPreview();
       stopPreviewPreload();
       return;
     }
     if (previewVideo && !promotedPreview) setPreviewPlaybackRate(1);
-    const row = feedFocusRow(feed, view.scroll);
+    const row = previewFocusRow(feed, view.scroll);
     if (!row || row === previewRow) return;
     const item = row.__nativeItem;
     if (!item || item.live || !item.bvid) return;
@@ -1393,16 +1426,26 @@
   }
 
   function previewPlaybackRate() {
-    return Date.now() - lastFeedScrollAt < 450 ? 0.5 : 1;
+    return 1;
+  }
+
+  let previewFocusFrame = 0;
+  function schedulePreviewFocus(feed) {
+    if (!feed || previewFocusFrame) return;
+    previewFocusFrame = requestAnimationFrame(() => {
+      previewFocusFrame = 0;
+      updateFeedPreview(feed);
+    });
   }
 
   function scheduleWindowUpdate(feed) {
     if (!feed) return;
-    stopPreviewPreload();
+    // Do not cancel an in-flight preview preload on every scroll event; the
+    // focus row is re-evaluated on the next animation frame now.
     const now = Date.now();
     lastFeedScrollAt = now;
     feedWindowState(feed).lastScrollAt = now;
-    setPreviewPlaybackRate(0.5);
+    schedulePreviewFocus(feed);
     scheduleWindowSettle(feed);
   }
 
@@ -1977,7 +2020,58 @@
     });
   }
 
-  function loadSearch(query, page, append, immediate) {
+  const searchResultCache = new Map();
+  function searchCacheKey(query, page) {
+    return `${String(query || '').trim()}\u0000${Math.max(1, page || 1)}`;
+  }
+
+  function searchAsync(query) {
+    const q = String(query || '').trim();
+    const win = windows.search;
+    const cached = searchResultCache.get(searchCacheKey(q, 1));
+    if (cached) {
+      loadSearch(q, 1, false, true, cached);
+      return true;
+    }
+    win.token += 1;
+    const token = win.token;
+    win.page = 0;
+    win.hasMore = true;
+    win.loading = false;
+    win.query = q;
+    host.searchResultsLabel.textContent = q ? `“${q}”的视频` : '热门视频';
+    host.searchEmpty.hidden = true;
+    deferLoading('search', () => {
+      showInitialFeedSkeleton(feeds.search, 10);
+    }, () => {
+      if (!bridge || typeof bridge.searchAsync !== 'function') {
+        loadSearch(q, 1);
+        return;
+      }
+      bridge.searchAsync(q, 1).then((raw) => {
+        if (win.token !== token) return;
+        const result = parse(raw);
+        if (!result || !result.ok) {
+          renderEmpty(feeds.search, q ? `“${q}”加载失败` : '热门视频加载失败',
+            (result && result.error) || '网络错误', '重试', () => searchAsync(q));
+          host.searchResultsLabel.textContent = q ? `“${q}”的视频` : '热门视频';
+          host.searchEmpty.hidden = true;
+          return;
+        }
+        searchResultCache.set(searchCacheKey(q, 1), result);
+        if (searchResultCache.size > 8) searchResultCache.delete(searchResultCache.keys().next().value);
+        loadSearch(q, 1, false, true, result);
+      }).catch(() => {
+        if (win.token !== token) return;
+        renderEmpty(feeds.search, q ? `“${q}”加载失败` : '热门视频加载失败',
+          '网络错误', '重试', () => searchAsync(q));
+        host.searchEmpty.hidden = true;
+      });
+    });
+    return true;
+  }
+
+  function loadSearch(query, page, append, immediate, prefetched) {
     const win = windows.search;
     const appendPage = Boolean(append) && win.query === query;
     if (!appendPage && !immediate) {
@@ -1996,7 +2090,8 @@
       win.query = query;
     }
     const pageNo = appendPage ? (page || 1) : 1;
-    const result = query ? feedResult('search', [query, pageNo]) : feedResult('popular', [pageNo, 20]);
+    const result = prefetched
+      || (query ? feedResult('search', [query, pageNo]) : feedResult('popular', [pageNo, 20]));
     if (!result.ok) {
       if (!appendPage) {
         renderEmpty(feeds.search, query ? `“${query}”加载失败` : '热门视频加载失败',
@@ -4730,7 +4825,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.3.14';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.0';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
@@ -4875,6 +4970,7 @@
 
   window.O11A1NativeData = {
     search: (query) => loadSearch(query, 1),
+    searchAsync,
     openUpPage,
     renderVideoDetail,
     hasVideoDetail,

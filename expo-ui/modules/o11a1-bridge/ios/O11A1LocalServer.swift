@@ -17,6 +17,7 @@ final class O11A1LocalServer {
   private let previewQueue = DispatchQueue(label: "o11a1.preview", qos: .utility, attributes: .concurrent)
   private var dashCache: [String: (data: Data, at: Date)] = [:]
   private var qualityCache: [String: (data: Data, at: Date)] = [:]
+  private var suggestCache: [String: (data: Data, at: Date)] = [:]
   private var savedBrightness: CGFloat?
   private lazy var volumeView: MPVolumeView = {
     let view = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 1, height: 1))
@@ -291,6 +292,25 @@ final class O11A1LocalServer {
         keyword: query["keyword"] ?? "",
         page: max(1, o11a1Int(query["page"] ?? "1"))
       )
+    case "suggest":
+      let term = (query["term"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      let key = term.lowercased()
+      lock.lock()
+      let hit = suggestCache[key]
+      lock.unlock()
+      if let hit = hit, Date().timeIntervalSince(hit.at) < 300 {
+        data = hit.data
+      } else {
+        let fetched = client.suggest(term: term)
+        lock.lock()
+        suggestCache[key] = (data: fetched, at: Date())
+        if suggestCache.count > 80 {
+          let cutoff = Date().addingTimeInterval(-300)
+          suggestCache = suggestCache.filter { $0.value.at > cutoff }
+        }
+        lock.unlock()
+        data = fetched
+      }
     case "play":
       data = client.play(
         bvid: query["bvid"] ?? "",

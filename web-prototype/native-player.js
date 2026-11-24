@@ -127,6 +127,18 @@
       data = null;
     }
     if (!updateFromPayload(rec, data)) return;
+    if (type === 'timeupdate' && rec.seeking) return;
+    if (type === 'seeking') {
+      rec.seeking = true;
+      dispatch(rec, 'seeking');
+      return;
+    }
+    if (type === 'seeked') {
+      rec.seeking = false;
+      if (data && data.position != null) rec.position = Math.max(0, Number(data.position) || 0);
+      dispatch(rec, 'seeked');
+      return;
+    }
 
     if (type === 'loadstart') {
       rec.readyState = 1;
@@ -293,6 +305,12 @@
       const appEl = document.getElementById('app');
       const panelOpen = Boolean((appEl && appEl.classList.contains('sidebar-open'))
         || document.querySelector('.player-settings.open, .comments-panel.open, #videoDetailPanel.open, #psheet.open, #sheet.open, .proto-drawer.open'));
+      const playerAlive = Boolean(playerEl && (playerOpen()
+        || playerEl.classList.contains('window-opening')
+        || playerEl.classList.contains('to-playlist')
+        || playerEl.classList.contains('collapsing')
+        || playerEl.classList.contains('dragging')));
+      const inLivePlayer = Boolean(inPlayer && playerAlive);
       const mainRec = bySlot.get('main');
       const mainReady = Boolean(mainRec && mainRec.gotFirstFrame);
       // A promoted preview must stay above the WebView until the main DASH
@@ -311,7 +329,7 @@
       }
       const visible = rectVisible(rect) && !isPreload
         && !(panelOpen && rec.slot !== 'main')
-        && (inPlayer || baseVisible);
+        && (inLivePlayer || (!inPlayer && baseVisible));
       if (rec.gotFirstFrame && !isPreload) {
         if (inPlayer && playerOpen()) {
           ready = true;
@@ -374,6 +392,7 @@
       volume: 1,
       muted: Boolean(el.muted),
       paused: true,
+      seeking: false,
       background: slot === 'main',
       ended: false,
       duration: 0,
@@ -410,9 +429,9 @@
         set(value) {
           const ms = Math.max(0, Number(value) * 1000 || 0);
           rec.position = ms;
+          rec.seeking = true;
           evalBridge('nativePlayerControl', [rec.slot, 'seek', ms]);
           dispatch(rec, 'seeking');
-          setTimeout(() => dispatch(rec, 'seeked'), 90);
         },
       },
       duration: { get() { return rec.duration > 0 ? rec.duration / 1000 : NaN; } },
@@ -539,6 +558,7 @@
       target.buffered = 0;
       target.ended = false;
       target.paused = !options.autoplay;
+      target.seeking = false;
       target.readyState = 1;
       target.error = null;
       target.active = true;

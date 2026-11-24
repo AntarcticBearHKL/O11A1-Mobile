@@ -283,6 +283,33 @@ final class O11A1BiliClient {
     return o11a1Data(["ok": true, "items": items, "page": pageNumber])
   }
 
+  func suggest(term: String) -> Data {
+    let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return o11a1Data(["ok": true, "items": []]) }
+    guard let payload = json(
+      base: "https://s.search.bilibili.com",
+      path: "/main/suggest",
+      query: ["term": trimmed, "main_ver": "v1", "highlight": ""],
+      withCookies: false
+    ), let result = payload["result"] as? [String: Any] else {
+      return o11a1Error("suggest unavailable")
+    }
+    let tags = result["tag"] as? [[String: Any]] ?? []
+    var items: [[String: Any]] = []
+    var seen = Set<String>()
+    for tag in tags {
+      var value = o11a1StripHTML(o11a1String(tag["value"]))
+      if value.isEmpty { value = o11a1StripHTML(o11a1String(tag["term"])) }
+      if value.isEmpty { value = o11a1StripHTML(o11a1String(tag["name"])) }
+      guard !value.isEmpty, seen.insert(value).inserted else { continue }
+      var name = o11a1StripHTML(o11a1String(tag["name"]))
+      if name.isEmpty { name = value }
+      items.append(["value": value, "term": value, "name": name])
+      if items.count >= 10 { break }
+    }
+    return o11a1Data(["ok": true, "items": items])
+  }
+
   private func video(_ item: [String: Any], search: Bool) -> [String: Any] {
     var title = o11a1StripHTML(o11a1String(item["title"]))
     if title.isEmpty { title = "视频" }

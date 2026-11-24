@@ -21,6 +21,30 @@
     }
     return request('/api/' + name + (parts.length ? '?' + parts.join('&') : ''));
   }
+  function callAsync(name, params) {
+    return new Promise(function (resolve, reject) {
+      try {
+        var parts = [];
+        var data = params || {};
+        for (var key in data) {
+          if (Object.prototype.hasOwnProperty.call(data, key)) {
+            parts.push(encodeURIComponent(key) + '=' + encodeURIComponent(String(data[key])));
+          }
+        }
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', 'http://127.0.0.1:' + PORT + '/api/' + name
+          + (parts.length ? '?' + parts.join('&') : ''), true);
+        xhr.onload = function () {
+          if (xhr.status >= 200 && xhr.status < 400) resolve(xhr.responseText || '{}');
+          else reject(new Error('HTTP ' + xhr.status));
+        };
+        xhr.onerror = function () { reject(new Error('network')); };
+        xhr.send(null);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
   var rateCache = null;
   function displayRates() {
     var now = Date.now();
@@ -36,10 +60,12 @@
   }
   window.O11A1Native = {
     available: function () { return true; },
-    version: function () { return '0.3.14-ios'; },
+    version: function () { return '0.4.0-ios'; },
     popular: function (page, ps) { return call('popular', { page: page, ps: ps }); },
     recommend: function (page, ps, fresh) { return call('recommend', { page: page, ps: ps, fresh: fresh }); },
     search: function (keyword, page) { return call('search', { keyword: keyword, page: page }); },
+    searchAsync: function (keyword, page) { return callAsync('search', { keyword: keyword, page: page }); },
+    suggestAsync: function (term) { return callAsync('suggest', { term: term }); },
     play: function (bvid, cid) { return call('play', { bvid: bvid, cid: cid }); },
     playLow: function (bvid, cid) { return call('playLow', { bvid: bvid, cid: cid }); },
     previewUrlCached: function (bvid, cid) { return call('previewCached', { bvid: bvid, cid: cid }); },

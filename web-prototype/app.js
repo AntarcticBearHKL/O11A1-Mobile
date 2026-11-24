@@ -813,6 +813,9 @@
     if (searchPanelBody) searchPanelBody.scrollTop = 0;
   }
 
+  let searchDismissing = false;
+  let keyboardSyncFrame = 0;
+
   function openSearch() {
     stopFeedPreview();
     if (!state.loggedIn) {
@@ -843,10 +846,13 @@
     app.classList.add('search-open');
     document.body.classList.add('search-mode');
     setDockExpanded(false);
-    focusSearchInput();
+    // Let the slide-in start on the compositor before the keyboard resize.
+    setTimeout(() => {
+      if (state.searchOpen) focusSearchInput();
+    }, 90);
     setTimeout(() => {
       if (state.searchOpen && document.activeElement !== searchInput) focusSearchInput();
-    }, 180);
+    }, 240);
   }
 
   function focusSearchInput() {
@@ -897,19 +903,31 @@
   }
 
   function closeSearchFromSwipe() {
-    if (!beginSearchDismiss()) return;
+    if (!searchPanel || !state.searchOpen || searchDismissing) return;
+    state.searchOpen = false;
+    searchDismissing = true;
+    if (document.activeElement === searchInput) searchInput.blur();
     searchPanel.classList.remove('dragging');
     searchPanel.classList.add('settling');
     searchPanel.style.transition = 'transform .32s cubic-bezier(.22,1,.36,1)';
     searchPanel.style.transform = 'translate3d(105%,0,0)';
-    searchPanel.style.boxShadow = '-18px 0 46px rgba(10,12,20,.18)';
+    searchPanel.style.boxShadow = '';
+    searchPanel.style.pointerEvents = 'none';
     setTimeout(() => {
+      searchDismissing = false;
       if (state.searchOpen) return;
+      app.classList.remove('search-open');
+      document.body.classList.remove('search-mode');
       searchPanel.classList.remove('open', 'settling');
       searchPanel.style.transition = '';
       searchPanel.style.transform = '';
+      searchPanel.style.pointerEvents = '';
       searchPanel.style.opacity = '';
       searchPanel.style.boxShadow = '';
+      searchPanel.setAttribute('aria-hidden', 'true');
+      searchPanel.inert = true;
+      syncKeyboardOffset();
+      refreshFeedPreview();
     }, 320);
   }
 
@@ -1777,6 +1795,9 @@
 
   function setDockExpanded(expanded) {
     const next = Boolean(expanded);
+    if (next && window.O11A1Host && typeof window.O11A1Host.stopFeedPreview === 'function') {
+      window.O11A1Host.stopFeedPreview();
+    }
     playlistDock.classList.remove('dragging');
     playlistDock.classList.toggle('expanded', next);
     if (dockBackdrop) {
@@ -1792,6 +1813,9 @@
     playlistDock.style.borderTopRightRadius = '';
     playlistDock.style.boxShadow = '';
     if (next) renderDockPlaylist();
+    else if (window.O11A1Host && typeof window.O11A1Host.updateFeedPreview === 'function') {
+      setTimeout(() => window.O11A1Host.updateFeedPreview(), 220);
+    }
   }
 
   function openPlaylistItem(index, sourceRow) {
@@ -5681,16 +5705,68 @@
       </button>`).join('');
   }
 
-  function renderSearchSuggestions(query) {
-    if (!searchSuggestList) return;
-    const q = query.trim();
-    const terms = q
-      ? [q, `${q} 教程`, `${q} 4K`, `${q} 合集`, `${q} 最新`]
-      : [];
-    searchSuggestList.innerHTML = terms.map((term) => `
+  const suggestCache = new Map();
+  const suggestPending = new Map();
+  let suggestToken = 0;
+  let suggestTimer = 0;
+
+  function fetchSuggestions(query) {
+    const q = String(query || '').trim();
+    if (!q) return Promise.resolve([]);
+    const cached = suggestCache.get(q);
+    if (cached) return Promise.resolve(cached);
+    const pending = suggestPending.get(q);
+    if (pending) return pending;
+    const bridge = window.O11A1Native;
+    if (!bridge || typeof bridge.suggestAsync !== 'function') return Promise.resolve([]);
+    const request = bridge.suggestAsync(q).then((raw) => {
+      let result = {};
+      try { result = JSON.parse(raw); } catch (_) {}
+      const items = Array.isArray(result.items)
+        ? result.items
+          .map((item) => String(item.value || item.term || item.name || '').trim())
+          .filter(Boolean)
+          .slice(0, 8)
+        : [];
+      suggestCache.set(q, items);
+      if (suggestCache.size > 60) {
+        const first = suggestCache.keys().next().value;
+        if (first) suggestCache.delete(first);
+      }
+      suggestPending.delete(q);
+      return items;
+    }).catch(() => {
+      suggestPending.delete(q);
+      return [];
+    });
+    suggestPending.set(q, request);
+    return request;
+  }
+
+  function suggestionMarkup(terms) {
+    return terms.map((term) => `
       <button class="search-suggest" type="button" data-search-term="${escapeHTML(term)}">
         <span class="ss-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.6"/><path d="m16 16 4.4 4.4"/></svg></span><b>${escapeHTML(term)}</b>
       </button>`).join('');
+  }
+
+  function renderSearchSuggestions(query) {
+    if (!searchSuggestList) return;
+    const q = String(query || '').trim();
+    const token = ++suggestToken;
+    clearTimeout(suggestTimer);
+    if (!q) {
+      searchSuggestList.innerHTML = '';
+      return;
+    }
+    // Keep the input responsive: the request itself is async, and the list is
+    // only repainted if this is still the latest query.
+    suggestTimer = setTimeout(() => {
+      fetchSuggestions(q).then((terms) => {
+        if (token !== suggestToken || searchInput.value.trim() !== q) return;
+        searchSuggestList.innerHTML = suggestionMarkup(terms);
+      });
+    }, 90);
   }
 
   function updateSearch() {
@@ -5701,7 +5777,7 @@
     if (searchResults) searchResults.hidden = true;
     if (searchHotSection) searchHotSection.hidden = hasQuery;
     if (searchSuggestSection) searchSuggestSection.hidden = !hasQuery;
-    if (searchPanelBody) searchPanelBody.scrollTop = 0;
+    if (searchPanelBody && hasQuery && searchPanelBody.scrollTop) searchPanelBody.scrollTop = 0;
     renderSearchSuggestions(query);
   }
 
@@ -5714,18 +5790,23 @@
       </button>`).join('');
   }
 
+  let dockSuggestToken = 0;
+  let dockSuggestTimer = 0;
   function renderDockSearchSuggestions(query) {
     if (!dockSearchSuggestList) return;
-    const q = query.trim();
+    const q = String(query || '').trim();
+    const token = ++dockSuggestToken;
+    clearTimeout(dockSuggestTimer);
     if (!q) {
       dockSearchSuggestList.innerHTML = '';
       return;
     }
-    const terms = [q, `${q} 教程`, `${q} 4K`, `${q} 合集`, `${q} 最新`];
-    dockSearchSuggestList.innerHTML = terms.map((term) => `
-      <button class="search-suggest" type="button" data-search-term="${escapeHTML(term)}">
-        <span class="ss-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.6"/><path d="m16 16 4.4 4.4"/></svg></span><b>${escapeHTML(term)}</b>
-      </button>`).join('');
+    dockSuggestTimer = setTimeout(() => {
+      fetchSuggestions(q).then((terms) => {
+        if (token !== dockSuggestToken || pdSearchInput.value.trim() !== q) return;
+        dockSearchSuggestList.innerHTML = suggestionMarkup(terms);
+      });
+    }, 90);
   }
 
   function updateDockSearch() {
@@ -5748,7 +5829,9 @@
     showSearchResults(query);
     searchInput.blur();
     syncKeyboardOffset();
-    if (window.O11A1NativeData && typeof window.O11A1NativeData.search === 'function') {
+    if (window.O11A1NativeData && typeof window.O11A1NativeData.searchAsync === 'function') {
+      window.O11A1NativeData.searchAsync(query);
+    } else if (window.O11A1NativeData && typeof window.O11A1NativeData.search === 'function') {
       window.O11A1NativeData.search(query);
     }
   }
@@ -5790,21 +5873,26 @@
   }
 
   function syncKeyboardOffset() {
-    const vv = window.visualViewport;
-    const active = document.activeElement;
-    const focused = Boolean(active && (
-      active === searchInput
-      || active === pdSearchInput
-      || active.tagName === 'INPUT'
-      || active.tagName === 'TEXTAREA'
-      || active.isContentEditable
-    ));
-    const raw = focused && vv
-      ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
-      : 0;
-    const offset = raw > 24 ? Math.round(raw) : 0;
-    document.documentElement.style.setProperty('--kb', `${offset}px`);
-    document.body.classList.toggle('kb-open', offset > 0);
+    if (searchDismissing) return;
+    if (keyboardSyncFrame) return;
+    keyboardSyncFrame = requestAnimationFrame(() => {
+      keyboardSyncFrame = 0;
+      const vv = window.visualViewport;
+      const active = document.activeElement;
+      const focused = Boolean(active && (
+        active === searchInput
+        || active === pdSearchInput
+        || active.tagName === 'INPUT'
+        || active.tagName === 'TEXTAREA'
+        || active.isContentEditable
+      ));
+      const raw = focused && vv
+        ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+        : 0;
+      const offset = raw > 24 ? Math.round(raw) : 0;
+      document.documentElement.style.setProperty('--kb', `${offset}px`);
+      document.body.classList.toggle('kb-open', offset > 0);
+    });
   }
 
   if (window.visualViewport) {
@@ -6584,7 +6672,6 @@
       const offset = Math.max(0, Math.min(width, dx));
       rowSwipe.searchOffset = offset;
       searchResultsPage.style.transform = `translate3d(${offset}px,0,0)`;
-      searchResultsPage.style.boxShadow = offset > 0 ? '-18px 0 46px rgba(10,12,20,.18)' : '';
       return;
     }
     if (rowSwipe.direction === 'up-close') {
