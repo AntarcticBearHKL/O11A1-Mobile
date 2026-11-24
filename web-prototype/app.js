@@ -3935,7 +3935,10 @@
     playerRotor.style.backgroundImage = '';
     const nativeMedia = Boolean(window.O11A1NativeMedia && window.O11A1NativeMedia.available);
     if (playerVideo) {
-      playerVideo.style.backgroundImage = !nativeMedia && origin && origin.image
+      // Keep the row cover as a poster while the native main item loads. The
+      // native first frame clears it, so a non-preview row never shows the
+      // empty striped backdrop for several seconds.
+      playerVideo.style.backgroundImage = origin && origin.image
         ? `url("${String(origin.image).replace(/"/g, '%22')}")`
         : '';
       playerVideo.style.backgroundSize = 'cover';

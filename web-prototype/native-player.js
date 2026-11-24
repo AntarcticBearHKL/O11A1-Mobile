@@ -149,7 +149,11 @@
       rec.readyState = 4;
       rec.paused = false;
       markThumb(rec);
-      if (rec.el.closest && rec.el.closest('#playerVideo') && playerOpen()) bodyReady(true);
+      if (rec.el.closest && rec.el.closest('#playerVideo') && playerOpen()) {
+        const cover = document.getElementById('playerVideo');
+        if (rec.slot === 'main' && cover) cover.style.backgroundImage = '';
+        bodyReady(true);
+      }
       dispatch(rec, 'nativefirstframe');
       dispatch(rec, 'canplay');
       return;
@@ -534,6 +538,7 @@
       target.error = null;
       target.active = true;
       target.gotFirstFrame = false;
+      if (target.slot === 'main') target.el.__o11a1HandoffPlay = false;
       clearThumb(target);
       if (target.slot === 'main') bodyReady(false);
       evalBridge('nativePlayerLoad', [target.slot, JSON.stringify({

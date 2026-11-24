@@ -971,7 +971,9 @@
     previewVideo.muted = false;
     previewVideo.defaultMuted = false;
     previewVideo.volume = 1;
-    previewVideo.loop = false;
+    // Keep looping while the 1080P DASH item prepares; stopping at the end
+    // used to pause the incoming main player and leave a black screen.
+    previewVideo.loop = true;
     previewVideo.controls = false;
     previewVideo.playbackRate = 1;
     playerVideo.appendChild(previewVideo);
@@ -1010,12 +1012,17 @@
     if (!promotedPreview || !video || !video.src) return;
     if (video.readyState < 2 || playerVideo.classList.contains('video-error')) return;
     if (NATIVE_MEDIA && video.__o11a1Native && !video.__o11a1Native.gotFirstFrame) {
-      if (video.paused) video.play().catch(() => {});
+      if (video.paused && !video.__o11a1HandoffPlay) {
+        video.__o11a1HandoffPlay = true;
+        video.play().catch(() => {});
+      }
       return;
     }
     const promoted = promotedPreview;
-    if (promoted.video.paused) {
-      try { if (!video.paused) video.pause(); } catch (_) {}
+    if (promoted.video.paused && !promoted.video.ended) {
+      if (video.__o11a1Native && video.__o11a1Native.gotFirstFrame) {
+        try { if (!video.paused) video.pause(); } catch (_) {}
+      }
       return;
     }
     const duration = Number(video.duration);
@@ -4722,7 +4729,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.3.9';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.3.10';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
