@@ -290,6 +290,35 @@
     if (empty) empty.hidden = true;
   }
 
+  function primeNavSkeleton(id) {
+    if (!id) return false;
+    if (id === 'home') {
+      if (state.page === 'home') return false;
+      if (!feeds.home.querySelector('.real-row')) showInitialFeedSkeleton(feeds.home, 10);
+      return true;
+    }
+    if (id === 'follow') {
+      if (state.page === 'module' && state.moduleName === '关注') return false;
+      if (!(windows.module.name === '关注' && feeds.module.querySelector('.real-row'))) {
+        showInitialFeedSkeleton(feeds.module, 8);
+      }
+      return true;
+    }
+    if (id === 'dynamic') {
+      if (state.page === 'dynamic') return false;
+      if (!$('#dynamicFeed')?.querySelector('.dynamic-card')) showDynamicSkeleton(4);
+      return true;
+    }
+    if (id === 'messages') {
+      if (state.page === 'messages') return false;
+      if (!$('#messageFeed')?.querySelector('.message-row')) showMessageSkeleton(5);
+      return true;
+    }
+    return false;
+  }
+
+  if (host) host.primeNavSkeleton = primeNavSkeleton;
+
   function clearMoreSkeletons(feed) {
     if (!feed) return;
     feed.querySelectorAll('[data-more-skeleton]').forEach((node) => node.remove());
@@ -5297,7 +5326,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.71';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.72';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

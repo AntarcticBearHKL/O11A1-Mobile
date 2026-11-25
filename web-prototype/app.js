@@ -929,41 +929,21 @@
   window.addEventListener('resize', scheduleFloatToolbarIndicator);
 
   /* ---------- toolbar follow-scroll hide ---------- */
-  let toolbarScrollHide = 0;
   let toolbarScrollLast = 0;
-  let toolbarScrollSettle = 0;
-  let toolbarScrollLastDir = 0;
   let toolbarScrollArmed = false;
+  let toolbarHidden = false;
 
-  function applyToolbarScrollHide(animate) {
+  function setToolbarHidden(hidden) {
+    if (toolbarHidden === hidden) return;
+    toolbarHidden = hidden;
     if (!floatToolbar) return;
-    const travel = (floatToolbar.offsetHeight || 72) + 26;
-    if (animate) {
-      floatToolbar.style.transition = 'transform .3s cubic-bezier(.22,1,.36,1)';
-      floatToolbar.style.transform = `translate3d(0, ${(toolbarScrollHide * travel).toFixed(1)}px, 0)`;
-      clearTimeout(toolbarScrollSettle);
-      toolbarScrollSettle = setTimeout(() => {
-        if (floatToolbar) floatToolbar.style.transition = '';
-      }, 320);
-    } else {
-      floatToolbar.style.transition = 'none';
-      floatToolbar.style.transform = `translate3d(0, ${(toolbarScrollHide * travel).toFixed(1)}px, 0)`;
-    }
+    floatToolbar.classList.toggle('toolbar-hidden', hidden);
   }
 
   function resetToolbarScrollHide() {
-    clearTimeout(toolbarScrollSettle);
-    toolbarScrollSettle = 0;
-    toolbarScrollHide = 0;
-    toolbarScrollLastDir = 0;
     toolbarScrollArmed = false;
     toolbarScrollLast = appScroll ? appScroll.scrollTop : 0;
-    if (!floatToolbar) return;
-    floatToolbar.style.transition = 'none';
-    floatToolbar.style.transform = '';
-    requestAnimationFrame(() => {
-      if (floatToolbar) floatToolbar.style.transition = '';
-    });
+    setToolbarHidden(false);
   }
 
   function handleToolbarScroll() {
@@ -975,28 +955,12 @@
     const page = state.page;
     if (page !== 'home' && page !== 'module' && page !== 'dynamic' && page !== 'messages') return;
     if (state.playerOpen || state.searchOpen || app.classList.contains('sidebar-open')) return;
-    if (top <= 0) {
-      if (toolbarScrollHide !== 0) {
-        toolbarScrollHide = 0;
-        applyToolbarScrollHide(false);
-      }
+    if (top <= 4) {
+      setToolbarHidden(false);
       return;
     }
-    if (Math.abs(delta) < 0.5) return;
-    toolbarScrollLastDir = delta > 0 ? 1 : -1;
-    toolbarScrollHide = Math.max(0, Math.min(1, toolbarScrollHide + delta / (delta > 0 ? 90 : 60)));
-    applyToolbarScrollHide(false);
-    clearTimeout(toolbarScrollSettle);
-    toolbarScrollSettle = setTimeout(() => {
-      toolbarScrollSettle = 0;
-      if (toolbarScrollHide > 0.18 && toolbarScrollHide < 1 && toolbarScrollLastDir > 0) {
-        toolbarScrollHide = 1;
-        applyToolbarScrollHide(true);
-      } else if (toolbarScrollHide > 0 && toolbarScrollLastDir < 0) {
-        toolbarScrollHide = 0;
-        applyToolbarScrollHide(true);
-      }
-    }, 110);
+    if (delta > 6 && top > 18) setToolbarHidden(true);
+    else if (delta < -6) setToolbarHidden(false);
   }
 
   if (appScroll) appScroll.addEventListener('scroll', handleToolbarScroll, { passive: true });
@@ -1062,6 +1026,13 @@
     if (item.type === 'search') {
       openSearch();
       return;
+    }
+    if (item.id) {
+      state.navActive = item.id;
+      updateNavActive();
+      if (state.loggedIn && window.O11A1Host && typeof window.O11A1Host.primeNavSkeleton === 'function') {
+        window.O11A1Host.primeNavSkeleton(item.id);
+      }
     }
     if (item.type === 'module') {
       openModulePage(item.target, item.id);
@@ -1546,9 +1517,9 @@
     if (typeof node.animate !== 'function') return;
     const dx = Number(direction) * 18;
     pageEnterAnim = node.animate([
-      { opacity: 0, transform: `translate3d(${dx}px, 10px, 0) scale(.996)` },
+      { opacity: 0.4, transform: `translate3d(${dx}px, 8px, 0) scale(.998)` },
       { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' },
-    ], { duration: 320, easing: 'cubic-bezier(.22,1,.36,1)' });
+    ], { duration: 270, easing: 'cubic-bezier(.22,1,.36,1)' });
     if (pageEnterAnim.finished && pageEnterAnim.finished.then) {
       pageEnterAnim.finished.then(() => {
         pageEnterAnim = null;

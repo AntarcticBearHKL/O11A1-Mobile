@@ -3040,7 +3040,7 @@ body[data-theme="light"] .my-page{
 /* ---------- YouTube-style full-width video cards ---------- */
 .feed{display:flex;flex-direction:column;gap:0;padding:0 0 calc(18px + env(safe-area-inset-bottom))}
 .feed-item{
-  height:auto;min-height:0;margin:0 14px 14px;
+  height:auto;min-height:0;margin:0 0 14px;
   border-radius:0 0 24px 24px;
   overflow:hidden;
   background:transparent;
@@ -3215,7 +3215,13 @@ body[data-theme="dark"] .video-row.real-row .row-copy{
   position:absolute;left:14px;right:14px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:70;
   pointer-events:none;
   transform:translate3d(0,0,0);
-  will-change:transform;
+  transition:transform .42s cubic-bezier(.16,1,.3,1),opacity .28s ease;
+  will-change:transform,opacity;
+}
+.float-toolbar.toolbar-hidden{
+  transform:translate3d(0,calc(100% + 96px),0);
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:transform .42s cubic-bezier(.16,1,.3,1),opacity .28s ease,visibility 0s linear .42s;
 }
 .float-toolbar-surface{
   position:relative;
