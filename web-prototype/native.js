@@ -2565,6 +2565,7 @@
   }
   let mediaItem = null;
   let mediaLoadToken = 0;
+  let pendingQualityQnOverride = 0;
   let mediaBackup = '';
   let mediaTriedBackup = false;
   const nativeFallbackKeys = new Set();
@@ -2931,17 +2932,28 @@
   }
 
   function qualityQn(value) {
-    const map = { '4K': 120, '1080P60': 116, '1080P+': 112, '1080P': 80, '720P60': 74, '720P': 64, '480P': 32, '360P': 16, '仅音频': 16 };
+    const map = {
+      '8K': 127, '杜比': 126, 'HDR': 125, '4K': 120,
+      '2160P': 120, '1440P': 112,
+      '1080P60': 116, '1080P+': 112, '1080P': 80,
+      '720P60': 74, '720P': 64, '480P': 32, '360P': 16, '240P': 6,
+      '仅音频': 16, '最高': 120, '自动': 120,
+    };
     return map[value] || 64;
   }
 
   function qualityLabelFromQn(qn) {
-    const map = { 120: '4K', 116: '1080P60', 112: '1080P+', 80: '1080P', 74: '720P60', 64: '720P', 32: '480P', 16: '360P' };
+    const map = {
+      127: '8K', 126: '杜比', 125: 'HDR', 120: '4K',
+      116: '1080P60', 112: '1080P+', 80: '1080P',
+      74: '720P60', 64: '720P', 32: '480P', 16: '360P', 6: '240P',
+    };
     return map[Number(qn)] || '';
   }
 
   function showQualityFallback(requested, actual) {
     if (!requested || !actual || requested === actual) return;
+    if (requested === '最高' || requested === '自动') return;
     if (host.showPlayerNotice) {
       host.showPlayerNotice('画质', `${requested} 不可用 · 已切到 ${actual}`, 3200);
     }
@@ -2953,8 +2965,10 @@
   const QUALITY_OPTIONS_TTL = 10 * 60 * 1000;
   const QUALITY_OPTIONS_MAX = 40;
   const QUALITY_RANK = {
-    '4K': 120, '1080P60': 116, '1080P+': 112, '1080P': 80,
-    '720P60': 74, '720P': 64, '480P': 32, '360P': 16,
+    '8K': 127, '杜比': 126, 'HDR': 125, '4K': 120,
+    '1080P60': 116, '1080P+': 112, '1080P': 80,
+    '720P60': 74, '720P': 64, '480P': 32, '360P': 16, '240P': 6,
+    '仅音频': 0,
   };
 
   function qualityOptionsKey(item) {
@@ -3347,13 +3361,16 @@
     }).catch(() => {});
   }
 
-  function loadDash(item, dash, autoplay) {
+  function loadDash(item, dash, autoplay, requestedQn) {
     destroyDash();
     destroyHls();
-    const target = qualityQn(state.settings.quality);
+    const target = Number(requestedQn) > 0
+      ? Math.round(Number(requestedQn))
+      : qualityQn(state.settings.defaultQuality || state.settings.quality || '最高');
     const MediaSourceCtor = window.MediaSource || window.ManagedMediaSource;
     if (!MediaSourceCtor) {
       mediaItem = null;
+      pendingQualityQnOverride = target;
       loadVideo(item, autoplay, false);
       return;
     }
@@ -3377,8 +3394,14 @@
       return;
     }
     setAvailableQualities(videoCandidates.length ? videoCandidates : [videoTrack]);
+    if (Array.isArray(dash.available)) {
+      state.availableQualities = mergeQualityLabels(dash.available, state.availableQualities);
+    }
     cacheQualityOptions(item, state.availableQualities);
-    const requestedQuality = state.settings.quality;
+    const requestedQuality = state.settings.defaultQuality === '最高'
+      ? '最高'
+      : (qualityLabelFromQn(Number(requestedQn) || 0)
+        || state.settings.defaultQuality || state.settings.quality || '');
     state.streamInfo = {
       videoBitrate: Number(videoTrack.bandwidth) || 0,
       audioBitrate: Number(audioTrack.bandwidth) || 0,
@@ -3651,8 +3674,16 @@
     playerVideo.classList.remove('has-video', 'video-error');
     playerVideo.classList.add('video-loading');
     setStatus('加载中…', 'loading');
+    /* Default to the best quality the video offers; a manual switch passes an
+       exact qn through pendingQualityQnOverride. */
+    const overrideQn = Number(pendingQualityQnOverride) || 0;
+    pendingQualityQnOverride = 0;
+    const requestedQuality = overrideQn
+      ? (qualityLabelFromQn(overrideQn) || state.settings.quality || '最高')
+      : (state.settings.defaultQuality || state.settings.quality || '最高');
+    const qn = overrideQn || qualityQn(requestedQuality);
     let dashTried = false;
-    if (DASH_PLAYBACK && allowDash && qualityQn(state.settings.quality) > 64
+    if (DASH_PLAYBACK && allowDash && qn > 64
       && item.bvid && !item.epId
       && (typeof bridge.dash === 'function' || typeof bridge.dashAsync === 'function')) {
       dashTried = true;
@@ -3667,13 +3698,11 @@
           const entry = currentItem();
           if (entry) entry.cid = dash.cid;
         }
-        loadDash(item, dash, autoplay);
+        loadDash(item, dash, autoplay, qn);
         return;
       }
       log('dash unavailable ' + (dash.error || ''));
     }
-    const requestedQuality = state.settings.quality;
-    const qn = qualityQn(state.settings.quality);
     const result = item.epId
       ? await bridgeCallMaybe('playPgc', 'playPgcAsync', item.epId, item.bvid || '', item.cid || 0, qn)
       : await playQualityCachedAsync(item, qn);
@@ -3689,7 +3718,7 @@
             const entry = currentItem();
             if (entry) entry.cid = dash.cid;
           }
-          loadDash(item, dash, autoplay);
+          loadDash(item, dash, autoplay, qn);
           return;
         }
       }
@@ -3921,6 +3950,7 @@
       const keepDuration = promotedPreview ? promotedPreview.video.duration : video.duration;
       if (DASH_PLAYBACK && qualityQn(value) > 64 && typeof bridge.dash === 'function' && !mediaItem.epId) {
         const item = mediaItem;
+        pendingQualityQnOverride = qualityQn(value);
         if (keepTime > 0.5) {
           pendingMediaStart = { key: mediaKeyFor(item), time: keepTime };
           if (Number.isFinite(keepDuration) && keepDuration > 0) {
@@ -3938,7 +3968,10 @@
       const result = mediaItem.epId
         ? call('playPgc', mediaItem.epId, mediaItem.bvid || '', mediaItem.cid || 0, qn)
         : call('playQuality', mediaItem.bvid, mediaItem.cid || 0, qn);
-      if (!result.ok || !result.url) {
+      const switchUrl = NATIVE_MEDIA
+        ? (String(result.remote || '') || String(result.url || ''))
+        : String(result.url || '');
+      if (!result.ok || !switchUrl) {
         if (host.showPlayerNotice) host.showPlayerNotice('画质', `${value} 切换失败`, 2600);
         return;
       }
@@ -3970,9 +4003,7 @@
         setStatus('', '');
       };
       video.addEventListener('loadedmetadata', onMeta);
-      video.src = NATIVE_MEDIA
-        ? (String(result.remote || '') || result.url)
-        : result.url;
+      video.src = switchUrl;
       video.load();
     },
   };
@@ -5234,7 +5265,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.57';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.58';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

@@ -136,6 +136,7 @@ final class O11A1PlayerHost {
   private var rectLogAt = CFAbsoluteTimeGetCurrent()
   private var jsClockOffset: CFTimeInterval?
   private var lastRectTimestamp: Double = 0
+  private var statsPrevious: [String: (bytes: Int64, at: CFTimeInterval)] = [:]
 
   private init() {}
 
@@ -806,6 +807,49 @@ final class O11A1PlayerHost {
       "videoWidth": slot.videoWidth,
       "videoHeight": slot.videoHeight,
     ]
+  }
+
+  /// Real transfer statistics from the AVPlayer access log. The web debug HUD
+  /// samples this once a second to show the stream bitrate and the measured
+  /// download speed (the appended `/api/mediaStats` used to return zeros).
+  func stats(slot id: String) -> [String: Any] {
+    var result: [String: Any] = ["ok": false]
+    let read = { [weak self] in
+      guard let self = self, let slot = self.slots[id],
+            let item = slot.player.currentItem else { return }
+      let event = item.accessLog()?.events.last
+      let bytes = event?.numberOfBytesTransferred ?? 0
+      let indicated = event?.indicatedBitrate ?? 0
+      let observed = event?.observedBitrate ?? 0
+      let now = CACurrentMediaTime()
+      var download = 0.0
+      if let previous = self.statsPrevious[id] {
+        let delta = now - previous.at
+        if delta > 0.08 {
+          download = Double(max(0, bytes - previous.bytes)) * 8.0 / delta
+        }
+      }
+      self.statsPrevious[id] = (bytes, now)
+      let duration = item.duration.seconds
+      result = [
+        "ok": true,
+        "bytes": bytes,
+        "indicatedBitrate": indicated,
+        "observedBitrate": observed,
+        "downloadBps": download,
+        "videoWidth": item.presentationSize.width,
+        "videoHeight": item.presentationSize.height,
+        "durationMs": duration.isFinite ? duration * 1000.0 : 0.0,
+        "positionMs": slot.positionMs,
+        "bufferedMs": slot.bufferedMs,
+      ]
+    }
+    if Thread.isMainThread {
+      read()
+    } else {
+      DispatchQueue.main.sync(execute: read)
+    }
+    return result
   }
 
   // MARK: - internals

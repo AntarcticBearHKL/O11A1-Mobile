@@ -487,7 +487,7 @@ final class O11A1LocalServer {
       }
       data = o11a1Data(["ok": true])
     case "mediaStats":
-      data = o11a1Data(["ok": true, "bytes": 0, "requests": 0, "direct": true])
+      data = o11a1Data(O11A1PlayerHost.shared.stats(slot: query["slot"] ?? "main"))
     case "displayHz":
       data = o11a1Data([
         "ok": true,

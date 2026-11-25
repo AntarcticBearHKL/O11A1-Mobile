@@ -457,8 +457,8 @@ final class O11A1BiliClient {
   }
 
   func playQuality(bvid: String, cid: Int64, qn: Int) -> Data {
-    if qn <= 0 { return play(bvid: bvid, cid: cid, qns: [64, 32, 16]) }
-    return play(bvid: bvid, cid: cid, qns: [qn, 64, 32, 16])
+    let target = qn <= 0 ? 120 : qn
+    return play(bvid: bvid, cid: cid, qns: [target, 120, 116, 112, 80, 74, 64, 32, 16])
   }
 
   func playRemote(bvid: String, cid: Int64, qn: Int) -> Data {
@@ -1790,7 +1790,7 @@ final class O11A1BiliClient {
     guard resolvedCid > 0 else { return o11a1Error("cid not found") }
     var selected: [String: Any]?
     var seen = Set<Int>()
-    let candidates = [qn, 120, 116, 112, 80, 64, 32, 16]
+    let candidates = [qn, 127, 126, 125, 120, 116, 112, 80, 74, 64, 32, 16]
     for candidate in candidates {
       if candidate <= 0 || seen.contains(candidate) { continue }
       seen.insert(candidate)

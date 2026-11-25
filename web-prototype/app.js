@@ -460,24 +460,62 @@
   const MESSAGE_FILTERS = ['回复', '@', '赞', '私信'];
   const MODULE_FILTERS = ['全部', '最新', '热门'];
 
+  const QUALITY_FALLBACK_OPTIONS = [
+    { label: '4K 超清', value: '4K' },
+    { label: '1080P60', value: '1080P60' },
+    { label: '1080P 高码', value: '1080P+' },
+    { label: '1080P 高清', value: '1080P' },
+    { label: '720P60', value: '720P60' },
+    { label: '720P', value: '720P' },
+    { label: '480P', value: '480P' },
+    { label: '仅音频', value: '仅音频' },
+  ];
+  const QUALITY_ORDER = {
+    '8K': 127, '杜比': 126, 'HDR': 125, '4K': 120,
+    '2160P': 120, '1440P': 112,
+    '1080P60': 116, '1080P+': 112, '1080P': 80,
+    '720P60': 74, '720P': 64, '480P': 32, '360P': 16, '240P': 6,
+    '仅音频': 0, '最高': 999,
+  };
+  const QUALITY_DISPLAY = {
+    '8K': '8K 超清', '杜比': '杜比视界', 'HDR': 'HDR 真彩', '4K': '4K 超清',
+    '2160P': '2160P', '1440P': '1440P',
+    '1080P60': '1080P60', '1080P+': '1080P 高码', '1080P': '1080P 高清',
+    '720P60': '720P60', '720P': '720P', '480P': '480P', '360P': '360P',
+    '240P': '240P', '仅音频': '仅音频', '最高': '最高（视频支持的最高）',
+  };
+
+  function qualityDisplay(value) {
+    return QUALITY_DISPLAY[value] || String(value || '');
+  }
+
+  /* Resolutions must come from the current video's accept_quality list, not a
+     fixed menu. The selected value is kept in the list even if it was carried
+     over from another video so it can still be shown/disabled. */
+  function qualityOptionValues() {
+    const list = Array.isArray(state.availableQualities)
+      ? state.availableQualities.filter((value) => value && value !== '最高')
+      : [];
+    const values = list.slice();
+    const current = state.settings.quality;
+    if (current && current !== '最高' && !values.includes(current)) values.push(current);
+    values.sort((a, b) => (QUALITY_ORDER[b] || 0) - (QUALITY_ORDER[a] || 0));
+    return values;
+  }
+
   const sheetData = {
     quality: {
       title: '画质',
       sub: () => {
         const available = Array.isArray(state.availableQualities) ? state.availableQualities : [];
-        const base = 'DASH · AVC / HEVC / AV1 · 4K 与 1080P+ 需要大会员';
-        return available.length ? `${base} · 当前可用：${available.join(' / ')}` : base;
+        const base = '当前视频提供的分辨率 · 高画质需要大会员';
+        return available.length ? `${base} · 可用：${available.join(' / ')}` : base;
       },
-      options: [
-        { label: '4K 超清', value: '4K', meta: '大会员' },
-        { label: '1080P60', value: '1080P60', meta: '高帧率' },
-        { label: '1080P 高码', value: '1080P+' },
-        { label: '1080P 高清', value: '1080P' },
-        { label: '720P60', value: '720P60' },
-        { label: '720P', value: '720P' },
-        { label: '480P', value: '480P' },
-        { label: '仅音频', value: '仅音频' },
-      ],
+      options: () => {
+        const values = qualityOptionValues();
+        if (!values.length) return QUALITY_FALLBACK_OPTIONS.slice();
+        return values.map((value) => ({ label: qualityDisplay(value), value }));
+      },
       selected: () => state.settings.quality,
       available: () => (Array.isArray(state.availableQualities) && state.availableQualities.length
         ? state.availableQualities
@@ -532,7 +570,8 @@
     if (!panel || !data) return;
     panel.innerHTML = '';
     const available = typeof data.available === 'function' ? data.available() : null;
-    data.options.forEach((option) => {
+    const options = typeof data.options === 'function' ? data.options() : data.options;
+    (options || []).forEach((option) => {
       const blocked = Array.isArray(available) && available.length > 0
         && !available.includes(option.value)
         && option.value !== data.selected();
@@ -973,6 +1012,7 @@
     if (!searchPanel || !state.searchOpen) return false;
     state.searchOpen = false;
     app.classList.remove('search-open');
+    finishSearchRecede();
     document.body.classList.remove('search-mode', 'search-opening');
     document.body.classList.add('search-dismissing');
     clearTimeout(searchDismissTimer);
@@ -996,6 +1036,25 @@
     setTimeout(refreshFeedPreview, 420);
   }
 
+  let searchRecedeActive = false;
+
+  function applySearchRecede(progress) {
+    if (!appMain) return;
+    const p = Math.max(0, Math.min(1, Number(progress) || 0));
+    searchRecedeActive = true;
+    app.classList.add('search-dragging');
+    appMain.style.transform = `translate3d(${(-7 * p).toFixed(3)}%,0,0) scale(${(1 - 0.06 * p).toFixed(4)})`;
+  }
+
+  function finishSearchRecede() {
+    if (!searchRecedeActive) return;
+    requestAnimationFrame(() => {
+      app.classList.remove('search-dragging');
+      appMain.style.transform = '';
+      searchRecedeActive = false;
+    });
+  }
+
   function resetSearchResultsDrag() {
     if (!searchResultsPage) return;
     searchResultsPage.classList.remove('dragging');
@@ -1004,6 +1063,7 @@
     searchResultsPage.style.transform = '';
     searchResultsPage.style.opacity = '';
     searchResultsPage.style.boxShadow = '';
+    finishSearchRecede();
     setTimeout(() => {
       if (!searchResultsPage.classList.contains('dragging')) {
         searchResultsPage.style.transition = '';
@@ -1019,6 +1079,7 @@
     /* Return the page underneath at the same moment the panel starts leaving;
        waiting for the panel to finish made the background pop back late. */
     app.classList.remove('search-open');
+    finishSearchRecede();
     document.body.classList.remove('search-mode', 'search-opening');
     document.body.classList.add('search-dismissing');
     clearTimeout(searchDismissTimer);
@@ -1028,7 +1089,7 @@
     if (document.activeElement === searchInput) searchInput.blur();
     searchPanel.classList.remove('dragging');
     searchPanel.classList.add('settling');
-    searchPanel.style.transition = 'transform .36s cubic-bezier(.16,1,.3,1)';
+    searchPanel.style.transition = 'transform .36s cubic-bezier(.22,1,.36,1)';
     searchPanel.style.transform = 'translate3d(105%,0,0)';
     searchPanel.style.boxShadow = '';
     searchPanel.style.pointerEvents = 'none';
@@ -3212,7 +3273,19 @@
         const stats = JSON.parse(window.O11A1Native.mediaStats());
         if (stats && stats.ok) {
           const bytes = Number(stats.bytes || 0);
-          if (debugNetBytes !== null && now > debugNetAt) {
+          const indicated = Number(stats.indicatedBitrate || 0);
+          if (indicated > 0 && state.streamInfo && !state.streamInfo.direct) {
+            state.streamInfo.videoBitrate = indicated;
+            if (Number(stats.videoWidth) > 0) {
+              state.streamInfo.sourceWidth = Number(stats.videoWidth);
+              state.streamInfo.sourceHeight = Number(stats.videoHeight);
+            }
+          }
+          const nativeBps = Number(stats.downloadBps || 0);
+          if (nativeBps > 0) {
+            debugState.bitrate = Math.round(nativeBps / 1000);
+            debugState.bitrateAt = now;
+          } else if (debugNetBytes !== null && now > debugNetAt) {
             const delta = Math.max(0, bytes - debugNetBytes);
             const instant = Math.round(delta * 8 / ((now - debugNetAt) / 1000) / 1000);
             if (instant > 0) {
@@ -5112,29 +5185,11 @@
   let playerDragSnapshot = null;
 
   function beginPlayerDragSnapshot() {
-    if (!state.playerOpen || playerDragSnapshot) return;
+    if (!state.playerOpen) return;
+    /* Keep the native player visible while the window is dragged/collapsed.
+       A captured still frame made the video look paused; the live layer now
+       follows the transformed player rect instead. */
     app.classList.add('player-dragging');
-    let image = '';
-    try {
-      const raw = window.O11A1Native && typeof window.O11A1Native.playerSnapshot === 'function'
-        ? window.O11A1Native.playerSnapshot('main')
-        : '';
-      const result = raw ? JSON.parse(raw) : null;
-      if (result && result.ok && result.image) image = String(result.image);
-    } catch (_) {}
-    const hasPoster = Boolean(playerVideo && playerVideo.querySelector('.player-poster'));
-    if (!image && !hasPoster) return;
-    window.__o11a1HideMainVideo = true;
-    if (!image || !playerVideo) return;
-    const snapshot = document.createElement('div');
-    snapshot.className = 'player-drag-snapshot';
-    snapshot.style.backgroundImage = `url("data:image/jpeg;base64,${image}")`;
-    const frame = document.createElement('img');
-    frame.src = `data:image/jpeg;base64,${image}`;
-    frame.alt = '';
-    snapshot.appendChild(frame);
-    playerVideo.appendChild(snapshot);
-    playerDragSnapshot = snapshot;
   }
 
   function endPlayerDragSnapshot() {
@@ -5565,7 +5620,8 @@
     const minimal = options.minimal === true;
     const sub = minimal ? '' : (typeof data.sub === 'function' ? data.sub() : data.sub);
     openSheet(data.title, sub, (body) => {
-      data.options.forEach((option) => {
+      const options = typeof data.options === 'function' ? data.options() : data.options;
+      (options || []).forEach((option) => {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = `opt${data.selected() === option.value ? ' on' : ''}`;
@@ -5859,7 +5915,8 @@
       wrap.innerHTML = `<span class="sr-label">${escapeHTML(row.label)}</span>`;
       const line = document.createElement('div');
       line.className = 'choice-line';
-      row.options.forEach((option) => {
+      const options = typeof row.options === 'function' ? row.options() : row.options;
+      (options || []).forEach((option) => {
         const blocked = typeof row.available === 'function' && row.available(option) === false;
         const button = document.createElement('button');
         button.type = 'button';
@@ -5940,13 +5997,28 @@
     const definitions = {
       'settings-playback': {
         title: '播放',
-        sub: '画质修改后写回全局设置；默认 720P，系统硬解优先',
+        sub: '默认播放视频支持的最高画质；也可固定默认画质，高画质需大会员',
         rows: [
-          { type: 'choice', label: '默认画质', key: 'defaultQuality', options: ['最高', '2160P', '1440P', '1080P', '720P', '480P', '360P'] },
-          { type: 'choice', label: '当前画质', key: 'quality', options: ['4K', '1080P60', '1080P+', '1080P', '720P60', '720P', '480P', '仅音频'], available: (option) => {
+          { type: 'choice', label: '默认画质', key: 'defaultQuality', options: () => {
+            const values = qualityOptionValues();
+            const list = ['最高', ...(values.length ? values : ['4K', '1080P60', '1080P+', '1080P', '720P60', '720P', '480P', '360P'])];
+            if (state.settings.defaultQuality && !list.includes(state.settings.defaultQuality)) {
+              list.push(state.settings.defaultQuality);
+            }
+            return list;
+          } },
+          { type: 'choice', label: '当前画质', key: 'quality', options: () => {
+            const values = qualityOptionValues();
+            return values.length ? values : ['4K', '1080P60', '1080P+', '1080P', '720P60', '720P', '480P', '360P'];
+          }, available: (option) => {
             const list = state.availableQualities;
             return !Array.isArray(list) || !list.length || list.includes(option) || option === state.settings.quality;
-          }, onChange: updatePlayerLabels },
+          }, onChange: () => {
+            updatePlayerLabels();
+            if (window.O11A1Media && typeof window.O11A1Media.onQualityChange === 'function') {
+              window.O11A1Media.onQualityChange(state.settings.quality);
+            }
+          } },
           { type: 'switch', label: '陀螺仪自动横屏', key: 'autoLandscape', onChange: () => { if (state.settings.autoLandscape) { if (state.playerOpen) startGyro(); } else { stopGyro(); setPlayerOrientation(false); } } },
           { type: 'switch', label: '视频调试 HUD', key: 'debugHud', onChange: updateDebugHud },
           { type: 'switch', label: '视频流刷新率', key: 'feedDebug', onChange: updateDebugHud },
@@ -7104,6 +7176,8 @@
           rowSwipe.searchBase = Math.min(SWIPE_LOCK_PX, dx);
           rowSwipe.searchOffset = 0;
           searchResultsPage.classList.add('dragging');
+          app.classList.add('search-dragging');
+          applySearchRecede(1);
           return;
         }
         if (rowSwipe.surface === 'up') {
@@ -7154,6 +7228,7 @@
       const offset = Math.max(0, Math.min(width, dx - (rowSwipe.searchBase || 0)));
       rowSwipe.searchOffset = offset;
       searchResultsPage.style.transform = `translate3d(${offset}px,0,0)`;
+      applySearchRecede(1 - offset / Math.max(1, width));
       return;
     }
     if (rowSwipe.direction === 'up-close') {
