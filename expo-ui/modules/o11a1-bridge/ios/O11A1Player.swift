@@ -749,10 +749,12 @@ final class O11A1PlayerHost {
       let parent = background ? self.background : self.overlay
       guard let parent = parent else { return }
       guard slot.view.superview !== parent else { return }
-      let frame = slot.view.frame
+      /* Both parents share the WebView frame, so the view keeps its own frame
+         when it moves. Re-applying `frame` here would corrupt the bounds of a
+         rotated view: reading `frame` returns the rotated bounding box, and
+         assigning it back resizes the layer to portrait bounds. */
       slot.view.removeFromSuperview()
       parent.addSubview(slot.view)
-      slot.view.frame = frame
       if background {
         parent.bringSubviewToFront(slot.view)
       }
