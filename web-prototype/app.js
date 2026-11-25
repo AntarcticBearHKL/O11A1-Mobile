@@ -3961,6 +3961,14 @@
     try {
       if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'tilt-watch', on: Boolean(on) }));
+        return;
+      }
+      /* The native iOS shell has no React Native bridge. Post the same message
+         to its WKScriptMessageHandler, which reads a JSON string body. */
+      const handlers = window.webkit && window.webkit.messageHandlers;
+      const native = handlers && handlers.o11a1;
+      if (native && typeof native.postMessage === 'function') {
+        native.postMessage(JSON.stringify({ type: 'tilt-watch', on: Boolean(on) }));
       }
     } catch (_) {}
   }

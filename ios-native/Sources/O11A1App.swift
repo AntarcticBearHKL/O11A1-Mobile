@@ -479,6 +479,7 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
   private func setTiltWatching(_ on: Bool) {
     guard on != tiltWatching else { return }
     tiltWatching = on
+    NSLog("[O11A1] tilt watch %@", on ? "on" : "off")
     if on {
       guard motion.isAccelerometerAvailable else { return }
       motion.accelerometerUpdateInterval = 0.12
@@ -522,6 +523,7 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
         guard now - self.tiltCandidateAt >= 0.22 else { return }
         self.tiltDirection = next
         self.tiltCandidate = 0
+        NSLog("[O11A1] tilt dir %d", next)
         self.webView?.evaluateJavaScript(
           "window.O11A1Host&&window.O11A1Host.setTiltDir(\(next));true;",
           completionHandler: nil
