@@ -1685,12 +1685,12 @@
     const fw = feedWindowState(feed);
     fw.lastScrollAt = now;
     schedulePreviewFocus(feed);
-    warmFocusPreview(feed);
     /* Decide the preview as soon as the scroll settles, without waiting for
        the heavier window-settle idle window. */
     clearTimeout(fw.previewSettleTimer);
     fw.previewSettleTimer = setTimeout(() => {
       fw.previewSettleTimer = null;
+      warmFocusPreview(feed);
       updateFeedPreview(feed, true);
     }, 60);
     scheduleWindowSettle(feed);
@@ -5234,7 +5234,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.56';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.57';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
