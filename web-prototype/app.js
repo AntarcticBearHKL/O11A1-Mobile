@@ -59,6 +59,7 @@
   const sidebarBackdrop = $('#sidebarBackdrop');
   const sidebarNav = $('#sidebarNav');
   const sidebarFoot = $('#sidebarFoot');
+  const floatToolbar = $('#floatToolbar');
   const searchBack = $('#searchBack');
   const searchHotSection = $('#searchHotSection');
   const searchSuggestSection = $('#searchSuggestSection');
@@ -149,15 +150,18 @@
   ];
 
   const NAV_ITEMS = [
-    { id: 'home', label: '首页', icon: 'home', type: 'page', target: 'home', group: '桌面端' },
-    { id: 'favorite', label: '收藏', icon: 'favorite', type: 'module', target: '收藏', group: '桌面端' },
-    { id: 'fish', label: '养鱼', icon: 'fish', type: 'module', target: '养鱼', group: '桌面端' },
-    { id: 'live', label: '直播', icon: 'live', type: 'module', target: '直播', group: '桌面端' },
-    { id: 'bangumi', label: '番剧', icon: 'bangumi', type: 'module', target: '番剧', group: '桌面端' },
-    { id: 'dynamic', label: '动态', icon: 'dynamic', type: 'page', target: 'dynamic', group: '桌面端' },
-    { id: 'messages', label: '消息', icon: 'messages', type: 'page', target: 'messages', group: '桌面端' },
-    { id: 'history', label: '历史', icon: 'history', type: 'module', target: '历史', group: '桌面端' },
+    { id: 'live', label: '直播', icon: 'live', type: 'module', target: '直播', group: '移动端' },
+    { id: 'bangumi', label: '番剧', icon: 'bangumi', type: 'module', target: '番剧', group: '移动端' },
+    { id: 'messages', label: '消息', icon: 'messages', type: 'page', target: 'messages', group: '移动端' },
+    { id: 'history', label: '历史', icon: 'history', type: 'module', target: '历史', group: '移动端' },
     { id: 'my', label: '用户', icon: 'my', type: 'page', target: 'my', group: '移动端' },
+  ];
+
+  const BOTTOM_NAV_ITEMS = [
+    { id: 'home', label: '推荐', icon: 'home', type: 'page', target: 'home' },
+    { id: 'follow', label: '关注', icon: 'follow', type: 'module', target: '关注' },
+    { id: 'dynamic', label: '动态', icon: 'dynamic', type: 'page', target: 'dynamic' },
+    { id: 'search', label: '搜索', icon: 'search', type: 'search' },
   ];
 
   const NAV_ICONS = {
@@ -169,6 +173,8 @@
     dynamic: '<path d="M3 12h3.4l2.4-5.8 4.4 11.6 2.4-5.8H21"/>',
     messages: '<path d="M4 4.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4v-4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M8 9h8M8 12.5h5"/>',
     history: '<path d="M3.2 12a8.8 8.8 0 1 0 2.7-6.3"/><path d="M3 4.2v4.4h4.4"/><path d="M12 7.4V12l3.1 1.9"/>',
+    follow: '<circle cx="10" cy="8" r="3.2"/><path d="M4 20a6 6 0 0 1 12 0"/><path d="M18 7v6M15 10h6"/>',
+    search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>',
     my: '<circle cx="12" cy="8" r="3.8"/><path d="M4.5 21v-1.5A5.5 5.5 0 0 1 10 14h4a5.5 5.5 0 0 1 5.5 5.5V21"/>',
   };
 
@@ -340,6 +346,9 @@
   if (state.currentIndex >= state.playlist.length) {
     state.currentIndex = Math.max(0, state.playlist.length - 1);
   }
+  /* Playlist feature retired: never restore or keep a queue across launches. */
+  state.playlist = [];
+  state.currentIndex = 0;
 
   function normalizeNavSelected(value) {
     const valid = Array.isArray(value)
@@ -858,7 +867,29 @@
     $$('.sidebar-item', sidebar).forEach((row) => {
       row.classList.toggle('on', row.dataset.nav === state.navActive);
     });
+    if (floatToolbar) {
+      $$('.float-tool', floatToolbar).forEach((row) => {
+        row.classList.toggle('on', row.dataset.navTool === state.navActive);
+      });
+    }
   }
+
+  function renderFloatToolbar() {
+    if (!floatToolbar) return;
+    floatToolbar.innerHTML = '';
+    BOTTOM_NAV_ITEMS.forEach((item) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'float-tool';
+      button.dataset.navTool = item.id;
+      button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${NAV_ICONS[item.icon] || ''}</svg><span>${escapeHTML(item.label)}</span>`;
+      button.addEventListener('click', () => handleNav(item, button));
+      floatToolbar.appendChild(button);
+    });
+    updateNavActive();
+  }
+
+  renderFloatToolbar();
 
   function openSidebar() {
     if (!state.loggedIn) {
@@ -4479,7 +4510,6 @@
     app.classList.remove('player-open');
     syncStatusBarStyle();
     const token = ++playerDropExitToken;
-    const closingItem = state.playlist[state.currentIndex] || null;
     const width = window.innerWidth || 1;
     const sideways = direction === -1 || direction === 1;
     const exitX = sideways ? direction * width * 1.02 : 0;
@@ -4492,10 +4522,6 @@
       if (finished || token !== playerDropExitToken) return;
       finished = true;
       stopPlayback();
-      if (closingItem) {
-        const index = state.playlist.indexOf(closingItem);
-        if (index >= 0) removeFromPlaylist(index);
-      }
       player.classList.remove('dropping');
       if (playerDropExitAnim) {
         try { playerDropExitAnim.cancel(); } catch (_) {}
@@ -4546,142 +4572,7 @@
 
   function minimizePlayer(fromY = 0, fromScale = 1) {
     if (!state.playerOpen) return;
-    holdNativePageChrome();
-    playerMediaOpenToken += 1;
-    clearTimeout(playerMediaOpenTimer);
-    playerMediaOpenTimer = null;
-    clearTimeout(playerPrefetchTimer);
-    playerPrefetchTimer = null;
-    closePlayerSettings({ instant: true });
-    const dragRadius = Math.min(28, Math.max(0, parseFloat(player.style.borderRadius) || 0));
-    cancelPlayerOpenExpansion();
-    cancelPlayerCollapse();
-    resetVideoDetail();
-    state.playerOpen = false;
-    app.classList.remove('player-open');
-    syncStatusBarStyle();
-    state.locked = false;
-    stopGyro();
-    clearTimeout(hideTimer);
-    const dragY = Number.isFinite(fromY) ? Math.max(0, fromY) : 0;
-    const dragScale = Number.isFinite(fromScale) ? Math.min(1, Math.max(0.8, fromScale)) : 1;
-    player.classList.remove('dragging');
-    player.style.animation = 'none';
-    player.style.transition = 'none';
-    player.style.transform = 'none';
-    player.style.opacity = '1';
-    player.style.pointerEvents = 'none';
-    player.classList.add('to-playlist');
-    player.inert = true;
-    lockBadge.classList.remove('show');
-    resetComments();
-    hideRateHud(0);
-    closeSheet();
-    if (player.contains(document.activeElement)) document.activeElement.blur();
-    showMiniPlayer();
-    updatePlaylistDock();
-    let target = null;
-    if (playlistDock.classList.contains('show')) {
-      playlistDock.classList.remove('receiving', 'absorbing', 'dragging');
-      playlistDock.style.transition = 'none';
-      playlistDock.style.transform = 'translate(-50%, 0)';
-      playlistDock.style.opacity = '1';
-      playerDockForced = true;
-      target = playlistDockTargetRect();
-    }
-    const base = player.getBoundingClientRect();
-    const targetScale = target && base.width
-      ? Math.max(0.06, Math.min(1, target.width / base.width))
-      : 0.08;
-    const endX = target && base.width
-      ? target.left + target.width / 2 - (base.left + base.width / 2)
-      : 0;
-    const endY = target && base.height
-      ? target.top + target.height / 2 - (base.top + base.height / 2)
-      : base.height * 0.55;
-    const token = ++playerCollapseToken;
-    let finished = false;
-    const complete = () => {
-      if (finished || token !== playerCollapseToken) return;
-      finished = true;
-      clearTimeout(playerCollapseTimer);
-      playerCollapseTimer = null;
-      if (playerCollapseAnim) {
-        try { playerCollapseAnim.cancel(); } catch (_) {}
-        playerCollapseAnim = null;
-      }
-      if (playerCollapseRadiusAnim) {
-        try { playerCollapseRadiusAnim.cancel(); } catch (_) {}
-        playerCollapseRadiusAnim = null;
-      }
-      player.classList.remove('open', 'ui-hidden', 'collapsing', 'to-playlist', 'dragging');
-      player.setAttribute('aria-hidden', 'true');
-      player.inert = true;
-      player.style.animation = '';
-      player.style.transition = '';
-      player.style.transform = '';
-      player.style.opacity = '';
-      player.style.borderRadius = '';
-      player.style.pointerEvents = '';
-      setPlayerOrientation(false, { silent: true });
-      if (playerDockForced) {
-        playlistDock.style.transition = '';
-        playlistDock.style.transform = '';
-        playlistDock.style.opacity = '';
-        playerDockForced = false;
-      }
-      absorbPlaylistDock();
-      hidePlayerDrop();
-    };
-    if (typeof player.animate === 'function' && target && target.width > 0) {
-      const midScale = dragScale + (targetScale - dragScale) * 0.9;
-      playerCollapseRadiusAnim = player.animate([
-        { borderRadius: `${dragRadius}px` },
-        { borderRadius: '140px' },
-      ], { duration: 540, easing: 'linear', fill: 'forwards' });
-      playerCollapseAnim = player.animate([
-        {
-          transform: `translate(0px, ${dragY}px) scale(${dragScale})`,
-          opacity: 1,
-        },
-        {
-          transform: `translate(${endX * 0.9}px, ${endY * 0.9}px) scale(${midScale})`,
-          opacity: 1,
-          offset: 0.9,
-        },
-        {
-          transform: `translate(${endX}px, ${endY}px) scale(${targetScale})`,
-          opacity: 0,
-        },
-      ], {
-        duration: 540,
-        easing: 'cubic-bezier(.22,1,.36,1)',
-        fill: 'forwards',
-      });
-      if (playerCollapseAnim.finished && playerCollapseAnim.finished.then) {
-        playerCollapseAnim.finished.then(complete).catch(() => {});
-      }
-      playerCollapseTimer = setTimeout(complete, 650);
-    } else {
-      player.style.transition = 'none';
-      player.style.transform = `translate(0px, ${dragY}px) scale(${dragScale})`;
-      player.style.borderRadius = `${dragRadius}px`;
-      void player.offsetWidth;
-      player.style.transition = 'transform .5s cubic-bezier(.22,1,.36,1),opacity .24s ease .22s,border-radius .54s linear';
-      player.style.transform = target
-        ? `translate(${endX}px, ${endY}px) scale(${targetScale})`
-        : 'translateY(105%) scale(.94)';
-      player.style.opacity = '0';
-      player.style.borderRadius = '140px';
-      playerCollapseTimer = setTimeout(complete, 650);
-    }
-    if (document.fullscreenElement && document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    }
-    if (window.O11A1Media && typeof window.O11A1Media.onMinimize === 'function') {
-      window.O11A1Media.onMinimize();
-    }
-    setTimeout(refreshFeedPreview, 560);
+    closePlayerFromDrop(0, fromY, fromScale);
   }
 
   function stopPlayback() {
@@ -4825,14 +4716,10 @@
   }
 
   function openPlayerSideSheet() {
-    openSheet('播放器面板', '信息 / 选集 / 评论 / 性能 / 设置', (body) => {
+    openSheet('播放器面板', '信息 / 评论 / 性能 / 设置', (body) => {
       actionRow(body, '信息', '标题 / UP / 数据', () => {
         closeSheet();
         openPlayerInfoSheet();
-      });
-      actionRow(body, '选集', '播放列表 / 分P', () => {
-        closeSheet();
-        openPlaylistPage();
       });
       actionRow(body, '评论', '全屏评论', () => {
         closeSheet();
@@ -5287,31 +5174,12 @@
       const dragY = Math.max(0, localY);
       gesture.collapseY = dragY;
       if (!state.playerLandscape) {
-        if (!gesture.dropShown && dragY > 16) {
+        if (!gesture.dropShown && dragY > 14) {
           gesture.dropShown = true;
-          showPlayerDrop();
-        }
-        if (gesture.dropShown && playerDrop) {
-          const width = window.innerWidth || 1;
-          const sideReach = Math.max(34, width * 0.11);
-          let zone = 0;
-          if (dragY > 48) {
-            if (localX <= -sideReach) zone = -1;
-            else if (localX >= sideReach) zone = 1;
-          }
-          gesture.dropZone = zone;
-          setPlayerDropZone(zone);
-          const strength = Math.min(1, dragY / 132);
-          playerDrop.style.setProperty('--drop-opacity', (0.4 + 0.6 * strength).toFixed(3));
-          if (dragY >= 110 && !gesture.dropArmed) {
-            gesture.dropArmed = true;
-            if (navigator.vibrate) navigator.vibrate(6);
-          } else if (dragY < 104) {
-            gesture.dropArmed = false;
-          }
-          playerDropZones.forEach((element) => {
-            element.classList.toggle('armed', gesture.dropArmed && Number(element.dataset.dropZone) === zone);
-          });
+          swipeHint.textContent = '松开关闭';
+          swipeHint.classList.remove('left');
+          swipeHint.classList.add('show');
+          if (navigator.vibrate) navigator.vibrate(3);
         }
       }
       const scale = 1 - Math.min(0.05, dragY / 3000);
@@ -5428,17 +5296,8 @@
       const fromY = state.playerLandscape ? 0 : gesture.collapseY;
       const scale = 1 - Math.min(0.05, gesture.collapseY / 3000);
       if (!cancelled && gesture.collapseY > 110) {
-        if (!state.playerLandscape && gesture.dropShown) {
-          const zone = gesture.dropZone === -1 || gesture.dropZone === 1 ? gesture.dropZone : 0;
-          firePlayerDropZone(zone);
-          hidePlayerDrop();
-          if (zone === 0) closePlayerFromDrop(0, fromY, scale);
-          else minimizePlayer(fromY, scale);
-          setTimeout(endPlayerDragSnapshot, 720);
-          return;
-        }
         hidePlayerDrop();
-        minimizePlayer(fromY, scale);
+        closePlayerFromDrop(0, fromY, scale);
         setTimeout(endPlayerDragSnapshot, 720);
         return;
       }
@@ -5792,10 +5651,6 @@
         state.settings.aspect = list[(list.indexOf(state.settings.aspect) + 1) % list.length];
         save();
         return state.settings.aspect;
-      });
-      actionRow(body, '加入播放列表', '当前队列 +1', () => {
-        addToPlaylist();
-        return '已加入';
       });
       actionRow(body, '锁定屏幕', '隐藏控件', () => {
         lockPlayer();
@@ -7207,21 +7062,9 @@
         return;
       }
       if (intent === 'left') {
-        if (rowSwipe.surface === 'detail') {
-          rowSwipe.direction = 'vertical';
-          return;
-        }
-        if (rowSwipe.surface === 'my') {
-          rowSwipe.direction = 'vertical';
-          return;
-        }
-        if (!rowSwipe.wrapper) {
-          rowSwipe.direction = 'vertical';
-          return;
-        }
-        rowSwipe.direction = 'left';
-        rowSwipe.swipeBase = Math.min(SWIPE_LOCK_PX, -dx);
-        rowSwipe.wrapper.classList.add('swiping');
+        /* Row-left actions (queue / UP page) and the long-press shortcut are
+           gone; a left drag is just a vertical scroll now. */
+        rowSwipe.direction = 'vertical';
         return;
       }
       rowSwipe.direction = 'vertical';

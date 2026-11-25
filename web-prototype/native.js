@@ -2457,6 +2457,11 @@
     if (item.live) { playLive(item); return; }
     if (item.seasonId && !item.epId) { playSeason(item); return; }
     const key = item.epId ? `ep:${item.epId}` : item.roomId ? `live:${item.roomId}` : `bvid:${item.bvid}`;
+    /* No queue any more: opening a normal video replaces the previous entry. */
+    if (!item.seasonId && !item.epId) {
+      state.playlist = [];
+      state.currentIndex = 0;
+    }
     let index = state.playlist.findIndex((entry) => entry.key === key);
     if (index < 0) {
       state.playlist.push(Object.assign({ id: `n${Date.now()}` }, item, {
@@ -5282,7 +5287,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.66';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.67';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

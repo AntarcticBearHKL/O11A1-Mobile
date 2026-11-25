@@ -3158,3 +3158,53 @@ body[data-theme="light"] .my-page{
 .skel-row .row-text{gap:7px;padding-top:3px}
 .skel-row .skeleton-line{height:10px;border-radius:5px}
 .skel-thumb{position:relative;width:100%;height:auto;aspect-ratio:16/9;border-radius:0}
+
+/* ---------- floating main toolbar (playlist dock removed) ---------- */
+.playlist-dock,
+.dock-backdrop,
+.playlist-page,
+.player-drop{display:none!important}
+
+.float-toolbar{
+  position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));z-index:70;
+  display:flex;align-items:center;gap:4px;padding:6px;
+  transform:translateX(-50%);
+  border-radius:24px;  border:1px solid rgba(255,255,255,.72);
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.82),rgba(246,247,251,.9));
+  box-shadow:0 12px 34px rgba(10,12,20,.16),inset 0 1px 0 rgba(255,255,255,.85);
+  backdrop-filter:blur(22px) saturate(1.5);-webkit-backdrop-filter:blur(22px) saturate(1.5);
+  -webkit-tap-highlight-color:transparent;
+}
+body[data-theme="dark"] .float-toolbar{
+  border-color:rgba(255,255,255,.12);
+  background:linear-gradient(180deg,rgba(30,36,48,.86),rgba(14,18,26,.92));
+  box-shadow:0 12px 34px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.08);
+}
+.float-tool{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  width:62px;height:50px;padding:0;border:0;border-radius:18px;background:none;
+  color:var(--muted);font:inherit;font-size:10px;font-weight:650;line-height:1;
+  cursor:pointer;transition:background .16s ease,color .16s ease,transform .12s ease;
+}
+.float-tool svg{
+  width:20px;height:20px;display:block;fill:none;stroke:currentColor;
+  stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;
+}
+.float-tool.on{color:var(--blue);background:var(--blue-soft)}
+.float-tool:active{transform:scale(.94)}
+.app.player-open .float-toolbar,
+.app.search-open .float-toolbar,
+.app.sidebar-open .float-toolbar{opacity:0;pointer-events:none;transform:translate(-50%,12px)}
+.app[data-page="login"] .float-toolbar,
+.app[data-page="my"] .float-toolbar,
+.app[data-page="up"] .float-toolbar,
+.app[data-page="playlist"] .float-toolbar,
+.app[data-page="modules"] .float-toolbar,
+.app[data-page="nav"] .float-toolbar{display:none}
+
+.page[data-page="home"],
+.page[data-page="module"],
+.page[data-page="dynamic"],
+.page[data-page="messages"]{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+
