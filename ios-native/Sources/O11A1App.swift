@@ -53,6 +53,10 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
   private let launchProgress = UIProgressView(progressViewStyle: .bar)
   private var launchTimer: Timer?
   private var launchFaceTask: URLSessionDataTask?
+  private var launchFaceImage: UIImage?
+  private var launchHasCredential = false
+  private var launchFlashDone = false
+  private var launchFlashTimer: Timer?
   private var launchTheme = ""
 
   override var prefersStatusBarHidden: Bool { false }
@@ -287,17 +291,74 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
     let face = defaults.string(forKey: "o11a1.user.face") ?? ""
     launchFaceTask?.cancel()
     launchFaceTask = nil
-    launchAvatar.image = UIImage(systemName: "person.crop.circle.fill")
-    launchAvatar.tintColor = .secondaryLabel
+    let hasIdentity = !face.isEmpty || !name.isEmpty
+    launchHasCredential = hasIdentity
+    if launchFlashDone {
+      applyLaunchFace()
+    } else if hasIdentity {
+      /* First stage: a dark avatar while the app/server starts. The saved
+         profile image is revealed by a full-screen flash a moment later. */
+      launchFaceImage = nil
+      launchAvatar.image = UIImage(systemName: "person.fill")
+      launchAvatar.tintColor = UIColor(white: 0.16, alpha: 1)
+      launchAvatar.backgroundColor = .black
+    } else {
+      launchAvatar.image = UIImage(systemName: "person.crop.circle.fill")
+      launchAvatar.tintColor = .secondaryLabel
+      launchAvatar.backgroundColor = .secondarySystemBackground
+    }
     guard !face.isEmpty, let url = URL(string: face) else { return }
     launchFaceTask = URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
       guard let self = self, let data = data, let image = UIImage(data: data) else { return }
       DispatchQueue.main.async {
-        self.launchAvatar.image = image
-        self.launchAvatar.tintColor = nil
+        self.launchFaceImage = image
+        if self.launchFlashDone { self.applyLaunchFace() }
       }
     }
     launchFaceTask?.resume()
+  }
+
+  private func applyLaunchFace() {
+    if let image = launchFaceImage {
+      launchAvatar.image = image
+      launchAvatar.tintColor = nil
+      launchAvatar.backgroundColor = .secondarySystemBackground
+    } else if launchHasCredential {
+      launchAvatar.image = UIImage(systemName: "person.fill")
+      launchAvatar.tintColor = .white
+      launchAvatar.backgroundColor = .black
+    }
+  }
+
+  private func scheduleLaunchFlash() {
+    guard launchHasCredential, !launchFlashDone else { return }
+    launchFlashTimer?.invalidate()
+    launchFlashTimer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: false) { [weak self] _ in
+      self?.performLaunchFlash()
+    }
+  }
+
+  private func performLaunchFlash() {
+    guard !launchFlashDone, let holder = loadingView else { return }
+    launchFlashDone = true
+    launchFlashTimer?.invalidate()
+    launchFlashTimer = nil
+    let flash = UIView(frame: holder.bounds)
+    flash.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    flash.backgroundColor = .white
+    flash.alpha = 0
+    flash.isUserInteractionEnabled = false
+    holder.addSubview(flash)
+    UIView.animate(withDuration: 0.12, animations: {
+      flash.alpha = 0.94
+    }, completion: { _ in
+      self.applyLaunchFace()
+      UIView.animate(withDuration: 0.3, animations: {
+        flash.alpha = 0
+      }, completion: { _ in
+        flash.removeFromSuperview()
+      })
+    })
   }
 
   private func showLoading() {
@@ -347,6 +408,7 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
       progress.widthAnchor.constraint(equalToConstant: 136),
     ])
     loadLaunchIdentity()
+    if launchHasCredential { scheduleLaunchFlash() }
     view.addSubview(holder)
     loadingView = holder
     applyLaunchChrome()
@@ -360,6 +422,10 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
   private func hideLoading() {
     launchTimer?.invalidate()
     launchTimer = nil
+    launchFlashTimer?.invalidate()
+    launchFlashTimer = nil
+    launchFaceTask?.cancel()
+    launchFaceTask = nil
     guard let holder = loadingView else { return }
     loadingView = nil
     launchProgress.setProgress(1, animated: true)
