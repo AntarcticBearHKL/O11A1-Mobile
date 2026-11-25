@@ -1003,7 +1003,11 @@
   }
 
   function promoteFeedPreview(thumb) {
-    if (NATIVE_MEDIA && !NATIVE_IOS) return false;
+    /* The native player is the one that owns audio. Promoting the muted feed
+       preview into the player made the picture start while the sound stayed
+       muted until the main item took over; always use the poster/main path on
+       native platforms. */
+    if (NATIVE_MEDIA) return false;
     if (!previewRow || !previewVideo || !previewVideo.src) return false;
     // A native fallback preview lives above the WebView; promoting it would
     // cover the player controls. Open with the normal poster/main path instead.
@@ -5270,7 +5274,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.63';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.64';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
