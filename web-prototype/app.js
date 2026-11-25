@@ -905,6 +905,8 @@
   function renderFloatToolbar() {
     if (!floatToolbar) return;
     floatToolbar.innerHTML = '';
+    const surface = document.createElement('div');
+    surface.className = 'float-toolbar-surface';
     BOTTOM_NAV_ITEMS.forEach((item) => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -912,18 +914,89 @@
       button.dataset.navTool = item.id;
       button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${NAV_ICONS[item.icon] || ''}</svg><span>${escapeHTML(item.label)}</span>`;
       button.addEventListener('click', () => handleNav(item, button));
-      floatToolbar.appendChild(button);
+      surface.appendChild(button);
     });
     floatToolbarIndicator = document.createElement('span');
     floatToolbarIndicator.className = 'float-tool-indicator';
     floatToolbarIndicator.setAttribute('aria-hidden', 'true');
-    floatToolbar.appendChild(floatToolbarIndicator);
+    surface.appendChild(floatToolbarIndicator);
+    floatToolbar.appendChild(surface);
     updateNavActive();
     scheduleFloatToolbarIndicator();
   }
 
   renderFloatToolbar();
   window.addEventListener('resize', scheduleFloatToolbarIndicator);
+
+  /* ---------- toolbar follow-scroll hide ---------- */
+  let toolbarScrollHide = 0;
+  let toolbarScrollLast = 0;
+  let toolbarScrollSettle = 0;
+  let toolbarScrollLastDir = 0;
+
+  function applyToolbarScrollHide(animate) {
+    if (!floatToolbar) return;
+    const travel = (floatToolbar.offsetHeight || 72) + 26;
+    if (animate) {
+      floatToolbar.style.transition = 'transform .3s cubic-bezier(.22,1,.36,1)';
+      floatToolbar.style.transform = `translate3d(0, ${(toolbarScrollHide * travel).toFixed(1)}px, 0)`;
+      clearTimeout(toolbarScrollSettle);
+      toolbarScrollSettle = setTimeout(() => {
+        if (floatToolbar) floatToolbar.style.transition = '';
+      }, 320);
+    } else {
+      floatToolbar.style.transition = 'none';
+      floatToolbar.style.transform = `translate3d(0, ${(toolbarScrollHide * travel).toFixed(1)}px, 0)`;
+    }
+  }
+
+  function resetToolbarScrollHide() {
+    clearTimeout(toolbarScrollSettle);
+    toolbarScrollSettle = 0;
+    toolbarScrollHide = 0;
+    toolbarScrollLastDir = 0;
+    toolbarScrollLast = appScroll ? appScroll.scrollTop : 0;
+    if (!floatToolbar) return;
+    floatToolbar.style.transition = 'none';
+    floatToolbar.style.transform = '';
+    requestAnimationFrame(() => {
+      if (floatToolbar) floatToolbar.style.transition = '';
+    });
+  }
+
+  function handleToolbarScroll() {
+    if (!floatToolbar || !appScroll) return;
+    const top = appScroll.scrollTop || 0;
+    const delta = top - toolbarScrollLast;
+    toolbarScrollLast = top;
+    const page = state.page;
+    if (page !== 'home' && page !== 'module' && page !== 'dynamic' && page !== 'messages') return;
+    if (state.playerOpen || state.searchOpen || app.classList.contains('sidebar-open')) return;
+    if (top <= 0) {
+      if (toolbarScrollHide !== 0) {
+        toolbarScrollHide = 0;
+        applyToolbarScrollHide(false);
+      }
+      return;
+    }
+    if (Math.abs(delta) < 0.5) return;
+    toolbarScrollLastDir = delta > 0 ? 1 : -1;
+    toolbarScrollHide = Math.max(0, Math.min(1, toolbarScrollHide + delta / (delta > 0 ? 90 : 60)));
+    applyToolbarScrollHide(false);
+    clearTimeout(toolbarScrollSettle);
+    toolbarScrollSettle = setTimeout(() => {
+      toolbarScrollSettle = 0;
+      if (toolbarScrollHide > 0.18 && toolbarScrollHide < 1 && toolbarScrollLastDir > 0) {
+        toolbarScrollHide = 1;
+        applyToolbarScrollHide(true);
+      } else if (toolbarScrollHide > 0 && toolbarScrollLastDir < 0) {
+        toolbarScrollHide = 0;
+        applyToolbarScrollHide(true);
+      }
+    }, 110);
+  }
+
+  if (appScroll) appScroll.addEventListener('scroll', handleToolbarScroll, { passive: true });
 
   function openSidebar() {
     if (!state.loggedIn) {
@@ -939,6 +1012,7 @@
     sidebarBackdrop.classList.add('show');
     sidebar.setAttribute('aria-hidden', 'false');
     app.classList.add('sidebar-open');
+    resetToolbarScrollHide();
     playlistDock.classList.remove('receiving', 'absorbing');
     updatePlaylistDock();
   }
@@ -1034,6 +1108,7 @@
     }
     if (app.classList.contains('sidebar-open')) closeSidebar();
     state.searchOpen = true;
+    resetToolbarScrollHide();
     state.searchReturn = state.page;
     state.searchReturnNav = state.navActive;
     searchInput.value = '';
@@ -1646,6 +1721,7 @@
     if (page !== previousPage) animatePageEnter(page, navSwitchDirection(previousNav, state.navActive));
     updatePlaylistDock();
     if (!returningToBase && !returningFromSearch) appScroll.scrollTop = 0;
+    if (page !== previousPage) resetToolbarScrollHide();
     setTimeout(refreshFeedPreview, 260);
   }
 
@@ -4395,6 +4471,7 @@
       state.progress = 0;
     }
     state.playerOpen = true;
+    resetToolbarScrollHide();
     state.locked = false;
     if (typeof updateDebugHud === 'function') updateDebugHud();
     if (!wasOpen) setPlayerOrientation(false, { silent: true });
