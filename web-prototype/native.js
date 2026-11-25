@@ -2609,6 +2609,9 @@
   }
   let mediaItem = null;
   let mediaLoadToken = 0;
+  let autoplayNudgeTimer = 0;
+  let mediaOpenedAt = 0;
+  let mediaUserPaused = false;
   let pendingQualityQnOverride = 0;
   let mediaBackup = '';
   let mediaTriedBackup = false;
@@ -2949,6 +2952,8 @@
 
   function clearVideo() {
     mediaLoadToken += 1;
+    clearTimeout(autoplayNudgeTimer);
+    autoplayNudgeTimer = 0;
     stopPosterDanmaku();
     removePromotedPreview();
     destroyHls();
@@ -3708,6 +3713,23 @@
     } catch (_) {}
   }
 
+  function scheduleAutoplayNudge(item, autoplay) {
+    clearTimeout(autoplayNudgeTimer);
+    autoplayNudgeTimer = 0;
+    if (!autoplay || !item || !NATIVE_MEDIA) return;
+    const key = mediaKeyFor(item);
+    autoplayNudgeTimer = setTimeout(() => {
+      autoplayNudgeTimer = 0;
+      if (!state.playerOpen || !state.playing) return;
+      const current = currentItem();
+      if (!current || mediaKeyFor(current) !== key) return;
+      let snapshot = null;
+      try { snapshot = call('nativePlayerState', 'main'); } catch (_) {}
+      if (snapshot && snapshot.ok && snapshot.playing) return;
+      try { video.play().catch(() => {}); } catch (_) {}
+    }, 1600);
+  }
+
   async function loadVideo(item, autoplay, allowDash = true) {
     state.streamInfo = { videoBitrate: 0, audioBitrate: 0, sourceWidth: 0, sourceHeight: 0, frameRate: 0, netBps: 0, netAt: 0, direct: false };
     state.availableQualities = [];
@@ -3742,6 +3764,9 @@
     mediaLive = false;
     if (player) player.classList.remove('live-player');
     mediaItem = item;
+    scheduleAutoplayNudge(item, autoplay);
+    mediaOpenedAt = Date.now();
+    mediaUserPaused = false;
     video.muted = Boolean(promotedPreview);
     mediaTriedBackup = false;
     mediaBackup = '';
@@ -3886,7 +3911,10 @@
     if (promotedPreview) return;
     /* A new item starts by pausing the previous one; do not publish that
        internal pause as a user-visible paused state while it loads. */
-    if (playerVideo && playerVideo.classList.contains('video-loading')) return;
+    if (!mediaUserPaused) {
+      if (playerVideo && playerVideo.classList.contains('video-loading')) return;
+      if (state.playerOpen && Date.now() - mediaOpenedAt < 2200) return;
+    }
     state.playing = false;
     host.setPlayIcon(false);
     host.updatePlaylistDock();
@@ -3978,8 +4006,13 @@
         return true;
       }
       if (!video.src) return false;
-      if (video.paused) video.play().catch(() => {});
-      else video.pause();
+      if (video.paused) {
+        mediaUserPaused = false;
+        video.play().catch(() => {});
+      } else {
+        mediaUserPaused = true;
+        video.pause();
+      }
       return true;
     },
     seek(percent) {

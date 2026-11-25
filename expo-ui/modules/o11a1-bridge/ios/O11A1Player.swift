@@ -406,9 +406,11 @@ final class O11A1PlayerHost: NSObject {
     slot.dashStartMs = startMs
     slot.dashDurationMs = durationMs
     slot.dashAutoplay = autoplay
-    /* DASH has a separate audio item. Do not start the video before that item
-       is ready, or the picture runs silently until the audio joins. */
-    slot.pendingPlay = false
+    /* DASH has a separate audio item. The JS may already have asked this item
+       to play while the load request was still in flight; keep that request
+       instead of clearing it here. */
+    let wantsPlay = autoplay || slot.pendingPlay
+    slot.pendingPlay = wantsPlay
     // The DASH URLs are signed with platform=pc; sending the Android API
     // user agent makes the CDN answer 403, while the desktop agent and a
     // bilibili referer are accepted. Cookies are not needed for the signed
@@ -431,7 +433,7 @@ final class O11A1PlayerHost: NSObject {
       audioAsset: audioAsset,
       startMs: startMs,
       durationMs: durationMs,
-      autoplay: autoplay,
+      autoplay: wantsPlay,
       viaLoader: false
     )
   }
@@ -512,8 +514,7 @@ final class O11A1PlayerHost: NSObject {
             self.emit(slot, "error", ["error": "dash audio failed"])
           }
         } else if item.status == .readyToPlay {
-          if slot.dashAutoplay && !slot.playing {
-            slot.pendingPlay = false
+          if slot.pendingPlay && !slot.playing {
             slot.player.play()
           }
           if slot.playing {

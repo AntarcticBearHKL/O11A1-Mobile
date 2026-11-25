@@ -312,7 +312,9 @@ instead of stopping it. Paused videos keep the old close behaviour.
 
 - Home feed loads 20 real rows; card is edge-to-edge (411 px on a 411 px
   viewport), bottom radius 14 px, glass footer 80 px, avatar 50 px.
-- Toolbar is 383 × 72 px with a 6 px bottom inset.
+- Light theme is pure white (`#FFFFFF`), dark is pure black (`#000000`);
+  the warm wallpaper and dot texture are removed.
+- Toolbar is 383 × 72 px with a 12 px bottom inset.
 - Avatar tap opens the UP page with 20 rows.
 - Player autoplays; long-press 2× measured 1.96× for 2 s and restored to 1.05×.
 - Wheel: controls 92 px, wheel 48 px, long tick 29 px, needle 48 px, tick-label
@@ -322,8 +324,8 @@ instead of stopping it. Paused videos keep the old close behaviour.
 - Closing while playing (pull-down or Android back) enters system PiP; the PiP
   window keeps rendering moving video, double-tap expands back to the full
   player with playback intact, and dismissing the PiP window stops playback.
-- Left swipe on the feed opens search with the input focused; a query returns
-  20 rows.
+- Left swipe on the feed tracks the finger (100 px drag reveals 100 px) and
+  settles open or closed on release; the input is focused after opening.
 - `O11A1Native.haptic('light')` returns `{ok:true}`.
 - No JS exceptions or fatal native errors in logcat.
 
