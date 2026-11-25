@@ -33,6 +33,7 @@ final class VideoListView extends FrameLayout {
     private final Mode mode;
     private final long mid;
     private final OnOpen onOpen;
+    private final Runnable onLogin;
     private final VideoRowAdapter adapter;
     private final RecyclerView list;
     private final TextView status;
@@ -41,12 +42,13 @@ final class VideoListView extends FrameLayout {
     private int page = 1;
     private boolean loading = false;
 
-    VideoListView(Context context, BiliExtras extras, Mode mode, long mid, OnOpen onOpen) {
+    VideoListView(Context context, BiliExtras extras, Mode mode, long mid, OnOpen onOpen, Runnable onLogin) {
         super(context);
         this.extras = extras;
         this.mode = mode;
         this.mid = mid;
         this.onOpen = onOpen;
+        this.onLogin = onLogin;
         setBackgroundColor(NativeTheme.background(context));
 
         LinearLayout top = new LinearLayout(context);
@@ -83,6 +85,9 @@ final class VideoListView extends FrameLayout {
         status.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
         status.setGravity(Gravity.CENTER);
         status.setVisibility(GONE);
+        status.setOnClickListener(v -> {
+            if (onLogin != null) onLogin.run();
+        });
         LayoutParams statusParams = new LayoutParams(
             LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
         statusParams.gravity = Gravity.CENTER;

@@ -115,6 +115,27 @@ final class BiliAPI {
     }
   }
 
+  func qrGenerate(completion: @escaping (Result<(String, String), Error>) -> Void) {
+    run({ self.client.qrGenerate() }) { result in
+      switch result {
+      case .failure(let error):
+        completion(.failure(error))
+      case .success(let json):
+        let url = o11a1String(json["url"])
+        let key = o11a1String(json["key"])
+        if url.isEmpty || key.isEmpty {
+          completion(.failure(NativeError.message("二维码生成失败")))
+        } else {
+          completion(.success((url, key)))
+        }
+      }
+    }
+  }
+
+  func qrPoll(key: String, completion: @escaping (Result<[String: Any], Error>) -> Void) {
+    run({ self.client.qrPoll(key: key) }, completion)
+  }
+
   func videoInfo(_ bvid: String, completion: @escaping (Result<[String: Any], Error>) -> Void) {
     run({ self.client.videoInfo(bvid: bvid) }, completion)
   }

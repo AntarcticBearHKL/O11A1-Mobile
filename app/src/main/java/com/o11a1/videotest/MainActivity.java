@@ -95,14 +95,14 @@ public final class MainActivity extends Activity implements FeedView.Host {
             case 1:
                 if (following == null) {
                     following = new VideoListView(this, extras, VideoListView.Mode.FOLLOWING, 0,
-                        (item, source) -> openPlayer(item, source));
+                        (item, source) -> openPlayer(item, source), this::showLogin);
                 }
                 currentView = following;
                 break;
             case 2:
                 if (dynamic == null) {
                     dynamic = new VideoListView(this, extras, VideoListView.Mode.DYNAMIC, 0,
-                        (item, source) -> openPlayer(item, source));
+                        (item, source) -> openPlayer(item, source), this::showLogin);
                 }
                 currentView = dynamic;
                 break;
@@ -169,7 +169,7 @@ public final class MainActivity extends Activity implements FeedView.Host {
             overlay.close();
         }
         VideoListView view = new VideoListView(this, extras, VideoListView.Mode.SPACE, mid,
-            (item, source) -> openPlayer(item, source));
+            (item, source) -> openPlayer(item, source), this::showLogin);
         FrameLayout holder = new FrameLayout(this);
         holder.setBackgroundColor(NativeTheme.background(this));
         holder.addView(view, new FrameLayout.LayoutParams(
@@ -185,10 +185,11 @@ public final class MainActivity extends Activity implements FeedView.Host {
 
     private void showSettings() {
         String theme = NativeTheme.themeMode(this);
+        boolean loggedIn = cookies.loggedIn();
         String[] items = {
             "外观：" + ("dark".equals(theme) ? "深色" : "light".equals(theme) ? "浅色" : "跟随系统"),
             "默认清晰度：" + qualityLabel(NativeTheme.quality(this)),
-            "退出登录",
+            loggedIn ? "退出登录" : "扫码登录",
             "关于 O11A1"
         };
         new AlertDialog.Builder(this)
@@ -197,8 +198,12 @@ public final class MainActivity extends Activity implements FeedView.Host {
                 if (which == 0) chooseTheme();
                 else if (which == 1) chooseQuality();
                 else if (which == 2) {
-                    cookies.clear();
-                    Toast.makeText(this, "已退出登录", Toast.LENGTH_SHORT).show();
+                    if (loggedIn) {
+                        cookies.clear();
+                        Toast.makeText(this, "已退出登录", Toast.LENGTH_SHORT).show();
+                    } else {
+                        showLogin();
+                    }
                 } else {
                     new AlertDialog.Builder(this)
                         .setMessage("O11A1 0.5.0 (108)\n纯原生 · 无 WebView")
@@ -207,6 +212,15 @@ public final class MainActivity extends Activity implements FeedView.Host {
                 }
             })
             .show();
+    }
+
+    private void showLogin() {
+        LoginDialog.show(this, api, () -> {
+            Toast.makeText(this, "登录成功", Toast.LENGTH_SHORT).show();
+            if (following != null) following.reload();
+            if (dynamic != null) dynamic.reload();
+            if (feed != null) feed.onResumeFeed();
+        });
     }
 
     private void chooseTheme() {

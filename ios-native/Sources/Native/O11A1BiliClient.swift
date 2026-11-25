@@ -749,6 +749,53 @@ final class O11A1BiliClient {
 
   /* ---------- account / community / discovery ---------- */
 
+  func qrGenerate() -> Data {
+    ensureBuvid()
+    guard let payload = json(
+      base: "https://passport.bilibili.com",
+      path: "/x/passport-login/web/qrcode/generate"
+    ),
+      o11a1Int(payload["code"]) == 0,
+      let data = payload["data"] as? [String: Any] else {
+      return o11a1Error("二维码生成失败")
+    }
+    return o11a1Data([
+      "ok": true,
+      "url": o11a1String(data["url"]),
+      "key": o11a1String(data["qrcode_key"])
+    ])
+  }
+
+  func qrPoll(key: String) -> Data {
+    guard !key.isEmpty else { return o11a1Error("二维码已失效") }
+    guard let payload = json(
+      base: "https://passport.bilibili.com",
+      path: "/x/passport-login/web/qrcode/poll",
+      query: ["qrcode_key": key]
+    ) else { return o11a1Error("登录状态查询失败") }
+    let data = payload["data"] as? [String: Any] ?? [:]
+    let state = o11a1Int(data["code"])
+    if state == 0 {
+      if let raw = data["url"] as? String, !raw.isEmpty,
+         let components = URLComponents(string: raw),
+         let items = components.queryItems {
+        let header = items.map { "\($0.name)=\($0.value ?? "")" }.joined(separator: "; ")
+        if !header.isEmpty { importCookieHeader(header) }
+      }
+      return o11a1Data([
+        "ok": true,
+        "state": 0,
+        "loggedIn": true,
+        "url": o11a1String(data["url"])
+      ])
+    }
+    return o11a1Data([
+      "ok": true,
+      "state": state,
+      "message": o11a1String(data["message"])
+    ])
+  }
+
   func account() -> Data {
     let data = navData()
     let level = data?["level_info"] as? [String: Any]

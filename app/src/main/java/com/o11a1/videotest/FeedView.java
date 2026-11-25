@@ -49,9 +49,10 @@ final class FeedView extends FrameLayout {
     private boolean hasMore = true;
     private SearchView searchView;
     private boolean searchOpen = false;
-    private View searchEdge;
-    private float touchStartX;
-    private long touchStartAt;
+    private float gestureDownX;
+    private float gestureDownY;
+    private long gestureStartAt;
+    private boolean searchDragging = false;
 
     FeedView(Context context, BiliApi api, BiliExtras extras, CookieStore cookies, Host host) {
         super(context);
@@ -93,14 +94,6 @@ final class FeedView extends FrameLayout {
                 }
             }
         });
-
-        searchEdge = new View(context);
-        searchEdge.setBackgroundColor(Color.TRANSPARENT);
-        LayoutParams edgeParams = new LayoutParams(NativeTheme.dp(context, 26), LayoutParams.MATCH_PARENT);
-        edgeParams.gravity = Gravity.START;
-        addView(searchEdge, edgeParams);
-        searchEdge.bringToFront();
-        searchEdge.setOnTouchListener(this::onSearchEdgeTouch);
 
         post(this::loadInitial);
     }
@@ -180,6 +173,16 @@ final class FeedView extends FrameLayout {
         final int token = previewToken;
         if (previewEngine == null) {
             previewEngine = new VideoEngine(context, cookies, true);
+            previewEngine.setListener(new VideoEngine.Listener() {
+                @Override public void onProgress(long positionMs, long durationMs, boolean playing) {}
+                @Override public void onReady() {}
+                @Override public void onFirstFrame() {
+                    if (previewEngine != null) previewEngine.view().setAlpha(1f);
+                }
+                @Override public void onError(String message) {
+                    if (previewEngine != null) previewEngine.view().setAlpha(0f);
+                }
+            });
         }
         previewViewHidden(false);
         if (previewEngine.view().getParent() instanceof ViewGroup) {
@@ -187,7 +190,8 @@ final class FeedView extends FrameLayout {
         }
         page.mediaHost.addView(previewEngine.view(), new LayoutParams(
             LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
-        previewEngine.view().setVisibility(View.INVISIBLE);
+        previewEngine.view().setAlpha(0f);
+        previewEngine.view().setVisibility(View.VISIBLE);
         final VideoPageView target = page;
         pool.execute(() -> {
             JSONObject result = api.playLow(item.bvid, item.cid);
@@ -218,31 +222,42 @@ final class FeedView extends FrameLayout {
         return child instanceof VideoPageView ? (VideoPageView) child : null;
     }
 
-    private boolean onSearchEdgeTouch(View view, MotionEvent event) {
+    @Override public boolean onInterceptTouchEvent(MotionEvent event) {
+        if (searchOpen) return false;
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
-                touchStartX = event.getRawX();
-                touchStartAt = System.currentTimeMillis();
-                ensureSearch();
-                searchOpen = false;
-                searchView.setVisibility(View.VISIBLE);
-                searchView.setTranslationX(getWidth());
-                pager.setTranslationX(0);
-                previewViewHidden(true);
-                if (previewEngine != null) previewEngine.pause();
-                return true;
+                gestureDownX = event.getX();
+                gestureDownY = event.getY();
+                gestureStartAt = System.currentTimeMillis();
+                searchDragging = false;
+                return false;
             case MotionEvent.ACTION_MOVE:
-                if (searchView == null) return false;
-                float dx = Math.max(0, touchStartX - event.getRawX());
-                searchView.setTranslationX(Math.max(0, getWidth() - dx));
-                pager.setTranslationX(-dx * 0.18f);
+                float dx = event.getX() - gestureDownX;
+                float dy = event.getY() - gestureDownY;
+                if (!searchDragging && -dx > NativeTheme.dp(context, 28)
+                    && Math.abs(dx) > Math.abs(dy) * 1.3f) {
+                    beginSearchDrag();
+                    searchDragging = true;
+                    return true;
+                }
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    @Override public boolean onTouchEvent(MotionEvent event) {
+        if (!searchDragging) return super.onTouchEvent(event);
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_MOVE:
+                updateSearchDrag(Math.max(0, gestureDownX - event.getX()));
                 return true;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
-                if (searchView == null) return false;
-                float translation = Math.max(0, touchStartX - event.getRawX());
-                long elapsed = Math.max(1, System.currentTimeMillis() - touchStartAt);
+                float translation = Math.max(0, gestureDownX - event.getX());
+                long elapsed = Math.max(1, System.currentTimeMillis() - gestureStartAt);
                 float velocity = translation / (elapsed / 1000f);
+                searchDragging = false;
                 if (translation > getWidth() * 0.26f || velocity > 350f) {
                     openSearch();
                 } else {
@@ -250,8 +265,25 @@ final class FeedView extends FrameLayout {
                 }
                 return true;
             default:
-                return false;
+                return true;
         }
+    }
+
+    private void beginSearchDrag() {
+        ensureSearch();
+        searchOpen = false;
+        searchView.setVisibility(View.VISIBLE);
+        searchView.setTranslationX(getWidth());
+        pager.setTranslationX(0);
+        pager.setUserInputEnabled(false);
+        previewViewHidden(true);
+        if (previewEngine != null) previewEngine.pause();
+    }
+
+    private void updateSearchDrag(float translation) {
+        if (searchView == null) return;
+        searchView.setTranslationX(Math.max(0, getWidth() - translation));
+        pager.setTranslationX(-translation * 0.18f);
     }
 
     private void ensureSearch() {

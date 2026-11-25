@@ -14,6 +14,7 @@ final class VideoListViewController: UIViewController, UITableViewDataSource, UI
   private let mode: Mode
   private let table = UITableView(frame: .zero, style: .plain)
   private let status = UILabel()
+  private let loginButton = UIButton(type: .system)
   private var items: [VideoItem] = []
   private var page = 1
   private var loading = false
@@ -54,11 +55,24 @@ final class VideoListViewController: UIViewController, UITableViewDataSource, UI
     status.isHidden = true
     view.addSubview(status)
     status.translatesAutoresizingMaskIntoConstraints = false
+
+    loginButton.setTitle("扫码登录", for: .normal)
+    loginButton.setTitleColor(NativeTheme.accent, for: .normal)
+    loginButton.titleLabel?.font = NativeTheme.titleFont(14)
+    loginButton.isHidden = true
+    loginButton.addTarget(self, action: #selector(showLogin), for: .touchUpInside)
+    view.addSubview(loginButton)
+    loginButton.translatesAutoresizingMaskIntoConstraints = false
+
     NSLayoutConstraint.activate([
       status.centerXAnchor.constraint(equalTo: view.centerXAnchor),
       status.centerYAnchor.constraint(equalTo: view.centerYAnchor),
       status.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 32),
       status.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -32),
+
+      loginButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+      loginButton.topAnchor.constraint(equalTo: status.bottomAnchor, constant: 12),
+      loginButton.heightAnchor.constraint(equalToConstant: 36),
     ])
     load()
   }
@@ -78,11 +92,14 @@ final class VideoListViewController: UIViewController, UITableViewDataSource, UI
         if self.items.isEmpty {
           self.status.text = error.localizedDescription
           self.status.isHidden = false
+          let message = error.localizedDescription
+          self.loginButton.isHidden = !(message.contains("登录") || message.contains("login"))
         }
       case .success(let values):
         self.items.append(contentsOf: values)
         self.status.text = values.isEmpty ? "暂无内容" : nil
         self.status.isHidden = !values.isEmpty
+        self.loginButton.isHidden = true
         self.page += 1
         self.table.reloadData()
       }
@@ -124,6 +141,21 @@ final class VideoListViewController: UIViewController, UITableViewDataSource, UI
     if scrollView.contentOffset.y > scrollView.contentSize.height - scrollView.bounds.height * 2 {
       load()
     }
+  }
+
+  @objc private func showLogin() {
+    let login = LoginViewController()
+    login.modalPresentationStyle = .formSheet
+    login.onLogin = { [weak self] in
+      guard let self = self else { return }
+      self.items = []
+      self.page = 1
+      self.loginButton.isHidden = true
+      self.status.isHidden = true
+      self.table.reloadData()
+      self.load()
+    }
+    present(login, animated: true)
   }
 }
 

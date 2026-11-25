@@ -9,7 +9,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
-/** Bilibili public web API client used by the WebView bridge. */
+/** Bilibili public API client used by the native UI. */
 final class BiliApi {
     private static final String TAG = "O11A1Api";
     private final CookieStore cookies;
@@ -341,6 +341,79 @@ final class BiliApi {
         } catch (Throwable error) {
             Log.w(TAG, "comments failed", error);
             out = error(error);
+        }
+        return out;
+    }
+
+    JSONObject qrGenerate() {
+        JSONObject out = new JSONObject();
+        try {
+            String raw = cookies.request(
+                "https://passport.bilibili.com/x/passport-login/web/qrcode/generate",
+                passportHeaders(), null);
+            JSONObject json = new JSONObject(raw);
+            if (json.optInt("code", -1) != 0) {
+                out.put("ok", false);
+                out.put("error", json.optString("message", "二维码生成失败"));
+                return out;
+            }
+            JSONObject data = json.optJSONObject("data");
+            out.put("ok", true);
+            out.put("url", data == null ? "" : data.optString("url", ""));
+            out.put("key", data == null ? "" : data.optString("qrcode_key", ""));
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out;
+    }
+
+    JSONObject qrPoll(String key) {
+        JSONObject out = new JSONObject();
+        try {
+            java.util.Map<String, String> headers = passportHeaders();
+            String raw = cookies.request(
+                "https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key=" + enc(key),
+                headers, null);
+            JSONObject json = new JSONObject(raw);
+            JSONObject data = json.optJSONObject("data");
+            int state = data == null ? -1 : data.optInt("code", -1);
+            out.put("ok", json.optInt("code", -1) == 0);
+            out.put("state", state);
+            out.put("message", data == null ? json.optString("message", "") : data.optString("message", ""));
+            String url = data == null ? "" : data.optString("url", "");
+            out.put("url", url);
+            if (state == 0) {
+                java.util.Map<String, String> parsed = parseQuery(url);
+                StringBuilder header = new StringBuilder();
+                for (java.util.Map.Entry<String, String> entry : parsed.entrySet()) {
+                    if (header.length() > 0) header.append("; ");
+                    header.append(entry.getKey()).append('=').append(entry.getValue());
+                }
+                if (header.length() > 0) cookies.importHeader(header.toString());
+                JSONObject session = session();
+                session.put("ok", true);
+                session.put("loggedIn", true);
+                return session;
+            }
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out;
+    }
+
+    private static java.util.Map<String, String> parseQuery(String url) {
+        java.util.Map<String, String> out = new java.util.HashMap<>();
+        if (url == null || url.isEmpty()) return out;
+        int index = url.indexOf('?');
+        String query = index >= 0 ? url.substring(index + 1) : url;
+        for (String part : query.split("&")) {
+            String[] pair = part.split("=", 2);
+            if (pair.length == 2) {
+                try {
+                    out.put(java.net.URLDecoder.decode(pair[0], "UTF-8"),
+                        java.net.URLDecoder.decode(pair[1], "UTF-8"));
+                } catch (Throwable ignored) {}
+            }
         }
         return out;
     }

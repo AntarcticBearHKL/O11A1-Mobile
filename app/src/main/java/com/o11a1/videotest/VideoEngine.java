@@ -28,6 +28,7 @@ final class VideoEngine {
     interface Listener {
         void onProgress(long positionMs, long durationMs, boolean playing);
         void onReady();
+        void onFirstFrame();
         void onError(String message);
     }
 
@@ -92,6 +93,10 @@ final class VideoEngine {
                 if (state == Player.STATE_READY && listener != null) {
                     listener.onReady();
                 }
+            }
+
+            @Override public void onRenderedFirstFrame() {
+                if (listener != null) listener.onFirstFrame();
             }
 
             @Override public void onPlayerError(PlaybackException error) {

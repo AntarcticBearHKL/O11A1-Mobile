@@ -87,7 +87,8 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
           cell.accessoryType = .none
         }
       } else {
-        cell.textLabel?.text = "未登录"
+        cell.textLabel?.text = "扫码登录"
+        cell.textLabel?.textColor = NativeTheme.accent
         cell.accessoryType = .none
       }
     default:
@@ -115,9 +116,27 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         BiliAPI.shared.logout()
         account = AccountInfo()
         table.reloadData()
+      } else if !account.loggedIn {
+        showLogin()
       }
     default:
       break
+    }
+  }
+
+  private func showLogin() {
+    let login = LoginViewController()
+    login.modalPresentationStyle = .formSheet
+    login.onLogin = { [weak self] in
+      self?.loadAccount()
+    }
+    present(login, animated: true)
+  }
+
+  private func loadAccount() {
+    BiliAPI.shared.account { [weak self] info in
+      self?.account = info
+      self?.table.reloadData()
     }
   }
 }

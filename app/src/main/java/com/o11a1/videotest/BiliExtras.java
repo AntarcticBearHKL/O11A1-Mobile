@@ -13,7 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
-/** Account, community, PGC and live APIs used by the V2 WebView bridge. */
+/** Account, community, PGC and live APIs used by the native UI. */
 final class BiliExtras {
     private static final String TAG = "O11A1Extras";
     private static final int[] WBI_MIXIN_KEY = {

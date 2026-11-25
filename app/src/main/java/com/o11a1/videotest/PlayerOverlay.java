@@ -103,7 +103,7 @@ final class PlayerOverlay extends FrameLayout {
         addView(topBar, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
 
         ImageButton back = new ImageButton(context);
-        back.setImageResource(android.R.drawable.ic_menu_back);
+        back.setImageResource(R.drawable.ic_back);
         back.setBackgroundColor(Color.TRANSPARENT);
         back.setColorFilter(Color.WHITE);
         back.setOnClickListener(v -> close());
@@ -147,7 +147,7 @@ final class PlayerOverlay extends FrameLayout {
         addView(bottomPanel, panelParams);
 
         owner = new TextView(context);
-        owner.setText(item.owner + " · UP 主页");
+        owner.setText(item.owner + " 路 UP 涓婚〉");
         owner.setTextColor(Color.WHITE);
         owner.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         owner.setOnClickListener(v -> {
@@ -232,6 +232,10 @@ final class PlayerOverlay extends FrameLayout {
                 engine.play();
             }
 
+            @Override public void onFirstFrame() {
+                poster.setVisibility(View.GONE);
+            }
+
             @Override public void onError(String message) {
                 error.setText(message);
                 error.setVisibility(View.VISIBLE);
@@ -308,7 +312,7 @@ final class PlayerOverlay extends FrameLayout {
                     if (qualityQn > 64) loadQuality(64);
                     else if (qualityQn > 32) loadQuality(32);
                     else {
-                        error.setText("无法获取播放地址");
+                        error.setText("鏃犳硶鑾峰彇鎾斁鍦板潃");
                         error.setVisibility(View.VISIBLE);
                     }
                     return;
