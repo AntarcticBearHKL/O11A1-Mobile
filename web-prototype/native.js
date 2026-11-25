@@ -1407,14 +1407,6 @@
     if (!item || item.live || !item.bvid) return false;
     const thumb = row.querySelector('.row-thumb');
     if (!thumb) return false;
-    const url = previewUrlFor(item);
-    if (!url) {
-      previewCandidate = null;
-      thumb.classList.add('preview-loading');
-      setTimeout(() => updateFeedPreview(feed, true), 160);
-      return true;
-    }
-    prefetchDanmaku(item.cid);
     /* If this row is already preloading, adopt that element: its network load
        is in progress, so the preview starts much sooner than a fresh source. */
     let adopted = null;
@@ -1426,9 +1418,18 @@
       if (adopted.parentNode) adopted.parentNode.removeChild(adopted);
       adopted.classList.remove('preview-preload');
     }
+    const url = adopted ? '' : previewUrlFor(item);
+    if (!adopted && !url) {
+      previewCandidate = null;
+      thumb.classList.add('preview-loading');
+      setTimeout(() => updateFeedPreview(feed, true), 160);
+      return true;
+    }
+    prefetchDanmaku(item.cid);
     if (previewRow && previewRow !== row) stopFeedPreview();
     stopPreviewPreload();
     const video = adopted || ensurePreviewVideo();
+    previewVideo = video;
     previewRow = row;
     log('preview html ' + (item.bvid || item.epId || ''));
     row.classList.add('preview-active');
@@ -1438,7 +1439,10 @@
     thumb.appendChild(video);
     previewProgressFill = null;
     thumb.classList.add('preview-loading');
-    loadPreviewNative(video, item, url, true);
+    if (!adopted) {
+      loadPreviewNative(video, item, url, true);
+      video.currentTime = 0;
+    }
     const started = () => {
       if (previewRow !== row || previewVideo !== video) return;
       thumb.classList.remove('preview-loading');
@@ -1446,9 +1450,12 @@
       video.classList.add('show');
     };
     video.addEventListener('playing', started, { once: true });
-    video.currentTime = 0;
     try { video.playbackRate = 1; } catch (_) {}
-    video.play().catch((error) => log('preview play failed ' + error));
+    if (adopted && video.readyState >= 3 && !video.paused) {
+      requestAnimationFrame(started);
+    } else {
+      video.play().catch((error) => log('preview play failed ' + error));
+    }
     prewarmPlayerUrl(item);
     setTimeout(() => {
       if (previewRow === row) preloadPreviewNeighbor(feed, row);
@@ -1460,6 +1467,7 @@
     const item = row.__nativeItem;
     if (!item || item.live || !item.bvid) {
       previewCandidate = null;
+      if (!item && immediate) setTimeout(() => updateFeedPreview(feed, true), 120);
       return;
     }
     if (immediate) {
@@ -5219,7 +5227,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.54';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.55';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
