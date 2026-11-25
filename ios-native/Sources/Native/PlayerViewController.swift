@@ -1,4 +1,4 @@
-import AVKit
+﻿import AVKit
 import UIKit
 
 final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
@@ -109,7 +109,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     ownerLabel.numberOfLines = 1
     content.addSubview(ownerLabel)
 
-    ownerButton.setTitle("UP 主页", for: .normal)
+    ownerButton.setTitle("UP 涓婚〉", for: .normal)
     ownerButton.setTitleColor(UIColor.white.withAlphaComponent(0.66), for: .normal)
     ownerButton.titleLabel?.font = NativeTheme.bodyFont(11)
     ownerButton.addTarget(self, action: #selector(openProfile), for: .touchUpInside)
@@ -291,7 +291,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     topBar.frame = CGRect(x: 0, y: view.safeAreaInsets.top, width: full.width, height: 52)
     playerView.frame = videoContainer.bounds
     poster.frame = videoContainer.bounds
-    playButton.center = CGPoint(x: videoContainer.midX, y: videoContainer.midY)
+    playButton.center = CGPoint(x: videoContainer.center.x, y: videoContainer.center.y)
     let panelHeight: CGFloat = 150
     bottomPanel.frame = CGRect(
       x: 12,
@@ -324,7 +324,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         } else if qn > 32 {
           self.loadQuality(32)
         } else {
-          self.errorLabel.text = "无法获取播放地址"
+          self.errorLabel.text = "鏃犳硶鑾峰彇鎾斁鍦板潃"
           self.errorLabel.isHidden = false
         }
       }

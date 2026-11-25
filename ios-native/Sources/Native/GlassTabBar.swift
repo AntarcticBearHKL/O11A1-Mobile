@@ -9,7 +9,7 @@ final class GlassTabBar: UIView {
   private let titles = ["推荐", "关注", "动态", "养鱼"]
   private let symbols = ["play.rectangle.fill", "person.2.fill", "bolt.horizontal.fill", "fish.fill"]
   private(set) var selectedIndex = 0
-  private(set) var hidden = false
+  private(set) var barHidden = false
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -83,8 +83,8 @@ final class GlassTabBar: UIView {
   }
 
   func setHidden(_ shouldHide: Bool, animated: Bool) {
-    guard shouldHide != hidden else { return }
-    hidden = shouldHide
+    guard shouldHide != barHidden else { return }
+    barHidden = shouldHide
     let distance = bounds.height + 28
     let transform = shouldHide ? CGAffineTransform(translationX: 0, y: distance) : .identity
     let alpha: CGFloat = shouldHide ? 0 : 1

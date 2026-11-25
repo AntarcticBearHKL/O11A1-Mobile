@@ -109,9 +109,9 @@ final class VideoEngine: NSObject {
     ])
     let item = AVPlayerItem(asset: asset)
     item.preferredForwardBufferDuration = 8
-    statusObservation = item.observe(\.status, options: [.new, .initial]) { [weak self, weak item] item, _ in
-      guard let self = self, let item = item else { return }
-      if item.status == .readyToPlay {
+    statusObservation = item.observe(\.status, options: [.new, .initial]) { [weak self] observed, _ in
+      guard let self = self else { return }
+      if observed.status == .readyToPlay {
         DispatchQueue.main.async {
           self.onReady?()
           if self.startAt > 0 {
@@ -126,13 +126,13 @@ final class VideoEngine: NSObject {
             self.player.play()
           }
         }
-      } else if item.status == .failed {
+      } else if observed.status == .failed {
         DispatchQueue.main.async {
           if !self.didRetryBackup, !self.backupURL.isEmpty, self.backupURL != self.loadedURL {
             self.didRetryBackup = true
             self.install(url: self.backupURL)
           } else {
-            self.onError?(item.error?.localizedDescription ?? "播放失败")
+            self.onError?(observed.error?.localizedDescription ?? "播放失败")
           }
         }
       }
