@@ -17,11 +17,15 @@
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.4.85</string>
+  <string>0.4.86</string>
   <key>CFBundleVersion</key>
-  <string>103</string>
+  <string>104</string>
   <key>LSRequiresIPhoneOS</key>
   <true/>
+  <key>UIBackgroundModes</key>
+  <array>
+    <string>audio</string>
+  </array>
   <key>UILaunchScreen</key>
   <dict/>
   <key>UIRequiresFullScreen</key>

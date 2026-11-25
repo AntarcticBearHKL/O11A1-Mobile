@@ -159,7 +159,70 @@ iOS `O11A1LocalServer`: preview 10 min/80, quality 4 min, dash 4 min, suggest
 Android `WebAppBridge`: preview 10 min, quality 4 min, dash 4 min, with
 `*Loading` sets that coalesce concurrent requests.
 
-## 5. Bridge contract
+## 5. System picture in picture
+
+Closing the player while it is playing hands the video to the system PiP window
+instead of stopping it. Paused videos keep the old close behaviour.
+
+### Web state machine (`app.js`)
+
+- `closePlayerFromDrop(0, …)` / `minimizePlayer()` (pull-down, Escape, Android
+  back) call `pipEnter()` before the normal collapse animation.
+- `pipEnter()` asks the native side to enter PiP and fades the web player card
+  to transparent, leaving the native video layer visible for the system
+  animation. A 2.6 s watchdog rolls back if the native side never confirms.
+- `O11A1Pip.onStart()` hides the web player (`state.playerOpen = false`,
+  `state.pipActive = true`) while keeping `state.playing` true and the native
+  media alive. Feed previews and background preloads are suppressed by
+  `state.pipActive`.
+- `O11A1Pip.onExit('expand')` reopens the player, restores chrome and the
+  controls; `onExit('close')` calls `stopPlayback()`.
+- Opening another video or logging out calls `pipStop()` first and resets the
+  PiP state.
+
+### iOS
+
+- `AVPictureInPictureController(playerLayer:)` is created for the main slot in
+  `O11A1Player.load`; `startPip` dispatches to the main thread and does not block
+  the loopback HTTP reply.
+- `UIBackgroundModes: audio` and the existing `.playback` audio session keep
+  audio alive while PiP is active.
+- On `didStart` the inline layer becomes alpha 0 (kept in the hierarchy for a
+  fast restore); `rect()` ignores web updates while `slot.pipActive`.
+- The restore delegate reopens the web player 120 ms before completing, then
+  restores the layer alpha. Closing PiP pauses video and DASH audio and notifies
+  the web layer; the `timeControlStatus` observer also pauses the separate DASH
+  audio player when the system pauses the video.
+- Programmatic stop uses a `stoppedByApp` flag so it does not fire a second
+  close event into JS.
+
+### Android
+
+- The activity declares `android:supportsPictureInPicture="true"` and is
+  resizeable.
+- `MainActivity.enterPipFromPlayer` captures the current video rect, switches
+  the native layer to full-bleed, hides the WebView, and calls
+  `enterPictureInPictureMode` with the video aspect ratio and a 16:9
+  `setSourceRectHint` for the system transition.
+- `NativePlayerHost.setPipMode` ignores web rect updates while PiP owns the
+  screen, saves the inline rect, and restores it on exit.
+- `onPictureInPictureModeChanged(false)` + `onResume` expand the player UI;
+  `onStop` treats a dismissed PiP window as a close and stops the main player
+  natively even if the WebView is suspended.
+
+### Fixes found while wiring PiP
+
+- Android `nativePlayerRect` did not accept the `aspect` argument that
+  `native-player.js` has been sending, so every rect call failed with
+  “Method not found” and the native main video layer stayed hidden behind the
+  poster. The bridge now accepts the argument.
+- The rect loop hid the main slot until `firstframe`, but a hidden TextureView
+  never renders a first frame on Android. The gate was removed; the poster still
+  covers the layer until the real frame arrives.
+- `MainActivity` now loads `index.html?v=<versionName>` so the document itself
+  cannot be served from an older WebView cache.
+
+## 6. Bridge contract
 
 `window.O11A1Native` is the single JS surface.
 
@@ -179,7 +242,7 @@ Android `WebAppBridge`: preview 10 min, quality 4 min, dash 4 min, with
   brightness, orientation).
 - `window.O11A1Native.haptic` — Android haptic (added in this pass).
 
-## 6. Cross-platform parity
+## 7. Cross-platform parity
 
 | Area | iOS | Android | Status |
 | --- | --- | --- | --- |
@@ -188,13 +251,14 @@ Android `WebAppBridge`: preview 10 min, quality 4 min, dash 4 min, with
 | Haptics (2× hold) | UIImpactFeedbackGenerator | Vibrator one-shot | matched this pass |
 | Launch overlay | native avatar/progress | HTML launch overlay | differs (by design, iOS needs credentials first) |
 | Player | AVPlayer + DASH audio | ExoPlayer | different engine, same contract |
+| System PiP | AVPictureInPictureController | PictureInPictureParams + source rect | matched this pass |
 | Metadata transport | loopback HTTP + async | direct JNI, sync | async parity pending |
 | Preview cache | server-side | bridge-side | same TTL/behaviour |
 | Quality labels | same merge logic | same merge logic | identical |
 | Version string | `0.4.85-ios` | `0.4.85-android` | matched this pass |
 | Asset cache | `Cache-Control: no-store` | query stamp per build | matched this pass |
 
-## 7. Changes in this pass
+## 8. Changes in this pass
 
 ### Network
 
@@ -244,7 +308,7 @@ Android `WebAppBridge`: preview 10 min, quality 4 min, dash 4 min, with
   previous cache. iOS already serves static files with `Cache-Control:
   no-store`.
 
-### Verified on the Android emulator (0.4.85 / 103)
+### Verified on the Android emulator (0.4.86 / 104)
 
 - Home feed loads 20 real rows; card is edge-to-edge (411 px on a 411 px
   viewport), bottom radius 14 px, glass footer 80 px, avatar 50 px.
@@ -255,12 +319,15 @@ Android `WebAppBridge`: preview 10 min, quality 4 min, dash 4 min, with
   gap 14 px.
 - Pull-down drag keeps playback running, reveals 260–380 px of feed, clips a
   matching hole in `.app-main`, and closes on release.
+- Closing while playing (pull-down or Android back) enters system PiP; the PiP
+  window keeps rendering moving video, double-tap expands back to the full
+  player with playback intact, and dismissing the PiP window stops playback.
 - Left swipe on the feed opens search with the input focused; a query returns
   20 rows.
 - `O11A1Native.haptic('light')` returns `{ok:true}`.
 - No JS exceptions or fatal native errors in logcat.
 
-## 8. Remaining work
+## 9. Remaining work
 
 1. **Async bridge on Android.** Add a generic `request(id, name, args)` that
    runs on an executor and answers through `evaluateJavascript`. Then make
@@ -276,4 +343,4 @@ Android `WebAppBridge`: preview 10 min, quality 4 min, dash 4 min, with
    each API request to the global queue; a semaphore (6–8) would cap bursts
    without touching the player path.
 5. **Release verification.** Wheel height, card footer, avatar → UP, pull-down
-   reveal, autoplay and 1080P/4K DASH still need an iPhone run.
+   reveal, autoplay, system PiP and 1080P/4K DASH still need an iPhone run.

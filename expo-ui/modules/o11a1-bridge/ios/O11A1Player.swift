@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import AVKit
 import UIKit
 import WebKit
 import QuartzCore
@@ -7,8 +8,12 @@ import CoreImage
 
 /// AVPlayer overlay for iOS.  Media is fetched directly from Bilibili's CDN with
 /// the account's UA/Referer/Cookie headers; no localhost media proxy is used.
-final class O11A1PlayerHost {
+final class O11A1PlayerHost: NSObject {
   static let shared = O11A1PlayerHost()
+
+  private override init() {
+    super.init()
+  }
 
   private final class PlayerSurface: UIView {
     override class var layerClass: AnyClass { AVPlayerLayer.self }
@@ -71,6 +76,54 @@ final class O11A1PlayerHost {
     }
   }
 
+  private final class PipDelegate: NSObject, AVPictureInPictureControllerDelegate {
+    weak var host: O11A1PlayerHost?
+    let slotId: String
+    var restoreRequested = false
+    var stoppedByApp = false
+
+    init(host: O11A1PlayerHost, slotId: String) {
+      self.host = host
+      self.slotId = slotId
+      super.init()
+    }
+
+    func pictureInPictureControllerDidStartPictureInPicture(
+      _ pictureInPictureController: AVPictureInPictureController
+    ) {
+      host?.pipDidStart(slotId)
+    }
+
+    func pictureInPictureController(
+      _ pictureInPictureController: AVPictureInPictureController,
+      restoreUserInterfaceForPictureInPictureStopWithCompletionHandler
+        completionHandler: @escaping (Bool) -> Void
+    ) {
+      restoreRequested = true
+      host?.pipWillRestore(slotId)
+      /* Give the web player one frame to reopen behind the system's restore
+         animation instead of revealing the feed first. */
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+        completionHandler(true)
+      }
+    }
+
+    func pictureInPictureControllerDidStopPictureInPicture(
+      _ pictureInPictureController: AVPictureInPictureController
+    ) {
+      host?.pipDidStop(slotId, restore: restoreRequested, byApp: stoppedByApp)
+      restoreRequested = false
+      stoppedByApp = false
+    }
+
+    func pictureInPictureController(
+      _ pictureInPictureController: AVPictureInPictureController,
+      failedToStartPictureInPictureWithError error: Error
+    ) {
+      host?.pipDidFail(slotId, error: error)
+    }
+  }
+
   private final class Slot {
     let id: String
     let view = PlayerView()
@@ -116,6 +169,9 @@ final class O11A1PlayerHost {
     var timeObserver: Any?
     var endObserver: NSObjectProtocol?
     var failObserver: NSObjectProtocol?
+    var pipController: AVPictureInPictureController?
+    var pipDelegate: PipDelegate?
+    var pipActive = false
 
     init(_ id: String) {
       self.id = id
@@ -233,6 +289,10 @@ final class O11A1PlayerHost {
         try session.setActive(true)
       } catch {}
       let slot = self.slot(id)
+      if slot.pipActive {
+        slot.pipDelegate?.stoppedByApp = true
+        slot.pipController?.stopPictureInPicture()
+      }
       self.ensureParent(slot)
       let urlString = o11a1String(json["videoUrl"])
       guard let url = URL(string: urlString), !urlString.isEmpty else {
@@ -276,6 +336,7 @@ final class O11A1PlayerHost {
       self.clearObservers(slot)
       if id == "main" {
         self.webView = web
+        self.ensurePipController(slot)
       }
       self.emit(slot, "loadstart", [:])
       if audioURL.isEmpty || kind != "dash" {
@@ -672,6 +733,9 @@ final class O11A1PlayerHost {
             timestamp: Double = 0, aspect: String = "") {
     let apply = { [weak self] in
       guard let self = self, let slot = self.slots[id] else { return }
+      /* The system owns the video during PiP; rect updates from the hidden web
+         player must not move or hide the inline layer. */
+      if slot.pipActive { return }
       /* The player always shows the whole frame. Landscape no longer forces
          aspect-fill: the blurred video backdrop fills the letterbox instead. */
       let gravity: AVLayerVideoGravity
@@ -826,11 +890,131 @@ final class O11A1PlayerHost {
   func release(slot id: String) {
     DispatchQueue.main.async {
       guard let slot = self.slots.removeValue(forKey: id) else { return }
+      if slot.pipActive || slot.pipController?.isPictureInPictureActive == true {
+        slot.pipDelegate?.stoppedByApp = true
+        slot.pipController?.stopPictureInPicture()
+      }
       self.clearObservers(slot)
       slot.player.pause()
       slot.player.replaceCurrentItem(with: nil)
       self.clearDASH(slot)
       slot.view.removeFromSuperview()
+    }
+  }
+
+  // MARK: - Picture in picture
+
+  private let pipLock = NSLock()
+  private var pipActiveCache = false
+
+  private func setPipActiveCache(_ value: Bool) {
+    pipLock.lock()
+    pipActiveCache = value
+    pipLock.unlock()
+  }
+
+  private func ensurePipController(_ slot: Slot) {
+    guard slot.id == "main", slot.pipController == nil,
+          AVPictureInPictureController.isPictureInPictureSupported() else { return }
+    let controller = AVPictureInPictureController(playerLayer: slot.view.playerLayer)
+    let delegate = PipDelegate(host: self, slotId: slot.id)
+    controller.delegate = delegate
+    slot.pipDelegate = delegate
+    slot.pipController = controller
+  }
+
+  func pipAvailable() -> Bool {
+    return AVPictureInPictureController.isPictureInPictureSupported()
+  }
+
+  /* The JS bridge calls these over the loopback HTTP server, which runs off the
+     main thread while the WebView may be blocked in a synchronous request.
+     Dispatch the actual PiP work asynchronously so the reply can never
+     deadlock the UI thread; failures are reported through O11A1Pip.onFail. */
+  func startPip(slot id: String) -> Bool {
+    guard AVPictureInPictureController.isPictureInPictureSupported() else { return false }
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self, let slot = self.slots[id], id == "main", !slot.pipActive else {
+        self?.pipDidFail(id, error: NSError(domain: "O11A1PiP", code: 1))
+        return
+      }
+      self.ensurePipController(slot)
+      guard let controller = slot.pipController,
+            controller.isPictureInPicturePossible,
+            slot.player.currentItem != nil,
+            slot.playing || slot.player.rate > 0.01 else {
+        self.pipDidFail(id, error: NSError(domain: "O11A1PiP", code: 2))
+        return
+      }
+      controller.startPictureInPicture()
+    }
+    return true
+  }
+
+  func stopPip(slot id: String) -> Bool {
+    guard AVPictureInPictureController.isPictureInPictureSupported() else { return false }
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self, let slot = self.slots[id],
+            let controller = slot.pipController,
+            controller.isPictureInPictureActive || slot.pipActive else { return }
+      slot.pipDelegate?.stoppedByApp = true
+      controller.stopPictureInPicture()
+    }
+    return true
+  }
+
+  func isPipActive(slot id: String) -> Bool {
+    pipLock.lock()
+    defer { pipLock.unlock() }
+    return pipActiveCache
+  }
+
+  fileprivate func pipDidStart(_ id: String) {
+    DispatchQueue.main.async {
+      guard let slot = self.slots[id] else { return }
+      slot.pipActive = true
+      self.setPipActiveCache(true)
+      /* The system owns the video while PiP is active. Keep the inline layer in
+         the hierarchy for a fast restore, but do not paint a second video over
+         the feed. */
+      slot.view.alpha = 0
+      self.evaluateInPage("window.O11A1Pip&&O11A1Pip.onStart&&O11A1Pip.onStart()")
+    }
+  }
+
+  fileprivate func pipWillRestore(_ id: String) {
+    evaluateInPage("window.O11A1Pip&&O11A1Pip.onExit&&O11A1Pip.onExit('expand')")
+  }
+
+  fileprivate func pipDidStop(_ id: String, restore: Bool, byApp: Bool) {
+    DispatchQueue.main.async {
+      if let slot = self.slots[id] {
+        slot.pipActive = false
+        slot.view.alpha = 1
+      }
+      self.setPipActiveCache(false)
+      if byApp { return }
+      if restore { return }
+      /* The PiP window's close button is a real stop, not a temporary hide.
+         Pause natively as well so audio cannot keep running if the WebView is
+         suspended while the app is in the background. */
+      if let slot = self.slots[id] {
+        slot.player.pause()
+        slot.audioPlayer.pause()
+      }
+      self.evaluateInPage("window.O11A1Pip&&O11A1Pip.onExit&&O11A1Pip.onExit('close')")
+    }
+  }
+
+  fileprivate func pipDidFail(_ id: String, error: Error) {
+    NSLog("[O11A1] PiP failed %@", String(describing: error))
+    DispatchQueue.main.async {
+      if let slot = self.slots[id] {
+        slot.pipActive = false
+        slot.view.alpha = 1
+      }
+      self.setPipActiveCache(false)
+      self.evaluateInPage("window.O11A1Pip&&O11A1Pip.onFail&&O11A1Pip.onFail()")
     }
   }
 
@@ -975,6 +1159,9 @@ final class O11A1PlayerHost {
             slot.playing = false
             self.emit(slot, "pause", self.timePayload(slot))
           }
+          /* The PiP window controls AVPlayer directly; keep the separate DASH
+             audio player in lockstep when the system pauses the video. */
+          slot.audioPlayer.pause()
         case .waitingToPlayAtSpecifiedRate:
           self.emit(slot, "waiting", self.timePayload(slot))
         @unknown default:

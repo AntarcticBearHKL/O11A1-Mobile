@@ -60,7 +60,7 @@
   }
   window.O11A1Native = {
     available: function () { return true; },
-    version: function () { return '0.4.85-ios'; },
+    version: function () { return '0.4.86-ios'; },
     popular: function (page, ps) { return call('popular', { page: page, ps: ps }); },
     recommend: function (page, ps, fresh) { return call('recommend', { page: page, ps: ps, fresh: fresh }); },
     search: function (keyword, page) { return call('search', { keyword: keyword, page: page }); },
@@ -107,6 +107,10 @@
     dashAsync: function (bvid, cid, qn) { return callAsync('dash', { bvid: bvid, cid: cid, qn: qn }); },
     videoInfoAsync: function (bvid) { return callAsync('videoInfo', { bvid: bvid }); },
     account: function () { return call('account', {}); },
+    pipAvailable: function () { return call('pipAvailable', {}); },
+    pipStart: function (slot) { return call('pipStart', { slot: slot || 'main' }); },
+    pipStop: function (slot) { return call('pipStop', { slot: slot || 'main' }); },
+    pipState: function (slot) { return call('pipState', { slot: slot || 'main' }); },
     favorites: function (page) { return call('favorites', { page: page }); },
     history: function (page, cursor) { return call('history', { page: page, cursor: cursor }); },
     following: function (page) { return call('following', { page: page }); },

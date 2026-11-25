@@ -2,7 +2,7 @@
   "expo": {
     "name": "O11A1",
     "slug": "o11a1-video-lab",
-    "version": "0.4.85",
+    "version": "0.4.86",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -24,7 +24,7 @@
         "UIFileSharingEnabled": true,
         "LSSupportsOpeningDocumentsInPlace": true
       },
-      "buildNumber": "103"
+      "buildNumber": "104"
     },
     "android": {
       "package": "com.o11a1.videotest",
@@ -36,7 +36,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "versionCode": 103
+      "versionCode": 104
     },
     "web": {
       "favicon": "./assets/favicon.png"

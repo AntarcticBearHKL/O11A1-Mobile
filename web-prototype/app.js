@@ -284,6 +284,9 @@
     miniVisible: false,
     playing: false,
     locked: false,
+    pipActive: false,
+    pipPending: false,
+    pipSupported: null,
     playerLandscape: false,
     playerLandscapeDir: 0,
     progress: 0,
@@ -393,6 +396,7 @@
   let playerOpenWindowTimer = null;
   let playerMediaOpenTimer = null;
   let playerMediaOpenToken = 0;
+  let pipStartWatchdog = 0;
   let playerPrefetchTimer = null;
   let playerCollapseAnim = null;
   let playerCollapseRadiusAnim = null;
@@ -4321,6 +4325,16 @@
 
   function openPlayer(options = {}) {
     endPlayerDragSnapshot();
+    if (state.pipActive || state.pipPending) {
+      clearTimeout(pipStartWatchdog);
+      state.pipActive = false;
+      state.pipPending = false;
+      const native = pipBridge();
+      if (native && typeof native.pipStop === 'function') {
+        try { native.pipStop('main'); } catch (_) {}
+      }
+      resetPlayerPipStyles();
+    }
     const origin = pendingPlayerOrigin;
     pendingPlayerOrigin = null;
     if (!state.loggedIn) {
@@ -4502,8 +4516,165 @@
     player.classList.remove('dropping');
   }
 
-  function closePlayerFromDrop(direction, fromY, scale) {
+  /* ---------- system picture in picture ---------- */
+
+  function pipBridge() {
+    const native = window.O11A1Native;
+    return native && typeof native.pipStart === 'function' ? native : null;
+  }
+
+  function pipSupported() {
+    if (state.pipSupported !== null) return state.pipSupported;
+    const native = pipBridge();
+    if (!native || (typeof native.pipAvailable !== 'function')) {
+      state.pipSupported = false;
+      return false;
+    }
+    try {
+      const result = JSON.parse(native.pipAvailable());
+      state.pipSupported = Boolean(result && result.ok);
+    } catch (_) {
+      state.pipSupported = false;
+    }
+    return state.pipSupported;
+  }
+
+  function pipStartRequest() {
+    const native = pipBridge();
+    if (!native) return { ok: false };
+    try {
+      return JSON.parse(native.pipStart('main')) || { ok: false };
+    } catch (_) {
+      return { ok: false };
+    }
+  }
+
+  function resetPlayerPipStyles() {
+    player.classList.remove('pip-starting', 'pip-hidden', 'pip-restoring');
+    player.style.transition = '';
+    player.style.opacity = '';
+    player.style.pointerEvents = '';
+  }
+
+  function pipEnter() {
+    if (!state.playerOpen || state.pipActive || state.pipPending) return false;
+    if (!state.playing || !pipSupported()) return false;
+    /* Ask the native player first. iOS starts its own transition from the
+       AVPlayerLayer, Android switches to the full-bleed video and asks the
+       system to enter PiP; only then does the web card need to fade away. */
+    state.pipPending = true;
+    const result = pipStartRequest();
+    if (!result || result.ok !== true) {
+      state.pipPending = false;
+      return false;
+    }
+    player.classList.remove('ui-hidden');
+    player.classList.add('pip-starting');
+    clearTimeout(hideTimer);
+    resetComments();
+    player.style.pointerEvents = 'none';
+    player.style.transition = 'opacity .24s ease';
+    player.style.opacity = '0';
+    clearTimeout(pipStartWatchdog);
+    pipStartWatchdog = setTimeout(() => {
+      if (state.pipActive || !state.pipPending) return;
+      pipFail();
+    }, 2600);
+    return true;
+  }
+
+  function pipStarted() {
+    clearTimeout(pipStartWatchdog);
+    if (!state.pipPending && !state.pipActive) return;
+    if (state.pipActive) return;
+    state.pipPending = false;
+    state.pipActive = true;
+    state.playerOpen = false;
+    state.miniVisible = false;
+    state.locked = false;
+    clearTimeout(hideTimer);
+    app.classList.remove('player-open', 'player-opening');
+    player.classList.remove('open', 'pip-starting');
+    player.classList.add('pip-hidden');
+    player.setAttribute('aria-hidden', 'true');
+    player.inert = true;
+    player.style.transition = 'none';
+    player.style.opacity = '0';
+    player.style.pointerEvents = 'none';
+    stopGyro();
+    if (typeof updateDebugHud === 'function') updateDebugHud();
+    syncStatusBarStyle();
+  }
+
+  function pipExited(reason) {
+    clearTimeout(pipStartWatchdog);
+    const wasActive = state.pipActive || state.pipPending;
+    state.pipActive = false;
+    state.pipPending = false;
+    if (!wasActive) return;
+    if (reason === 'expand') {
+      state.playerOpen = true;
+      state.miniVisible = false;
+      player.classList.remove('pip-hidden', 'pip-starting');
+      player.classList.add('open', 'pip-restoring');
+      player.setAttribute('aria-hidden', 'false');
+      player.inert = false;
+      app.classList.add('player-open');
+      player.style.transition = 'opacity .2s ease';
+      player.style.pointerEvents = '';
+      requestAnimationFrame(() => {
+        if (!state.playerOpen) return;
+        player.style.opacity = '';
+        setPlayIcon(state.playing);
+        updatePlayerLabels();
+        startGyro();
+        if (typeof updateDebugHud === 'function') updateDebugHud();
+        syncStatusBarStyle();
+      });
+      setTimeout(() => {
+        player.classList.remove('pip-restoring');
+        player.style.transition = '';
+      }, 460);
+      return;
+    }
+    resetPlayerPipStyles();
+    stopPlayback();
+  }
+
+  function pipFail() {
+    clearTimeout(pipStartWatchdog);
+    if (!state.pipPending) return;
+    state.pipPending = false;
+    resetPlayerPipStyles();
+    /* PiP could not start (unsupported controller, background restriction,
+       native player released). Fall back to the normal close animation. */
+    if (state.playerOpen) closePlayerFromDrop(0, 0, 1, { noPip: true });
+  }
+
+  window.O11A1Pip = {
+    onStart: () => pipStarted(),
+    onExit: (reason) => pipExited(reason === 'expand' ? 'expand' : 'close'),
+    onFail: () => pipFail(),
+  };
+
+  function syncPipState() {
+    if (!state.pipActive) return;
+    const native = pipBridge();
+    if (!native || typeof native.pipState !== 'function') return;
+    try {
+      const result = JSON.parse(native.pipState('main'));
+      if (result && result.active === false) pipExited('close');
+    } catch (_) {}
+  }
+
+  window.addEventListener('focus', syncPipState);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) syncPipState();
+  });
+
+  function closePlayerFromDrop(direction, fromY, scale, options = {}) {
     if (!state.playerOpen) return;
+    if (!options.noPip && direction === 0 && state.playing && pipEnter()) return;
     holdNativePageChrome();
     app.classList.add('player-dragging');
     keepPlayerWindowHole(760);
@@ -4575,6 +4746,16 @@
   }
 
   function stopPlayback() {
+    clearTimeout(pipStartWatchdog);
+    if (state.pipActive || state.pipPending) {
+      state.pipActive = false;
+      state.pipPending = false;
+      const native = pipBridge();
+      if (native && typeof native.pipStop === 'function') {
+        try { native.pipStop('main'); } catch (_) {}
+      }
+    }
+    resetPlayerPipStyles();
     playerMediaOpenToken += 1;
     clearTimeout(playerMediaOpenTimer);
     playerMediaOpenTimer = null;

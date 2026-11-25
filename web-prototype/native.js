@@ -584,7 +584,7 @@
   }
 
   function prewarmPreviewItems(items) {
-    if (!items || !items.length || state.playerOpen || state.miniVisible) return;
+    if (!items || !items.length || state.playerOpen || state.pipActive || state.miniVisible) return;
     if (typeof bridge.prewarmPreviews !== 'function') return;
     const rows = [];
     for (let index = 0; index < items.length && rows.length < 3; index += 1) {
@@ -990,7 +990,7 @@
   }
 
   function preloadPreviewNeighbor(feed, row) {
-    if (!feed || !row || state.playerOpen || state.miniVisible || previewRow !== row) return;
+    if (!feed || !row || state.playerOpen || state.pipActive || state.miniVisible || previewRow !== row) return;
     if (preloadVideo || previewCommitTimer) return;
     const rows = $$('.feed-item:not(.feed-skeleton)', feed);
     const index = rows.indexOf(row);
@@ -1008,7 +1008,7 @@
     const attempt = () => {
       previewCommitTimer = null;
       const view = feedViewport(feed);
-      if (!view.isActive || state.playerOpen || state.miniVisible) {
+      if (!view.isActive || state.playerOpen || state.pipActive || state.miniVisible) {
         stopPreviewPreload();
         return;
       }
@@ -1381,6 +1381,7 @@
     if (previewRow && !document.contains(previewRow)) stopFeedPreview();
     const view = feedViewport(feed);
     const paused = state.playerOpen
+      || state.pipActive
       || state.miniVisible
       || host.app.classList.contains('sidebar-open')
       || state.page === 'playlist'
@@ -1532,7 +1533,7 @@
   }
 
   setInterval(() => {
-    if (document.hidden || state.playerOpen || state.miniVisible) return;
+    if (document.hidden || state.playerOpen || state.pipActive || state.miniVisible) return;
     const feed = state.page === 'home'
       ? feeds.home
       : state.page === 'module'
@@ -1666,7 +1667,7 @@
     const win = windows[feedKey(feed)];
     const view = feedViewport(feed);
     if (!fw || !win || !view.isActive || !view.scroll || !win.hasMore || win.loading) return;
-    if (state.playerOpen) return;
+    if (state.playerOpen || state.pipActive) return;
     if (fw.queue.length >= FEED_BLOCK_SIZE) return;
     if (view.scroll.scrollTop + view.scroll.clientHeight
       < view.scroll.scrollHeight - FEED_PREFETCH) return;
@@ -1746,7 +1747,7 @@
     clearTimeout(fw.fillTimer);
     fw.fillTimer = setTimeout(() => {
       fw.fillTimer = null;
-      if (state.playerOpen) return;
+      if (state.playerOpen || state.pipActive) return;
       const win = windows[feedKey(feed)];
       const view = feedViewport(feed);
       if (!win || !view.isActive || !win.hasMore || win.loading) return;
@@ -4271,7 +4272,7 @@
     if (!item) return;
     const key = videoCacheKey(item);
     const alive = () => token === videoPrefetchToken
-      && (state.playerOpen || state.miniVisible)
+      && (state.playerOpen || state.pipActive || state.miniVisible)
       && videoCacheKey(currentItem()) === key;
     videoPrefetchTimers.push(setTimeout(() => {
       if (alive()) readVideoInfo(item);
@@ -4324,7 +4325,7 @@
   }
 
   function preloadGate() {
-    if (!state.playerOpen) return { allowed: true, gap: PRELOAD_IDLE_GAP };
+    if (!state.playerOpen && !state.pipActive) return { allowed: true, gap: PRELOAD_IDLE_GAP };
     const el = $('#realVideo');
     if (!el || el.readyState < 3 || playerVideo.classList.contains('video-loading')) {
       return { allowed: false, gap: 2000 };

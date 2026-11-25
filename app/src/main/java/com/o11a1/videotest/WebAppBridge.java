@@ -6,6 +6,7 @@ import android.content.ClipboardManager;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.media.AudioManager;
 import android.net.Uri;
@@ -130,7 +131,7 @@ final class WebAppBridge {
 
     @JavascriptInterface
     public String nativePlayerRect(String slot, double x, double y, double width, double height,
-                                   boolean visible, double rotation) {
+                                   boolean visible, double rotation, String aspect) {
         JSONObject out = new JSONObject();
         try {
             NativePlayerHost players = nativePlayers;
@@ -500,6 +501,67 @@ final class WebAppBridge {
                 }
             });
             out.put("ok", true);
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out.toString();
+    }
+
+    @JavascriptInterface
+    public String pipAvailable() {
+        JSONObject out = new JSONObject();
+        try {
+            boolean ok = Build.VERSION.SDK_INT >= 26
+                && activity.getPackageManager().hasSystemFeature(
+                    PackageManager.FEATURE_PICTURE_IN_PICTURE);
+            out.put("ok", ok);
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out.toString();
+    }
+
+    @JavascriptInterface
+    public String pipStart(String slot) {
+        final String[] result = {"{\"ok\":false}"};
+        try {
+            if (activity instanceof MainActivity) {
+                CountDownLatch latch = new CountDownLatch(1);
+                final String target = slot == null || slot.isEmpty() ? "main" : slot;
+                activity.runOnUiThread(() -> {
+                    try {
+                        result[0] = ((MainActivity) activity).enterPipFromPlayer(target);
+                    } finally {
+                        latch.countDown();
+                    }
+                });
+                latch.await(2, TimeUnit.SECONDS);
+            }
+        } catch (Throwable error) {
+            result[0] = error(error).toString();
+        }
+        return result[0];
+    }
+
+    @JavascriptInterface
+    public String pipStop(String slot) {
+        JSONObject out = new JSONObject();
+        try {
+            /* Android has no public "leave PiP" call; the system expands or
+               dismisses the window. Report the current state instead. */
+            out.put("ok", Build.VERSION.SDK_INT >= 26 && activity.isInPictureInPictureMode());
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out.toString();
+    }
+
+    @JavascriptInterface
+    public String pipState(String slot) {
+        JSONObject out = new JSONObject();
+        try {
+            out.put("ok", true);
+            out.put("active", Build.VERSION.SDK_INT >= 26 && activity.isInPictureInPictureMode());
         } catch (Throwable error) {
             out = error(error);
         }

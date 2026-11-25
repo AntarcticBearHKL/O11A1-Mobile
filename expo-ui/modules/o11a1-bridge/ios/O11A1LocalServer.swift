@@ -488,6 +488,19 @@ final class O11A1LocalServer {
       data = o11a1Data(["ok": true])
     case "mediaStats":
       data = o11a1Data(O11A1PlayerHost.shared.stats(slot: query["slot"] ?? "main"))
+    case "pipAvailable":
+      data = o11a1Data(["ok": O11A1PlayerHost.shared.pipAvailable()])
+    case "pipStart":
+      let started = O11A1PlayerHost.shared.startPip(slot: query["slot"] ?? "main")
+      data = o11a1Data(["ok": started])
+    case "pipStop":
+      let stopped = O11A1PlayerHost.shared.stopPip(slot: query["slot"] ?? "main")
+      data = o11a1Data(["ok": stopped])
+    case "pipState":
+      data = o11a1Data([
+        "ok": true,
+        "active": O11A1PlayerHost.shared.isPipActive(slot: query["slot"] ?? "main")
+      ])
     case "displayHz":
       data = o11a1Data([
         "ok": true,

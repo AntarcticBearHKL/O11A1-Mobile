@@ -1571,6 +1571,8 @@ body.grid .grid-overlay{display:block}
   opacity:0!important;transition:none!important;
 }
 .player.dragging{animation:none!important;transition:none!important}
+.player.pip-starting{animation:none!important;pointer-events:none!important}
+.player.pip-restoring.open{animation:none!important}
 .player.collapsing{
   animation:none!important;
   transition:transform .3s cubic-bezier(.4,0,.2,1),opacity .28s ease;

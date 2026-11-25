@@ -2,12 +2,17 @@ package com.o11a1.videotest;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.PictureInPictureParams;
 import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
+import android.util.Rational;
 import android.view.Display;
 import android.view.View;
 import android.view.WindowManager;
@@ -18,10 +23,15 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
+import org.json.JSONObject;
+
 /** Full-screen V2 UI (bundled web design) with a native Bilibili bridge. */
 public final class MainActivity extends Activity {
     private static final String TAG = "O11A1App";
     private WebView webView;
+    private FrameLayout root;
+    private boolean pipExitPending;
+    private boolean isResumed;
     private CookieStore cookieStore;
     private NativePlayerHost nativePlayers;
 
@@ -104,22 +114,116 @@ public final class MainActivity extends Activity {
             }
         });
 
-        FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.TRANSPARENT);
-        root.addView(nativePlayers.backgroundView(), new FrameLayout.LayoutParams(
+        FrameLayout stage = new FrameLayout(this);
+        root = stage;
+        stage.setBackgroundColor(Color.TRANSPARENT);
+        stage.addView(nativePlayers.backgroundView(), new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT));
-        root.addView(webView, new FrameLayout.LayoutParams(
+        stage.addView(webView, new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT));
-        root.addView(nativePlayers.overlayView(), new FrameLayout.LayoutParams(
+        stage.addView(nativePlayers.overlayView(), new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT));
-        setContentView(root);
-        webView.loadUrl("file:///android_asset/web/index.html?v=331");
+        setContentView(stage);
+        webView.loadUrl("file:///android_asset/web/index.html?v=" + appVersion);
         Thread warm = new Thread(() -> cookies.ensureBuvid(), "o11a1-buvid");
         warm.setDaemon(true);
         warm.start();
+    }
+
+    String enterPipFromPlayer(String slotId) {
+        JSONObject out = new JSONObject();
+        try {
+            if (Build.VERSION.SDK_INT < 26) {
+                out.put("ok", false);
+                return out.toString();
+            }
+            if (isInPictureInPictureMode()) {
+                out.put("ok", true);
+                return out.toString();
+            }
+            NativePlayerHost.PipInfo info = nativePlayers.pipInfo(slotId);
+            Log.i(TAG, "enterPiP info=" + (info != null)
+                + " resumed=" + isResumed
+                + " inPip=" + isInPictureInPictureMode());
+            if (info == null || !info.playing) {
+                out.put("ok", false);
+                return out.toString();
+            }
+            int width = Math.max(1, info.width);
+            int height = Math.max(1, info.height);
+            double ratio = (double) width / height;
+            if (ratio > 2.39) width = (int) Math.round(height * 2.39);
+            else if (ratio < 1.0 / 2.39) height = (int) Math.round(width * 2.39);
+
+            /* Full-bleed the native video before the system captures the
+               transition, so the PiP window never shows the feed UI. */
+            nativePlayers.setPipMode(true);
+            if (webView != null) webView.setVisibility(View.INVISIBLE);
+            if (root != null) root.setBackgroundColor(Color.BLACK);
+
+            PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder()
+                .setAspectRatio(new Rational(width, height))
+                .setSourceRectHint(info.rect);
+            if (Build.VERSION.SDK_INT >= 31) builder.setSeamlessResizeEnabled(true);
+            boolean entered = enterPictureInPictureMode(builder.build());
+            Log.i(TAG, "enterPictureInPictureMode result=" + entered);
+            if (!entered) {
+                nativePlayers.setPipMode(false);
+                if (webView != null) webView.setVisibility(View.VISIBLE);
+                if (root != null) root.setBackgroundColor(Color.TRANSPARENT);
+            }
+            out.put("ok", entered);
+        } catch (Throwable error) {
+            Log.w(TAG, "enter PiP failed", error);
+            try { out.put("ok", false); } catch (Throwable ignored) {}
+            nativePlayers.setPipMode(false);
+            if (webView != null) webView.setVisibility(View.VISIBLE);
+            if (root != null) root.setBackgroundColor(Color.TRANSPARENT);
+        }
+        return out.toString();
+    }
+
+    private void notifyPip(String event, String reason) {
+        WebView view = webView;
+        if (view == null) return;
+        String javascript;
+        if ("start".equals(event)) {
+            javascript = "window.O11A1Pip&&O11A1Pip.onStart&&O11A1Pip.onStart()";
+        } else if ("fail".equals(event)) {
+            javascript = "window.O11A1Pip&&O11A1Pip.onFail&&O11A1Pip.onFail()";
+        } else {
+            javascript = "window.O11A1Pip&&O11A1Pip.onExit&&O11A1Pip.onExit('" + reason + "')";
+        }
+        view.post(() -> {
+            try { view.evaluateJavascript(javascript, null); } catch (Throwable ignored) {}
+        });
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(boolean inPip, Configuration configuration) {
+        super.onPictureInPictureModeChanged(inPip, configuration);
+        if (inPip) {
+            pipExitPending = false;
+            if (webView != null) webView.setVisibility(View.INVISIBLE);
+            if (root != null) root.setBackgroundColor(Color.BLACK);
+            nativePlayers.setPipMode(true);
+            notifyPip("start", null);
+            return;
+        }
+        if (webView != null) webView.setVisibility(View.VISIBLE);
+        if (root != null) root.setBackgroundColor(Color.TRANSPARENT);
+        nativePlayers.setPipMode(false);
+        /* Expand brings the activity back through onResume; dismissing the PiP
+           window stops it through onStop. Decide after the transition. */
+        pipExitPending = true;
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (!pipExitPending) return;
+            pipExitPending = false;
+            notifyPip("exit", isResumed ? "expand" : "close");
+        }, 400);
     }
 
     private void applyMaxRefreshRate() {
@@ -188,16 +292,32 @@ public final class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        isResumed = true;
         if (cookieStore != null) cookieStore.reload();
         applyMaxRefreshRate();
         hideSystemUi();
         if (webView != null) webView.onResume();
+        if (pipExitPending) {
+            pipExitPending = false;
+            notifyPip("exit", "expand");
+        }
     }
 
     @Override
     protected void onPause() {
+        isResumed = false;
         if (webView != null) webView.onPause();
         super.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        if (pipExitPending) {
+            pipExitPending = false;
+            nativePlayers.stopMain();
+            notifyPip("exit", "close");
+        }
+        super.onStop();
     }
 
     @Override

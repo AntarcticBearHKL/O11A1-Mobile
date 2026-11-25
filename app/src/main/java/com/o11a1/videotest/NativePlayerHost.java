@@ -2,6 +2,7 @@ package com.o11a1.videotest;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.os.Handler;
 import android.os.Looper;
@@ -60,6 +61,21 @@ final class NativePlayerHost {
     private final OkHttpClient http;
     private final Map<String, Slot> slots = new ConcurrentHashMap<>();
     private final Runnable ticker = this::tick;
+    private volatile boolean pipMode;
+
+    static final class PipInfo {
+        final int width;
+        final int height;
+        final Rect rect;
+        final boolean playing;
+
+        PipInfo(int width, int height, Rect rect, boolean playing) {
+            this.width = width;
+            this.height = height;
+            this.rect = rect;
+            this.playing = playing;
+        }
+    }
 
     NativePlayerHost(Context context, CookieStore cookies, Emitter emitter) {
         this.context = context.getApplicationContext();
@@ -89,6 +105,111 @@ final class NativePlayerHost {
 
     View overlayView() {
         return overlayLayer;
+    }
+
+    PipInfo pipInfo(String slotId) {
+        Slot slot = slots.get(slotId);
+        if (slot == null || slot.view == null) {
+            Log.i(TAG, "pipInfo " + slotId + " slot missing");
+            return null;
+        }
+        if (!slot.view.isShown() || slot.view.getVisibility() != View.VISIBLE || slot.player == null) {
+            Log.i(TAG, "pipInfo " + slotId + " hidden shown=" + slot.view.isShown()
+                + " vis=" + slot.view.getVisibility()
+                + " player=" + (slot.player != null)
+                + " size=" + slot.view.getWidth() + "x" + slot.view.getHeight()
+                + " parent=" + (slot.view.getParent() != null));
+            return null;
+        }
+        if (!slot.player.isPlaying() && !slot.player.getPlayWhenReady()) {
+            Log.i(TAG, "pipInfo " + slotId + " player not playing");
+            return null;
+        }
+        Rect viewRect = new Rect();
+        if (!slot.view.getGlobalVisibleRect(viewRect)) {
+            Log.i(TAG, "pipInfo " + slotId + " no visible rect");
+            return null;
+        }
+        if (viewRect.width() < 2 || viewRect.height() < 2) {
+            Log.i(TAG, "pipInfo " + slotId + " tiny rect " + viewRect);
+            return null;
+        }
+        int width = slot.videoWidth > 0 ? slot.videoWidth : viewRect.width();
+        int height = slot.videoHeight > 0 ? slot.videoHeight : viewRect.height();
+        Rect displayRect = fitVideoRect(viewRect, slot.videoWidth, slot.videoHeight);
+        Log.i(TAG, "pipInfo " + slotId + " ok view=" + viewRect + " videoRect=" + displayRect
+            + " video=" + slot.videoWidth + "x" + slot.videoHeight);
+        return new PipInfo(width, height, displayRect, true);
+    }
+
+    private static Rect fitVideoRect(Rect viewRect, int videoWidth, int videoHeight) {
+        Rect out = new Rect(viewRect);
+        if (videoWidth <= 0 || videoHeight <= 0) return out;
+        float ratio = (float) videoWidth / (float) videoHeight;
+        int width = viewRect.width();
+        int height = Math.round(width / ratio);
+        if (height > viewRect.height()) {
+            height = viewRect.height();
+            width = Math.round(height * ratio);
+        }
+        int left = viewRect.left + (viewRect.width() - width) / 2;
+        int top = viewRect.top + (viewRect.height() - height) / 2;
+        out.set(left, top, left + width, top + height);
+        return out;
+    }
+
+    void setPipMode(boolean on) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            applyPipMode(on);
+        } else {
+            main.post(() -> applyPipMode(on));
+        }
+    }
+
+    void stopMain() {
+        main.post(() -> {
+            Slot slot = slots.get("main");
+            if (slot == null) return;
+            try {
+                slot.player.setPlayWhenReady(false);
+                slot.player.stop();
+            } catch (Throwable ignored) {}
+        });
+    }
+
+    private void applyPipMode(boolean on) {
+        if (pipMode == on) return;
+        pipMode = on;
+        Slot mainSlot = slots.get("main");
+        for (Slot slot : slots.values()) {
+            if (slot != mainSlot) {
+                slot.view.setVisibility(on ? View.GONE
+                    : (slot.visible ? View.VISIBLE : View.GONE));
+                continue;
+            }
+            if (on) {
+                slot.pipSavedX = slot.view.getX();
+                slot.pipSavedY = slot.view.getY();
+                slot.pipSavedW = slot.view.getWidth();
+                slot.pipSavedH = slot.view.getHeight();
+                FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT);
+                slot.view.setLayoutParams(lp);
+                slot.view.setX(0f);
+                slot.view.setY(0f);
+                slot.view.setBackgroundColor(Color.BLACK);
+                slot.view.setVisibility(View.VISIBLE);
+                overlayLayer.bringChildToFront(slot.view);
+            } else {
+                FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                    Math.max(2, slot.pipSavedW), Math.max(2, slot.pipSavedH));
+                slot.view.setLayoutParams(lp);
+                slot.view.setX(slot.pipSavedX);
+                slot.view.setY(slot.pipSavedY);
+                if (slot.visible) slot.view.setVisibility(View.VISIBLE);
+            }
+        }
     }
 
     void releaseAll() {
@@ -156,6 +277,9 @@ final class NativePlayerHost {
         main.post(() -> {
             Slot slot = slots.get(slotId);
             if (slot == null || slot.view == null) return;
+            /* While PiP owns the screen the native slot is full-bleed; web rect
+               updates from the hidden player must not shrink or hide it. */
+            if (pipMode) return;
             if (!visible || width < 2f || height < 2f) {
                 if (slot.visible) {
                     slot.visible = false;
@@ -437,6 +561,10 @@ final class NativePlayerHost {
         boolean lastPlaying;
         int videoWidth;
         int videoHeight;
+        float pipSavedX;
+        float pipSavedY;
+        int pipSavedW;
+        int pipSavedH;
 
         Slot(String id) {
             this.id = id;
