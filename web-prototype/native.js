@@ -492,6 +492,7 @@
         renderTimer: null,
         frame: 0,
         scrollTimer: null,
+        previewSettleTimer: null,
         touchActive: false,
         touchActiveAt: 0,
         lastScrollAt: 0,
@@ -507,6 +508,7 @@
       clearTimeout(previous.fillTimer);
       clearTimeout(previous.renderTimer);
       clearTimeout(previous.scrollTimer);
+      clearTimeout(previous.previewSettleTimer);
       if (previous.frame) cancelAnimationFrame(previous.frame);
     }
     feed.__feedWindow = {
@@ -520,6 +522,7 @@
       renderTimer: null,
       frame: 0,
       scrollTimer: null,
+      previewSettleTimer: null,
       touchActive: false,
       touchActiveAt: 0,
       lastScrollAt: 0,
@@ -629,6 +632,8 @@
     renderWindowBlocks(feed);
     scheduleWindowSettle(feed);
     scheduleBufferFill(feed);
+    /* The first screen has no scroll event to end; decide its preview now. */
+    setTimeout(() => updateFeedPreview(feed, true), 80);
   }
 
   function feedViewport(feed) {
@@ -927,9 +932,11 @@
     thumb.appendChild(video);
     video.classList.remove('preview-preload');
     thumb.querySelectorAll('.preview-live, .preview-ring, .preview-progress').forEach((node) => node.remove());
-    previewProgressFill = attachPreviewOverlays(thumb);
+    previewProgressFill = null;
     const reveal = () => {
+      if (previewRow !== row || previewVideo !== video) return;
       thumb.classList.remove('preview-loading');
+      previewProgressFill = attachPreviewOverlays(thumb);
       video.classList.add('show');
       retire();
     };
@@ -937,7 +944,9 @@
     thumb.classList.add('preview-loading');
     try { video.playbackRate = 1; } catch (_) {}
     video.play().catch(() => {});
-    requestAnimationFrame(reveal);
+    requestAnimationFrame(() => {
+      if (video.readyState >= 3 && !video.paused) reveal();
+    });
     prewarmPlayerUrl(row.__nativeItem);
     setTimeout(() => preloadPreviewNeighbor(feed, row), 180);
     setTimeout(retire, 3000);
@@ -1330,7 +1339,7 @@
     } catch (_) {}
   }
 
-  function updateFeedPreview(feed) {
+  function updateFeedPreview(feed, immediate) {
     if (!feed) return;
     if (previewRow && !document.contains(previewRow)) stopFeedPreview();
     const view = feedViewport(feed);
@@ -1349,12 +1358,24 @@
       stopPreviewPreload();
       return;
     }
+    const fw = feedWindowState(feed);
+    /* While a finger/fling is still moving the feed, only the short settle
+       timer decides the preview. This keeps the preview for the row the user
+       actually stops on instead of loading every row crossed on the way. */
+    if (!immediate && Date.now() - (fw.lastScrollAt || 0) < 60) return;
     if (previewVideo && !promotedPreview) setPreviewPlaybackRate(1);
     const row = previewFocusRow(feed, view.scroll);
     if (!row || row === previewRow) {
       previewCandidate = null;
       clearTimeout(previewCandidateTimer);
       previewCandidateTimer = 0;
+      return;
+    }
+    if (immediate) {
+      previewCandidate = null;
+      clearTimeout(previewCandidateTimer);
+      previewCandidateTimer = 0;
+      activatePreviewFocus(feed, row, true);
       return;
     }
     if (row !== previewCandidate) {
@@ -1374,49 +1395,80 @@
     }
   }
 
-  function activatePreviewFocus(feed, row) {
+  function startPreviewNow(feed, row) {
+    const item = row.__nativeItem;
+    if (!item || item.live || !item.bvid) return false;
+    const thumb = row.querySelector('.row-thumb');
+    if (!thumb) return false;
+    const url = previewUrlFor(item);
+    if (!url) {
+      previewCandidate = null;
+      thumb.classList.add('preview-loading');
+      setTimeout(() => updateFeedPreview(feed, true), 160);
+      return true;
+    }
+    prefetchDanmaku(item.cid);
+    /* If this row is already preloading, adopt that element: its network load
+       is in progress, so the preview starts much sooner than a fresh source. */
+    let adopted = null;
+    if (preloadRow === row && preloadVideo) {
+      adopted = preloadVideo;
+      preloadVideo = null;
+      preloadRow = null;
+      preloadReady = false;
+      if (adopted.parentNode) adopted.parentNode.removeChild(adopted);
+      adopted.classList.remove('preview-preload');
+    }
+    if (previewRow && previewRow !== row) stopFeedPreview();
+    stopPreviewPreload();
+    const video = adopted || ensurePreviewVideo();
+    previewRow = row;
+    log('preview html ' + (item.bvid || item.epId || ''));
+    row.classList.add('preview-active');
+    /* The video stays hidden behind the thumbnail (and the spinner marks real
+       loading). The "预览中" badge and the red progress bar only appear once
+       frames are actually playing. */
+    thumb.appendChild(video);
+    previewProgressFill = null;
+    thumb.classList.add('preview-loading');
+    loadPreviewNative(video, item, url, true);
+    const started = () => {
+      if (previewRow !== row || previewVideo !== video) return;
+      thumb.classList.remove('preview-loading');
+      previewProgressFill = attachPreviewOverlays(thumb);
+      video.classList.add('show');
+    };
+    video.addEventListener('playing', started, { once: true });
+    video.currentTime = 0;
+    try { video.playbackRate = 1; } catch (_) {}
+    video.play().catch((error) => log('preview play failed ' + error));
+    prewarmPlayerUrl(item);
+    setTimeout(() => {
+      if (previewRow === row) preloadPreviewNeighbor(feed, row);
+    }, 260);
+    return true;
+  }
+
+  function activatePreviewFocus(feed, row, immediate) {
     const item = row.__nativeItem;
     if (!item || item.live || !item.bvid) {
       previewCandidate = null;
       return;
     }
-    prefetchDanmaku(item.cid);
-    if (!previewVideo && !preloadVideo) {
-      const thumb = row.querySelector('.row-thumb');
-      if (thumb) {
-        const url = previewUrlFor(item);
-        prefetchDanmaku(item.cid);
-        if (!url) {
-          // The play URL is still being warmed by /api/prewarm. Retry shortly
-          // instead of letting this row become a permanently stuck candidate.
-          previewCandidate = null;
-          setTimeout(() => updateFeedPreview(feed), 320);
-          return;
-        }
-        stopPreviewPreload();
-        const video = ensurePreviewVideo();
-        previewRow = row;
-        log('preview html ' + (item.bvid || item.epId || ''));
-        row.classList.add('preview-active');
-        // The video must be in the document before src/play; playing a
-        // detached media element makes WebKit reject it with NotSupportedError.
-        thumb.appendChild(video);
-        loadPreviewNative(video, item, url, true);
-        previewProgressFill = attachPreviewOverlays(thumb);
-        thumb.classList.add('preview-loading');
-        const reveal = () => {
-          thumb.classList.remove('preview-loading');
-          video.classList.add('show');
-        };
-        video.addEventListener('canplay', reveal, { once: true });
-        video.addEventListener('playing', reveal, { once: true });
-        video.currentTime = 0;
-        try { video.playbackRate = 1; } catch (_) {}
-        video.play().catch((error) => log('preview play failed ' + error));
-        prewarmPlayerUrl(item);
-        setTimeout(() => preloadPreviewNeighbor(feed, row), 500);
+    if (immediate) {
+      /* On scroll stop, use a ready neighbour preload when there is one;
+         otherwise switch to the focused row now and show its loading state
+         instead of waiting for a hidden preload to finish. */
+      if (preloadRow === row && preloadVideo && preloadReady && commitPreview(feed, row)) {
         return;
       }
+      previewCandidate = null;
+      startPreviewNow(feed, row);
+      return;
+    }
+    prefetchDanmaku(item.cid);
+    if (!previewVideo && !preloadVideo) {
+      if (startPreviewNow(feed, row)) return;
     }
     if (preloadRow !== row) startPreviewPreload(feed, row);
     schedulePreviewCommit(feed, row);
@@ -1609,8 +1661,16 @@
     // focus row is re-evaluated on the next animation frame now.
     const now = Date.now();
     lastFeedScrollAt = now;
-    feedWindowState(feed).lastScrollAt = now;
+    const fw = feedWindowState(feed);
+    fw.lastScrollAt = now;
     schedulePreviewFocus(feed);
+    /* Decide the preview as soon as the scroll settles, without waiting for
+       the heavier window-settle idle window. */
+    clearTimeout(fw.previewSettleTimer);
+    fw.previewSettleTimer = setTimeout(() => {
+      fw.previewSettleTimer = null;
+      updateFeedPreview(feed, true);
+    }, 60);
     scheduleWindowSettle(feed);
   }
 
@@ -5152,7 +5212,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.52';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.53';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
