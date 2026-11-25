@@ -336,6 +336,18 @@ final class FeedViewController: UIViewController,
     startPreviewIfNeeded()
   }
 
+  func openFirstForTest() {
+    guard !items.isEmpty else {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+        self?.openFirstForTest()
+      }
+      return
+    }
+    let index = min(focusedIndex, items.count - 1)
+    let cell = collectionView.cellForItem(at: IndexPath(item: index, section: 0)) as? VideoCardCell
+    onOpen?(items[index], cell)
+  }
+
   // MARK: - search drag
 
   @objc private func handleSearchPan(_ gesture: UIScreenEdgePanGestureRecognizer) {

@@ -69,6 +69,11 @@ final class RootViewController: UIViewController {
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
     ThemeManager.shared.apply()
+    if ProcessInfo.processInfo.environment["O11A1_TEST_FLOW"] == "player" {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        self?.feed?.openFirstForTest()
+      }
+    }
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
