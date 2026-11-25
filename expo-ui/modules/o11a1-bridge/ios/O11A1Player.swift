@@ -690,8 +690,13 @@ final class O11A1PlayerHost {
       slot.targetAt = now
       slot.visible = true
       slot.view.isHidden = false
+      /* Set bounds and center rather than frame: `frame` is undefined on a
+         rotated view and applying it after the transform makes UIKit treat the
+         size as the rotated bounding box, which collapses the landscape layer
+         to a portrait square. */
       slot.view.transform = .identity
-      slot.view.frame = frame
+      slot.view.bounds = CGRect(origin: .zero, size: frame.size)
+      slot.view.center = CGPoint(x: frame.midX, y: frame.midY)
       if abs(rotation) > 0.5 {
         slot.view.transform = CGAffineTransform(rotationAngle: CGFloat(rotation * .pi / 180))
       }
@@ -730,16 +735,23 @@ final class O11A1PlayerHost {
       guard slot.visible, !slot.view.isHidden,
             let target = slot.targetFrame else { continue }
       let age = now - slot.targetAt
+      var frame = target
       if age > 0.12 {
         slot.rectVelocity = 0
-        slot.view.frame = target
+      } else if age > 0.012, slot.rectVelocity != 0 {
+        let step = max(-10.0, min(10.0, slot.rectVelocity * CGFloat(min(age, 0.05))))
+        frame.origin.y += step
+      } else {
         continue
       }
-      guard age > 0.012, slot.rectVelocity != 0 else { continue }
-      let step = max(-10.0, min(10.0, slot.rectVelocity * CGFloat(min(age, 0.05))))
-      var frame = target
-      frame.origin.y += step
-      slot.view.frame = frame
+      /* Keep the rotation while moving the view; assigning `frame` on a
+         transformed view would reinterpret its size as the rotated bounding
+         box and corrupt the bounds. */
+      let transform = slot.view.transform
+      slot.view.transform = .identity
+      slot.view.bounds = CGRect(origin: .zero, size: frame.size)
+      slot.view.center = CGPoint(x: frame.midX, y: frame.midY)
+      slot.view.transform = transform
     }
   }
 
