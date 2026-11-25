@@ -314,12 +314,16 @@
 
   /* Native UserDefaults is a second copy of the theme choice; it survives a
      changed loopback origin or a cleared WKWebView storage. */
-  const nativeThemeSetting = window.__O11A1_THEME_SETTING__;
-  if (nativeThemeSetting === '浅色' || nativeThemeSetting === '深色' || nativeThemeSetting === '跟随系统') {
-    state.settings.theme = nativeThemeSetting;
-  } else if (!loaded && (window.__O11A1_THEME_FALLBACK__ === 'light'
-    || window.__O11A1_THEME_FALLBACK__ === 'dark')) {
-    state.settings.theme = window.__O11A1_THEME_FALLBACK__ === 'dark' ? '深色' : '浅色';
+  /* Only use the native theme copy when no Web state exists. A valid seeded
+     state (including the theme) is newer and must win over a stale setting. */
+  if (!loaded) {
+    const nativeThemeSetting = window.__O11A1_THEME_SETTING__;
+    if (nativeThemeSetting === '浅色' || nativeThemeSetting === '深色' || nativeThemeSetting === '跟随系统') {
+      state.settings.theme = nativeThemeSetting;
+    } else if (window.__O11A1_THEME_FALLBACK__ === 'light'
+      || window.__O11A1_THEME_FALLBACK__ === 'dark') {
+      state.settings.theme = window.__O11A1_THEME_FALLBACK__ === 'dark' ? '深色' : '浅色';
+    }
   }
   if (loaded?.bgStyleVersion !== 2) {
     state.settings.bgTransparency = 0;
