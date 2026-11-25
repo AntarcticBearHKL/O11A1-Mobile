@@ -622,12 +622,12 @@ final class O11A1PlayerHost {
             timestamp: Double = 0, aspect: String = "") {
     let apply = { [weak self] in
       guard let self = self, let slot = self.slots[id] else { return }
-      /* Landscape always fills the long edge of the screen. An aspect-fit video
-         on a 19.5:9 phone would otherwise sit in a small centered rectangle. */
+      /* The player always shows the whole frame. Landscape no longer forces
+         aspect-fill: the blurred video backdrop fills the letterbox instead. */
       let gravity: AVLayerVideoGravity
       if aspect == "拉伸" {
         gravity = .resize
-      } else if aspect == "裁切" || abs(rotation) > 0.5 {
+      } else if aspect == "裁切" {
         gravity = .resizeAspectFill
       } else {
         gravity = .resizeAspect

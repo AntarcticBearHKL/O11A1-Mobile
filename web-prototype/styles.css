@@ -1928,7 +1928,7 @@ body[data-theme="light"] .grid-progress .grid-cell.on{background:var(--blue,#2F7
 .player.landscape .real-video,
 .player.landscape .player-promoted-video,
 .player.landscape .player-poster-fg,
-.player.landscape .player-drag-snapshot img{object-fit:cover}
+.player.landscape .player-drag-snapshot img{object-fit:contain}
 .player.landscape .player-rotor > .psheet{max-height:76%}
 .seek-ripple{
   position:absolute;top:46%;left:50%;z-index:7;pointer-events:none;
