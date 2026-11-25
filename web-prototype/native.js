@@ -1363,6 +1363,13 @@
        timer decides the preview. This keeps the preview for the row the user
        actually stops on instead of loading every row crossed on the way. */
     if (!immediate && Date.now() - (fw.lastScrollAt || 0) < 60) return;
+    if (immediate) {
+      $$('.row-thumb.preview-loading', feed).forEach((thumb) => {
+        if (!previewRow || thumb !== previewRow.querySelector('.row-thumb')) {
+          thumb.classList.remove('preview-loading');
+        }
+      });
+    }
     if (previewVideo && !promotedPreview) setPreviewPlaybackRate(1);
     const row = previewFocusRow(feed, view.scroll);
     if (!row || row === previewRow) {
