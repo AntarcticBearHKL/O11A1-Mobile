@@ -4867,18 +4867,17 @@
   function moveVideoDetailSwipe(event) {
     const gesture = videoDetailSwipe;
     if (!gesture || event.pointerId !== gesture.pointerId) return;
-    const dx = event.clientX - gesture.startX;
-    const dy = event.clientY - gesture.startY;
+    const local = localPlayerDelta(event.clientX - gesture.startX, event.clientY - gesture.startY);
     if (!gesture.dragging) {
-      const intent = swipeIntent(dx, dy);
+      const intent = swipeIntent(local.x, local.y);
       if (intent !== 'left') return;
       gesture.dragging = true;
-      gesture.base = Math.min(SWIPE_LOCK_PX, -dx);
+      gesture.base = Math.min(SWIPE_LOCK_PX, -local.x);
       suppressDetailClickUntil = Date.now() + 420;
       videoDetailPanel.classList.add('dragging');
     }
     if (event.cancelable) event.preventDefault();
-    gesture.dx = Math.min(0, dx + (gesture.base || 0));
+    gesture.dx = Math.min(0, local.x + (gesture.base || 0));
     videoDetailPanel.style.transform = `translate3d(${gesture.dx}px,0,0)`;
     const width = videoDetailPanel.getBoundingClientRect().width || 1;
     const closed = Math.min(1, Math.max(0, -gesture.dx / width));
@@ -5343,22 +5342,21 @@
   function moveCommentsGesture(event) {
     const gesture = commentsGesture;
     if (!gesture || event.pointerId !== gesture.pointerId) return;
-    const dx = event.clientX - gesture.startX;
-    const dy = event.clientY - gesture.startY;
-    gesture.dx = dx;
+    const local = localPlayerDelta(event.clientX - gesture.startX, event.clientY - gesture.startY);
+    gesture.dx = local.x;
     if (!gesture.moved) {
-      const intent = swipeIntent(dx, dy);
+      const intent = swipeIntent(local.x, local.y);
       if (!intent) return;
       gesture.moved = true;
       if (intent === 'right') {
         gesture.dragging = true;
-        gesture.base = Math.min(SWIPE_LOCK_PX, dx);
+        gesture.base = Math.min(SWIPE_LOCK_PX, local.x);
         commentsPanel.classList.add('dragging');
       }
     }
     if (!gesture.dragging) return;
     const width = commentsPanel.getBoundingClientRect().width || 1;
-    const progress = Math.min(1, Math.max(0, (dx - (gesture.base || 0)) / (width * 0.75)));
+    const progress = Math.min(1, Math.max(0, (local.x - (gesture.base || 0)) / (width * 0.75)));
     commentsPanel.style.transform = `translateX(${progress * 100}%)`;
     setPlayerRecede('right', 1 - progress, { dragging: true });
   }
@@ -5434,16 +5432,15 @@
   function moveSheetSwipe(event) {
     const gesture = sheetSwipe;
     if (!gesture || event.pointerId !== gesture.id) return;
-    const dx = event.clientX - gesture.startX;
-    const dy = event.clientY - gesture.startY;
+    const local = localPlayerDelta(event.clientX - gesture.startX, event.clientY - gesture.startY);
     if (!gesture.dragging) {
-      if (dy < 10 || Math.abs(dy) < Math.abs(dx) * 1.1) return;
+      if (local.y < 10 || Math.abs(local.y) < Math.abs(local.x) * 1.1) return;
       gesture.dragging = true;
       sheetSwipeSuppressClickUntil = Date.now() + 320;
       psheet.style.transition = 'none';
     }
     if (event.cancelable) event.preventDefault();
-    gesture.dy = Math.max(0, dy);
+    gesture.dy = Math.max(0, local.y);
     psheet.style.transform = `translate(-50%, ${gesture.dy}px)`;
     psheetBackdrop.style.opacity = String(Math.max(0, 1 - gesture.dy / 420));
   }
@@ -6861,6 +6858,16 @@
     return null;
   }
 
+  /* The landscape player is a portrait WebView with a rotor rotated 90deg.
+     Pointer deltas arrive in screen space; gestures inside the rotor must use
+     the rotor's local axes or a horizontal finger movement is mistaken for a
+     panel swipe instead of a vertical list scroll. */
+  function localPlayerDelta(dx, dy) {
+    if (!state.playerLandscape) return { x: dx, y: dy };
+    const dir = state.playerLandscapeDir < 0 ? -1 : 1;
+    return { x: dy * dir, y: -dx * dir };
+  }
+
   /* `touch-action: pan-y` lets WebKit take over a vertical scroll before a
      pointermove-based gesture can lock its axis. This capture-phase guard
      claims horizontal touches early so a right swipe with some vertical wobble
@@ -6876,6 +6883,10 @@
 
   function installSwipeGuard(surface) {
     if (!surface) return;
+    /* Panels inside the landscape rotor scroll along the rotated axis. Block
+       only local horizontal drags there, or the axis that scrolls the list
+       would be prevented as if it were a panel-swipe gesture. */
+    const rotated = Boolean(surface.closest && surface.closest('#playerRotor'));
     let guard = null;
     surface.addEventListener('touchstart', (event) => {
       if (event.touches.length !== 1) { guard = null; return; }
@@ -6890,7 +6901,10 @@
       if (!guard || event.touches.length !== 1) return;
       const point = event.touches[0];
       if (!guard.decided) {
-        const intent = guardIntent(point.clientX - guard.x, point.clientY - guard.y);
+        const local = rotated
+          ? localPlayerDelta(point.clientX - guard.x, point.clientY - guard.y)
+          : { x: point.clientX - guard.x, y: point.clientY - guard.y };
+        const intent = guardIntent(local.x, local.y);
         if (!intent) return;
         guard.decided = true;
         guard.horizontal = intent === 'right' || intent === 'left';
