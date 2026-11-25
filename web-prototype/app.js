@@ -408,6 +408,7 @@
   });
   let suppressFeedClickUntil = 0;
   let suppressSidebarClickUntil = 0;
+  let suppressSidebarBackdropUntil = 0;
   let suppressPlaylistClickUntil = 0;
   let suppressDockClickUntil = 0;
   let dockDismissClickUntil = 0;
@@ -3116,7 +3117,8 @@
       };
     } catch (_) {}
     suppressFeedClickUntil = Date.now() + 1200;
-    suppressSidebarClickUntil = Date.now() + 1200;
+    suppressSidebarClickUntil = Date.now() + 180;
+    suppressSidebarBackdropUntil = Date.now() + 1200;
     if (selecting && picked && !cancelled) {
       if (progress < 0.12) {
         closeSidebarFromDrag();
@@ -5040,6 +5042,7 @@
   function endPlayerDragSnapshot() {
     window.__o11a1HideMainVideo = false;
     app.classList.remove('player-dragging');
+    app.style.setProperty('--player-reveal', '0px');
     if (playerDragSnapshot) {
       playerDragSnapshot.remove();
       playerDragSnapshot = null;
@@ -5159,6 +5162,13 @@
       }
       player.style.opacity = '1';
       player.style.borderRadius = `${Math.min(28, dragY * 0.16)}px`;
+      if (!state.playerLandscape) {
+        const height = player.clientHeight || window.innerHeight || 1;
+        const reveal = Math.max(0, Math.min(height, dragY + height * (1 - scale) / 2));
+        app.style.setProperty('--player-reveal', `${reveal.toFixed(1)}px`);
+      } else {
+        app.style.setProperty('--player-reveal', '0px');
+      }
     } else if (gesture.mode === 'horizontal') {
       gesture.horizontal = localX;
       if (Date.now() < panelTransitionGuardUntil) {
@@ -6364,11 +6374,11 @@
   sidebarBackdrop.addEventListener('click', () => {
     try {
       window.__backdropDebug = {
-        at: Date.now(), suppressed: Date.now() < suppressSidebarClickUntil,
-        until: suppressSidebarClickUntil,
+        at: Date.now(), suppressed: Date.now() < suppressSidebarBackdropUntil,
+        until: suppressSidebarBackdropUntil,
       };
     } catch (_) {}
-    if (Date.now() < suppressSidebarClickUntil) return;
+    if (Date.now() < suppressSidebarBackdropUntil) return;
     closeSidebar();
   });
   playlistBack.addEventListener('click', () => closePlaylistPage(true));
@@ -7213,7 +7223,8 @@
 
   function endSidebarCloseDrag(start) {
     if (!start) return;
-    suppressSidebarClickUntil = Date.now() + 360;
+    suppressSidebarClickUntil = Date.now() + 180;
+    suppressSidebarBackdropUntil = Date.now() + 360;
     const vx = performance.now() - (start.lastAt || 0) > 90 ? 0 : (start.vx || 0);
     if (start.progress < 0.78 || vx < -0.32) closeSidebarFromDrag();
     else finishSidebarDrag();
@@ -7264,14 +7275,16 @@
     const dx = event.clientX - start.x;
     const dy = event.clientY - start.y;
     if (dx < -56 && Math.abs(dx) > Math.abs(dy) * 1.4) {
-      suppressSidebarClickUntil = Date.now() + 360;
+      suppressSidebarClickUntil = Date.now() + 180;
+      suppressSidebarBackdropUntil = Date.now() + 360;
       closeSidebarFromDrag();
       return;
     }
     /* A vertical drag that starts on the dimmed backdrop must never fall
        through as a backdrop tap (which would instantly close the menu). */
     if (Math.hypot(dx, dy) > 8) {
-      suppressSidebarClickUntil = Math.max(suppressSidebarClickUntil, Date.now() + 360);
+      suppressSidebarClickUntil = Math.max(suppressSidebarClickUntil, Date.now() + 180);
+      suppressSidebarBackdropUntil = Math.max(suppressSidebarBackdropUntil, Date.now() + 360);
       suppressFeedClickUntil = Math.max(suppressFeedClickUntil, Date.now() + 360);
     }
   });

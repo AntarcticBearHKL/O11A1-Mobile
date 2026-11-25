@@ -1512,9 +1512,15 @@ body.grid .grid-overlay{display:block}
 .app[data-page="search"] .tabbar.many.search-mode{height:58px}
 
 /* ---------- landscape player ---------- */
-/* The player window sits above the feed. Keep the feed painted underneath so
-   dragging/scaling the player reveals the live feed instead of a blank page. */
-.app.player-open .app-main{visibility:visible!important}
+/* The native video is composited behind the WebView. The feed must not paint
+   through the transparent player, otherwise it mixes with the video. Clip the
+   feed to the area above the dragged player; the player itself reveals the
+   native video through its transparent surface. */
+.app.player-open .app-main{
+  visibility:visible!important;
+  clip-path:inset(0 0 calc(100% - var(--player-reveal, 0px)) 0);
+  -webkit-clip-path:inset(0 0 calc(100% - var(--player-reveal, 0px)) 0);
+}
 .player{
   position:fixed;inset:0;z-index:300;display:none;flex-direction:column;
   background:#07090D;color:#fff;overflow:hidden;
