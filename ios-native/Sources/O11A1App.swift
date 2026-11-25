@@ -55,8 +55,6 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
   private var launchFaceTask: URLSessionDataTask?
   private var launchFaceImage: UIImage?
   private var launchHasCredential = false
-  private var launchFlashDone = false
-  private var launchFlashTimer: Timer?
   private var launchTheme = ""
 
   override var prefersStatusBarHidden: Bool { false }
@@ -284,84 +282,134 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
     view.backgroundColor = launchBackground
   }
 
-  private func loadLaunchIdentity() {
+  private var launchFaceCacheURL: URL {
+    let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+    return base.appendingPathComponent("o11a1-launch-face.img")
+  }
+
+  private func cachedLaunchFace(for face: String) -> UIImage? {
+    guard !face.isEmpty else { return nil }
+    let cached = UserDefaults.standard.string(forKey: "o11a1.user.face.cached") ?? ""
+    if cached == face, let image = UIImage(contentsOfFile: launchFaceCacheURL.path) {
+      return image
+    }
+    if let url = URL(string: face),
+       let response = URLCache.shared.cachedResponse(for: URLRequest(url: url)),
+       let image = UIImage(data: response.data) {
+      storeLaunchFace(image, for: face)
+      return image
+    }
+    return nil
+  }
+
+  private func storeLaunchFace(_ image: UIImage, for face: String) {
+    guard !face.isEmpty, let data = image.jpegData(compressionQuality: 0.9) else { return }
+    try? data.write(to: launchFaceCacheURL, options: .atomic)
+    UserDefaults.standard.set(face, forKey: "o11a1.user.face.cached")
+  }
+
+  private func clearLaunchFaceCache() {
+    try? FileManager.default.removeItem(at: launchFaceCacheURL)
+    UserDefaults.standard.removeObject(forKey: "o11a1.user.face.cached")
+  }
+
+  private func launchPrefsSnapshot() -> (loggedIn: Bool?, name: String, face: String) {
     let defaults = UserDefaults.standard
-    let name = defaults.string(forKey: "o11a1.user.name") ?? ""
+    var name = defaults.string(forKey: "o11a1.user.name") ?? ""
+    var face = defaults.string(forKey: "o11a1.user.face") ?? ""
+    var loggedIn: Bool?
+    if let raw = defaults.string(forKey: "o11a1.webPrefs"),
+       let data = raw.data(using: .utf8),
+       let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+      if let flag = object["loggedIn"] as? Bool { loggedIn = flag }
+      if name.isEmpty, let value = object["userName"] as? String { name = value }
+      if face.isEmpty, let value = object["userFace"] as? String { face = value }
+    }
+    return (loggedIn, name, face)
+  }
+
+  private func loadLaunchIdentity() {
+    let snapshot = launchPrefsSnapshot()
+    let name = snapshot.name
     launchName.text = name.isEmpty ? "正在进入" : name
-    let face = defaults.string(forKey: "o11a1.user.face") ?? ""
+    let face = snapshot.face
+    let hasCredential = snapshot.loggedIn ?? (!face.isEmpty || !name.isEmpty)
+    launchHasCredential = hasCredential
     launchFaceTask?.cancel()
     launchFaceTask = nil
-    let hasIdentity = !face.isEmpty || !name.isEmpty
-    launchHasCredential = hasIdentity
-    if launchFlashDone {
-      applyLaunchFace()
-    } else if hasIdentity {
-      /* First stage: a dark avatar while the app/server starts. The saved
-         profile image is revealed by a full-screen flash a moment later. */
+    guard hasCredential else {
       launchFaceImage = nil
-      launchAvatar.image = UIImage(systemName: "person.fill")
-      launchAvatar.tintColor = UIColor(white: 0.16, alpha: 1)
-      launchAvatar.backgroundColor = .black
-    } else {
-      launchAvatar.image = UIImage(systemName: "person.crop.circle.fill")
-      launchAvatar.tintColor = .secondaryLabel
-      launchAvatar.backgroundColor = .secondarySystemBackground
+      launchAvatar.image = nil
+      launchAvatar.tintColor = nil
+      launchAvatar.backgroundColor = .clear
+      return
     }
-    guard !face.isEmpty, let url = URL(string: face) else { return }
+    if let cached = cachedLaunchFace(for: face) {
+      launchFaceImage = cached
+      applyLaunchFace(animated: false)
+    } else {
+      launchFaceImage = nil
+      applyLaunchFace(animated: false)
+      if !face.isEmpty { downloadLaunchFace(face) }
+    }
+  }
+
+  private func downloadLaunchFace(_ face: String) {
+    guard let url = URL(string: face) else { return }
+    launchFaceTask?.cancel()
     launchFaceTask = URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
       guard let self = self, let data = data, let image = UIImage(data: data) else { return }
       DispatchQueue.main.async {
         self.launchFaceImage = image
-        if self.launchFlashDone { self.applyLaunchFace() }
+        self.storeLaunchFace(image, for: face)
+        if self.loadingView != nil { self.applyLaunchFace(animated: true) }
       }
     }
     launchFaceTask?.resume()
   }
 
-  private func applyLaunchFace() {
-    if let image = launchFaceImage {
-      launchAvatar.image = image
-      launchAvatar.tintColor = nil
-      launchAvatar.backgroundColor = .secondarySystemBackground
-    } else if launchHasCredential {
-      launchAvatar.image = UIImage(systemName: "person.fill")
-      launchAvatar.tintColor = .white
-      launchAvatar.backgroundColor = .black
+  private func precacheLaunchFace(_ face: String) {
+    guard !face.isEmpty else {
+      clearLaunchFaceCache()
+      return
     }
+    if cachedLaunchFace(for: face) != nil { return }
+    guard let url = URL(string: face) else { return }
+    URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+      guard let self = self, let data = data, let image = UIImage(data: data) else { return }
+      DispatchQueue.main.async { self.storeLaunchFace(image, for: face) }
+    }.resume()
   }
 
-  private func scheduleLaunchFlash() {
-    guard launchHasCredential, !launchFlashDone else { return }
-    launchFlashTimer?.invalidate()
-    launchFlashTimer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: false) { [weak self] _ in
-      self?.performLaunchFlash()
+  private func applyLaunchFace(animated: Bool = false) {
+    guard launchHasCredential else { return }
+    let update = {
+      if let image = self.launchFaceImage {
+        self.launchAvatar.image = image
+        self.launchAvatar.tintColor = nil
+        self.launchAvatar.backgroundColor = .secondarySystemBackground
+      } else {
+        self.launchAvatar.image = UIImage(systemName: "person.fill")
+        self.launchAvatar.tintColor = .secondaryLabel
+        self.launchAvatar.backgroundColor = .secondarySystemBackground
+      }
     }
-  }
-
-  private func performLaunchFlash() {
-    guard !launchFlashDone, let holder = loadingView else { return }
-    launchFlashDone = true
-    launchFlashTimer?.invalidate()
-    launchFlashTimer = nil
-    let flash = UIView(frame: holder.bounds)
-    flash.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    flash.backgroundColor = .white
-    flash.alpha = 0
-    flash.isUserInteractionEnabled = false
-    holder.addSubview(flash)
-    UIView.animate(withDuration: 0.12, animations: {
-      flash.alpha = 0.94
-    }, completion: { _ in
-      self.applyLaunchFace()
-      UIView.animate(withDuration: 0.3, animations: {
-        flash.alpha = 0
-      }, completion: { _ in
-        flash.removeFromSuperview()
-      })
-    })
+    if animated, launchAvatar.window != nil {
+      UIView.transition(
+        with: launchAvatar,
+        duration: 0.22,
+        options: [.transitionCrossDissolve, .allowUserInteraction],
+        animations: update
+      )
+    } else {
+      update()
+    }
   }
 
   private func showLoading() {
+    loadLaunchIdentity()
+    guard launchHasCredential else { return }
+
     let holder = UIView(frame: view.bounds)
     holder.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     holder.backgroundColor = launchBackground
@@ -407,8 +455,6 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
       progress.centerXAnchor.constraint(equalTo: holder.centerXAnchor),
       progress.widthAnchor.constraint(equalToConstant: 136),
     ])
-    loadLaunchIdentity()
-    if launchHasCredential { scheduleLaunchFlash() }
     view.addSubview(holder)
     loadingView = holder
     applyLaunchChrome()
@@ -422,8 +468,6 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
   private func hideLoading() {
     launchTimer?.invalidate()
     launchTimer = nil
-    launchFlashTimer?.invalidate()
-    launchFlashTimer = nil
     launchFaceTask?.cancel()
     launchFaceTask = nil
     guard let holder = loadingView else { return }
@@ -518,9 +562,14 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
       }
     case "user":
       let defaults = UserDefaults.standard
-      defaults.set(object["face"] as? String ?? "", forKey: "o11a1.user.face")
+      let face = object["face"] as? String ?? ""
+      defaults.set(face, forKey: "o11a1.user.face")
       defaults.set(object["name"] as? String ?? "", forKey: "o11a1.user.name")
-      if loadingView != nil { loadLaunchIdentity() }
+      if loadingView != nil {
+        loadLaunchIdentity()
+      } else {
+        precacheLaunchFace(face)
+      }
     case "theme":
       let theme = object["theme"] as? String == "dark" ? "dark" : "light"
       let setting = object["setting"] as? String ?? ""
