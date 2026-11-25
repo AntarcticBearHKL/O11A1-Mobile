@@ -455,11 +455,19 @@ final class O11A1PlayerHost {
           viaLoader ? "loader" : "direct", durationMs / 1000)
     installItem(slot, item: videoItem, startMs: startMs, autoplay: autoplay)
     let seq = slot.seq
-    let dashDeadline = viaLoader ? 10.0 : ((slot.dashPromoted || slot.muted) ? 6.0 : 5.0)
+    let dashDeadline = viaLoader ? 10.0 : 2.5
     DispatchQueue.main.asyncAfter(deadline: .now() + dashDeadline) { [weak self, weak slot] in
       guard let self = self, let slot = slot, slot.seq == seq, slot.dashAudio,
             slot.dashViaLoader == viaLoader,
             slot.item?.status != .readyToPlay else { return }
+      /* A raw m4s URL often stays in .loading instead of failing. Retry through
+         the byte-range loader before giving up on DASH (and before the JS
+         falls back to a lower progressive quality). */
+      if !slot.dashViaLoader, !slot.dashRetrying, slot.dashVideoURL != nil {
+        slot.dashRetrying = true
+        self.installDASHLoader(slot)
+        return
+      }
       NSLog("[O11A1] dash timeout %@ via=%@", slot.id, slot.dashViaLoader ? "loader" : "direct")
       slot.audioPlayer.pause()
       self.emit(slot, "error", ["error": "dash timeout"])
