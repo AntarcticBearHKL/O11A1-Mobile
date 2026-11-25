@@ -3364,9 +3364,14 @@
   function loadDash(item, dash, autoplay, requestedQn) {
     destroyDash();
     destroyHls();
-    const target = Number(requestedQn) > 0
+    const requested = Number(requestedQn) > 0
       ? Math.round(Number(requestedQn))
       : qualityQn(state.settings.defaultQuality || state.settings.quality || '最高');
+    /* data.quality is the highest quality the account may actually play for
+       this request. Tracks can still list VIP-only qualities; capping the
+       target avoids picking a URL that will never become ready. */
+    const allowed = Number(dash.quality) || 0;
+    const target = allowed > 0 ? Math.min(requested, allowed) : requested;
     const MediaSourceCtor = window.MediaSource || window.ManagedMediaSource;
     if (!MediaSourceCtor) {
       mediaItem = null;
@@ -5265,7 +5270,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.60';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.61';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

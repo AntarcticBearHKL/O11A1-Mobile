@@ -457,8 +457,11 @@ final class O11A1BiliClient {
   }
 
   func playQuality(bvid: String, cid: Int64, qn: Int) -> Data {
-    let target = qn <= 0 ? 120 : qn
-    return play(bvid: bvid, cid: cid, qns: [target, 120, 116, 112, 80, 74, 64, 32, 16])
+    /* Progressive durl tops out at 1080P; 1080P+/4K are DASH-only. Requesting
+       120 from the durl endpoint makes Bilibili return only 720P, so cap the
+       progressive fallback at 1080P instead. */
+    let target = qn <= 0 ? 80 : min(qn, 80)
+    return play(bvid: bvid, cid: cid, qns: [target, 80, 74, 64, 32, 16])
   }
 
   func playRemote(bvid: String, cid: Int64, qn: Int) -> Data {
@@ -1132,15 +1135,16 @@ final class O11A1BiliClient {
   }
 
   func playPgc(epId: Int64, bvid: String, cid: Int64, qn: Int) -> Data {
+    let target = qn <= 0 ? 80 : min(qn, 80)
     if !bvid.isEmpty && cid > 0 {
-      let normal = play(bvid: bvid, cid: cid, qns: [qn, 64, 32, 16])
+      let normal = play(bvid: bvid, cid: cid, qns: [target, 80, 74, 64, 32, 16])
       if let object = (try? JSONSerialization.jsonObject(with: normal)) as? [String: Any],
          o11a1Bool(object["ok"]) {
         return normal
       }
     }
     guard let payload = json(base: Self.apiBase, path: "/pgc/player/web/playurl", query: [
-      "ep_id": "\(epId)", "qn": "\(qn <= 0 ? 64 : qn)", "fnval": "1", "fourk": "0"
+      "ep_id": "\(epId)", "qn": "\(target)", "fnval": "1", "fourk": "0"
     ]) else { return o11a1Error("番剧播放不可用") }
     let code = o11a1Int(payload["code"])
     guard code == 0, let result = payload["result"] as? [String: Any],
