@@ -60,12 +60,43 @@
   }
   window.O11A1Native = {
     available: function () { return true; },
-    version: function () { return '0.4.67-ios'; },
+    version: function () { return '0.4.68-ios'; },
     popular: function (page, ps) { return call('popular', { page: page, ps: ps }); },
     recommend: function (page, ps, fresh) { return call('recommend', { page: page, ps: ps, fresh: fresh }); },
     search: function (keyword, page) { return call('search', { keyword: keyword, page: page }); },
     searchAsync: function (keyword, page) { return callAsync('search', { keyword: keyword, page: page }); },
-    suggestAsync: function (term) { return callAsync('suggest', { term: term }); },
+    suggestAsync: function (term, signal) {
+      return new Promise(function (resolve, reject) {
+        if (signal && signal.aborted) { reject(new Error('aborted')); return; }
+        var xhr = new XMLHttpRequest();
+        var settled = false;
+        var onAbort = function () {
+          try { xhr.abort(); } catch (_) {}
+          finish(reject, new Error('aborted'));
+        };
+        var cleanup = function () {
+          if (signal && signal.removeEventListener) signal.removeEventListener('abort', onAbort);
+        };
+        var finish = function (fn, value) {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          fn(value);
+        };
+        if (signal && signal.addEventListener) signal.addEventListener('abort', onAbort, { once: true });
+        try {
+          xhr.open('GET', 'http://127.0.0.1:' + PORT + '/api/suggest?term=' + encodeURIComponent(String(term || '')), true);
+          xhr.onload = function () {
+            if (xhr.status >= 200 && xhr.status < 400) finish(resolve, xhr.responseText || '{}');
+            else finish(reject, new Error('HTTP ' + xhr.status));
+          };
+          xhr.onerror = function () { finish(reject, new Error('network')); };
+          xhr.send(null);
+        } catch (error) {
+          finish(reject, error);
+        }
+      });
+    },
     play: function (bvid, cid) { return call('play', { bvid: bvid, cid: cid }); },
     playLow: function (bvid, cid) { return call('playLow', { bvid: bvid, cid: cid }); },
     previewUrlCached: function (bvid, cid) { return call('previewCached', { bvid: bvid, cid: cid }); },

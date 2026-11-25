@@ -6016,8 +6016,10 @@
   const suggestPending = new Map();
   let suggestToken = 0;
   let suggestTimer = 0;
+  let suggestAbort = null;
+  let lastSuggestQuery = '';
 
-  function fetchSuggestions(query) {
+  function fetchSuggestions(query, signal) {
     const q = String(query || '').trim();
     if (!q) return Promise.resolve([]);
     const cached = suggestCache.get(q);
@@ -6026,7 +6028,7 @@
     if (pending) return pending;
     const bridge = window.O11A1Native;
     if (!bridge || typeof bridge.suggestAsync !== 'function') return Promise.resolve([]);
-    const request = bridge.suggestAsync(q).then((raw) => {
+    const request = bridge.suggestAsync(q, signal).then((raw) => {
       let result = {};
       try { result = JSON.parse(raw); } catch (_) {}
       const items = Array.isArray(result.items)
@@ -6062,18 +6064,37 @@
     const q = String(query || '').trim();
     const token = ++suggestToken;
     clearTimeout(suggestTimer);
+    if (suggestAbort) {
+      try { suggestAbort.abort(); } catch (_) {}
+      suggestAbort = null;
+    }
     if (!q) {
+      lastSuggestQuery = '';
       searchSuggestList.innerHTML = '';
       return;
     }
-    // Keep the input responsive: the request itself is async, and the list is
-    // only repainted if this is still the latest query.
+    /* Same query (e.g. cursor/IME churn): keep the current list and do not
+       issue another suggestion request. */
+    if (q === lastSuggestQuery) return;
+    lastSuggestQuery = q;
+    const cached = suggestCache.get(q);
+    if (cached) {
+      searchSuggestList.innerHTML = suggestionMarkup(cached);
+      return;
+    }
+    // Keep the input responsive: only ask after the user pauses on a segment.
     suggestTimer = setTimeout(() => {
-      fetchSuggestions(q).then((terms) => {
+      const controller = typeof AbortController === 'function' ? new AbortController() : null;
+      suggestAbort = controller;
+      fetchSuggestions(q, controller ? controller.signal : undefined).then((terms) => {
+        if (controller && suggestAbort !== controller) return;
+        suggestAbort = null;
         if (token !== suggestToken || searchInput.value.trim() !== q) return;
         searchSuggestList.innerHTML = suggestionMarkup(terms);
+      }).catch(() => {
+        if (controller && suggestAbort === controller) suggestAbort = null;
       });
-    }, 90);
+    }, 240);
   }
 
   function updateSearch() {
@@ -6280,7 +6301,19 @@
     updateSearch();
     searchInput.focus();
   });
-  searchInput.addEventListener('input', updateSearch);
+  let searchComposing = false;
+  searchInput.addEventListener('compositionstart', () => {
+    searchComposing = true;
+  });
+  searchInput.addEventListener('compositionend', () => {
+    searchComposing = false;
+    updateSearch();
+  });
+  searchInput.addEventListener('input', (event) => {
+    /* Do not run suggestions against half-composed Pinyin/IME text. */
+    if (searchComposing || event.isComposing) return;
+    updateSearch();
+  });
   searchInput.addEventListener('focus', syncKeyboardOffset);
   searchInput.addEventListener('blur', syncKeyboardOffset);
   if (pdSearchInput) {
@@ -6288,6 +6321,7 @@
     pdSearchInput.addEventListener('blur', syncKeyboardOffset);
   }
   searchInput.addEventListener('keydown', (event) => {
+    if (event.isComposing || searchComposing) return;
     if (event.key === 'Enter') {
       event.preventDefault();
       performSearch(searchInput.value);
