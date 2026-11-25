@@ -961,8 +961,8 @@
       setToolbarHidden(false);
       return;
     }
-    if (delta > 6 && top > 18) setToolbarHidden(true);
-    else if (delta < -6) setToolbarHidden(false);
+    if (delta > 12 && top > 22) setToolbarHidden(true);
+    else if (delta < -8) setToolbarHidden(false);
   }
 
   if (appScroll) appScroll.addEventListener('scroll', handleToolbarScroll, { passive: true });
