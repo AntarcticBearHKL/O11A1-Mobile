@@ -559,6 +559,17 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
         UIScreen.main.brightness = saved
         savedBrightness = nil
       }
+    case "haptic":
+      let style = object["style"] as? String ?? "light"
+      let feedback: UIImpactFeedbackGenerator.FeedbackStyle
+      switch style {
+      case "medium": feedback = .medium
+      case "heavy": feedback = .heavy
+      default: feedback = .light
+      }
+      let generator = UIImpactFeedbackGenerator(style: feedback)
+      generator.prepare()
+      generator.impactOccurred()
     case "launchReady":
       hideLoading()
     case "prefs":

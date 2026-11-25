@@ -801,6 +801,18 @@
     } catch (_) {}
   }
 
+  function triggerHaptic(style = 'light') {
+    try {
+      if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'haptic', style }));
+        return;
+      }
+    } catch (_) {}
+    if (navigator.vibrate) {
+      try { navigator.vibrate(style === 'heavy' ? 12 : 6); } catch (_) {}
+    }
+  }
+
   function escapeHTML(value) {
     return String(value)
       .replace(/&/g, '&amp;')
@@ -5283,7 +5295,7 @@
         if (window.O11A1Media && typeof window.O11A1Media.onRateHold === 'function') {
           window.O11A1Media.onRateHold(2);
         }
-        if (navigator.vibrate) navigator.vibrate(6);
+        triggerHaptic('light');
       }, 320);
     }
     event.preventDefault();
