@@ -650,6 +650,17 @@ final class O11A1PlayerHost {
         self.ensureParent(slot)
       }
       var frame = CGRect(x: x, y: y, width: width, height: height)
+      /* The rotated layer's bounding box is centred by its frame centre. The
+         WebView reports the rotated rect in CSS coordinates; anchoring it to
+         the WebView centre also covers layout-viewport rounding differences. */
+      if abs(rotation) > 0.5, let web = self.webView {
+        frame = CGRect(
+          x: web.bounds.midX - CGFloat(width) / 2,
+          y: web.bounds.midY - CGFloat(height) / 2,
+          width: CGFloat(width),
+          height: CGFloat(height)
+        )
+      }
       let now = CACurrentMediaTime()
       var deliveredAge: CFTimeInterval = 0
       if timestamp > 0 {
