@@ -90,6 +90,16 @@
     document.body.classList.toggle('native-player-ready', value);
   }
 
+  function hideMainPoster() {
+    const cover = document.getElementById('playerVideo');
+    if (!cover) return;
+    cover.style.backgroundImage = '';
+    const poster = cover.querySelector('.player-poster');
+    if (!poster) return;
+    poster.classList.add('hide');
+    setTimeout(() => poster.remove(), 220);
+  }
+
   function dispatch(rec, type, detail) {
     try {
       const event = detail && typeof CustomEvent === 'function'
@@ -162,19 +172,6 @@
       rec.paused = false;
       markThumb(rec);
       if (rec.el.closest && rec.el.closest('#playerVideo') && playerOpen()) {
-        const cover = document.getElementById('playerVideo');
-        if (rec.slot === 'main' && cover) {
-          // Hold the poster through the first composited native frame; clearing
-          // it in the same runloop as the event produced the full-screen flash.
-          setTimeout(() => {
-            cover.style.backgroundImage = '';
-            const poster = cover.querySelector('.player-poster');
-            if (poster) {
-              poster.classList.add('hide');
-              setTimeout(() => poster.remove(), 220);
-            }
-          }, 70);
-        }
         bodyReady(true);
       }
       dispatch(rec, 'nativefirstframe');
@@ -192,6 +189,7 @@
       rec.readyState = 4;
       if (rec.el.closest && rec.el.closest('#playerVideo') && rec.gotFirstFrame && playerOpen()) {
         bodyReady(true);
+        if (rec.slot === 'main') hideMainPoster();
       }
       dispatch(rec, 'play');
       dispatch(rec, 'playing');

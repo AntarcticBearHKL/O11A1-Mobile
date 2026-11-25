@@ -347,6 +347,9 @@ final class O11A1PlayerHost {
     slot.dashStartMs = startMs
     slot.dashDurationMs = durationMs
     slot.dashAutoplay = autoplay
+    /* DASH has a separate audio item. Do not start the video before that item
+       is ready, or the picture runs silently until the audio joins. */
+    slot.pendingPlay = false
     // The DASH URLs are signed with platform=pc; sending the Android API
     // user agent makes the CDN answer 403, while the desktop agent and a
     // bilibili referer are accepted. Cookies are not needed for the signed
@@ -441,8 +444,14 @@ final class O11A1PlayerHost {
           } else {
             self.emit(slot, "error", ["error": "dash audio failed"])
           }
-        } else if item.status == .readyToPlay, slot.playing {
-          self.startDASHAudio(slot)
+        } else if item.status == .readyToPlay {
+          if slot.dashAutoplay && !slot.playing {
+            slot.pendingPlay = false
+            slot.player.play()
+          }
+          if slot.playing {
+            self.startDASHAudio(slot)
+          }
         }
       }
     }
@@ -453,8 +462,17 @@ final class O11A1PlayerHost {
     slot.player.isMuted = true
     NSLog("[O11A1] dash %@ via=%@ %.0fs", slot.id,
           viaLoader ? "loader" : "direct", durationMs / 1000)
-    installItem(slot, item: videoItem, startMs: startMs, autoplay: autoplay)
+    installItem(slot, item: videoItem, startMs: startMs, autoplay: false)
     let seq = slot.seq
+    /* If the audio item never becomes ready, abandon DASH quickly instead of
+       showing a silent video until the long DASH deadline. */
+    DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self, weak slot] in
+      guard let self = self, let slot = slot, slot.seq == seq, slot.dashAudio,
+            slot.dashViaLoader == viaLoader,
+            slot.audioItem?.status != .readyToPlay else { return }
+      NSLog("[O11A1] dash audio not ready %@ via=%@", slot.id, viaLoader ? "loader" : "direct")
+      self.emit(slot, "error", ["error": "dash audio not ready"])
+    }
     let dashDeadline = viaLoader ? 10.0 : 2.5
     DispatchQueue.main.asyncAfter(deadline: .now() + dashDeadline) { [weak self, weak slot] in
       guard let self = self, let slot = slot, slot.seq == seq, slot.dashAudio,
@@ -487,6 +505,19 @@ final class O11A1PlayerHost {
   private func startDASHAudio(_ slot: Slot) {
     guard slot.dashAudio, slot.audioItem != nil,
           slot.player.timeControlStatus == .playing else { return }
+    let videoTime = slot.player.currentTime()
+    if videoTime.isValid && !videoTime.isIndefinite {
+      let audioTime = slot.audioPlayer.currentTime()
+      let drift = audioTime.isValid ? abs(audioTime.seconds - videoTime.seconds) : .greatestFiniteMagnitude
+      if drift > 0.35 {
+        /* The audio item often becomes ready a few seconds after the video.
+           Seeking it to the live video position makes the sound begin in sync
+           instead of staying silent and then starting from the beginning. */
+        slot.audioPlayer.seek(to: videoTime, toleranceBefore: .zero, toleranceAfter: .zero)
+        NSLog("[O11A1] dash audio sync %@ drift=%.2f -> %.2f", slot.id, drift, videoTime.seconds)
+      }
+    }
+    guard slot.audioItem?.status == .readyToPlay else { return }
     if slot.audioPlayer.timeControlStatus != .playing {
       NSLog("[O11A1] dash audio start %@ muted=%d vol=%.1f",
             slot.id, slot.audioPlayer.isMuted ? 1 : 0, slot.audioPlayer.volume)
