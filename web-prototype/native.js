@@ -424,19 +424,25 @@
     const fresh = item.live ? '直播中' : feedFreshness(item.pubdate);
     const color = item.live ? '#d97862' : feedFreshnessColor(item.pubdate);
     const playText = item.playText || (item.play ? countText(item.play) : '');
-    const ownerMarkup = owner
-      ? `<span class="meta-owner"><span class="meta-owner-name">${esc(owner)}</span></span>`
-      : '';
+    let playCount = Number(item.play) || 0;
+    if (!playCount && playText) {
+      const match = String(playText).replace(/,/g, '').match(/([\d.]+)\s*(亿|万)?/);
+      if (match) {
+        playCount = parseFloat(match[1]) || 0;
+        if (match[2] === '万') playCount *= 10000;
+        else if (match[2] === '亿') playCount *= 100000000;
+      }
+    }
+    const playTier = playCount >= 10000000 ? 4
+      : playCount >= 1000000 ? 3
+        : playCount >= 100000 ? 2
+          : playCount >= 10000 ? 1 : 0;
+    const ownerMarkup = `<span class="meta-owner">${owner ? `<span class="meta-owner-name">${esc(owner)}</span>` : ''}</span>`;
     const playMarkup = playText && !item.live
-      ? `<span class="meta-play">${esc(playText)}播放</span>`
-      : '';
-    const freshMarkup = fresh
-      ? `<span class="meta-fresh" style="color:${color}">${esc(fresh)}</span>`
-      : '';
-    const parts = [ownerMarkup, playMarkup, freshMarkup].filter(Boolean);
-    return parts.length
-      ? `<span class="real-meta">${parts.join('<span class="meta-dot">·</span>')}</span>`
-      : '';
+      ? `<span class="meta-play tier-${playTier}">${esc(playText)}播放</span>`
+      : '<span class="meta-play"></span>';
+    const freshMarkup = `<span class="meta-fresh"${fresh ? ` style="color:${color}"` : ''}>${esc(fresh)}</span>`;
+    return `<span class="real-meta meta-columns">${ownerMarkup}${playMarkup}${freshMarkup}</span>`;
   }
 
   function biliImage(url, width, height) {
@@ -494,6 +500,10 @@
       if (Date.now() - (lastFeedScrollAt || 0) < 80) return;
       event.preventDefault();
       event.stopPropagation();
+      if (event.target.closest('.row-avatar')) {
+        openUpPage(item);
+        return;
+      }
       if (item.live) playLive(item);
       else if (item.seasonId && !item.epId) playSeason(item);
       else playItem(item, row);
@@ -5334,7 +5344,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.82';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.83';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
