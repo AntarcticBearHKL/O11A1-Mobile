@@ -3272,7 +3272,7 @@ body[data-theme="dark"] .meta-play.tier-4{color:#FF8578}
 .player-drop{display:none!important}
 
 .float-toolbar{
-  position:absolute;left:14px;right:14px;bottom:calc(6px + env(safe-area-inset-bottom));z-index:70;
+  position:absolute;left:14px;right:14px;bottom:max(6px,calc(env(safe-area-inset-bottom) - 28px));z-index:70;
   pointer-events:none;
   transform:translate3d(0,0,0);
   transition:transform .75s cubic-bezier(.4,0,.2,1);
