@@ -4664,6 +4664,7 @@
     if (!state.playerOpen) return;
     holdNativePageChrome();
     app.classList.add('player-dragging');
+    keepPlayerWindowHole(760);
     syncStatusBarStyle();
     const token = ++playerDropExitToken;
     const width = window.innerWidth || 1;
@@ -5235,9 +5236,64 @@
   }
 
   let playerDragSnapshot = null;
+  let playerHoleRaf = 0;
+  let playerHoleUntil = 0;
+
+  function clearPlayerWindowHole() {
+    if (playerHoleRaf) {
+      cancelAnimationFrame(playerHoleRaf);
+      playerHoleRaf = 0;
+    }
+    playerHoleUntil = 0;
+    if (appMain) {
+      appMain.style.clipPath = '';
+      appMain.style.webkitClipPath = '';
+    }
+    app.classList.remove('player-window-drag');
+  }
+
+  function updatePlayerWindowHole() {
+    if (!appMain || !playerVideo) return;
+    const stage = appMain.getBoundingClientRect();
+    const videoRect = playerVideo.getBoundingClientRect();
+    if (!stage.width || !stage.height || !videoRect.width || !videoRect.height) {
+      appMain.style.clipPath = '';
+      appMain.style.webkitClipPath = '';
+      return;
+    }
+    const clamp = (v) => Math.max(0, Math.min(100, v));
+    const left = clamp((videoRect.left - stage.left) / stage.width * 100);
+    const top = clamp((videoRect.top - stage.top) / stage.height * 100);
+    const right = clamp((videoRect.right - stage.left) / stage.width * 100);
+    const bottom = clamp((videoRect.bottom - stage.top) / stage.height * 100);
+    const hole = `polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, `
+      + `${left.toFixed(2)}% ${top.toFixed(2)}%, ${right.toFixed(2)}% ${top.toFixed(2)}%, `
+      + `${right.toFixed(2)}% ${bottom.toFixed(2)}%, ${left.toFixed(2)}% ${bottom.toFixed(2)}%, `
+      + `${left.toFixed(2)}% ${top.toFixed(2)}%)`;
+    app.classList.add('player-window-drag');
+    appMain.style.clipPath = hole;
+    appMain.style.webkitClipPath = hole;
+  }
+
+  function schedulePlayerWindowHole() {
+    if (playerHoleRaf) return;
+    playerHoleRaf = requestAnimationFrame(() => {
+      playerHoleRaf = 0;
+      updatePlayerWindowHole();
+      if (playerHoleUntil && performance.now() < playerHoleUntil) {
+        schedulePlayerWindowHole();
+      }
+    });
+  }
+
+  function keepPlayerWindowHole(duration) {
+    playerHoleUntil = performance.now() + Math.max(0, Number(duration) || 0);
+    updatePlayerWindowHole();
+    schedulePlayerWindowHole();
+  }
 
   function playerCollapseScale(dragY) {
-    return 1 - Math.min(0.17, Math.max(0, Number(dragY) || 0) / 820);
+    return 1 - Math.min(0.22, Math.max(0, Number(dragY) || 0) / 600);
   }
 
   function beginPlayerDragSnapshot() {
@@ -5246,12 +5302,14 @@
        A captured still frame made the video look paused; the live layer now
        follows the transformed player rect instead. */
     app.classList.add('player-dragging');
+    updatePlayerWindowHole();
   }
 
   function endPlayerDragSnapshot() {
     window.__o11a1HideMainVideo = false;
     app.classList.remove('player-dragging');
     app.style.setProperty('--player-reveal', '0px');
+    clearPlayerWindowHole();
     if (playerDragSnapshot) {
       playerDragSnapshot.remove();
       playerDragSnapshot = null;
@@ -5363,6 +5421,7 @@
       } else {
         app.style.setProperty('--player-reveal', '0px');
       }
+      schedulePlayerWindowHole();
     } else if (gesture.mode === 'horizontal') {
       gesture.horizontal = localX;
       if (Date.now() < panelTransitionGuardUntil) {
@@ -5467,6 +5526,7 @@
         return;
       }
       hidePlayerDrop(0, { restore: true });
+      keepPlayerWindowHole(300);
       setTimeout(endPlayerDragSnapshot, 280);
       player.style.transition = 'transform .24s cubic-bezier(.16,1,.3,1), opacity .2s ease, border-radius .2s ease, box-shadow .24s ease';
       player.style.transform = 'none';

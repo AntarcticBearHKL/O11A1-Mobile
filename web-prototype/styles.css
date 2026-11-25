@@ -1525,18 +1525,14 @@ body.grid .grid-overlay{display:block}
   clip-path:none;
   -webkit-clip-path:none;
 }
-.app::after{
-  content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
-  background-color:#07090D;
-  background-image:var(--player-backdrop,none);
-  background-size:cover;background-position:center;
-  filter:blur(26px) saturate(1.06) brightness(.42);
-  transform:scale(1.08);transform-origin:center;
-  opacity:0;
-  transition:opacity .24s ease;
+.app.player-dragging .row-copy,
+.app.player-window-drag .row-copy,
+.app.player-opening .row-copy,
+.app.player-dragging .page-top::before,
+.app.player-window-drag .page-top::before,
+.app.player-opening .page-top::before{
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
 }
-.app.player-dragging::after,
-.app.player-open.player-opening::after{opacity:1}
 .player{
   position:fixed;inset:0;z-index:300;display:none;flex-direction:column;
   background:#07090D;color:#fff;overflow:hidden;
