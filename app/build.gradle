@@ -57,7 +57,21 @@ tasks.register('syncWebAssets', Copy) {
     include 'vendor/hls.min.js'
     into layout.buildDirectory.dir('generated/webAssets/web')
 }
-tasks.named('preBuild').configure { dependsOn 'syncWebAssets' }
+def assetVersion = android.defaultConfig.versionName
+tasks.register('stampWebAssets') {
+    dependsOn 'syncWebAssets'
+    doLast {
+        def index = new File(webAssetsDir.get().asFile, 'web/index.html')
+        if (!index.exists()) return
+        def text = index.getText('UTF-8')
+        text = text.replaceAll(/\?v=[0-9A-Za-z.\-]+/, '?v=' + assetVersion)
+        index.setText(text, 'UTF-8')
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'stampWebAssets' }
+tasks.matching { it.name == 'mergeDebugAssets' || it.name == 'mergeReleaseAssets' }.configureEach {
+    dependsOn 'stampWebAssets'
+}
 
 tasks.withType(org.gradle.api.tasks.compile.JavaCompile).configureEach {
     options.encoding = 'UTF-8'

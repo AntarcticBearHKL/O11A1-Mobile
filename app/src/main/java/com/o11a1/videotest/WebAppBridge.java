@@ -187,7 +187,13 @@ final class WebAppBridge {
 
     @JavascriptInterface
     public String version() {
-        return "0.2.0-native";
+        try {
+            String name = activity.getPackageManager()
+                .getPackageInfo(activity.getPackageName(), 0).versionName;
+            return (name == null ? "0.0.0" : name) + "-android";
+        } catch (Throwable error) {
+            return "0.0.0-android";
+        }
     }
 
     @JavascriptInterface

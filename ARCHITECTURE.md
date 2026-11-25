@@ -191,6 +191,8 @@ Android `WebAppBridge`: preview 10 min, quality 4 min, dash 4 min, with
 | Metadata transport | loopback HTTP + async | direct JNI, sync | async parity pending |
 | Preview cache | server-side | bridge-side | same TTL/behaviour |
 | Quality labels | same merge logic | same merge logic | identical |
+| Version string | `0.4.85-ios` | `0.4.85-android` | matched this pass |
+| Asset cache | `Cache-Control: no-store` | query stamp per build | matched this pass |
 
 ## 7. Changes in this pass
 
@@ -234,6 +236,29 @@ Android `WebAppBridge`: preview 10 min, quality 4 min, dash 4 min, with
 
 - Android `haptic(style)` bridge + `VIBRATE` permission; `triggerHaptic` prefers
   it, then the iOS message channel, then `navigator.vibrate`.
+- Android `version()` and the WebView User-Agent now read the installed
+  `versionName` instead of a hard-coded `0.2.0`; both platforms report the real
+  build.
+- Android `syncWebAssets` stamps every `?v=` asset URL with the current
+  `versionName`, so a new build never runs JavaScript or CSS from the WebView's
+  previous cache. iOS already serves static files with `Cache-Control:
+  no-store`.
+
+### Verified on the Android emulator (0.4.85 / 103)
+
+- Home feed loads 20 real rows; card is edge-to-edge (411 px on a 411 px
+  viewport), bottom radius 14 px, glass footer 80 px, avatar 50 px.
+- Toolbar is 383 × 72 px with a 6 px bottom inset.
+- Avatar tap opens the UP page with 20 rows.
+- Player autoplays; long-press 2× measured 1.96× for 2 s and restored to 1.05×.
+- Wheel: controls 92 px, wheel 48 px, long tick 29 px, needle 48 px, tick-label
+  gap 14 px.
+- Pull-down drag keeps playback running, reveals 260–380 px of feed, clips a
+  matching hole in `.app-main`, and closes on release.
+- Left swipe on the feed opens search with the input focused; a query returns
+  20 rows.
+- `O11A1Native.haptic('light')` returns `{ok:true}`.
+- No JS exceptions or fatal native errors in logcat.
 
 ## 8. Remaining work
 

@@ -77,7 +77,11 @@ public final class MainActivity extends Activity {
         settings.setDisplayZoomControls(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setUserAgentString(settings.getUserAgentString() + " O11A1/0.2");
+        String appVersion = "0.0.0";
+        try {
+            appVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Throwable ignored) {}
+        settings.setUserAgentString(settings.getUserAgentString() + " O11A1/" + appVersion);
 
         webView.addJavascriptInterface(bridge, "O11A1Native");
         WebView.setWebContentsDebuggingEnabled(true);
