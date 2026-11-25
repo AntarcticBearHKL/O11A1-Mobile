@@ -4460,6 +4460,10 @@
     if (!resume) {
       state.playing = autoplay;
       state.progress = 0;
+    } else {
+      /* Resuming from a feed tap/menu action always means "play"; the old
+         item's pause event while the new one loads must not stick. */
+      state.playing = true;
     }
     state.playerOpen = true;
     resetToolbarScrollHide();
@@ -5268,16 +5272,19 @@
       dropZone: null,
       dropArmed: false,
     };
-    if (zone !== 'middle' && state.settings.longPressRate) {
+    if (state.settings.longPressRate) {
       stageGesture.longPressTimer = setTimeout(() => {
         const gesture = stageGesture;
         if (!gesture || gesture.moved || gesture.mode) return;
         gesture.longPressFired = true;
         gesture.mode = 'rate';
         clearTimeout(hideTimer);
-        showRateHud(gesture.zone);
-        if (navigator.vibrate) navigator.vibrate(8);
-      }, 360);
+        hideRateHud(0);
+        if (window.O11A1Media && typeof window.O11A1Media.onRateHold === 'function') {
+          window.O11A1Media.onRateHold(2);
+        }
+        if (navigator.vibrate) navigator.vibrate(6);
+      }, 320);
     }
     event.preventDefault();
   }
@@ -5429,8 +5436,7 @@
       if (window.O11A1Media && typeof window.O11A1Media.onRateHoldEnd === 'function') {
         window.O11A1Media.onRateHoldEnd();
       }
-      hideRateHud(220);
-      showControls();
+      hideRateHud(0);
       return;
     }
 
@@ -6062,13 +6068,13 @@
       },
       'settings-gesture': {
         title: '手势',
-        sub: '中间下滑收起、双击播放/暂停，左右长按减速/加速；陀螺仪自动横屏，亮度与音量交给系统控制',
+        sub: '中间下滑收起、双击播放/暂停，长按画面 2x 加速；陀螺仪自动横屏，亮度与音量交给系统控制',
         rows: [
           { type: 'switch', label: '中间下滑 收起播放器', key: 'middleCollapse' },
           { type: 'static', label: '陀螺仪', value: '自动横屏 / 竖屏' },
           { type: 'static', label: '单击画面', value: '显示工具栏 · 1 秒后自动隐藏' },
           { type: 'switch', label: '左滑 全屏评论', key: 'swipeComments' },
-          { type: 'switch', label: '长按左 / 右 减速 / 加速', key: 'longPressRate' },
+          { type: 'switch', label: '长按画面 2x 加速', key: 'longPressRate' },
           { type: 'static', label: '进度条', value: '横向拖动 seek' },
         ],
       },

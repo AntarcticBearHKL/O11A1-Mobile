@@ -1618,7 +1618,17 @@ body.grid .grid-overlay{display:block}
     inset 0 0 180px 60px rgba(0,0,0,.18);
   opacity:0;transition:opacity .42s ease;
 }
-.player.paused .player-video::after{opacity:1;transition-duration:.9s}
+.player.paused .player-video::after{
+  opacity:1;
+  background:
+    radial-gradient(ellipse at center,rgba(255,130,130,0) 38%,rgba(255,120,120,.025) 58%,rgba(255,105,105,.06) 86%,rgba(255,95,95,.09) 100%),
+    linear-gradient(180deg,rgba(255,110,110,.025),rgba(255,110,110,0) 24%,rgba(255,110,110,0) 76%,rgba(255,110,110,.04));
+  box-shadow:
+    inset 0 0 28px rgba(255,110,110,.03),
+    inset 0 0 96px 22px rgba(255,95,95,.045),
+    inset 0 0 180px 60px rgba(255,85,85,.025);
+  transition-duration:.9s;
+}
 
 /* flat moving ruler (desktop precision wheel) */
 .player-controls{

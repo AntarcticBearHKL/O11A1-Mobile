@@ -802,6 +802,7 @@
     });
     video.addEventListener('pause', () => {
       if (!promotedPreview || promotedPreview.video !== video) return;
+      if (Date.now() - (promotedPreview.promotedAt || 0) < 500) return;
       state.playing = false;
       host.setPlayIcon(false);
       host.updatePlaylistDock();
@@ -1093,7 +1094,7 @@
       promotedBackdrop = backdrop;
     }
     const key = mediaKeyFor(item);
-    promotedPreview = { video: promotedVideo, key, time };
+    promotedPreview = { video: promotedVideo, key, time, promotedAt: Date.now() };
     pendingMediaStart = time > 0.25 ? { key, time } : pendingMediaStart;
     try { video.muted = true; video.pause(); } catch (_) {}
     if (Number.isFinite(promotedVideo.duration) && promotedVideo.duration > 0) {
@@ -3870,6 +3871,9 @@
   });
   video.addEventListener('pause', () => {
     if (promotedPreview) return;
+    /* A new item starts by pausing the previous one; do not publish that
+       internal pause as a user-visible paused state while it loads. */
+    if (playerVideo && playerVideo.classList.contains('video-loading')) return;
     state.playing = false;
     host.setPlayIcon(false);
     host.updatePlaylistDock();
@@ -5326,7 +5330,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.78';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.79';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
