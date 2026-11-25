@@ -161,7 +161,7 @@
     { id: 'home', label: '推荐', icon: 'home', type: 'page', target: 'home' },
     { id: 'follow', label: '关注', icon: 'follow', type: 'module', target: '关注' },
     { id: 'dynamic', label: '动态', icon: 'dynamic', type: 'page', target: 'dynamic' },
-    { id: 'search', label: '搜索', icon: 'search', type: 'search' },
+    { id: 'fish', label: '养鱼', icon: 'fish', type: 'page', target: 'fish' },
   ];
 
   const NAV_ICONS = {
@@ -205,7 +205,7 @@
   }
 
   const DEFAULT_NAV_SELECTED = ['home', 'favorite', 'dynamic', 'messages', 'my'];
-  const PAGE_NAV = { home: 'home', search: 'search', dynamic: 'dynamic', messages: 'messages', my: 'my' };
+  const PAGE_NAV = { home: 'home', search: 'search', dynamic: 'dynamic', messages: 'messages', fish: 'fish', my: 'my' };
 
   const DEFAULT_SETTINGS = {
     defaultQuality: '最高',
@@ -414,8 +414,10 @@
   let sidebarPicked = null;
   let menuSwipeStart = null;
   let searchDrag = null;
+  let searchSwipeStart = null;
   let sidebarSwipeStart = null;
   let sidebarSettleRaf = 0;
+  let sidebarMotionTimer = 0;
   let sidebarCompact = window.matchMedia('(max-width:760px)').matches;
   window.addEventListener('resize', () => {
     sidebarCompact = window.matchMedia('(max-width:760px)').matches;
@@ -980,11 +982,15 @@
     cancelSidebarSettle();
     renderSidebar();
     updateMiniPlayer();
+    if (app.classList.contains('sidebar-open')) closeSidebar();
     sidebar.inert = false;
     sidebar.classList.add('open');
     sidebarBackdrop.classList.add('show');
     sidebar.setAttribute('aria-hidden', 'false');
-    app.classList.add('sidebar-open');
+    app.classList.remove('sidebar-closing');
+    app.classList.add('sidebar-open', 'sidebar-opening');
+    clearTimeout(sidebarMotionTimer);
+    sidebarMotionTimer = setTimeout(() => app.classList.remove('sidebar-opening'), 430);
     resetToolbarScrollHide();
     playlistDock.classList.remove('receiving', 'absorbing');
     updatePlaylistDock();
@@ -1005,6 +1011,10 @@
     sidebar.setAttribute('aria-hidden', 'true');
     sidebar.inert = true;
     app.classList.remove('sidebar-open');
+    app.classList.remove('sidebar-opening');
+    app.classList.add('sidebar-closing');
+    clearTimeout(sidebarMotionTimer);
+    sidebarMotionTimer = setTimeout(() => app.classList.remove('sidebar-closing'), 430);
     updatePlaylistDock();
     if (sidebar.contains(document.activeElement)) document.activeElement.blur();
     setTimeout(refreshFeedPreview, 420);
@@ -3224,6 +3234,7 @@
     sidebar.classList.remove('selecting');
     sidebar.inert = false;
     sidebar.setAttribute('aria-hidden', 'false');
+    app.classList.remove('sidebar-opening', 'sidebar-closing');
     app.classList.add('sidebar-open', 'sidebar-dragging');
     sidebar.classList.add('open', 'dragging');
     sidebarBackdrop.classList.add('show', 'dragging');
@@ -7511,6 +7522,59 @@
     if (start === menuSwipeStart) menuSwipeStart = null;
     if (start.active) finishSidebarDrag();
   });
+
+  /* ---------- search: left swipe on the main feed ---------- */
+  function searchSwipeAllowed() {
+    return state.loggedIn
+      && !state.searchOpen
+      && !state.playerOpen
+      && !app.classList.contains('sidebar-open')
+      && ['home', 'module', 'dynamic', 'fish'].includes(state.page);
+  }
+
+  appScroll.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (!searchSwipeAllowed()) return;
+    searchSwipeStart = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      active: false,
+      canceled: false,
+    };
+  }, { passive: true });
+
+  window.addEventListener('pointermove', (event) => {
+    const start = searchSwipeStart;
+    if (!start || event.pointerId !== start.id || start.canceled) return;
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    if (!start.active) {
+      if (Math.abs(dy) > 12 && Math.abs(dy) >= Math.abs(dx)) {
+        start.canceled = true;
+        return;
+      }
+      if (dx < -46 && Math.abs(dx) > Math.abs(dy) * 1.35) {
+        start.active = true;
+        suppressFeedClickUntil = Math.max(suppressFeedClickUntil, Date.now() + 500);
+        openSearch();
+        if (navigator.vibrate) navigator.vibrate(4);
+      }
+      return;
+    }
+    if (event.cancelable) event.preventDefault();
+  }, { passive: false });
+
+  const clearSearchSwipe = (event) => {
+    const start = searchSwipeStart;
+    if (!start || (event && event.pointerId !== start.id)) return;
+    if (start.active) {
+      suppressFeedClickUntil = Math.max(suppressFeedClickUntil, Date.now() + 500);
+    }
+    searchSwipeStart = null;
+  };
+  window.addEventListener('pointerup', clearSearchSwipe);
+  window.addEventListener('pointercancel', clearSearchSwipe);
 
   playerStage.addEventListener('pointerdown', startStageGesture);
   playerStage.addEventListener('pointerdown', () => {

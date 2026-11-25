@@ -2485,6 +2485,27 @@ body.reduce-motion .seek-ripple.go{animation-duration:.12s !important}
 .sidebar-backdrop.dragging{transition:none!important}
 .app.sidebar-dragging .app-main{transition:none!important}
 .app.sidebar-dragging .player{transition:none!important}
+/* Moving the receded feed and drawer must not re-blur every video card on
+   each frame. Keep the solid theme tint while the drawer is in motion. */
+.app.sidebar-opening .row-copy,
+.app.sidebar-dragging .row-copy,
+.app.sidebar-closing .row-copy,
+.app.sidebar-opening .page-top::before,
+.app.sidebar-dragging .page-top::before,
+.app.sidebar-closing .page-top::before{
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+}
+.app.sidebar-opening .sidebar,
+.app.sidebar-dragging .sidebar,
+.app.sidebar-closing .sidebar{
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+  background:linear-gradient(180deg,rgba(250,250,252,.96),rgba(244,245,249,.99));
+}
+body[data-theme="dark"] .app.sidebar-opening .sidebar,
+body[data-theme="dark"] .app.sidebar-dragging .sidebar,
+body[data-theme="dark"] .app.sidebar-closing .sidebar{
+  background:linear-gradient(180deg,rgba(18,23,32,.96),rgba(10,13,19,.99));
+}
 .sidebar-inner{
   width:100%;flex:1 1 auto;min-height:0;padding:0;
   display:flex;flex-direction:column;overflow-y:auto;
@@ -3041,7 +3062,7 @@ body[data-theme="light"] .my-page{
 .feed{display:flex;flex-direction:column;gap:0;padding:0 0 calc(18px + env(safe-area-inset-bottom))}
 .feed-item{
   height:auto;min-height:0;margin:0 0 14px;
-  border-radius:0 0 24px 24px;
+  border-radius:0 0 14px 14px;
   overflow:hidden;
   background:transparent;
   contain:layout;
@@ -3089,7 +3110,7 @@ body[data-theme="dark"] .feed-item{
   display:flex;flex-direction:row;align-items:flex-start;gap:12px;
   width:100%;height:auto;align-self:auto;justify-content:flex-start;
   padding:13px 16px 16px;
-  border-radius:0 0 24px 24px;
+  border-radius:0 0 14px 14px;
   border-top:1px solid rgba(255,255,255,.46);
   background:linear-gradient(180deg,rgba(255,252,246,.80),rgba(255,252,246,.58));
   box-shadow:inset 0 1px 0 rgba(255,255,255,.62);
@@ -3212,7 +3233,7 @@ body[data-theme="dark"] .video-row.real-row .row-copy{
 .player-drop{display:none!important}
 
 .float-toolbar{
-  position:absolute;left:14px;right:14px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:70;
+  position:absolute;left:14px;right:14px;bottom:calc(6px + env(safe-area-inset-bottom));z-index:70;
   pointer-events:none;
   transform:translate3d(0,0,0);
   transition:transform .42s cubic-bezier(.16,1,.3,1),opacity .28s ease;
@@ -3226,19 +3247,19 @@ body[data-theme="dark"] .video-row.real-row .row-copy{
 .float-toolbar-surface{
   position:relative;
   display:flex;align-items:stretch;gap:4px;padding:7px;
-  border-radius:30px;border:1px solid rgba(255,255,255,.72);
+  border-radius:28px;border:1px solid rgba(255,255,255,.6);
   background:
-    linear-gradient(180deg,rgba(255,255,255,.82),rgba(246,247,251,.9));
-  box-shadow:0 14px 38px rgba(10,12,20,.18),inset 0 1px 0 rgba(255,255,255,.85);
-  backdrop-filter:blur(22px) saturate(1.5);-webkit-backdrop-filter:blur(22px) saturate(1.5);
+    linear-gradient(180deg,rgba(250,250,252,.9),rgba(244,245,249,.96));
+  box-shadow:0 12px 30px rgba(24,24,32,.16),inset 0 1px 0 rgba(255,255,255,.78);
+  backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);
   -webkit-tap-highlight-color:transparent;
   pointer-events:auto;
   transition:opacity .22s ease,transform .34s cubic-bezier(.22,1,.36,1);
 }
 body[data-theme="dark"] .float-toolbar-surface{
-  border-color:rgba(255,255,255,.12);
-  background:linear-gradient(180deg,rgba(30,36,48,.86),rgba(14,18,26,.92));
-  box-shadow:0 14px 38px rgba(0,0,0,.44),inset 0 1px 0 rgba(255,255,255,.08);
+  border-color:rgba(255,255,255,.08);
+  background:linear-gradient(180deg,rgba(18,23,32,.9),rgba(10,13,19,.96));
+  box-shadow:0 12px 32px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.06);
 }
 .float-tool-indicator{
   position:absolute;top:7px;bottom:7px;left:0;width:0;z-index:0;
@@ -3279,5 +3300,6 @@ body[data-theme="dark"] .float-tool-indicator{background:rgba(47,124,246,.24)}
 .page[data-page="home"],
 .page[data-page="module"],
 .page[data-page="dynamic"],
-.page[data-page="messages"]{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+.page[data-page="messages"],
+.page[data-page="fish"]{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
 
