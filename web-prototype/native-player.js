@@ -351,7 +351,10 @@
         && !(panelOpen && rec.slot !== 'main')
         && (inLivePlayer || (!inPlayer && baseVisible));
       if (rec.gotFirstFrame && !isPreload) {
-        if (inPlayer && playerOpen()) {
+        /* Keep the transparent player chrome while the player is minimizing
+           too; dropping it at the start of the collapse restores the opaque
+           dark surface and flashes black over the feed. */
+        if (inLivePlayer) {
           ready = true;
         } else if (thumbFor(rec)) {
           markThumb(rec);

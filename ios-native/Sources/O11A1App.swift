@@ -62,7 +62,10 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    view.backgroundColor = .black
+    /* The WebView is transparent so native video layers can show through.
+       Keep the root behind it on the page colour, not black: every transition
+       (closing the player, releasing a preview) would otherwise flash black. */
+    view.backgroundColor = launchBackground
     UIApplication.shared.isIdleTimerDisabled = true
     O11A1Orientation.apply("portrait")
     showLoading()
@@ -274,6 +277,7 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
     statusBarStyle = resolvedLaunchTheme() == "dark" ? .lightContent : .darkContent
     setNeedsStatusBarAppearanceUpdate()
     loadingView?.backgroundColor = launchBackground
+    view.backgroundColor = launchBackground
   }
 
   private func loadLaunchIdentity() {

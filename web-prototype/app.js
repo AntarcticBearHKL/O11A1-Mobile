@@ -369,6 +369,7 @@
   let sheetSwipeTimer = null;
   let precisionDrag = null;
   let gridDrag = null;
+  let wheelDragBasis = null;
   const GRID_CELLS = 36;
   let gridCells = [];
   let rateHudTimer = null;
@@ -3688,6 +3689,63 @@
       }
     }
     wheelStrip.replaceChildren(fragment);
+    wheelStrip.style.transform = 'translate3d(0,0,0)';
+    wheelDragBasis = null;
+  }
+
+  /* Dragging rebuilds the ruler window once and then only moves the strip on
+     the compositor. Replacing the tick nodes on every pointermove made the
+     ruler advance in visible steps. */
+  function beginWheelDrag(center) {
+    if (!wheelStrip || !progressBar) return;
+    const context = precisionContext();
+    const width = progressBar.clientWidth || progressBar.getBoundingClientRect().width || 1;
+    const base = Math.max(0, Math.min(context.total, Number.isFinite(center) ? center : context.current));
+    const { pxPerSecond, minorStep } = precisionWheelScale(width);
+    const halfSpan = width / 2 / pxPerSecond;
+    const span = halfSpan * 2.4;
+    const start = Math.max(0, base - span);
+    const end = Math.min(context.total, base + span);
+    const centerX = width / 2;
+    const fragment = document.createDocumentFragment();
+    const firstIndex = Math.ceil(start / minorStep);
+    const lastIndex = Math.floor(end / minorStep);
+    for (let index = firstIndex; index <= lastIndex; index += 1) {
+      const seconds = index * minorStep;
+      const x = centerX + (seconds - base) * pxPerSecond;
+      const major = index % 5 === 0;
+      const tick = document.createElement('span');
+      tick.className = `wheel-tick${major ? ' major' : (index % 2 === 0 ? ' mid' : '')}${seconds <= base ? ' past' : ''}`;
+      tick.style.left = `${x.toFixed(2)}px`;
+      tick.dataset.t = String(seconds);
+      fragment.appendChild(tick);
+      if (major && x > 22 && x < width - 22) {
+        const label = document.createElement('span');
+        label.className = `wheel-tick-label${seconds <= base ? ' past' : ''}`;
+        label.textContent = formatTime(seconds);
+        label.style.left = `${x.toFixed(2)}px`;
+        fragment.appendChild(label);
+      }
+    }
+    wheelStrip.replaceChildren(fragment);
+    wheelStrip.style.transform = 'translate3d(0,0,0)';
+    wheelDragBasis = { center: base, pxPerSecond, minorStep, halfSpan };
+  }
+
+  function scrollWheelTo(center) {
+    if (!wheelStrip) return;
+    const context = precisionContext();
+    const value = Math.max(0, Math.min(context.total, Number(center) || 0));
+    if (!wheelDragBasis) {
+      beginWheelDrag(value);
+      return;
+    }
+    const dx = (value - wheelDragBasis.center) * wheelDragBasis.pxPerSecond;
+    if (Math.abs(dx) > wheelDragBasis.halfSpan * 0.8) {
+      beginWheelDrag(value);
+      return;
+    }
+    wheelStrip.style.transform = `translate3d(${(-dx).toFixed(2)}px,0,0)`;
   }
 
   function setProgress(percent, seek) {
@@ -3701,12 +3759,13 @@
     }
   }
 
-  function previewPrecisionTime(seconds) {
+  function previewPrecisionTime(seconds, wheelDrag) {
     const context = precisionContext();
     const value = Math.max(0, Math.min(context.total, Number(seconds) || 0));
     seekBubble.textContent = formatTimeMs(value);
     seekBubble.classList.add('show');
-    renderPrecisionWheel(value);
+    if (wheelDrag) scrollWheelTo(value);
+    else renderPrecisionWheel(value);
     renderGridProgress(context.total > 0 ? value / context.total * 100 : 0);
   }
 
@@ -3739,6 +3798,7 @@
       moved: false,
     };
     progressBar.classList.add('dragging');
+    beginWheelDrag(context.current);
     if (event.cancelable) event.preventDefault();
   }
 
@@ -3755,7 +3815,7 @@
     const context = precisionContext();
     const { pxPerSecond } = precisionWheelScale(width);
     drag.preview = Math.max(0, Math.min(context.total, drag.startTime - delta / pxPerSecond));
-    previewPrecisionTime(drag.preview);
+    previewPrecisionTime(drag.preview, true);
     if (event.cancelable) event.preventDefault();
   }
 
@@ -3765,6 +3825,7 @@
     const context = precisionContext();
     const target = drag.moved ? drag.preview : drag.tapTime;
     precisionDrag = null;
+    wheelDragBasis = null;
     progressBar.classList.remove('dragging');
     seekBubble.classList.remove('show');
     const clamped = Math.max(0, Math.min(context.total, Number(target) || 0));
@@ -4090,7 +4151,8 @@
     background.src = url;
     background.alt = '';
     background.draggable = false;
-    background.decoding = 'async';
+    background.decoding = 'sync';
+    background.loading = 'eager';
     background.referrerPolicy = 'no-referrer';
     poster.appendChild(background);
     const image = document.createElement('img');
@@ -4098,7 +4160,8 @@
     image.src = url;
     image.alt = '';
     image.draggable = false;
-    image.decoding = 'async';
+    image.decoding = 'sync';
+    image.loading = 'eager';
     image.referrerPolicy = 'no-referrer';
     poster.appendChild(image);
     playerVideo.insertBefore(poster, playerVideo.firstChild);
