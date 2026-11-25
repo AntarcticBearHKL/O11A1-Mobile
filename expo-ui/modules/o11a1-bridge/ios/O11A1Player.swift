@@ -428,10 +428,18 @@ final class O11A1PlayerHost {
     slot.dashRetrying = false
     slot.durationMs = durationMs
     slot.audioItem = audioItem
-    slot.audioPlayer.isMuted = slot.muted
-    slot.audioPlayer.volume = slot.volume
+    slot.audioPlayer.isMuted = true
+    slot.audioPlayer.volume = 0
     slot.audioPlayer.automaticallyWaitsToMinimizeStalling = false
     slot.audioPlayer.replaceCurrentItem(with: audioItem)
+    /* Nudge the audio item into loading immediately. Waiting for its status
+       while both players are paused can deadlock on iOS: the item is never
+       asked for data, so it never becomes ready and the video gate never
+       opens. Play it muted for now; startDASHAudio restores the real volume
+       once the picture is running. */
+    if autoplay {
+      slot.audioPlayer.play()
+    }
     slot.audioStatusObservation = audioItem.observe(\.status, options: [.new]) { [weak self, weak slot] item, _ in
       guard let self = self, let slot = slot else { return }
       DispatchQueue.main.async {
@@ -462,7 +470,7 @@ final class O11A1PlayerHost {
     slot.player.isMuted = true
     NSLog("[O11A1] dash %@ via=%@ %.0fs", slot.id,
           viaLoader ? "loader" : "direct", durationMs / 1000)
-    installItem(slot, item: videoItem, startMs: startMs, autoplay: false)
+    installItem(slot, item: videoItem, startMs: startMs, autoplay: autoplay)
     let seq = slot.seq
     /* If the audio item never becomes ready, abandon DASH quickly instead of
        showing a silent video until the long DASH deadline. */
@@ -518,6 +526,8 @@ final class O11A1PlayerHost {
       }
     }
     guard slot.audioItem?.status == .readyToPlay else { return }
+    slot.audioPlayer.isMuted = slot.muted
+    slot.audioPlayer.volume = slot.volume
     if slot.audioPlayer.timeControlStatus != .playing {
       NSLog("[O11A1] dash audio start %@ muted=%d vol=%.1f",
             slot.id, slot.audioPlayer.isMuted ? 1 : 0, slot.audioPlayer.volume)
