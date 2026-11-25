@@ -3393,13 +3393,13 @@
     const videoBps = Number(info.videoBitrate) || 0;
     const audioBps = Number(info.audioBitrate) || 0;
     const totalBps = videoBps + audioBps;
-    let network = '— / —';
+    let network = '↓— / 码率 —';
     if (netBps > 0) {
       network = totalBps > 0
-        ? `${formatDebugBitrate(netBps)} / ${formatDebugBitrate(videoBps)} (${(netBps / totalBps).toFixed(1)}×)`
-        : `${formatDebugBitrate(netBps)} / —`;
+        ? `↓${formatDebugBitrate(netBps)} / 码率 ${formatDebugBitrate(videoBps)} (${(netBps / totalBps).toFixed(1)}×)`
+        : `↓${formatDebugBitrate(netBps)} / 码率 —`;
     } else if (totalBps > 0) {
-      network = `— / ${formatDebugBitrate(videoBps)}`;
+      network = `↓— / 码率 ${formatDebugBitrate(videoBps)}`;
     }
 
     const buffered = debugBufferedAhead();
