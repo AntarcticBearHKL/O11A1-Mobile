@@ -933,6 +933,7 @@
   let toolbarScrollLast = 0;
   let toolbarScrollSettle = 0;
   let toolbarScrollLastDir = 0;
+  let toolbarScrollArmed = false;
 
   function applyToolbarScrollHide(animate) {
     if (!floatToolbar) return;
@@ -955,6 +956,7 @@
     toolbarScrollSettle = 0;
     toolbarScrollHide = 0;
     toolbarScrollLastDir = 0;
+    toolbarScrollArmed = false;
     toolbarScrollLast = appScroll ? appScroll.scrollTop : 0;
     if (!floatToolbar) return;
     floatToolbar.style.transition = 'none';
@@ -969,6 +971,7 @@
     const top = appScroll.scrollTop || 0;
     const delta = top - toolbarScrollLast;
     toolbarScrollLast = top;
+    if (!toolbarScrollArmed) return;
     const page = state.page;
     if (page !== 'home' && page !== 'module' && page !== 'dynamic' && page !== 'messages') return;
     if (state.playerOpen || state.searchOpen || app.classList.contains('sidebar-open')) return;
@@ -997,6 +1000,12 @@
   }
 
   if (appScroll) appScroll.addEventListener('scroll', handleToolbarScroll, { passive: true });
+  if (appScroll) {
+    const armToolbarScroll = () => { toolbarScrollArmed = true; };
+    appScroll.addEventListener('pointerdown', armToolbarScroll, { passive: true });
+    appScroll.addEventListener('touchstart', armToolbarScroll, { passive: true });
+    appScroll.addEventListener('wheel', armToolbarScroll, { passive: true });
+  }
 
   function openSidebar() {
     if (!state.loggedIn) {
