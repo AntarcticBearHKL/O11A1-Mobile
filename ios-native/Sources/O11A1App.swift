@@ -55,6 +55,7 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
   private var launchFaceTask: URLSessionDataTask?
   private var launchFaceImage: UIImage?
   private var launchHasCredential = false
+  private var launchReadyTimer: Timer?
   private var launchTheme = ""
 
   override var prefersStatusBarHidden: Bool { false }
@@ -468,6 +469,8 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
   private func hideLoading() {
     launchTimer?.invalidate()
     launchTimer = nil
+    launchReadyTimer?.invalidate()
+    launchReadyTimer = nil
     launchFaceTask?.cancel()
     launchFaceTask = nil
     guard let holder = loadingView else { return }
@@ -556,6 +559,8 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
         UIScreen.main.brightness = saved
         savedBrightness = nil
       }
+    case "launchReady":
+      hideLoading()
     case "prefs":
       if let data = object["data"] as? String, data.count > 2 {
         UserDefaults.standard.set(data, forKey: "o11a1.webPrefs")
@@ -678,7 +683,17 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     print("[O11A1] page finished")
-    hideLoading()
+    guard loadingView != nil, launchHasCredential else {
+      hideLoading()
+      return
+    }
+    /* The web app reports launchReady once the first feed cards are painted.
+       Keep the avatar + progress visible until then so there is only one
+       launch surface, with a fallback in case that message never arrives. */
+    launchReadyTimer?.invalidate()
+    launchReadyTimer = Timer.scheduledTimer(withTimeInterval: 2.8, repeats: false) { [weak self] _ in
+      self?.hideLoading()
+    }
   }
 
   func webView(

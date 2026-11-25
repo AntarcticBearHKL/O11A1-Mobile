@@ -7728,6 +7728,9 @@
   const launchAvatar = $('#launchAvatar');
   const launchName = $('#launchName');
   const launchBarFill = $('#launchBarFill');
+  const nativeShell = Boolean(window.O11A1Native
+    && typeof window.O11A1Native.available === 'function'
+    && window.O11A1Native.available());
   let launchHideTimer = null;
   let launchPollTimer = null;
 
@@ -7770,6 +7773,11 @@
       if (ready || elapsed >= 1700) {
         clearInterval(launchPollTimer);
         launchPollTimer = null;
+        if (nativeShell) {
+          try {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'launchReady' }));
+          } catch (_) {}
+        }
         hideLaunchSplash(ready ? 90 : 0);
       }
     }, 100);
@@ -7784,7 +7792,7 @@
     }
   }
   const showLaunch = state.loggedIn;
-  if (showLaunch && launchScreen) {
+  if (showLaunch && launchScreen && !nativeShell) {
     paintLaunchIdentity();
     launchScreen.setAttribute('aria-hidden', 'false');
     launchScreen.classList.add('show');
@@ -7810,7 +7818,7 @@
   updateSearch();
   syncLandscape();
   showPage(state.loggedIn ? 'home' : 'login');
-  if (showLaunch) waitForLaunchReady();
+  if (showLaunch || nativeShell) waitForLaunchReady();
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) syncNativeLogin();
   });
