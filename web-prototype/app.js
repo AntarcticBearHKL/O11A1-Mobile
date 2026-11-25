@@ -747,40 +747,38 @@
   function applyAppearance() {
     const dark = resolvedTheme() === 'dark';
     const theme = dark ? 'dark' : 'light';
-    const bg = Math.max(0, Math.min(100, Number(state.settings.bgTransparency) || 0));
     const glass = Math.max(0, Math.min(100, Number(state.settings.glassBlur) || 0));
-    const bgBlur = Math.max(0, Math.min(100, Number(state.settings.bgBlur) || 0));
     const ios = state.platform === 'ios';
     const style = document.body.style;
     document.body.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
-    style.setProperty('--wallpaper-opacity', (0.12 + (100 - bg) / 100 * 0.78).toFixed(3));
-    style.setProperty('--wallpaper-blur', `${(bgBlur / 100 * 60).toFixed(1)}px`);
+    style.setProperty('--wallpaper-opacity', '0');
+    style.setProperty('--wallpaper-blur', '0px');
     style.setProperty('--glass-blur', `blur(${(glass / 100 * 30).toFixed(1)}px) saturate(${dark ? 1.25 : 1.6})`);
     style.setProperty('--topbar-blur', `blur(${(glass / 100 * 26).toFixed(1)}px) saturate(1.5)`);
     const glassAlpha = 0.5 + (100 - glass) / 100 * 0.38;
     const sheetAlpha = 0.62 + (100 - glass) / 100 * 0.3;
     if (dark) {
       style.setProperty('--glass-bg', ios
-        ? `linear-gradient(135deg,rgba(24,25,30,${(glassAlpha + 0.02).toFixed(2)}),rgba(15,16,19,${(glassAlpha - 0.14).toFixed(2)}))`
-        : `rgba(24,25,30,${glassAlpha.toFixed(2)})`);
+        ? `linear-gradient(135deg,rgba(12,12,14,${(glassAlpha + 0.02).toFixed(2)}),rgba(0,0,0,${(glassAlpha - 0.14).toFixed(2)}))`
+        : `rgba(12,12,14,${glassAlpha.toFixed(2)})`);
       style.setProperty('--glass-border', 'rgba(255,255,255,.10)');
-      style.setProperty('--sheet-bg', `rgba(24,25,30,${sheetAlpha.toFixed(2)})`);
+      style.setProperty('--sheet-bg', `rgba(8,8,10,${sheetAlpha.toFixed(2)})`);
       style.setProperty('--sheet-border', 'rgba(255,255,255,.10)');
-      style.setProperty('--topbar-bg', `linear-gradient(180deg,rgba(15,16,19,${(sheetAlpha + 0.04).toFixed(2)}),rgba(15,16,19,${(sheetAlpha - 0.28).toFixed(2)}))`);
+      style.setProperty('--topbar-bg', `linear-gradient(180deg,rgba(0,0,0,${(sheetAlpha + 0.04).toFixed(2)}),rgba(0,0,0,${(sheetAlpha - 0.28).toFixed(2)}))`);
       style.setProperty('--topbar-border', 'rgba(255,255,255,.08)');
     } else {
       style.setProperty('--glass-bg', ios
-        ? `linear-gradient(135deg,rgba(255,252,246,${(glassAlpha + 0.16).toFixed(2)}),rgba(255,252,246,${(glassAlpha - 0.12).toFixed(2)}))`
-        : `rgba(255,252,246,${glassAlpha.toFixed(2)})`);
-      style.setProperty('--glass-border', 'rgba(31,28,23,.10)');
-      style.setProperty('--sheet-bg', `rgba(255,252,246,${sheetAlpha.toFixed(2)})`);
-      style.setProperty('--sheet-border', 'rgba(31,28,23,.10)');
-      style.setProperty('--topbar-bg', `linear-gradient(180deg,rgba(243,239,231,${(sheetAlpha + 0.04).toFixed(2)}),rgba(243,239,231,${(sheetAlpha - 0.3).toFixed(2)}))`);
-      style.setProperty('--topbar-border', 'rgba(31,28,23,.08)');
+        ? `linear-gradient(135deg,rgba(255,255,255,${(glassAlpha + 0.16).toFixed(2)}),rgba(255,255,255,${(glassAlpha - 0.12).toFixed(2)}))`
+        : `rgba(255,255,255,${glassAlpha.toFixed(2)})`);
+      style.setProperty('--glass-border', 'rgba(0,0,0,.10)');
+      style.setProperty('--sheet-bg', `rgba(255,255,255,${sheetAlpha.toFixed(2)})`);
+      style.setProperty('--sheet-border', 'rgba(0,0,0,.10)');
+      style.setProperty('--topbar-bg', `linear-gradient(180deg,rgba(255,255,255,${(sheetAlpha + 0.04).toFixed(2)}),rgba(255,255,255,${(sheetAlpha - 0.3).toFixed(2)}))`);
+      style.setProperty('--topbar-border', 'rgba(0,0,0,.08)');
     }
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', dark ? '#0F1013' : '#F3EFE7');
+    if (meta) meta.setAttribute('content', dark ? '#000000' : '#FFFFFF');
     syncStatusBarStyle();
     try {
       if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
@@ -1181,6 +1179,95 @@
     searchPanel.style.opacity = '';
     searchPanel.style.boxShadow = '';
     setTimeout(refreshFeedPreview, 420);
+  }
+
+  /* The left-edge swipe opens the search panel under the finger instead of
+     jumping open after a threshold. The panel is translated by the exact
+     fraction of its width that has been dragged. */
+  function beginSearchDragPreview() {
+    if (!searchPanel) return;
+    if (app.classList.contains('sidebar-open')) closeSidebar();
+    stopFeedPreview();
+    state.searchReturn = state.page;
+    state.searchReturnNav = state.navActive;
+    searchInput.value = '';
+    searchClear.hidden = true;
+    searchPanel.classList.remove('dragging', 'settling');
+    searchPanel.style.transition = 'none';
+    searchPanel.style.transform = 'translate3d(100%,0,0)';
+    searchPanel.style.opacity = '';
+    searchPanel.style.boxShadow = '';
+    searchPanel.style.pointerEvents = 'auto';
+    showSearchHome();
+    if (searchPanelBody) searchPanelBody.scrollTop = 0;
+    searchPanel.inert = false;
+    searchPanel.setAttribute('aria-hidden', 'false');
+    searchPanel.classList.add('open', 'dragging');
+    app.classList.add('search-open');
+    document.body.classList.add('search-mode', 'search-opening');
+    setDockExpanded(false);
+    applySearchRecede(0);
+  }
+
+  function updateSearchDragPreview(progress) {
+    if (!searchPanel) return;
+    const p = Math.max(0, Math.min(1, Number(progress) || 0));
+    searchPanel.style.transform = `translate3d(${((1 - p) * 100).toFixed(3)}%,0,0)`;
+    applySearchRecede(p);
+  }
+
+  function finishSearchDragPreview(open) {
+    if (!searchPanel) return;
+    searchPanel.classList.remove('dragging');
+    searchPanel.classList.add('settling');
+    searchPanel.style.transition = 'transform .26s cubic-bezier(.22,1,.36,1)';
+    searchPanel.style.pointerEvents = 'auto';
+    searchPanel.style.opacity = '';
+    searchPanel.style.boxShadow = '';
+    if (open) {
+      state.searchOpen = true;
+      searchPanel.style.transform = '';
+      searchPanel.classList.add('open');
+      app.classList.add('search-open');
+      document.body.classList.remove('search-dismissing');
+      document.body.classList.add('search-mode', 'search-opening');
+      clearTimeout(searchOpeningTimer);
+      searchOpeningTimer = setTimeout(() => {
+        document.body.classList.remove('search-opening');
+      }, 420);
+      setTimeout(() => {
+        if (state.searchOpen) focusSearchInput();
+      }, 90);
+      setTimeout(() => {
+        if (state.searchOpen && document.activeElement !== searchInput) focusSearchInput();
+      }, 240);
+      finishSearchRecede();
+    } else {
+      state.searchOpen = false;
+      searchPanel.style.transform = 'translate3d(100%,0,0)';
+      app.classList.remove('search-open');
+      document.body.classList.remove('search-mode', 'search-opening');
+      document.body.classList.add('search-dismissing');
+      clearTimeout(searchDismissTimer);
+      searchDismissTimer = setTimeout(() => {
+        document.body.classList.remove('search-dismissing');
+      }, 420);
+      finishSearchRecede();
+      setTimeout(() => {
+        if (state.searchOpen) return;
+        searchPanel.classList.remove('open', 'settling');
+        searchPanel.style.transition = '';
+        searchPanel.style.transform = '';
+        searchPanel.style.pointerEvents = '';
+        searchPanel.inert = true;
+        searchPanel.setAttribute('aria-hidden', 'true');
+      }, 300);
+    }
+    setTimeout(() => {
+      if (searchPanel.classList.contains('dragging')) return;
+      searchPanel.classList.remove('settling');
+      searchPanel.style.transition = '';
+    }, 330);
   }
 
   let searchRecedeActive = false;
@@ -6097,12 +6184,10 @@
       },
       'settings-appearance': {
         title: '外观',
-        sub: '浅色 / 深色 / 跟随系统；背景透明度与模糊分别控制',
+        sub: '浅色为纯白，深色为纯黑；玻璃模糊控制悬浮层质感',
         rows: [
           { type: 'choice', label: '主题', key: 'theme', options: ['跟随系统', '浅色', '深色'], onChange: applyAppearance },
-          { type: 'slider', label: '背景透明度', key: 'bgTransparency', min: 0, max: 100, unit: '%', onChange: applyAppearance },
           { type: 'slider', label: '玻璃模糊', key: 'glassBlur', min: 0, max: 100, unit: '%', onChange: applyAppearance },
-          { type: 'slider', label: '背景模糊', key: 'bgBlur', min: 0, max: 100, unit: '%', onChange: applyAppearance },
           { type: 'static', label: '圆角', value: '18 / 24 / 27' },
         ],
       },
@@ -7565,6 +7650,11 @@
       y: event.clientY,
       active: false,
       canceled: false,
+      width: 1,
+      progress: 0,
+      lastX: event.clientX,
+      lastAt: performance.now(),
+      vx: 0,
     };
   }, { passive: true });
 
@@ -7578,27 +7668,50 @@
         start.canceled = true;
         return;
       }
-      if (dx < -46 && Math.abs(dx) > Math.abs(dy) * 1.35) {
+      if (dx < -6 && Math.abs(dx) > Math.abs(dy) * 1.2) {
         start.active = true;
-        suppressFeedClickUntil = Math.max(suppressFeedClickUntil, Date.now() + 500);
-        openSearch();
-        if (navigator.vibrate) navigator.vibrate(4);
+        start.width = Math.max(1, (searchPanel && searchPanel.getBoundingClientRect().width)
+          || window.innerWidth || 1);
+        start.progress = Math.min(1, -dx / start.width);
+        start.lastX = event.clientX;
+        start.lastAt = performance.now();
+        start.vx = 0;
+        suppressFeedClickUntil = Math.max(suppressFeedClickUntil, Date.now() + 620);
+        beginSearchDragPreview();
+        updateSearchDragPreview(start.progress);
+        if (event.cancelable) event.preventDefault();
       }
       return;
     }
+    const progress = Math.max(0, Math.min(1, -dx / start.width));
+    start.progress = progress;
+    const now = performance.now();
+    const dt = now - start.lastAt;
+    if (dt > 0.5) {
+      start.vx = (event.clientX - start.lastX) / dt;
+      start.lastX = event.clientX;
+      start.lastAt = now;
+    }
+    updateSearchDragPreview(progress);
     if (event.cancelable) event.preventDefault();
   }, { passive: false });
 
-  const clearSearchSwipe = (event) => {
+  const endSearchSwipe = (event, canceled) => {
     const start = searchSwipeStart;
     if (!start || (event && event.pointerId !== start.id)) return;
-    if (start.active) {
-      suppressFeedClickUntil = Math.max(suppressFeedClickUntil, Date.now() + 500);
-    }
     searchSwipeStart = null;
+    if (!start.active) return;
+    suppressFeedClickUntil = Math.max(suppressFeedClickUntil, Date.now() + 620);
+    if (canceled) {
+      finishSearchDragPreview(false);
+      return;
+    }
+    const open = start.progress > 0.26
+      || (start.vx < -0.35 && start.progress > 0.08);
+    finishSearchDragPreview(open);
   };
-  window.addEventListener('pointerup', clearSearchSwipe);
-  window.addEventListener('pointercancel', clearSearchSwipe);
+  window.addEventListener('pointerup', (event) => endSearchSwipe(event, false));
+  window.addEventListener('pointercancel', (event) => endSearchSwipe(event, true));
 
   playerStage.addEventListener('pointerdown', startStageGesture);
   playerStage.addEventListener('pointerdown', () => {

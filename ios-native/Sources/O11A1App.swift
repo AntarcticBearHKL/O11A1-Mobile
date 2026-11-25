@@ -271,9 +271,9 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
 
   private var launchBackground: UIColor {
     if resolvedLaunchTheme() == "dark" {
-      return UIColor(red: 0.059, green: 0.063, blue: 0.075, alpha: 1)
+      return UIColor(red: 0, green: 0, blue: 0, alpha: 1)
     }
-    return UIColor(red: 0.953, green: 0.937, blue: 0.906, alpha: 1)
+    return UIColor(red: 1, green: 1, blue: 1, alpha: 1)
   }
 
   private func applyLaunchChrome() {
