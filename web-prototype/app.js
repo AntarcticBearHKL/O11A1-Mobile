@@ -3274,9 +3274,12 @@
         if (stats && stats.ok) {
           const bytes = Number(stats.bytes || 0);
           const indicated = Number(stats.indicatedBitrate || 0);
-          if (indicated > 0 && state.streamInfo && !state.streamInfo.direct) {
-            state.streamInfo.videoBitrate = indicated;
-            if (Number(stats.videoWidth) > 0) {
+          const observed = Number(stats.observedBitrate || 0);
+          if (state.streamInfo) {
+            if (!state.streamInfo.videoBitrate && (indicated > 0 || observed > 0)) {
+              state.streamInfo.videoBitrate = indicated || observed;
+            }
+            if (!state.streamInfo.sourceWidth && Number(stats.videoWidth) > 0) {
               state.streamInfo.sourceWidth = Number(stats.videoWidth);
               state.streamInfo.sourceHeight = Number(stats.videoHeight);
             }
@@ -3285,6 +3288,10 @@
           if (nativeBps > 0) {
             debugState.bitrate = Math.round(nativeBps / 1000);
             debugState.bitrateAt = now;
+            if (state.streamInfo) {
+              state.streamInfo.netBps = nativeBps;
+              state.streamInfo.netAt = now;
+            }
           } else if (debugNetBytes !== null && now > debugNetAt) {
             const delta = Math.max(0, bytes - debugNetBytes);
             const instant = Math.round(delta * 8 / ((now - debugNetAt) / 1000) / 1000);
