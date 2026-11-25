@@ -11,10 +11,6 @@ import CoreImage
 final class O11A1PlayerHost: NSObject {
   static let shared = O11A1PlayerHost()
 
-  private override init() {
-    super.init()
-  }
-
   private final class PlayerSurface: UIView {
     override class var layerClass: AnyClass { AVPlayerLayer.self }
     var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
@@ -194,7 +190,9 @@ final class O11A1PlayerHost: NSObject {
   private var lastRectTimestamp: Double = 0
   private var statsPrevious: [String: (bytes: Int64, at: CFTimeInterval)] = [:]
 
-  private init() {}
+  private override init() {
+    super.init()
+  }
 
   // MARK: - webview discovery
 
@@ -916,7 +914,7 @@ final class O11A1PlayerHost: NSObject {
   private func ensurePipController(_ slot: Slot) {
     guard slot.id == "main", slot.pipController == nil,
           AVPictureInPictureController.isPictureInPictureSupported() else { return }
-    let controller = AVPictureInPictureController(playerLayer: slot.view.playerLayer)
+    guard let controller = AVPictureInPictureController(playerLayer: slot.view.playerLayer) else { return }
     let delegate = PipDelegate(host: self, slotId: slot.id)
     controller.delegate = delegate
     slot.pipDelegate = delegate
@@ -934,8 +932,9 @@ final class O11A1PlayerHost: NSObject {
   func startPip(slot id: String) -> Bool {
     guard AVPictureInPictureController.isPictureInPictureSupported() else { return false }
     DispatchQueue.main.async { [weak self] in
-      guard let self = self, let slot = self.slots[id], id == "main", !slot.pipActive else {
-        self?.pipDidFail(id, error: NSError(domain: "O11A1PiP", code: 1))
+      guard let self = self else { return }
+      guard let slot = self.slots[id], id == "main", !slot.pipActive else {
+        self.pipDidFail(id, error: NSError(domain: "O11A1PiP", code: 1))
         return
       }
       self.ensurePipController(slot)

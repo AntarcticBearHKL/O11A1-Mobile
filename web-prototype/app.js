@@ -4568,13 +4568,8 @@
       state.pipPending = false;
       return false;
     }
-    player.classList.remove('ui-hidden');
-    player.classList.add('pip-starting');
     clearTimeout(hideTimer);
     resetComments();
-    player.style.pointerEvents = 'none';
-    player.style.transition = 'opacity .24s ease';
-    player.style.opacity = '0';
     clearTimeout(pipStartWatchdog);
     pipStartWatchdog = setTimeout(() => {
       if (state.pipActive || !state.pipPending) return;

@@ -730,15 +730,23 @@ final class O11A1LocalServer {
       )
       data = o11a1Data(["ok": true])
     case "nativePlayerRect":
+      let rectSlot = query["slot"] ?? "main"
+      let rectX = Double(query["x"] ?? "0") ?? 0
+      let rectY = Double(query["y"] ?? "0") ?? 0
+      let rectW = Double(query["w"] ?? "0") ?? 0
+      let rectH = Double(query["h"] ?? "0") ?? 0
+      let rectVisible = (query["visible"] ?? "1") != "0"
+      let rectRotation = Double(query["rotation"] ?? "0") ?? 0
+      let rectAspect = query["aspect"] ?? ""
       O11A1PlayerHost.shared.rect(
-        slot: query["slot"] ?? "main",
-        x: Double(query["x"] ?? "0") ?? 0,
-        y: Double(query["y"] ?? "0") ?? 0,
-        width: Double(query["w"] ?? "0") ?? 0,
-        height: Double(query["h"] ?? "0") ?? 0,
-        visible: (query["visible"] ?? "1") != "0",
-        rotation: Double(query["rotation"] ?? "0") ?? 0,
-        aspect: query["aspect"] ?? ""
+        slot: rectSlot,
+        x: rectX,
+        y: rectY,
+        width: rectW,
+        height: rectH,
+        visible: rectVisible,
+        rotation: rectRotation,
+        aspect: rectAspect
       )
       data = o11a1Data(["ok": true])
     case "nativePlayerRelease":

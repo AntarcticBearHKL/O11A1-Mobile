@@ -509,17 +509,26 @@ final class O11A1RootController: UIViewController, WKScriptMessageHandler, WKNav
       let slot = body["slot"] as? String ?? "main"
       switch type {
       case "rect":
+        let rectX = (body["x"] as? NSNumber)?.doubleValue ?? 0
+        let rectY = (body["y"] as? NSNumber)?.doubleValue ?? 0
+        let rectW = (body["w"] as? NSNumber)?.doubleValue ?? 0
+        let rectH = (body["h"] as? NSNumber)?.doubleValue ?? 0
+        let rectVisible = ((body["visible"] as? NSNumber)?.intValue ?? 0) != 0
+        let rectRotation = (body["rotation"] as? NSNumber)?.doubleValue ?? 0
+        let rectVelocity = (body["vy"] as? NSNumber)?.doubleValue ?? 0
+        let rectTimestamp = (body["ts"] as? NSNumber)?.doubleValue ?? 0
+        let rectAspect = body["aspect"] as? String ?? ""
         O11A1PlayerHost.shared.rect(
           slot: slot,
-          x: (body["x"] as? NSNumber)?.doubleValue ?? 0,
-          y: (body["y"] as? NSNumber)?.doubleValue ?? 0,
-          width: (body["w"] as? NSNumber)?.doubleValue ?? 0,
-          height: (body["h"] as? NSNumber)?.doubleValue ?? 0,
-          visible: ((body["visible"] as? NSNumber)?.intValue ?? 0) != 0,
-          rotation: (body["rotation"] as? NSNumber)?.doubleValue ?? 0,
-          velocity: (body["vy"] as? NSNumber)?.doubleValue ?? 0,
-          timestamp: (body["ts"] as? NSNumber)?.doubleValue ?? 0,
-          aspect: body["aspect"] as? String ?? ""
+          x: rectX,
+          y: rectY,
+          width: rectW,
+          height: rectH,
+          visible: rectVisible,
+          rotation: rectRotation,
+          velocity: rectVelocity,
+          timestamp: rectTimestamp,
+          aspect: rectAspect
         )
       case "layer":
         O11A1PlayerHost.shared.layer(
