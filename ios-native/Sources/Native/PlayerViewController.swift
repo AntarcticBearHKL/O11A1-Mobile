@@ -15,7 +15,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let backButton = UIButton(type: .system)
   private let titleLabel = UILabel()
   private let playButton = UIButton(type: .system)
-  private let bottomPanel = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+  private let bottomPanel = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
   private let ownerLabel = UILabel()
   private let ownerButton = UIButton(type: .system)
   private let wheel = ProgressWheel()

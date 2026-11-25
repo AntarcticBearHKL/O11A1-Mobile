@@ -46,7 +46,7 @@ final class ProgressWheel: UIControl {
       let x = left + usable * ratio
       let major = index % 6 == 0
       let height: CGFloat = major ? 11 : 6
-      let color = NativeTheme.foreground.withAlphaComponent(major ? 0.58 : 0.26)
+      let color = UIColor.white.withAlphaComponent(major ? 0.58 : 0.26)
       context.setStrokeColor(color.cgColor)
       context.setLineWidth(major ? 1.2 : 0.8)
       context.move(to: CGPoint(x: x, y: tickBottom - height))
@@ -64,7 +64,7 @@ final class ProgressWheel: UIControl {
     let labelFont = NativeTheme.numberFont(9)
     let attributes: [NSAttributedString.Key: Any] = [
       .font: labelFont,
-      .foregroundColor: NativeTheme.secondary,
+      .foregroundColor: UIColor.white.withAlphaComponent(0.62),
     ]
     let current = currentText as NSString
     let duration = durationText as NSString

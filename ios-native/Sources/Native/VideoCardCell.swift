@@ -6,7 +6,7 @@ final class VideoCardCell: UICollectionViewCell {
   let mediaHost = UIView()
   let coverView = UIImageView()
   private let gradient = CAGradientLayer()
-  private let panel = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+  private let panel = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
   private let titleLabel = UILabel()
   private let ownerLabel = UILabel()
   private let playLabel = UILabel()
