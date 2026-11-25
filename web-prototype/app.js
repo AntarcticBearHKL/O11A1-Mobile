@@ -4138,14 +4138,17 @@
     setTimeout(() => node.remove(), 220);
   }
 
-  function showPlayerPoster(url) {
+  function showPlayerPoster(url, thumb) {
     hidePlayerPoster(true);
     if (!playerVideo || !url) return;
     const poster = document.createElement('div');
     poster.className = 'player-poster';
     poster.style.backgroundImage = `url("${String(url).replace(/"/g, '%22')}")`;
     /* CSS background images cannot set a referrer policy. Bilibili image
-       hotlinking then returns a placeholder; use a real <img> for the blur. */
+       hotlinking then returns a placeholder; use a real <img> for the blur.
+       The feed thumbnail has already decoded this cover, so clone its bitmap
+       for the first paint instead of waiting on a fresh decode. */
+    const source = thumb && thumb.querySelector('img');
     const background = document.createElement('img');
     background.className = 'player-poster-bg';
     background.src = url;
@@ -4155,14 +4158,25 @@
     background.loading = 'eager';
     background.referrerPolicy = 'no-referrer';
     poster.appendChild(background);
-    const image = document.createElement('img');
-    image.className = 'player-poster-fg';
-    image.src = url;
-    image.alt = '';
-    image.draggable = false;
-    image.decoding = 'sync';
-    image.loading = 'eager';
-    image.referrerPolicy = 'no-referrer';
+    let image;
+    if (source && source.complete && source.naturalWidth > 0) {
+      image = source.cloneNode(false);
+      image.className = 'player-poster-fg';
+      image.removeAttribute('loading');
+      image.alt = '';
+      image.draggable = false;
+      image.decoding = 'sync';
+      image.referrerPolicy = 'no-referrer';
+    } else {
+      image = document.createElement('img');
+      image.className = 'player-poster-fg';
+      image.src = url;
+      image.alt = '';
+      image.draggable = false;
+      image.decoding = 'sync';
+      image.loading = 'eager';
+      image.referrerPolicy = 'no-referrer';
+    }
     poster.appendChild(image);
     playerVideo.insertBefore(poster, playerVideo.firstChild);
     playerPoster = poster;
@@ -4233,7 +4247,7 @@
       const posterUrl = (origin && origin.image)
         || (currentEntry ? playlistCoverUrl(currentEntry) : '')
         || '';
-      showPlayerPoster(posterUrl);
+      showPlayerPoster(posterUrl, origin && origin.thumb);
     }
     const expandFromRow = !wasOpen && Boolean(origin && origin.rect && origin.rect.width && origin.rect.height);
     if (expandFromRow) {
