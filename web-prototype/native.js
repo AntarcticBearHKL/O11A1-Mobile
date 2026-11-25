@@ -933,8 +933,11 @@
     video.classList.remove('preview-preload');
     thumb.querySelectorAll('.preview-live, .preview-ring, .preview-progress').forEach((node) => node.remove());
     previewProgressFill = null;
+    let revealed = false;
     const reveal = () => {
+      if (revealed) return;
       if (previewRow !== row || previewVideo !== video) return;
+      revealed = true;
       thumb.classList.remove('preview-loading');
       previewProgressFill = attachPreviewOverlays(thumb);
       video.classList.add('show');
@@ -1443,8 +1446,11 @@
       loadPreviewNative(video, item, url, true);
       video.currentTime = 0;
     }
+    let startedDone = false;
     const started = () => {
+      if (startedDone) return;
       if (previewRow !== row || previewVideo !== video) return;
+      startedDone = true;
       thumb.classList.remove('preview-loading');
       previewProgressFill = attachPreviewOverlays(thumb);
       video.classList.add('show');
@@ -1679,6 +1685,7 @@
     const fw = feedWindowState(feed);
     fw.lastScrollAt = now;
     schedulePreviewFocus(feed);
+    warmFocusPreview(feed);
     /* Decide the preview as soon as the scroll settles, without waiting for
        the heavier window-settle idle window. */
     clearTimeout(fw.previewSettleTimer);
@@ -5227,7 +5234,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.55';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.56';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
