@@ -1,7 +1,0 @@
-{
-  "platforms": ["apple"],
-  "apple": {
-    "modules": ["O11A1BridgeModule"],
-    "podspecPath": "O11A1Bridge.podspec"
-  }
-}

@@ -1,4 +1,4 @@
-name: ios-native
+﻿name: ios-native
 
 on:
   workflow_dispatch:
@@ -18,8 +18,6 @@ jobs:
       - name: Prepare artifacts
         run: mkdir -p ios-native/artifacts
 
-      - name: Sync web assets
-        run: bash ios-native/sync-web.sh
 
       - name: Install XcodeGen
         run: command -v xcodegen >/dev/null 2>&1 || brew install xcodegen

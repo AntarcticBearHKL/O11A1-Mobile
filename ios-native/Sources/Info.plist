@@ -17,9 +17,9 @@
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.4.89</string>
+  <string>0.5.0</string>
   <key>CFBundleVersion</key>
-  <string>107</string>
+  <string>108</string>
   <key>LSRequiresIPhoneOS</key>
   <true/>
   <key>UIBackgroundModes</key>
@@ -48,13 +48,7 @@
   <dict>
     <key>NSAllowsArbitraryLoads</key>
     <true/>
-    <key>NSAllowsLocalNetworking</key>
-    <true/>
   </dict>
-  <key>NSLocalNetworkUsageDescription</key>
-  <string>O11A1 使用本机回环地址连接 B 站接口并播放视频。</string>
-  <key>NSMotionUsageDescription</key>
-  <string>O11A1 使用加速度计判断手机方向，用于旋转播放器画面。</string>
   <key>CADisableMinimumFrameDurationOnPhone</key>
   <true/>
   <key>UIFileSharingEnabled</key>

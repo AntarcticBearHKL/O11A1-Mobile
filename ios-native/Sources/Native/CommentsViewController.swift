@@ -1,0 +1,190 @@
+import UIKit
+
+final class CommentsViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
+  private let aid: Int64
+  private let table = UITableView(frame: .zero, style: .plain)
+  private let titleLabel = UILabel()
+  private let closeButton = UIButton(type: .system)
+  private let status = UILabel()
+  private var items: [CommentItem] = []
+  private var page = 1
+  private var loading = false
+
+  init(aid: Int64) {
+    self.aid = aid
+    super.init(nibName: nil, bundle: nil)
+    modalPresentationStyle = .pageSheet
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    if #available(iOS 15.0, *) {
+      sheetPresentationController?.detents = [.medium(), .large()]
+      sheetPresentationController?.prefersGrabberVisible = true
+    }
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    view.backgroundColor = NativeTheme.background
+
+    titleLabel.text = "评论"
+    titleLabel.font = NativeTheme.titleFont(16)
+    titleLabel.textColor = NativeTheme.foreground
+    view.addSubview(titleLabel)
+
+    closeButton.setImage(UIImage(systemName: "xmark"), for: .normal)
+    closeButton.tintColor = NativeTheme.secondary
+    closeButton.addTarget(self, action: #selector(close), for: .touchUpInside)
+    view.addSubview(closeButton)
+
+    table.backgroundColor = .clear
+    table.separatorStyle = .none
+    table.dataSource = self
+    table.delegate = self
+    table.register(CommentCell.self, forCellReuseIdentifier: CommentCell.reuseID)
+    view.addSubview(table)
+
+    status.font = NativeTheme.bodyFont(13)
+    status.textColor = NativeTheme.secondary
+    status.textAlignment = .center
+    status.numberOfLines = 0
+    status.isHidden = true
+    view.addSubview(status)
+
+    [titleLabel, closeButton, table, status].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
+    NSLayoutConstraint.activate([
+      titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+      titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 14),
+
+      closeButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+      closeButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+      closeButton.widthAnchor.constraint(equalToConstant: 36),
+      closeButton.heightAnchor.constraint(equalToConstant: 36),
+
+      table.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      table.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      table.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 12),
+      table.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+      status.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+      status.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+      status.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
+      status.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24),
+    ])
+    load()
+  }
+
+  @objc private func close() {
+    dismiss(animated: true)
+  }
+
+  private func load() {
+    guard !loading else { return }
+    loading = true
+    if items.isEmpty {
+      status.text = "正在加载评论…"
+      status.isHidden = false
+    }
+    BiliAPI.shared.comments(aid: aid, page: page) { [weak self] result in
+      guard let self = self else { return }
+      self.loading = false
+      switch result {
+      case .failure(let error):
+        self.status.text = error.localizedDescription
+        self.status.isHidden = false
+      case .success(let values):
+        self.items.append(contentsOf: values)
+        self.status.text = values.isEmpty ? "还没有评论" : nil
+        self.status.isHidden = !values.isEmpty
+        self.page += 1
+        self.table.reloadData()
+      }
+    }
+  }
+
+  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    return items.count
+  }
+
+  func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    let cell = tableView.dequeueReusableCell(withIdentifier: CommentCell.reuseID, for: indexPath) as! CommentCell
+    cell.configure(items[indexPath.row])
+    return cell
+  }
+
+  func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    if scrollView.contentOffset.y > scrollView.contentSize.height - scrollView.bounds.height * 2 {
+      load()
+    }
+  }
+}
+
+private final class CommentCell: UITableViewCell {
+  static let reuseID = "CommentCell"
+
+  private let avatar = UIImageView()
+  private let name = UILabel()
+  private let message = UILabel()
+  private let meta = UILabel()
+
+  override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+    super.init(style: style, reuseIdentifier: reuseIdentifier)
+    backgroundColor = .clear
+    selectionStyle = .none
+
+    avatar.contentMode = .scaleAspectFill
+    avatar.clipsToBounds = true
+    avatar.layer.cornerRadius = 18
+    avatar.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.08)
+    contentView.addSubview(avatar)
+
+    name.font = NativeTheme.bodyFont(12)
+    name.textColor = NativeTheme.secondary
+    contentView.addSubview(name)
+
+    message.font = NativeTheme.bodyFont(14)
+    message.textColor = NativeTheme.foreground
+    message.numberOfLines = 0
+    contentView.addSubview(message)
+
+    meta.font = NativeTheme.numberFont(10)
+    meta.textColor = NativeTheme.tertiary
+    contentView.addSubview(meta)
+
+    [avatar, name, message, meta].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
+    NSLayoutConstraint.activate([
+      avatar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 18),
+      avatar.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
+      avatar.widthAnchor.constraint(equalToConstant: 36),
+      avatar.heightAnchor.constraint(equalToConstant: 36),
+
+      name.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 10),
+      name.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -18),
+      name.topAnchor.constraint(equalTo: avatar.topAnchor),
+
+      message.leadingAnchor.constraint(equalTo: name.leadingAnchor),
+      message.trailingAnchor.constraint(equalTo: name.trailingAnchor),
+      message.topAnchor.constraint(equalTo: name.bottomAnchor, constant: 4),
+
+      meta.leadingAnchor.constraint(equalTo: name.leadingAnchor),
+      meta.topAnchor.constraint(equalTo: message.bottomAnchor, constant: 6),
+      meta.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12),
+    ])
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  func configure(_ item: CommentItem) {
+    name.text = item.name
+    message.text = item.message
+    meta.text = "赞 \(item.likes)"
+    ImageLoader.shared.load(item.face, into: avatar)
+  }
+}

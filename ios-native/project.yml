@@ -13,15 +13,6 @@ targets:
       - path: Sources
         excludes:
           - Info.plist
-          - bridge.js
-      - path: Sources/bridge.js
-        buildPhase: resources
-      - path: ../expo-ui/modules/o11a1-bridge/ios
-        excludes:
-          - O11A1BridgeModule.swift
-      - path: Web
-        type: folder
-        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: O11A1

@@ -1,340 +1,295 @@
 package com.o11a1.videotest;
 
-import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.PictureInPictureParams;
-import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Color;
-import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.util.Log;
 import android.util.Rational;
-import android.view.Display;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.webkit.ConsoleMessage;
-import android.webkit.WebChromeClient;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
+import android.widget.Toast;
 
-import org.json.JSONObject;
-
-/** Full-screen V2 UI (bundled web design) with a native Bilibili bridge. */
-public final class MainActivity extends Activity {
-    private static final String TAG = "O11A1App";
-    private WebView webView;
+public final class MainActivity extends Activity implements FeedView.Host {
+    private CookieStore cookies;
+    private BiliApi api;
+    private BiliExtras extras;
     private FrameLayout root;
-    private boolean pipExitPending;
-    private boolean isResumed;
-    private CookieStore cookieStore;
-    private NativePlayerHost nativePlayers;
+    private FrameLayout content;
+    private GlassTabBarView tabBar;
+    private ImageButton settingsButton;
+    private FeedView feed;
+    private VideoListView following;
+    private VideoListView dynamic;
+    private FishView fish;
+    private View currentView;
+    private PlayerOverlay overlay;
+    private boolean toolbarHidden;
+    private boolean searchVisible;
 
-    @SuppressLint("SetJavaScriptEnabled")
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        getWindow().setBackgroundDrawable(
-            new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        applyMaxRefreshRate();
-        hideSystemUi();
-        getWindow().setFormat(PixelFormat.TRANSLUCENT);
-        if (Build.VERSION.SDK_INT >= 28) {
-            getWindow().getAttributes().layoutInDisplayCutoutMode =
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-        }
+        NativeTheme.applySystemBars(this);
+        getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(
+            NativeTheme.background(this)));
 
-        CookieStore cookies = new CookieStore(this);
-        cookieStore = cookies;
-        BiliApi api = new BiliApi(cookies);
-        WebAppBridge bridge = new WebAppBridge(this, api, cookies);
+        cookies = new CookieStore(this);
+        api = new BiliApi(cookies);
+        extras = new BiliExtras(cookies, api);
 
-        webView = new WebView(this);
-        bridge.setWebView(webView);
-        nativePlayers = new NativePlayerHost(this, cookies, js -> {
-            WebView view = webView;
-            if (view != null) {
-                view.post(() -> {
-                    try {
-                        view.evaluateJavascript(js, null);
-                    } catch (Throwable ignored) {}
-                });
-            }
-        });
-        bridge.setNativePlayers(nativePlayers);
-        webView.setBackgroundColor(Color.TRANSPARENT);
-        webView.setLongClickable(false);
-        webView.setHapticFeedbackEnabled(false);
+        root = new FrameLayout(this);
+        root.setBackgroundColor(NativeTheme.background(this));
+        setContentView(root);
 
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setDatabaseEnabled(true);
-        settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
-        settings.setLoadWithOverviewMode(true);
-        settings.setUseWideViewPort(true);
-        settings.setSupportZoom(false);
-        settings.setBuiltInZoomControls(false);
-        settings.setDisplayZoomControls(false);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        String appVersion = "0.0.0";
-        try {
-            appVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-        } catch (Throwable ignored) {}
-        settings.setUserAgentString(settings.getUserAgentString() + " O11A1/" + appVersion);
+        content = new FrameLayout(this);
+        content.setBackgroundColor(NativeTheme.background(this));
+        root.addView(content, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        webView.addJavascriptInterface(bridge, "O11A1Native");
-        WebView.setWebContentsDebuggingEnabled(true);
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                Log.i(TAG, "page finished " + url);
-            }
+        tabBar = new GlassTabBarView(this);
+        tabBar.setOnSelect(index -> showTab(index));
+        FrameLayout.LayoutParams tabParams = new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, NativeTheme.dp(this, 58));
+        tabParams.gravity = Gravity.BOTTOM;
+        tabParams.leftMargin = NativeTheme.dp(this, 12);
+        tabParams.rightMargin = NativeTheme.dp(this, 12);
+        tabParams.bottomMargin = NativeTheme.dp(this, 12);
+        root.addView(tabBar, tabParams);
 
-            @Override
-            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-                Log.w(TAG, "web error " + errorCode + " " + description + " " + failingUrl);
-            }
-        });
-        webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public boolean onConsoleMessage(ConsoleMessage message) {
-                Log.i(TAG, "console " + message.message() + " @" + message.lineNumber());
-                return true;
-            }
-        });
+        settingsButton = new ImageButton(this);
+        settingsButton.setImageResource(android.R.drawable.ic_menu_manage);
+        settingsButton.setColorFilter(NativeTheme.foreground(this));
+        settingsButton.setBackground(NativeTheme.rounded(NativeTheme.glass(this), NativeTheme.dp(this, 20)));
+        settingsButton.setPadding(NativeTheme.dp(this, 9), NativeTheme.dp(this, 9),
+            NativeTheme.dp(this, 9), NativeTheme.dp(this, 9));
+        settingsButton.setOnClickListener(v -> showSettings());
+        FrameLayout.LayoutParams settingsParams = new FrameLayout.LayoutParams(
+            NativeTheme.dp(this, 40), NativeTheme.dp(this, 40));
+        settingsParams.gravity = Gravity.TOP | Gravity.END;
+        settingsParams.rightMargin = NativeTheme.dp(this, 16);
+        settingsParams.topMargin = statusBar() + NativeTheme.dp(this, 6);
+        root.addView(settingsButton, settingsParams);
 
-        FrameLayout stage = new FrameLayout(this);
-        root = stage;
-        stage.setBackgroundColor(Color.TRANSPARENT);
-        stage.addView(nativePlayers.backgroundView(), new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT));
-        stage.addView(webView, new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT));
-        stage.addView(nativePlayers.overlayView(), new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT));
-        setContentView(stage);
-        webView.loadUrl("file:///android_asset/web/index.html?v=" + appVersion);
-        Thread warm = new Thread(() -> cookies.ensureBuvid(), "o11a1-buvid");
-        warm.setDaemon(true);
-        warm.start();
+        showTab(0);
     }
 
-    String enterPipFromPlayer(String slotId) {
-        JSONObject out = new JSONObject();
-        try {
-            if (Build.VERSION.SDK_INT < 26) {
-                out.put("ok", false);
-                return out.toString();
-            }
-            if (isInPictureInPictureMode()) {
-                out.put("ok", true);
-                return out.toString();
-            }
-            NativePlayerHost.PipInfo info = nativePlayers.pipInfo(slotId);
-            Log.i(TAG, "enterPiP info=" + (info != null)
-                + " resumed=" + isResumed
-                + " inPip=" + isInPictureInPictureMode());
-            if (info == null || !info.playing) {
-                out.put("ok", false);
-                return out.toString();
-            }
-            int width = Math.max(1, info.width);
-            int height = Math.max(1, info.height);
-            double ratio = (double) width / height;
-            if (ratio > 2.39) width = (int) Math.round(height * 2.39);
-            else if (ratio < 1.0 / 2.39) height = (int) Math.round(width * 2.39);
+    private int statusBar() {
+        int id = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        return id > 0 ? getResources().getDimensionPixelSize(id) : NativeTheme.dp(this, 24);
+    }
 
-            /* Full-bleed the native video before the system captures the
-               transition, so the PiP window never shows the feed UI. */
-            nativePlayers.setPipMode(true);
-            if (webView != null) webView.setVisibility(View.INVISIBLE);
-            if (root != null) root.setBackgroundColor(Color.BLACK);
+    private void showTab(int index) {
+        if (currentView != null) content.removeView(currentView);
+        switch (index) {
+            case 0:
+                if (feed == null) feed = new FeedView(this, api, extras, cookies, this);
+                currentView = feed;
+                break;
+            case 1:
+                if (following == null) {
+                    following = new VideoListView(this, extras, VideoListView.Mode.FOLLOWING, 0,
+                        (item, source) -> openPlayer(item, source));
+                }
+                currentView = following;
+                break;
+            case 2:
+                if (dynamic == null) {
+                    dynamic = new VideoListView(this, extras, VideoListView.Mode.DYNAMIC, 0,
+                        (item, source) -> openPlayer(item, source));
+                }
+                currentView = dynamic;
+                break;
+            default:
+                if (fish == null) fish = new FishView(this);
+                currentView = fish;
+                break;
+        }
+        content.addView(currentView, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        tabBar.select(index, false);
+        root.bringChildToFront(tabBar);
+        root.bringChildToFront(settingsButton);
+    }
 
+    @Override public void onOpenPlayer(VideoItem item, View source) {
+        openPlayer(item, source);
+    }
+
+    @Override public void onOpenProfile(long mid) {
+        openProfile(mid);
+    }
+
+    @Override public void onToolbarHidden(boolean hidden) {
+        toolbarHidden = hidden;
+        if (searchVisible) return;
+        tabBar.setHidden(hidden, true);
+        settingsButton.animate().alpha(hidden ? 0 : 1).setDuration(350).start();
+    }
+
+    @Override public void onSearchVisibility(boolean visible) {
+        searchVisible = visible;
+        tabBar.setHidden(visible || toolbarHidden, true);
+        settingsButton.animate().alpha(visible || toolbarHidden ? 0 : 1).setDuration(250).start();
+    }
+
+    private void openPlayer(VideoItem item, View source) {
+        if (overlay != null || item == null) return;
+        if (feed != null) feed.onPauseFeed();
+        tabBar.setHidden(true, true);
+        settingsButton.animate().alpha(0).setDuration(250).start();
+        PlayerOverlay view = new PlayerOverlay(this, api, cookies, item, source,
+            () -> closeOverlay(), this::openProfile);
+        overlay = view;
+        root.addView(view, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        view.start();
+    }
+
+    private void closeOverlay() {
+        if (overlay == null) return;
+        PlayerOverlay view = overlay;
+        overlay = null;
+        root.removeView(view);
+        view.destroy();
+        tabBar.setHidden(toolbarHidden, false);
+        settingsButton.animate().alpha(toolbarHidden ? 0 : 1).setDuration(250).start();
+        if (feed != null) feed.onResumeFeed();
+    }
+
+    private void openProfile(long mid) {
+        if (mid <= 0) return;
+        if (overlay != null) {
+            overlay.close();
+        }
+        VideoListView view = new VideoListView(this, extras, VideoListView.Mode.SPACE, mid,
+            (item, source) -> openPlayer(item, source));
+        FrameLayout holder = new FrameLayout(this);
+        holder.setBackgroundColor(NativeTheme.background(this));
+        holder.addView(view, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        android.app.Dialog dialog = new android.app.Dialog(this,
+            android.R.style.Theme_Material_Light_NoActionBar_Fullscreen);
+        dialog.setContentView(holder);
+        dialog.setOnDismissListener(d -> {
+            if (view != null) view.destroy();
+        });
+        dialog.show();
+    }
+
+    private void showSettings() {
+        String theme = NativeTheme.themeMode(this);
+        String[] items = {
+            "外观：" + ("dark".equals(theme) ? "深色" : "light".equals(theme) ? "浅色" : "跟随系统"),
+            "默认清晰度：" + qualityLabel(NativeTheme.quality(this)),
+            "退出登录",
+            "关于 O11A1"
+        };
+        new AlertDialog.Builder(this)
+            .setTitle("设置")
+            .setItems(items, (dialog, which) -> {
+                if (which == 0) chooseTheme();
+                else if (which == 1) chooseQuality();
+                else if (which == 2) {
+                    cookies.clear();
+                    Toast.makeText(this, "已退出登录", Toast.LENGTH_SHORT).show();
+                } else {
+                    new AlertDialog.Builder(this)
+                        .setMessage("O11A1 0.5.0 (108)\n纯原生 · 无 WebView")
+                        .setPositiveButton("好", null)
+                        .show();
+                }
+            })
+            .show();
+    }
+
+    private void chooseTheme() {
+        String[] labels = {"跟随系统", "浅色", "深色"};
+        String[] values = {"system", "light", "dark"};
+        int checked = 0;
+        String current = NativeTheme.themeMode(this);
+        for (int i = 0; i < values.length; i++) if (values[i].equals(current)) checked = i;
+        new AlertDialog.Builder(this)
+            .setTitle("外观")
+            .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                NativeTheme.setThemeMode(this, values[which]);
+                dialog.dismiss();
+                recreate();
+            })
+            .show();
+    }
+
+    private void chooseQuality() {
+        String[] labels = {"1080P", "720P", "480P"};
+        int[] values = {80, 64, 32};
+        int checked = 1;
+        int current = NativeTheme.quality(this);
+        for (int i = 0; i < values.length; i++) if (values[i] == current) checked = i;
+        new AlertDialog.Builder(this)
+            .setTitle("默认清晰度")
+            .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                NativeTheme.setQuality(this, values[which]);
+                dialog.dismiss();
+                Toast.makeText(this, "已设为 " + labels[which], Toast.LENGTH_SHORT).show();
+            })
+            .show();
+    }
+
+    private static String qualityLabel(int qn) {
+        if (qn >= 80) return "1080P";
+        if (qn >= 64) return "720P";
+        if (qn >= 32) return "480P";
+        return "360P";
+    }
+
+    @Override public void onUserLeaveHint() {
+        if (overlay != null && overlay.isPlaying() && Build.VERSION.SDK_INT >= 26) {
             PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder()
-                .setAspectRatio(new Rational(width, height))
-                .setSourceRectHint(info.rect);
-            if (Build.VERSION.SDK_INT >= 31) builder.setSeamlessResizeEnabled(true);
-            boolean entered = enterPictureInPictureMode(builder.build());
-            Log.i(TAG, "enterPictureInPictureMode result=" + entered);
-            if (!entered) {
-                nativePlayers.setPipMode(false);
-                if (webView != null) webView.setVisibility(View.VISIBLE);
-                if (root != null) root.setBackgroundColor(Color.TRANSPARENT);
-            }
-            out.put("ok", entered);
-        } catch (Throwable error) {
-            Log.w(TAG, "enter PiP failed", error);
-            try { out.put("ok", false); } catch (Throwable ignored) {}
-            nativePlayers.setPipMode(false);
-            if (webView != null) webView.setVisibility(View.VISIBLE);
-            if (root != null) root.setBackgroundColor(Color.TRANSPARENT);
+                .setAspectRatio(new Rational(16, 9));
+            enterPictureInPictureMode(builder.build());
         }
-        return out.toString();
+        super.onUserLeaveHint();
     }
 
-    private void notifyPip(String event, String reason) {
-        WebView view = webView;
-        if (view == null) return;
-        String javascript;
-        if ("start".equals(event)) {
-            javascript = "window.O11A1Pip&&O11A1Pip.onStart&&O11A1Pip.onStart()";
-        } else if ("fail".equals(event)) {
-            javascript = "window.O11A1Pip&&O11A1Pip.onFail&&O11A1Pip.onFail()";
-        } else {
-            javascript = "window.O11A1Pip&&O11A1Pip.onExit&&O11A1Pip.onExit('" + reason + "')";
-        }
-        view.post(() -> {
-            try { view.evaluateJavascript(javascript, null); } catch (Throwable ignored) {}
-        });
+    @Override public void onPictureInPictureModeChanged(boolean inPip, Configuration config) {
+        super.onPictureInPictureModeChanged(inPip, config);
+        if (overlay != null) overlay.setPipMode(inPip);
+        content.setVisibility(inPip ? View.GONE : View.VISIBLE);
+        tabBar.setVisibility(inPip ? View.GONE : View.VISIBLE);
+        settingsButton.setVisibility(inPip ? View.GONE : View.VISIBLE);
+        root.setBackgroundColor(inPip ? Color.BLACK : NativeTheme.background(this));
+        if (!inPip && isFinishing() && overlay != null) overlay.close();
     }
 
-    @Override
-    public void onPictureInPictureModeChanged(boolean inPip, Configuration configuration) {
-        super.onPictureInPictureModeChanged(inPip, configuration);
-        if (inPip) {
-            pipExitPending = false;
-            if (webView != null) webView.setVisibility(View.INVISIBLE);
-            if (root != null) root.setBackgroundColor(Color.BLACK);
-            nativePlayers.setPipMode(true);
-            notifyPip("start", null);
+    @Override protected void onPause() {
+        super.onPause();
+        if (feed != null && !isInPictureInPictureMode()) feed.onPauseFeed();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (feed != null && !isInPictureInPictureMode()) feed.onResumeFeed();
+    }
+
+    @Override public void onBackPressed() {
+        if (overlay != null) {
+            overlay.close();
             return;
         }
-        if (webView != null) webView.setVisibility(View.VISIBLE);
-        if (root != null) root.setBackgroundColor(Color.TRANSPARENT);
-        nativePlayers.setPipMode(false);
-        /* Expand brings the activity back through onResume; dismissing the PiP
-           window stops it through onStop. Decide after the transition. */
-        pipExitPending = true;
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            if (!pipExitPending) return;
-            pipExitPending = false;
-            notifyPip("exit", isResumed ? "expand" : "close");
-        }, 400);
+        super.onBackPressed();
     }
 
-    private void applyMaxRefreshRate() {
-        try {
-            Display display = getWindowManager().getDefaultDisplay();
-            Display.Mode current = display.getMode();
-            Display.Mode best = null;
-            float bestRate = 0f;
-            if (Build.VERSION.SDK_INT >= 23) {
-                for (Display.Mode mode : display.getSupportedModes()) {
-                    if (mode.getPhysicalWidth() != current.getPhysicalWidth()
-                        || mode.getPhysicalHeight() != current.getPhysicalHeight()) {
-                        continue;
-                    }
-                    float rate = mode.getRefreshRate();
-                    if (rate <= 120.5f && rate > bestRate + 0.05f) {
-                        bestRate = rate;
-                        best = mode;
-                    }
-                }
-            }
-            WindowManager.LayoutParams attrs = getWindow().getAttributes();
-            if (best != null) {
-                if (attrs.preferredDisplayModeId != best.getModeId()) {
-                    attrs.preferredDisplayModeId = best.getModeId();
-                }
-                attrs.preferredRefreshRate = best.getRefreshRate();
-            } else {
-                attrs.preferredRefreshRate = Math.min(120f, display.getRefreshRate());
-            }
-            getWindow().setAttributes(attrs);
-        } catch (Throwable error) {
-            Log.w(TAG, "max refresh rate unavailable", error);
-        }
-    }
-
-    private void hideSystemUi() {
-        getWindow().getDecorView().setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                | View.SYSTEM_UI_FLAG_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
-    }
-
-    @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-        super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) {
-            applyMaxRefreshRate();
-            hideSystemUi();
-        }
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (webView != null) {
-            webView.evaluateJavascript(
-                "window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',code:'Escape',bubbles:true}));", null);
-        } else {
-            super.onBackPressed();
-        }
-    }
-
-    @Override
-    protected void onUserLeaveHint() {
-        super.onUserLeaveHint();
-        if (Build.VERSION.SDK_INT >= 26 && nativePlayers != null && nativePlayers.isMainPlaying()) {
-            enterPipFromPlayer("main");
-        }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        isResumed = true;
-        if (cookieStore != null) cookieStore.reload();
-        applyMaxRefreshRate();
-        hideSystemUi();
-        if (webView != null) webView.onResume();
-        if (pipExitPending) {
-            pipExitPending = false;
-            notifyPip("exit", "expand");
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        isResumed = false;
-        if (webView != null) webView.onPause();
-        super.onPause();
-    }
-
-    @Override
-    protected void onStop() {
-        if (pipExitPending) {
-            pipExitPending = false;
-            nativePlayers.stopMain();
-            notifyPip("exit", "close");
-        }
-        super.onStop();
-    }
-
-    @Override
-    protected void onDestroy() {
-        if (nativePlayers != null) nativePlayers.releaseAll();
-        if (webView != null) {
-            webView.removeJavascriptInterface("O11A1Native");
-            webView.destroy();
-            webView = null;
+    @Override protected void onDestroy() {
+        if (feed != null) feed.destroy();
+        if (overlay != null) {
+            overlay.destroy();
+            overlay = null;
         }
         super.onDestroy();
     }

@@ -1,6 +1,0 @@
-{
-  "name": "o11a1-bridge",
-  "version": "0.2.0",
-  "description": "O11A1 loopback Bilibili bridge",
-  "private": true
-}

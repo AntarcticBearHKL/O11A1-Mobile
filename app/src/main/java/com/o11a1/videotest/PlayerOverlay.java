@@ -1,0 +1,503 @@
+package com.o11a1.videotest;
+
+import android.content.Context;
+import android.graphics.Color;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+
+import com.bumptech.glide.Glide;
+
+import org.json.JSONObject;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.LongConsumer;
+
+final class PlayerOverlay extends FrameLayout {
+    private final BiliApi api;
+    private final CookieStore cookies;
+    private final BiliExtras extras;
+    private final VideoItem item;
+    private final Runnable onClose;
+    private final LongConsumer onProfile;
+    private final VideoEngine engine;
+    private final FrameLayout videoHost;
+    private final ImageView poster;
+    private final View dim;
+    private final LinearLayout topBar;
+    private final LinearLayout bottomPanel;
+    private final TextView title;
+    private final TextView owner;
+    private final TextView quality;
+    private final ProgressWheelView wheel;
+    private final ImageButton playButton;
+    private final TextView error;
+    private final ExecutorService pool = Executors.newSingleThreadExecutor();
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final Runnable longPressRunnable;
+    private final int statusInset;
+    private int qualityQn;
+    private int loadToken = 0;
+    private boolean scrubbing = false;
+    private boolean wasPlayingBeforeScrub = false;
+    private boolean longPressed = false;
+    private boolean pulling = false;
+    private boolean closing = false;
+    private boolean started = false;
+    private boolean destroyed = false;
+    private float touchStartY = 0;
+    private float touchStartX = 0;
+    private long touchStartAt = 0;
+    private float pullProgress = 0;
+
+    PlayerOverlay(Context context, BiliApi api, CookieStore cookies, VideoItem item,
+                  View sourceView, Runnable onClose, LongConsumer onProfile) {
+        super(context);
+        this.api = api;
+        this.cookies = cookies;
+        this.extras = new BiliExtras(cookies, api);
+        this.item = item;
+        this.onClose = onClose;
+        this.onProfile = onProfile;
+        setBackgroundColor(Color.TRANSPARENT);
+        setClickable(true);
+
+        statusInset = statusBarHeight(context);
+        engine = new VideoEngine(context, cookies, false);
+
+        videoHost = new FrameLayout(context);
+        videoHost.setBackgroundColor(Color.BLACK);
+        videoHost.setClipChildren(true);
+        addView(videoHost, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+
+        poster = new ImageView(context);
+        poster.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        poster.setBackgroundColor(Color.BLACK);
+        Glide.with(this).load(item.pic).centerCrop().into(poster);
+        videoHost.addView(poster, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+
+        engine.view().setClickable(false);
+        engine.view().setFocusable(false);
+        videoHost.addView(engine.view(), new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+
+        dim = new View(context);
+        dim.setBackgroundColor(0x33000000);
+        dim.setClickable(false);
+        addView(dim, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+
+        topBar = new LinearLayout(context);
+        topBar.setOrientation(LinearLayout.HORIZONTAL);
+        topBar.setGravity(Gravity.CENTER_VERTICAL);
+        topBar.setPadding(NativeTheme.dp(context, 8), statusInset + NativeTheme.dp(context, 4),
+            NativeTheme.dp(context, 12), NativeTheme.dp(context, 4));
+        addView(topBar, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+
+        ImageButton back = new ImageButton(context);
+        back.setImageResource(android.R.drawable.ic_menu_back);
+        back.setBackgroundColor(Color.TRANSPARENT);
+        back.setColorFilter(Color.WHITE);
+        back.setOnClickListener(v -> close());
+        topBar.addView(back, new LinearLayout.LayoutParams(
+            NativeTheme.dp(context, 44), NativeTheme.dp(context, 44)));
+
+        title = new TextView(context);
+        title.setText(item.title);
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        title.setTypeface(NativeTheme.titleTypeface());
+        title.setMaxLines(1);
+        title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        titleParams.leftMargin = NativeTheme.dp(context, 4);
+        topBar.addView(title, titleParams);
+
+        playButton = new ImageButton(context);
+        playButton.setImageResource(android.R.drawable.ic_media_pause);
+        playButton.setBackgroundColor(0x4D000000);
+        playButton.setColorFilter(Color.WHITE);
+        playButton.setPadding(NativeTheme.dp(context, 14), NativeTheme.dp(context, 14),
+            NativeTheme.dp(context, 14), NativeTheme.dp(context, 14));
+        playButton.setOnClickListener(v -> togglePlay());
+        LayoutParams playParams = new LayoutParams(NativeTheme.dp(context, 64), NativeTheme.dp(context, 64));
+        playParams.gravity = Gravity.CENTER;
+        addView(playButton, playParams);
+
+        bottomPanel = new LinearLayout(context);
+        bottomPanel.setOrientation(LinearLayout.VERTICAL);
+        bottomPanel.setBackground(NativeTheme.rounded(0xB3000000, NativeTheme.dp(context, 18)));
+        bottomPanel.setPadding(NativeTheme.dp(context, 16), NativeTheme.dp(context, 12),
+            NativeTheme.dp(context, 16), NativeTheme.dp(context, 10));
+        LayoutParams panelParams = new LayoutParams(
+            LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        panelParams.gravity = Gravity.BOTTOM;
+        panelParams.leftMargin = NativeTheme.dp(context, 12);
+        panelParams.rightMargin = NativeTheme.dp(context, 12);
+        panelParams.bottomMargin = NativeTheme.dp(context, 12);
+        addView(bottomPanel, panelParams);
+
+        owner = new TextView(context);
+        owner.setText(item.owner + " · UP 主页");
+        owner.setTextColor(Color.WHITE);
+        owner.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        owner.setOnClickListener(v -> {
+            if (onProfile != null) onProfile.accept(item.mid);
+        });
+        bottomPanel.addView(owner, new LinearLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+
+        wheel = new ProgressWheelView(context);
+        LinearLayout.LayoutParams wheelParams = new LinearLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, NativeTheme.dp(context, 48));
+        wheelParams.topMargin = NativeTheme.dp(context, 6);
+        bottomPanel.addView(wheel, wheelParams);
+        wheel.setOnScrub(this::scrub);
+
+        LinearLayout actions = new LinearLayout(context);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, NativeTheme.dp(context, 38));
+        actionParams.topMargin = NativeTheme.dp(context, 2);
+        bottomPanel.addView(actions, actionParams);
+
+        ImageButton comments = iconButton(context, android.R.drawable.ic_menu_info_details);
+        comments.setOnClickListener(v -> showText("评论功能正在迁移到原生"));
+        actions.addView(comments, new LinearLayout.LayoutParams(
+            NativeTheme.dp(context, 38), NativeTheme.dp(context, 38)));
+
+        ImageButton like = iconButton(context, android.R.drawable.ic_menu_myplaces);
+        like.setOnClickListener(v -> pool.execute(() -> extras.like(item.aid, true)));
+        actions.addView(like, new LinearLayout.LayoutParams(
+            NativeTheme.dp(context, 38), NativeTheme.dp(context, 38)));
+
+        ImageButton coin = iconButton(context, android.R.drawable.ic_menu_add);
+        coin.setOnClickListener(v -> pool.execute(() -> extras.coin(item.aid, 1, true)));
+        actions.addView(coin, new LinearLayout.LayoutParams(
+            NativeTheme.dp(context, 38), NativeTheme.dp(context, 38)));
+
+        ImageButton fav = iconButton(context, android.R.drawable.btn_star_big_off);
+        fav.setOnClickListener(v -> pool.execute(() -> extras.favorite(item.aid, true)));
+        actions.addView(fav, new LinearLayout.LayoutParams(
+            NativeTheme.dp(context, 38), NativeTheme.dp(context, 38)));
+
+        View spacer = new View(context);
+        actions.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1f));
+
+        quality = new TextView(context);
+        quality.setTextColor(0xB3FFFFFF);
+        quality.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        quality.setTypeface(NativeTheme.numberTypeface());
+        quality.setText("720P");
+        quality.setOnClickListener(v -> cycleQuality());
+        actions.addView(quality, new LinearLayout.LayoutParams(
+            LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
+
+        error = new TextView(context);
+        error.setTextColor(NativeTheme.ROSE);
+        error.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        error.setGravity(Gravity.CENTER);
+        error.setVisibility(View.GONE);
+        LayoutParams errorParams = new LayoutParams(
+            LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        errorParams.gravity = Gravity.CENTER;
+        addView(error, errorParams);
+
+        longPressRunnable = () -> {
+            if (!engine.isPlaying() || pulling) return;
+            longPressed = true;
+            engine.setSpeed(2f);
+            performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+        };
+
+        engine.setListener(new VideoEngine.Listener() {
+            @Override public void onProgress(long positionMs, long durationMs, boolean playing) {
+                if (!scrubbing) wheel.setProgress(positionMs, durationMs);
+                updatePlayIcon(playing);
+            }
+
+            @Override public void onReady() {
+                poster.setVisibility(View.GONE);
+                error.setVisibility(View.GONE);
+                engine.play();
+            }
+
+            @Override public void onError(String message) {
+                error.setText(message);
+                error.setVisibility(View.VISIBLE);
+            }
+        });
+
+        setOnTouchListener(this::onRootTouch);
+        qualityQn = NativeTheme.quality(context);
+        loadQuality(qualityQn);
+
+        if (sourceView != null) {
+            videoHost.post(() -> animateOpen(sourceView));
+        }
+    }
+
+    private static ImageButton iconButton(Context context, int resource) {
+        ImageButton button = new ImageButton(context);
+        button.setImageResource(resource);
+        button.setBackgroundColor(Color.TRANSPARENT);
+        button.setColorFilter(Color.WHITE);
+        return button;
+    }
+
+    private static int statusBarHeight(Context context) {
+        int id = context.getResources().getIdentifier("status_bar_height", "dimen", "android");
+        return id > 0 ? context.getResources().getDimensionPixelSize(id) : NativeTheme.dp(context, 24);
+    }
+
+    void start() {
+        if (started) return;
+        started = true;
+    }
+
+    private void animateOpen(View sourceView) {
+        int[] rootLoc = new int[2];
+        int[] sourceLoc = new int[2];
+        getLocationInWindow(rootLoc);
+        sourceView.getLocationInWindow(sourceLoc);
+        int x = sourceLoc[0] - rootLoc[0];
+        int y = sourceLoc[1] - rootLoc[1];
+        int w = sourceView.getWidth();
+        int h = sourceView.getHeight();
+        if (w <= 0 || h <= 0) return;
+        videoHost.setX(x);
+        videoHost.setY(y);
+        ViewGroup.LayoutParams lp = videoHost.getLayoutParams();
+        lp.width = w;
+        lp.height = h;
+        videoHost.setLayoutParams(lp);
+        videoHost.animate()
+            .x(0).y(0)
+            .setDuration(260)
+            .withEndAction(() -> {
+                ViewGroup.LayoutParams full = videoHost.getLayoutParams();
+                full.width = LayoutParams.MATCH_PARENT;
+                full.height = LayoutParams.MATCH_PARENT;
+                videoHost.setLayoutParams(full);
+                videoHost.setX(0);
+                videoHost.setY(0);
+            })
+            .start();
+    }
+
+    private void loadQuality(int qn) {
+        qualityQn = qn <= 0 ? 80 : qn;
+        loadToken += 1;
+        final int token = loadToken;
+        final int requestQn = qualityQn;
+        pool.execute(() -> {
+            JSONObject result = api.playQuality(item.bvid, item.cid, requestQn);
+            main.post(() -> {
+                if (token != loadToken) return;
+                if (result == null || !result.optBoolean("ok", false)) {
+                    if (qualityQn > 64) loadQuality(64);
+                    else if (qualityQn > 32) loadQuality(32);
+                    else {
+                        error.setText("无法获取播放地址");
+                        error.setVisibility(View.VISIBLE);
+                    }
+                    return;
+                }
+                String url = result.optString("url", result.optString("remote", ""));
+                String backup = result.optString("backup", result.optString("backupRemote", ""));
+                String label = result.optString("qualityLabel", "");
+                quality.setText(label.isEmpty() ? requestQn + "P" : label);
+                if (url.isEmpty()) return;
+                engine.load(url, backup, true, false, false, 0);
+            });
+        });
+    }
+
+    private void cycleQuality() {
+        if (qualityQn > 64) loadQuality(64);
+        else if (qualityQn > 32) loadQuality(32);
+        else loadQuality(80);
+    }
+
+    private boolean onRootTouch(View view, MotionEvent event) {
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                touchStartY = event.getY();
+                touchStartX = event.getX();
+                touchStartAt = System.currentTimeMillis();
+                pulling = false;
+                longPressed = false;
+                pullProgress = 0;
+                main.postDelayed(longPressRunnable, 180);
+                return true;
+            case MotionEvent.ACTION_MOVE:
+                float dy = event.getY() - touchStartY;
+                float dx = event.getX() - touchStartX;
+                if (Math.abs(dy) > 20 && Math.abs(dy) > Math.abs(dx)) {
+                    main.removeCallbacks(longPressRunnable);
+                    if (dy > 0) {
+                        pulling = true;
+                        updatePull(dy);
+                    }
+                }
+                return true;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                main.removeCallbacks(longPressRunnable);
+                if (longPressed) {
+                    longPressed = false;
+                    engine.setSpeed(1f);
+                    return true;
+                }
+                if (pulling) {
+                    float pullDy = Math.max(0, event.getY() - touchStartY);
+                    float velocity = pullDy / Math.max(0.001f, (System.currentTimeMillis() - touchStartAt) / 1000f);
+                    finishPull(pullDy, velocity);
+                    return true;
+                }
+                if (System.currentTimeMillis() - touchStartAt < 240
+                    && Math.abs(event.getX() - touchStartX) < 14
+                    && Math.abs(event.getY() - touchStartY) < 14) {
+                    togglePlay();
+                }
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void updatePull(float dy) {
+        float max = Math.max(NativeTheme.dp(getContext(), 120), getHeight() * 0.52f);
+        pullProgress = Math.min(1, Math.max(0, dy / max));
+        float fullW = getWidth();
+        float fullH = getHeight();
+        float targetW = fullW - NativeTheme.dp(getContext(), 48);
+        float targetH = targetW * 9f / 16f;
+        float targetX = NativeTheme.dp(getContext(), 24);
+        float targetY = statusInset + NativeTheme.dp(getContext(), 12);
+        float p = pullProgress;
+        float w = fullW + (targetW - fullW) * p;
+        float h = fullH + (targetH - fullH) * p;
+        float x = (targetX) * p;
+        float y = (targetY) * p;
+        ViewGroup.LayoutParams lp = videoHost.getLayoutParams();
+        lp.width = Math.max(1, Math.round(w));
+        lp.height = Math.max(1, Math.round(h));
+        videoHost.setLayoutParams(lp);
+        videoHost.setX(x);
+        videoHost.setY(y);
+        topBar.setAlpha(1 - p);
+        bottomPanel.setAlpha(1 - p);
+        playButton.setAlpha(0);
+        dim.setAlpha(1 - p * 0.5f);
+    }
+
+    private void finishPull(float dy, float velocity) {
+        if (pullProgress > 0.28f || velocity > 780f) {
+            close();
+        } else {
+            videoHost.animate().x(0).y(0).setDuration(220).withEndAction(() -> {
+                ViewGroup.LayoutParams lp = videoHost.getLayoutParams();
+                lp.width = LayoutParams.MATCH_PARENT;
+                lp.height = LayoutParams.MATCH_PARENT;
+                videoHost.setLayoutParams(lp);
+                videoHost.setX(0);
+                videoHost.setY(0);
+            }).start();
+            topBar.animate().alpha(1).setDuration(220).start();
+            bottomPanel.animate().alpha(1).setDuration(220).start();
+            playButton.setAlpha(engine.isPlaying() ? 0 : 1);
+            dim.animate().alpha(1).setDuration(220).start();
+            pullProgress = 0;
+        }
+    }
+
+    private void togglePlay() {
+        engine.toggle();
+        updatePlayIcon(engine.isPlaying());
+    }
+
+    private void updatePlayIcon(boolean playing) {
+        playButton.setImageResource(playing
+            ? android.R.drawable.ic_media_pause
+            : android.R.drawable.ic_media_play);
+        playButton.setAlpha(playing ? 0f : 1f);
+        videoHost.setBackgroundColor(playing ? Color.BLACK : NativeTheme.ROSE);
+    }
+
+    private void scrub(double ratio, boolean finished) {
+        long duration = engine.player().getDuration();
+        if (duration <= 0 || duration == androidx.media3.common.C.TIME_UNSET) return;
+        if (!finished) {
+            if (!scrubbing) {
+                scrubbing = true;
+                wasPlayingBeforeScrub = engine.isPlaying();
+                engine.pause();
+            }
+            wheel.setProgress((long) (duration * ratio), duration);
+            return;
+        }
+        engine.seekTo((long) (duration * ratio));
+        scrubbing = false;
+        if (wasPlayingBeforeScrub) engine.play();
+    }
+
+    private void showText(String text) {
+        new android.app.AlertDialog.Builder(getContext())
+            .setMessage(text)
+            .setPositiveButton("好", null)
+            .show();
+    }
+
+    boolean isPlaying() {
+        return engine.isPlaying();
+    }
+
+    void setPipMode(boolean pip) {
+        if (pip) {
+            ViewGroup.LayoutParams lp = videoHost.getLayoutParams();
+            lp.width = LayoutParams.MATCH_PARENT;
+            lp.height = LayoutParams.MATCH_PARENT;
+            videoHost.setLayoutParams(lp);
+            videoHost.setX(0);
+            videoHost.setY(0);
+            videoHost.setVisibility(View.VISIBLE);
+            topBar.setVisibility(View.GONE);
+            bottomPanel.setVisibility(View.GONE);
+            playButton.setVisibility(View.GONE);
+            poster.setVisibility(View.GONE);
+            dim.setVisibility(View.GONE);
+            setBackgroundColor(Color.BLACK);
+        } else {
+            topBar.setVisibility(View.VISIBLE);
+            bottomPanel.setVisibility(View.VISIBLE);
+            playButton.setVisibility(View.VISIBLE);
+            dim.setVisibility(View.VISIBLE);
+            setBackgroundColor(Color.TRANSPARENT);
+        }
+    }
+
+    void close() {
+        if (closing) return;
+        closing = true;
+        engine.stop();
+        onClose.run();
+    }
+
+    void destroy() {
+        if (destroyed) return;
+        destroyed = true;
+        engine.release();
+        pool.shutdownNow();
+    }
+}

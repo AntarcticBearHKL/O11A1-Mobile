@@ -1,0 +1,508 @@
+import AVKit
+import UIKit
+
+final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
+  let item: VideoItem
+  var onClose: (() -> Void)?
+  var onProfile: ((Int64) -> Void)?
+
+  private let engine = VideoEngine()
+  private lazy var playerView = PlayerLayerView(playerLayer: engine.playerLayer)
+  private let videoContainer = UIView()
+  private let poster = UIImageView()
+  private let dim = UIView()
+  private let topBar = UIView()
+  private let backButton = UIButton(type: .system)
+  private let titleLabel = UILabel()
+  private let playButton = UIButton(type: .system)
+  private let bottomPanel = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+  private let ownerLabel = UILabel()
+  private let ownerButton = UIButton(type: .system)
+  private let wheel = ProgressWheel()
+  private let qualityLabel = UILabel()
+  private let commentsButton = UIButton(type: .system)
+  private let likeButton = UIButton(type: .system)
+  private let coinButton = UIButton(type: .system)
+  private let favButton = UIButton(type: .system)
+  private let errorLabel = UILabel()
+  private var sourceFrame: CGRect = .zero
+  private var panStartFrame: CGRect = .zero
+  private var isScrubbing = false
+  private var wasPlayingBeforeScrub = false
+  private var panProgress: CGFloat = 0
+  private var closing = false
+  private var currentQuality = 80
+  private var loadToken = 0
+  private var started = false
+
+  init(item: VideoItem, sourceView: UIView?) {
+    self.item = item
+    super.init(nibName: nil, bundle: nil)
+    modalPresentationStyle = .overFullScreen
+    if let sourceView = sourceView, let window = sourceView.window {
+      sourceFrame = sourceView.convert(sourceView.bounds, to: window)
+    }
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override var prefersStatusBarHidden: Bool { false }
+  override var preferredStatusBarStyle: UIStatusBarStyle {
+    return traitCollection.userInterfaceStyle == .dark ? .lightContent : .darkContent
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    view.backgroundColor = .clear
+    view.clipsToBounds = true
+
+    videoContainer.backgroundColor = .black
+    videoContainer.clipsToBounds = true
+    view.addSubview(videoContainer)
+
+    poster.contentMode = .scaleAspectFill
+    poster.clipsToBounds = true
+    poster.backgroundColor = .black
+    ImageLoader.shared.load(item.pic, into: poster)
+    videoContainer.addSubview(poster)
+
+    playerView.backgroundColor = .clear
+    videoContainer.addSubview(playerView)
+
+    dim.backgroundColor = UIColor.black.withAlphaComponent(0.18)
+    dim.isUserInteractionEnabled = false
+    view.addSubview(dim)
+
+    topBar.backgroundColor = .clear
+    view.addSubview(topBar)
+
+    backButton.setImage(UIImage(systemName: "chevron.left"), for: .normal)
+    backButton.tintColor = .white
+    backButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
+    topBar.addSubview(backButton)
+
+    titleLabel.text = item.title
+    titleLabel.font = NativeTheme.titleFont(15)
+    titleLabel.textColor = .white
+    titleLabel.numberOfLines = 1
+    titleLabel.lineBreakMode = .byTruncatingTail
+    topBar.addSubview(titleLabel)
+
+    playButton.setImage(UIImage(systemName: "pause.fill"), for: .normal)
+    playButton.tintColor = .white
+    playButton.backgroundColor = UIColor.black.withAlphaComponent(0.30)
+    playButton.layer.cornerRadius = 32
+    playButton.addTarget(self, action: #selector(togglePlay), for: .touchUpInside)
+    view.addSubview(playButton)
+
+    bottomPanel.layer.cornerRadius = 18
+    bottomPanel.layer.cornerCurve = .continuous
+    bottomPanel.clipsToBounds = true
+    view.addSubview(bottomPanel)
+
+    let content = bottomPanel.contentView
+    ownerLabel.text = item.owner
+    ownerLabel.font = NativeTheme.bodyFont(13)
+    ownerLabel.textColor = .white
+    ownerLabel.numberOfLines = 1
+    content.addSubview(ownerLabel)
+
+    ownerButton.setTitle("UP 主页", for: .normal)
+    ownerButton.setTitleColor(UIColor.white.withAlphaComponent(0.66), for: .normal)
+    ownerButton.titleLabel?.font = NativeTheme.bodyFont(11)
+    ownerButton.addTarget(self, action: #selector(openProfile), for: .touchUpInside)
+    content.addSubview(ownerButton)
+
+    wheel.onScrub = { [weak self] ratio, finished in
+      self?.scrub(ratio: ratio, finished: finished)
+    }
+    content.addSubview(wheel)
+
+    qualityLabel.font = NativeTheme.numberFont(10)
+    qualityLabel.textColor = UIColor.white.withAlphaComponent(0.70)
+    qualityLabel.textAlignment = .right
+    qualityLabel.text = "720P"
+    content.addSubview(qualityLabel)
+
+    commentsButton.setImage(UIImage(systemName: "text.bubble"), for: .normal)
+    commentsButton.tintColor = .white
+    commentsButton.addTarget(self, action: #selector(openComments), for: .touchUpInside)
+    content.addSubview(commentsButton)
+
+    likeButton.setImage(UIImage(systemName: "hand.thumbsup"), for: .normal)
+    likeButton.tintColor = .white
+    likeButton.addTarget(self, action: #selector(like), for: .touchUpInside)
+    content.addSubview(likeButton)
+
+    coinButton.setImage(UIImage(systemName: "circle.grid.2x1"), for: .normal)
+    coinButton.tintColor = .white
+    coinButton.addTarget(self, action: #selector(coin), for: .touchUpInside)
+    content.addSubview(coinButton)
+
+    favButton.setImage(UIImage(systemName: "star"), for: .normal)
+    favButton.tintColor = .white
+    favButton.addTarget(self, action: #selector(favorite), for: .touchUpInside)
+    content.addSubview(favButton)
+
+    errorLabel.font = NativeTheme.bodyFont(13)
+    errorLabel.textColor = NativeTheme.pipRose
+    errorLabel.numberOfLines = 0
+    errorLabel.textAlignment = .center
+    errorLabel.isHidden = true
+    view.addSubview(errorLabel)
+
+    [backButton, titleLabel, playButton, bottomPanel, ownerLabel, ownerButton, wheel,
+     qualityLabel, commentsButton, likeButton, coinButton, favButton, errorLabel].forEach {
+      $0.translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    NSLayoutConstraint.activate([
+      backButton.leadingAnchor.constraint(equalTo: topBar.leadingAnchor, constant: 8),
+      backButton.topAnchor.constraint(equalTo: topBar.topAnchor, constant: 4),
+      backButton.widthAnchor.constraint(equalToConstant: 44),
+      backButton.heightAnchor.constraint(equalToConstant: 44),
+
+      titleLabel.leadingAnchor.constraint(equalTo: backButton.trailingAnchor, constant: 4),
+      titleLabel.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -16),
+      titleLabel.centerYAnchor.constraint(equalTo: backButton.centerYAnchor),
+
+      playButton.widthAnchor.constraint(equalToConstant: 64),
+      playButton.heightAnchor.constraint(equalToConstant: 64),
+
+      ownerLabel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
+      ownerLabel.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
+      ownerLabel.trailingAnchor.constraint(lessThanOrEqualTo: ownerButton.leadingAnchor, constant: -8),
+
+      ownerButton.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
+      ownerButton.centerYAnchor.constraint(equalTo: ownerLabel.centerYAnchor),
+
+      wheel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+      wheel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+      wheel.topAnchor.constraint(equalTo: ownerLabel.bottomAnchor, constant: 6),
+      wheel.heightAnchor.constraint(equalToConstant: 48),
+
+      qualityLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
+      qualityLabel.topAnchor.constraint(equalTo: wheel.bottomAnchor, constant: 2),
+      qualityLabel.widthAnchor.constraint(equalToConstant: 56),
+
+      commentsButton.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 18),
+      commentsButton.topAnchor.constraint(equalTo: wheel.bottomAnchor, constant: 4),
+      commentsButton.widthAnchor.constraint(equalToConstant: 34),
+      commentsButton.heightAnchor.constraint(equalToConstant: 34),
+
+      likeButton.leadingAnchor.constraint(equalTo: commentsButton.trailingAnchor, constant: 18),
+      likeButton.centerYAnchor.constraint(equalTo: commentsButton.centerYAnchor),
+      likeButton.widthAnchor.constraint(equalToConstant: 34),
+      likeButton.heightAnchor.constraint(equalToConstant: 34),
+
+      coinButton.leadingAnchor.constraint(equalTo: likeButton.trailingAnchor, constant: 18),
+      coinButton.centerYAnchor.constraint(equalTo: commentsButton.centerYAnchor),
+      coinButton.widthAnchor.constraint(equalToConstant: 34),
+      coinButton.heightAnchor.constraint(equalToConstant: 34),
+
+      favButton.leadingAnchor.constraint(equalTo: coinButton.trailingAnchor, constant: 18),
+      favButton.centerYAnchor.constraint(equalTo: commentsButton.centerYAnchor),
+      favButton.widthAnchor.constraint(equalToConstant: 34),
+      favButton.heightAnchor.constraint(equalToConstant: 34),
+      favButton.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -10),
+
+      errorLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
+      errorLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
+      errorLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: 80),
+    ])
+
+    let tap = UITapGestureRecognizer(target: self, action: #selector(togglePlay))
+    tap.delegate = self
+    videoContainer.addGestureRecognizer(tap)
+
+    let longPress = UILongPressGestureRecognizer(target: self, action: #selector(longPress(_:)))
+    longPress.minimumPressDuration = 0.18
+    longPress.delegate = self
+    videoContainer.addGestureRecognizer(longPress)
+
+    let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+    pan.delegate = self
+    videoContainer.addGestureRecognizer(pan)
+
+    engine.onTime = { [weak self] seconds, duration in
+      guard let self = self, !self.isScrubbing else { return }
+      let safeDuration = duration > 0 ? duration : 1
+      self.wheel.progress = max(0, min(1, seconds / safeDuration))
+      self.wheel.currentText = self.format(seconds)
+      self.wheel.durationText = self.format(duration)
+    }
+    engine.onPlaying = { [weak self] playing in
+      guard let self = self else { return }
+      self.playButton.setImage(UIImage(systemName: playing ? "pause.fill" : "play.fill"), for: .normal)
+      self.playButton.alpha = playing ? 0.0 : 1.0
+      self.videoContainer.backgroundColor = playing ? .black : NativeTheme.pipRose
+    }
+    engine.onReady = { [weak self] in
+      guard let self = self else { return }
+      self.poster.isHidden = true
+      self.errorLabel.isHidden = true
+      self.engine.play()
+    }
+    engine.onError = { [weak self] message in
+      guard let self = self else { return }
+      self.errorLabel.text = message
+      self.errorLabel.isHidden = false
+    }
+    engine.onPipClose = { [weak self] in
+      self?.closeFromPip()
+    }
+    engine.onPipRestore = { [weak self] in
+      self?.closing = false
+      self?.videoContainer.isHidden = false
+    }
+
+    loadQuality(80)
+  }
+
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    start()
+  }
+
+  func start() {
+    guard !started else { return }
+    started = true
+    view.layoutIfNeeded()
+    engine.enablePiP()
+    if sourceFrame.width > 0 {
+      let target = view.bounds
+      videoContainer.frame = view.convert(sourceFrame, from: nil)
+      UIView.animate(withDuration: 0.30, delay: 0, options: [.curveEaseOut]) {
+        self.videoContainer.frame = target
+      }
+      sourceFrame = .zero
+    }
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    let full = view.bounds
+    if panProgress <= 0.001 || closing {
+      videoContainer.frame = full
+    }
+    dim.frame = view.bounds
+    topBar.frame = CGRect(x: 0, y: view.safeAreaInsets.top, width: full.width, height: 52)
+    playerView.frame = videoContainer.bounds
+    poster.frame = videoContainer.bounds
+    playButton.center = CGPoint(x: videoContainer.midX, y: videoContainer.midY)
+    let panelHeight: CGFloat = 150
+    bottomPanel.frame = CGRect(
+      x: 12,
+      y: full.height - view.safeAreaInsets.bottom - panelHeight - 10,
+      width: full.width - 24,
+      height: panelHeight
+    )
+  }
+
+  private func loadQuality(_ qn: Int) {
+    currentQuality = qn
+    loadToken += 1
+    let token = loadToken
+    BiliAPI.shared.playQuality(item, qn: qn) { [weak self] result in
+      guard let self = self, token == self.loadToken else { return }
+      switch result {
+      case .success(let source):
+        self.qualityLabel.text = source.qualityLabel.isEmpty ? "\(qn)P" : source.qualityLabel
+        self.engine.load(
+          url: source.url,
+          backup: source.backup,
+          headers: BiliAPI.shared.mediaHeaders,
+          autoplay: true,
+          muted: false,
+          loop: false
+        )
+      case .failure:
+        if qn > 64 {
+          self.loadQuality(64)
+        } else if qn > 32 {
+          self.loadQuality(32)
+        } else {
+          self.errorLabel.text = "无法获取播放地址"
+          self.errorLabel.isHidden = false
+        }
+      }
+    }
+  }
+
+  @objc private func togglePlay() {
+    engine.toggle()
+    playButton.alpha = engine.isPlaying ? 0.0 : 1.0
+    videoContainer.backgroundColor = engine.isPlaying ? .black : NativeTheme.pipRose
+  }
+
+  @objc private func longPress(_ gesture: UILongPressGestureRecognizer) {
+    switch gesture.state {
+    case .began:
+      guard engine.isPlaying else { return }
+      engine.setRate(2.0)
+      UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    case .ended, .cancelled, .failed:
+      engine.setRate(1.0)
+    default:
+      break
+    }
+  }
+
+  @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+    let translation = gesture.translation(in: view)
+    switch gesture.state {
+    case .began:
+      panStartFrame = videoContainer.frame
+      panProgress = 0
+    case .changed:
+      let down = max(0, translation.y)
+      let maxDistance = max(120, view.bounds.height * 0.52)
+      panProgress = min(1, down / maxDistance)
+      let full = view.bounds
+      let targetW = full.width - 48
+      let targetH = targetW * 9.0 / 16.0
+      let target = CGRect(
+        x: 24,
+        y: view.safeAreaInsets.top + 12,
+        width: targetW,
+        height: targetH
+      )
+      let p = panProgress
+      let rect = CGRect(
+        x: full.minX + (target.minX - full.minX) * p,
+        y: full.minY + (target.minY - full.minY) * p,
+        width: full.width + (target.width - full.width) * p,
+        height: full.height + (target.height - full.height) * p
+      )
+      videoContainer.frame = rect
+      topBar.alpha = 1 - p
+      bottomPanel.alpha = 1 - p
+      playButton.alpha = 0
+      dim.alpha = 1 - p * 0.5
+    case .ended, .cancelled:
+      let velocity = gesture.velocity(in: view).y
+      if panProgress > 0.28 || velocity > 780 {
+        closePlayer(animated: true)
+      } else {
+        UIView.animate(withDuration: 0.30, delay: 0, usingSpringWithDamping: 0.88, initialSpringVelocity: 0.4) {
+          self.videoContainer.frame = self.view.bounds
+          self.topBar.alpha = 1
+          self.bottomPanel.alpha = 1
+          self.playButton.alpha = self.engine.isPlaying ? 0 : 1
+          self.dim.alpha = 1
+          self.panProgress = 0
+        }
+      }
+    default:
+      break
+    }
+  }
+
+  @objc private func closeTapped() {
+    closePlayer(animated: true)
+  }
+
+  private func closePlayer(animated: Bool) {
+    guard !closing else { return }
+    closing = true
+    engine.stop()
+    engine.stopPip()
+    if animated {
+      UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseIn], animations: {
+        self.view.alpha = 0
+      }) { _ in
+        self.onClose?()
+      }
+    } else {
+      onClose?()
+    }
+  }
+
+  private func closeFromPip() {
+    closing = true
+    engine.stop()
+    onClose?()
+  }
+
+  private func scrub(ratio: Double, finished: Bool) {
+    if !finished {
+      if !isScrubbing {
+        isScrubbing = true
+        wasPlayingBeforeScrub = engine.isPlaying
+        engine.pause()
+      }
+      let duration = engine.duration
+      wheel.currentText = format(duration * ratio)
+      return
+    }
+    let duration = engine.duration
+    engine.seek(to: duration * ratio, resume: wasPlayingBeforeScrub)
+    isScrubbing = false
+    if wasPlayingBeforeScrub {
+      engine.play()
+    }
+  }
+
+  private func format(_ seconds: Double) -> String {
+    guard seconds.isFinite, seconds >= 0 else { return "00:00" }
+    let total = Int(seconds.rounded())
+    let hours = total / 3600
+    let minutes = (total % 3600) / 60
+    let secs = total % 60
+    if hours > 0 {
+      return String(format: "%d:%02d:%02d", hours, minutes, secs)
+    }
+    return String(format: "%02d:%02d", minutes, secs)
+  }
+
+  @objc private func openProfile() {
+    onProfile?(item.mid)
+  }
+
+  @objc private func openComments() {
+    let comments = CommentsViewController(aid: item.aid)
+    comments.modalPresentationStyle = .pageSheet
+    present(comments, animated: true)
+  }
+
+  @objc private func like() {
+    BiliAPI.shared.like(aid: item.aid, on: true) { [weak self] ok in
+      guard let self = self else { return }
+      self.likeButton.tintColor = ok ? NativeTheme.accent : .white
+      UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+  }
+
+  @objc private func coin() {
+    BiliAPI.shared.coin(aid: item.aid) { [weak self] ok in
+      self?.coinButton.tintColor = ok ? NativeTheme.warmOrange : .white
+      UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+  }
+
+  @objc private func favorite() {
+    BiliAPI.shared.favorite(aid: item.aid, on: true) { [weak self] ok in
+      self?.favButton.tintColor = ok ? NativeTheme.warmOrange : .white
+      UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+  }
+
+  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    if let pan = gestureRecognizer as? UIPanGestureRecognizer {
+      let velocity = pan.velocity(in: videoContainer)
+      if abs(velocity.y) <= abs(velocity.x) { return false }
+      if velocity.y < -80 { return false }
+      return true
+    }
+    return true
+  }
+
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+    if touch.view is UIControl { return false }
+    if touch.view?.isDescendant(of: bottomPanel) == true { return false }
+    if touch.view?.isDescendant(of: topBar) == true { return false }
+    return true
+  }
+}
