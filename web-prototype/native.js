@@ -467,7 +467,7 @@
       event.stopPropagation();
       if (item.live) playLive(item);
       else if (item.seasonId && !item.epId) playSeason(item);
-      else playItem(item);
+      else playItem(item, row);
     });
     const wrapper = document.createElement('div');
     wrapper.className = 'feed-item';
@@ -1005,11 +1005,10 @@
   }
 
   function promoteFeedPreview(thumb) {
-    /* The native player is the one that owns audio. Promoting the muted feed
-       preview into the player made the picture start while the sound stayed
-       muted until the main item took over; always use the poster/main path on
-       native platforms. */
-    if (NATIVE_MEDIA) return false;
+    /* Promote the live feed preview into the player on every platform. On
+       native the preview keeps its own audio while the AVPlayer item loads
+       behind it, so opening a video starts from the already-playing frame
+       instead of a spinner; the main item takes over on its first frame. */
     if (!previewRow || !previewVideo || !previewVideo.src) return false;
     // A native fallback preview lives above the WebView; promoting it would
     // cover the player controls. Open with the normal poster/main path instead.
@@ -1019,6 +1018,7 @@
     if (thumb && rowThumb !== thumb) return false;
     const item = previewRow.__nativeItem;
     if (!item || item.live || !item.bvid) return false;
+    const promoteAudio = NATIVE_MEDIA;
     previewToken += 1;
     clearTimeout(previewTimer);
     previewTimer = null;
@@ -1032,14 +1032,13 @@
     if (previewVideo.parentNode) previewVideo.parentNode.removeChild(previewVideo);
     previewVideo.classList.remove('feed-preview-video', 'show');
     previewVideo.classList.add('player-promoted-video');
-    // Keep the inline preview muted until the native main item is ready. If it
-    // owns the audio session, starting AVPlayer pauses the HTML preview and the
-    // transition looks frozen. Main audio is unmuted at handoff instead.
-    previewVideo.muted = true;
-    previewVideo.defaultMuted = true;
-    previewVideo.volume = 0;
-    // Keep looping while the 1080P DASH item prepares; stopping at the end
-    // used to pause the incoming main player and leave a black screen.
+    // The preview already has the user's tap: keep its picture and, on native,
+    // its audio audible until the main AVPlayer item has its first frame.
+    previewVideo.muted = !promoteAudio;
+    previewVideo.defaultMuted = !promoteAudio;
+    previewVideo.volume = promoteAudio ? 1 : 0;
+    // Keep looping while the main item prepares; stopping at the end used to
+    // pause the incoming main player and leave a black screen.
     previewVideo.loop = true;
     previewVideo.controls = false;
     previewVideo.playbackRate = 1;
@@ -1074,7 +1073,16 @@
       host.setProgress(state.progress);
       host.updatePlaylistDock();
     }
-    promotedVideo.play().catch(() => {});
+    const playAttempt = promotedVideo.play();
+    if (playAttempt && playAttempt.catch) {
+      playAttempt.catch(() => {
+        // Some iOS builds refuse unmuted playback without a fresh gesture.
+        // Keep the picture moving muted; the native item brings the sound.
+        promotedVideo.muted = true;
+        promotedVideo.volume = 0;
+        promotedVideo.play().catch(() => {});
+      });
+    }
     return true;
   }
 
@@ -2444,8 +2452,9 @@
     win.loadTimer = setTimeout(run, 80);
   }
 
-  function playItem(item) {
+  function playItem(item, sourceRow) {
     if (!item) return;
+    if (sourceRow && host.setPlayerOrigin) host.setPlayerOrigin(sourceRow);
     const preservePreview = Boolean(!item.live && !item.seasonId && previewRow
       && previewRow.__nativeItem
       && mediaKeyFor(previewRow.__nativeItem) === mediaKeyFor(item));
@@ -3459,7 +3468,8 @@
         host.updatePlayerLabels();
         showQualityFallback(requestedQuality, actualTrackQuality);
       }
-      const keep = Number(video.currentTime) || 0;
+      const keep = Number(video.currentTime)
+        || (promotedPreview ? Number(promotedPreview.time) || 0 : 0);
       video.__nativeLoad({
         videoUrl: videoTrack.remote || videoTrack.url,
         audioUrl: audioTrack.remote || audioTrack.url,
@@ -5287,7 +5297,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.68';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.69';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {

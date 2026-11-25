@@ -863,6 +863,33 @@
     updatePlaylistCounts();
   }
 
+  let floatToolbarIndicator = null;
+  let floatIndicatorFrame = 0;
+
+  function syncFloatToolbarIndicator() {
+    if (!floatToolbar) return;
+    if (!floatToolbarIndicator || !floatToolbarIndicator.isConnected) {
+      floatToolbarIndicator = floatToolbar.querySelector('.float-tool-indicator');
+    }
+    if (!floatToolbarIndicator) return;
+    const active = floatToolbar.querySelector('.float-tool.on');
+    if (!active || !active.offsetWidth) {
+      floatToolbarIndicator.style.opacity = '0';
+      return;
+    }
+    floatToolbarIndicator.style.opacity = '1';
+    floatToolbarIndicator.style.width = `${active.offsetWidth}px`;
+    floatToolbarIndicator.style.transform = `translateX(${active.offsetLeft}px)`;
+  }
+
+  function scheduleFloatToolbarIndicator() {
+    if (floatIndicatorFrame) cancelAnimationFrame(floatIndicatorFrame);
+    floatIndicatorFrame = requestAnimationFrame(() => {
+      floatIndicatorFrame = 0;
+      syncFloatToolbarIndicator();
+    });
+  }
+
   function updateNavActive() {
     $$('.sidebar-item', sidebar).forEach((row) => {
       row.classList.toggle('on', row.dataset.nav === state.navActive);
@@ -871,6 +898,7 @@
       $$('.float-tool', floatToolbar).forEach((row) => {
         row.classList.toggle('on', row.dataset.navTool === state.navActive);
       });
+      scheduleFloatToolbarIndicator();
     }
   }
 
@@ -886,10 +914,16 @@
       button.addEventListener('click', () => handleNav(item, button));
       floatToolbar.appendChild(button);
     });
+    floatToolbarIndicator = document.createElement('span');
+    floatToolbarIndicator.className = 'float-tool-indicator';
+    floatToolbarIndicator.setAttribute('aria-hidden', 'true');
+    floatToolbar.appendChild(floatToolbarIndicator);
     updateNavActive();
+    scheduleFloatToolbarIndicator();
   }
 
   renderFloatToolbar();
+  window.addEventListener('resize', scheduleFloatToolbarIndicator);
 
   function openSidebar() {
     if (!state.loggedIn) {
@@ -1415,8 +1449,40 @@
     app.classList.toggle('my-dragging', options.dragging === true && p > 0.001);
   }
 
+  let pageEnterAnim = null;
+
+  function animatePageEnter(pageName, direction) {
+    if (!pageName || document.body.classList.contains('reduce-motion')) return;
+    const node = document.querySelector(`.page[data-page="${pageName}"]`);
+    if (!node) return;
+    if (pageEnterAnim) {
+      try { pageEnterAnim.cancel(); } catch (_) {}
+      pageEnterAnim = null;
+    }
+    if (typeof node.animate !== 'function') return;
+    const dx = Number(direction) * 18;
+    pageEnterAnim = node.animate([
+      { opacity: 0, transform: `translate3d(${dx}px, 10px, 0) scale(.996)` },
+      { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' },
+    ], { duration: 320, easing: 'cubic-bezier(.22,1,.36,1)' });
+    if (pageEnterAnim.finished && pageEnterAnim.finished.then) {
+      pageEnterAnim.finished.then(() => {
+        pageEnterAnim = null;
+      }).catch(() => {});
+    }
+  }
+
+  function navSwitchDirection(previousNav, nextNav) {
+    const order = BOTTOM_NAV_ITEMS.map((item) => item.id);
+    const from = order.indexOf(previousNav);
+    const to = order.indexOf(nextNav);
+    if (from < 0 || to < 0 || from === to) return 0;
+    return to > from ? 1 : -1;
+  }
+
   function showPage(page, navId) {
     const previousPage = state.page;
+    const previousNav = state.navActive;
     if (!state.loggedIn && page !== 'login') {
       page = 'login';
       navId = null;
@@ -1577,6 +1643,7 @@
       state.navActive = PAGE_NAV[page];
     }
     updateNavActive();
+    if (page !== previousPage) animatePageEnter(page, navSwitchDirection(previousNav, state.navActive));
     updatePlaylistDock();
     if (!returningToBase && !returningFromSearch) appScroll.scrollTop = 0;
     setTimeout(refreshFeedPreview, 260);
@@ -2176,33 +2243,13 @@
   }
 
   function updatePlaylistDock() {
-    const count = state.playlist.length;
-    const item = state.playlist[state.currentIndex];
-    renderDockPlaylist();
-    const dockVisible = state.loggedIn && (!state.playerOpen || dockLaunching);
-    const show = dockVisible;
-    playlistDock.classList.toggle('show', show);
-    playlistDock.setAttribute('aria-hidden', show ? 'false' : 'true');
-    playlistDock.setAttribute('aria-label', `播放列表，${count} 项`);
-    playlistDock.inert = !show;
-    app.classList.toggle('has-playlist', dockVisible);
-    playlistDock.style.opacity = '';
-    playlistDock.style.transform = '';
-    if (pdModeValue) pdModeValue.textContent = state.settings.loop;
-    if (pdMode) pdMode.setAttribute('aria-label', `播放模式：${state.settings.loop}，点击切换`);
-    if (pdClear) pdClear.disabled = count === 0;
-    if (!count) resetDockClear();
-    if (!item) {
-      pdTitle.textContent = '暂无播放内容';
-      pdMeta.textContent = '左滑视频加入';
-      pdProgress.style.width = '0%';
-      setPlaylistDisc(null);
-      return;
-    }
-    pdTitle.textContent = item.title || '视频';
-    pdMeta.textContent = playlistOwnerName(item) || 'UP 主';
-    pdProgress.style.width = `${state.progress}%`;
-    setPlaylistDisc(item);
+    /* The playlist dock is retired. Keep this no-op so the many playback
+       callbacks that refresh player chrome do not need to special-case it. */
+    app.classList.remove('has-playlist');
+    if (!playlistDock) return;
+    playlistDock.classList.remove('show');
+    playlistDock.setAttribute('aria-hidden', 'true');
+    playlistDock.inert = true;
   }
 
   function pulsePlaylistDock() {
@@ -4175,9 +4222,11 @@
       playerOpenWindowAnim = null;
     }
     player.classList.remove('window-opening', 'promoting-preview');
+    app.classList.remove('player-opening');
     player.style.pointerEvents = '';
     player.style.transform = '';
     player.style.borderRadius = '';
+    player.style.boxShadow = '';
     player.style.animation = '';
     playerRotor.style.backgroundImage = '';
   }
@@ -4188,9 +4237,11 @@
       clearTimeout(playerOpenWindowTimer);
       playerOpenWindowTimer = null;
       player.classList.remove('window-opening', 'promoting-preview');
+      app.classList.remove('player-opening');
       player.style.pointerEvents = '';
       player.style.transform = '';
       player.style.borderRadius = '';
+      player.style.boxShadow = '';
       player.style.animation = '';
       playerRotor.style.backgroundImage = '';
       if (playerOpenWindowAnim) {
@@ -4293,6 +4344,21 @@
     playerPoster = poster;
   }
 
+  function setPlayerOriginFromRow(row) {
+    if (!row) return false;
+    const thumb = row.querySelector('.row-thumb');
+    if (!thumb) return false;
+    const rect = thumb.getBoundingClientRect();
+    if (!rect.width || !rect.height) return false;
+    pendingPlayerOrigin = {
+      thumb,
+      rect,
+      radius: getComputedStyle(thumb).borderRadius || '0px',
+      time: Date.now(),
+    };
+    return true;
+  }
+
   function openPlayer(options = {}) {
     endPlayerDragSnapshot();
     const origin = pendingPlayerOrigin;
@@ -4358,10 +4424,16 @@
       const posterUrl = (origin && origin.image)
         || (currentEntry ? playlistCoverUrl(currentEntry) : '')
         || '';
+      if (posterUrl) {
+        app.style.setProperty('--player-backdrop', `url("${String(posterUrl).replace(/"/g, '%22')}")`);
+      } else {
+        app.style.removeProperty('--player-backdrop');
+      }
       showPlayerPoster(posterUrl, origin && origin.thumb);
     }
     const expandFromRow = !wasOpen && Boolean(origin && origin.rect && origin.rect.width && origin.rect.height);
     if (expandFromRow) {
+      app.classList.add('player-opening');
       player.classList.add('window-opening');
       if (promotedPreview) player.classList.add('promoting-preview');
       player.style.animation = 'none';
@@ -4507,7 +4579,7 @@
   function closePlayerFromDrop(direction, fromY, scale) {
     if (!state.playerOpen) return;
     holdNativePageChrome();
-    app.classList.remove('player-open');
+    app.classList.add('player-dragging');
     syncStatusBarStyle();
     const token = ++playerDropExitToken;
     const width = window.innerWidth || 1;
@@ -4533,7 +4605,7 @@
         {
           transform: `translate(0px, ${fromY}px) scale(${scale})`,
           opacity: 1,
-          borderRadius: '28px',
+          borderRadius: player.style.borderRadius || '28px',
         },
         {
           transform: `translate(${exitX}px, ${exitY}px) scale(${exitScale}) rotate(${exitRotate}deg)`,
@@ -4588,7 +4660,7 @@
     resetVideoDetail();
     state.playerOpen = false;
     if (typeof updateDebugHud === 'function') updateDebugHud();
-    app.classList.remove('player-open');
+    app.classList.remove('player-open', 'player-opening');
     syncStatusBarStyle();
     state.miniVisible = false;
     state.playing = false;
@@ -4607,6 +4679,8 @@
     player.style.transform = '';
     player.style.opacity = '';
     player.style.pointerEvents = '';
+    player.style.borderRadius = '';
+    player.style.boxShadow = '';
     playerControls.classList.remove('hidden');
     lockBadge.classList.remove('show');
     updatePlaylistDock();
@@ -5078,6 +5152,10 @@
 
   let playerDragSnapshot = null;
 
+  function playerCollapseScale(dragY) {
+    return 1 - Math.min(0.17, Math.max(0, Number(dragY) || 0) / 820);
+  }
+
   function beginPlayerDragSnapshot() {
     if (!state.playerOpen) return;
     /* Keep the native player visible while the window is dragged/collapsed.
@@ -5182,14 +5260,15 @@
           if (navigator.vibrate) navigator.vibrate(3);
         }
       }
-      const scale = 1 - Math.min(0.05, dragY / 3000);
+      const scale = playerCollapseScale(dragY);
       if (state.playerLandscape) {
         player.style.transform = `scale(${scale})`;
       } else {
         player.style.transform = `translateY(${dragY}px) scale(${scale})`;
       }
       player.style.opacity = '1';
-      player.style.borderRadius = `${Math.min(28, dragY * 0.16)}px`;
+      player.style.borderRadius = `${Math.min(30, 8 + dragY * 0.18)}px`;
+      player.style.boxShadow = dragY > 6 ? '0 28px 78px rgba(0,0,0,.52)' : '';
       if (!state.playerLandscape) {
         const height = player.clientHeight || window.innerHeight || 1;
         const reveal = Math.max(0, Math.min(height, dragY + height * (1 - scale) / 2));
@@ -5294,7 +5373,7 @@
 
     if (gesture.mode === 'collapse') {
       const fromY = state.playerLandscape ? 0 : gesture.collapseY;
-      const scale = 1 - Math.min(0.05, gesture.collapseY / 3000);
+      const scale = playerCollapseScale(gesture.collapseY);
       if (!cancelled && gesture.collapseY > 110) {
         hidePlayerDrop();
         closePlayerFromDrop(0, fromY, scale);
@@ -5303,16 +5382,18 @@
       }
       hidePlayerDrop(0, { restore: true });
       setTimeout(endPlayerDragSnapshot, 280);
-      player.style.transition = 'transform .24s cubic-bezier(.16,1,.3,1), opacity .2s ease, border-radius .2s ease';
+      player.style.transition = 'transform .24s cubic-bezier(.16,1,.3,1), opacity .2s ease, border-radius .2s ease, box-shadow .24s ease';
       player.style.transform = 'none';
       player.style.opacity = '1';
       player.style.borderRadius = '0px';
+      player.style.boxShadow = '';
       setTimeout(() => {
         if (state.playerOpen) {
           player.style.transition = '';
           player.style.transform = '';
           player.style.opacity = '';
           player.style.borderRadius = '';
+          player.style.boxShadow = '';
         }
       }, 260);
     } else if (gesture.mode === 'settings') {
@@ -7515,6 +7596,7 @@
     openPlaylistPage,
     setPlayerOrientation,
     openPlayer,
+    setPlayerOrigin: setPlayerOriginFromRow,
     minimizePlayer,
     stopPlayback,
     updatePlayerLabels,
