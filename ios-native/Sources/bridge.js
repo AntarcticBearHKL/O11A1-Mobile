@@ -60,7 +60,7 @@
   }
   window.O11A1Native = {
     available: function () { return true; },
-    version: function () { return '0.4.51-ios'; },
+    version: function () { return '0.4.52-ios'; },
     popular: function (page, ps) { return call('popular', { page: page, ps: ps }); },
     recommend: function (page, ps, fresh) { return call('recommend', { page: page, ps: ps, fresh: fresh }); },
     search: function (keyword, page) { return call('search', { keyword: keyword, page: page }); },
@@ -125,7 +125,7 @@
     smsLogin: function (tel, cid, code, captchaKey) { return call('smsLogin', { tel: tel, cid: cid, code: code, captchaKey: captchaKey }); },
     nativePlayerLoad: function (slot, json) { return call('nativePlayerLoad', { slot: slot, json: json }); },
     nativePlayerControl: function (slot, action, value) { return call('nativePlayerControl', { slot: slot, action: action, value: value }); },
-    nativePlayerRect: function (slot, x, y, w, h, visible, rotation) { return call('nativePlayerRect', { slot: slot, x: x, y: y, w: w, h: h, visible: visible ? 1 : 0, rotation: rotation || 0 }); },
+    nativePlayerRect: function (slot, x, y, w, h, visible, rotation, aspect) { return call('nativePlayerRect', { slot: slot, x: x, y: y, w: w, h: h, visible: visible ? 1 : 0, rotation: rotation || 0, aspect: aspect || '' }); },
     nativePlayerRelease: function (slot) { return call('nativePlayerRelease', { slot: slot }); },
     nativePlayerLayer: function (slot, background) { return call('nativePlayerLayer', { slot: slot, background: background ? 1 : 0 }); },
     nativePlayerState: function (slot) { return call('nativePlayerState', { slot: slot }); },

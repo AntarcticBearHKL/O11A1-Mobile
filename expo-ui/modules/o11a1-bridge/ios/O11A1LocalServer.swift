@@ -724,7 +724,8 @@ final class O11A1LocalServer {
         width: Double(query["w"] ?? "0") ?? 0,
         height: Double(query["h"] ?? "0") ?? 0,
         visible: (query["visible"] ?? "1") != "0",
-        rotation: Double(query["rotation"] ?? "0") ?? 0
+        rotation: Double(query["rotation"] ?? "0") ?? 0,
+        aspect: query["aspect"] ?? ""
       )
       data = o11a1Data(["ok": true])
     case "nativePlayerRelease":
