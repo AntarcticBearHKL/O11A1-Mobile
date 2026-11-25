@@ -1629,7 +1629,7 @@ body.grid .grid-overlay{display:block}
 /* flat moving ruler (desktop precision wheel) */
 .player-controls{
   position:absolute;left:50%;bottom:max(2px,env(safe-area-inset-bottom));z-index:6;
-  width:min(560px,calc(100% - 32px));height:104px;padding:0;
+  width:min(560px,calc(100% - 32px));height:92px;padding:0;
   display:block;
   background:
     linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.035) 28%,rgba(255,255,255,.01) 100%),
@@ -1661,19 +1661,19 @@ body.grid .grid-overlay{display:block}
 }
 .wheel-strip{position:absolute;inset:0;z-index:1;pointer-events:none}
 .wheel-tick{
-  position:absolute;bottom:6px;width:1px;height:13px;border-radius:1px;
+  position:absolute;bottom:5px;width:1px;height:11px;border-radius:1px;
   background:rgba(255,255,255,.22);transform:translateX(-.5px);
 }
-.wheel-tick.mid{height:24px;background:rgba(255,255,255,.34)}
-.wheel-tick.major{width:1.6px;height:calc(100% - 23px);background:rgba(255,255,255,.42)}
+.wheel-tick.mid{height:20px;background:rgba(255,255,255,.34)}
+.wheel-tick.major{width:1.6px;height:calc(100% - 19px);background:rgba(255,255,255,.42)}
 .wheel-tick.major.past{background:#6EA8FF}
 .wheel-tick.major.past::after{
   content:"";position:absolute;left:50%;top:-4px;width:7px;height:1px;
   border-radius:1px;background:#6EA8FF;transform:translateX(-50%);
 }
 .wheel-tick-label{
-  position:absolute;top:3px;transform:translateX(-50%);white-space:nowrap;
-  font:500 8px/1 var(--font-mono);color:rgba(255,255,255,.44);
+  position:absolute;top:2.5px;transform:translateX(-50%);white-space:nowrap;
+  font:500 7px/1 var(--font-mono);color:rgba(255,255,255,.44);
   letter-spacing:.01em;font-variant-numeric:tabular-nums;
 }
 .wheel-tick-label.past{color:rgba(140,188,255,.78)}
@@ -1698,9 +1698,9 @@ body.grid .grid-overlay{display:block}
 body[data-theme="light"] .grid-cell{background:rgba(0,0,0,.12)}
 body[data-theme="light"] .grid-progress .grid-cell.on{background:var(--blue,#2F7CF6)}
 @media (max-width:380px){
-  .player-controls{height:98px}
-  .wheel-tick{height:12px}
-  .wheel-tick.mid{height:21px}
+  .player-controls{height:88px}
+  .wheel-tick{height:10px}
+  .wheel-tick.mid{height:18px}
 }
 
 /* ---------- player drag light edges ---------- */
