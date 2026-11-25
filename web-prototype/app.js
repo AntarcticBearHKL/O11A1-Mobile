@@ -285,8 +285,6 @@
     playing: false,
     locked: false,
     pipActive: false,
-    pipPending: false,
-    pipSupported: null,
     playerLandscape: false,
     playerLandscapeDir: 0,
     progress: 0,
@@ -396,7 +394,6 @@
   let playerOpenWindowTimer = null;
   let playerMediaOpenTimer = null;
   let playerMediaOpenToken = 0;
-  let pipStartWatchdog = 0;
   let playerPrefetchTimer = null;
   let playerCollapseAnim = null;
   let playerCollapseRadiusAnim = null;
@@ -4412,10 +4409,8 @@
 
   function openPlayer(options = {}) {
     endPlayerDragSnapshot();
-    if (state.pipActive || state.pipPending) {
-      clearTimeout(pipStartWatchdog);
+    if (state.pipActive) {
       state.pipActive = false;
-      state.pipPending = false;
       const native = pipBridge();
       if (native && typeof native.pipStop === 'function') {
         try { native.pipStop('main'); } catch (_) {}
@@ -4607,33 +4602,7 @@
 
   function pipBridge() {
     const native = window.O11A1Native;
-    return native && typeof native.pipStart === 'function' ? native : null;
-  }
-
-  function pipSupported() {
-    if (state.pipSupported !== null) return state.pipSupported;
-    const native = pipBridge();
-    if (!native || (typeof native.pipAvailable !== 'function')) {
-      state.pipSupported = false;
-      return false;
-    }
-    try {
-      const result = JSON.parse(native.pipAvailable());
-      state.pipSupported = Boolean(result && result.ok);
-    } catch (_) {
-      state.pipSupported = false;
-    }
-    return state.pipSupported;
-  }
-
-  function pipStartRequest() {
-    const native = pipBridge();
-    if (!native) return { ok: false };
-    try {
-      return JSON.parse(native.pipStart('main')) || { ok: false };
-    } catch (_) {
-      return { ok: false };
-    }
+    return native && typeof native.pipState === 'function' ? native : null;
   }
 
   function resetPlayerPipStyles() {
@@ -4643,33 +4612,8 @@
     player.style.pointerEvents = '';
   }
 
-  function pipEnter() {
-    if (!state.playerOpen || state.pipActive || state.pipPending) return false;
-    if (!state.playing || !pipSupported()) return false;
-    /* Ask the native player first. iOS starts its own transition from the
-       AVPlayerLayer, Android switches to the full-bleed video and asks the
-       system to enter PiP; only then does the web card need to fade away. */
-    state.pipPending = true;
-    const result = pipStartRequest();
-    if (!result || result.ok !== true) {
-      state.pipPending = false;
-      return false;
-    }
-    clearTimeout(hideTimer);
-    resetComments();
-    clearTimeout(pipStartWatchdog);
-    pipStartWatchdog = setTimeout(() => {
-      if (state.pipActive || !state.pipPending) return;
-      pipFail();
-    }, 2600);
-    return true;
-  }
-
   function pipStarted() {
-    clearTimeout(pipStartWatchdog);
-    if (!state.pipPending && !state.pipActive) return;
     if (state.pipActive) return;
-    state.pipPending = false;
     state.pipActive = true;
     state.playerOpen = false;
     state.miniVisible = false;
@@ -4689,11 +4633,8 @@
   }
 
   function pipExited(reason) {
-    clearTimeout(pipStartWatchdog);
-    const wasActive = state.pipActive || state.pipPending;
+    const wasActive = state.pipActive;
     state.pipActive = false;
-    state.pipPending = false;
-    if (!wasActive) return;
     if (reason === 'expand') {
       state.playerOpen = true;
       state.miniVisible = false;
@@ -4719,34 +4660,32 @@
       }, 460);
       return;
     }
+    if (!wasActive) return;
     resetPlayerPipStyles();
     stopPlayback();
-  }
-
-  function pipFail() {
-    clearTimeout(pipStartWatchdog);
-    if (!state.pipPending) return;
-    state.pipPending = false;
-    resetPlayerPipStyles();
-    /* PiP could not start (unsupported controller, background restriction,
-       native player released). Fall back to the normal close animation. */
-    if (state.playerOpen) closePlayerFromDrop(0, 0, 1, { noPip: true });
   }
 
   window.O11A1Pip = {
     onStart: () => pipStarted(),
     onExit: (reason) => pipExited(reason === 'expand' ? 'expand' : 'close'),
-    onFail: () => pipFail(),
+    onFail: () => {},
   };
 
   function syncPipState() {
-    if (!state.pipActive) return;
     const native = pipBridge();
-    if (!native || typeof native.pipState !== 'function') return;
+    if (!native) return;
+    let result = null;
     try {
-      const result = JSON.parse(native.pipState('main'));
-      if (result && result.active === false) pipExited('close');
-    } catch (_) {}
+      result = JSON.parse(native.pipState('main'));
+    } catch (_) {
+      return;
+    }
+    if (!result) return;
+    if (result.active) {
+      if (!state.pipActive) pipStarted();
+      return;
+    }
+    if (state.pipActive) pipExited('expand');
   }
 
   window.addEventListener('focus', syncPipState);
@@ -4754,9 +4693,8 @@
     if (!document.hidden) syncPipState();
   });
 
-  function closePlayerFromDrop(direction, fromY, scale, options = {}) {
+  function closePlayerFromDrop(direction, fromY, scale) {
     if (!state.playerOpen) return;
-    if (!options.noPip && direction === 0 && state.playing && pipEnter()) return;
     holdNativePageChrome();
     app.classList.add('player-dragging');
     keepPlayerWindowHole(760);
@@ -4828,10 +4766,8 @@
   }
 
   function stopPlayback() {
-    clearTimeout(pipStartWatchdog);
-    if (state.pipActive || state.pipPending) {
+    if (state.pipActive) {
       state.pipActive = false;
-      state.pipPending = false;
       const native = pipBridge();
       if (native && typeof native.pipStop === 'function') {
         try { native.pipStop('main'); } catch (_) {}

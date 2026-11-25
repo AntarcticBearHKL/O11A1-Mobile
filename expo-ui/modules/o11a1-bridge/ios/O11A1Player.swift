@@ -918,6 +918,9 @@ final class O11A1PlayerHost: NSObject {
     guard let controller = AVPictureInPictureController(playerLayer: slot.view.playerLayer) else { return }
     let delegate = PipDelegate(host: self, slotId: slot.id)
     controller.delegate = delegate
+    /* Home/app-switch while the video is playing should continue in the system
+       PiP window. Pulling the player closed still stops playback normally. */
+    controller.canStartPictureInPictureAutomaticallyFromInline = true
     slot.pipDelegate = delegate
     slot.pipController = controller
   }

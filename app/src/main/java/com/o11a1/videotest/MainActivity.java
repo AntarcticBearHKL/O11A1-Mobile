@@ -290,6 +290,14 @@ public final class MainActivity extends Activity {
     }
 
     @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        if (Build.VERSION.SDK_INT >= 26 && nativePlayers != null && nativePlayers.isMainPlaying()) {
+            enterPipFromPlayer("main");
+        }
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         isResumed = true;

@@ -107,6 +107,13 @@ final class NativePlayerHost {
         return overlayLayer;
     }
 
+    boolean isMainPlaying() {
+        Slot slot = slots.get("main");
+        if (slot == null || slot.view == null || !slot.view.isShown()) return false;
+        if (slot.player == null) return false;
+        return slot.player.isPlaying() || slot.player.getPlayWhenReady();
+    }
+
     PipInfo pipInfo(String slotId) {
         Slot slot = slots.get(slotId);
         if (slot == null || slot.view == null) {
