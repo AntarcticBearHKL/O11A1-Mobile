@@ -1794,7 +1794,7 @@ final class O11A1BiliClient {
     guard resolvedCid > 0 else { return o11a1Error("cid not found") }
     var selected: [String: Any]?
     var seen = Set<Int>()
-    let candidates = [qn, 127, 126, 125, 120, 116, 112, 80, 74, 64, 32, 16]
+    let candidates = [qn, 80]
     for candidate in candidates {
       if candidate <= 0 || seen.contains(candidate) { continue }
       seen.insert(candidate)

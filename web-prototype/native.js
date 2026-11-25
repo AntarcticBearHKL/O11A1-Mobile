@@ -942,6 +942,9 @@
       previewProgressFill = attachPreviewOverlays(thumb);
       video.classList.add('show');
       retire();
+      setTimeout(() => {
+        if (previewRow === row) preloadPreviewNeighbor(feed, row);
+      }, 700);
     };
     video.addEventListener('playing', reveal, { once: true });
     thumb.classList.add('preview-loading');
@@ -951,7 +954,6 @@
       if (video.readyState >= 3 && !video.paused) reveal();
     });
     prewarmPlayerUrl(row.__nativeItem);
-    setTimeout(() => preloadPreviewNeighbor(feed, row), 180);
     setTimeout(retire, 3000);
     return true;
   }
@@ -1165,7 +1167,7 @@
   function prewarmFeedRows(items) {
     if (!NATIVE_MEDIA || typeof bridge.prewarmPreviews !== 'function' || !Array.isArray(items)) return;
     const list = [];
-    for (let index = 0; index < items.length && list.length < 12; index += 1) {
+    for (let index = 0; index < items.length && list.length < 4; index += 1) {
       const item = items[index];
       if (!item || item.live || item.epId || !item.bvid) continue;
       list.push({ bvid: item.bvid, cid: Number(item.cid) || 0 });
@@ -1458,6 +1460,11 @@
       thumb.classList.remove('preview-loading');
       previewProgressFill = attachPreviewOverlays(thumb);
       video.classList.add('show');
+      /* Warm the next card only after this preview is actually playing, so its
+         own download is not competing for the same bandwidth while loading. */
+      setTimeout(() => {
+        if (previewRow === row) preloadPreviewNeighbor(feed, row);
+      }, 700);
     };
     video.addEventListener('playing', started, { once: true });
     try { video.playbackRate = 1; } catch (_) {}
@@ -1467,9 +1474,6 @@
       video.play().catch((error) => log('preview play failed ' + error));
     }
     prewarmPlayerUrl(item);
-    setTimeout(() => {
-      if (previewRow === row) preloadPreviewNeighbor(feed, row);
-    }, 260);
     return true;
   }
 
@@ -1763,6 +1767,10 @@
     }
     if (label) fw.label = label;
     for (let index = 0; index < items.length; index += 1) fw.queue.push(items[index]);
+    /* Warm the first cards of the newly fetched page while the user is still
+       scrolling toward them, so their preview URLs do not have to be fetched
+       on demand when the scroll stops. */
+    prewarmFeedRows(items);
     if (feedIsBusy(feed)) {
       scheduleDeferredFeedRender(feed);
       return;
@@ -5274,7 +5282,7 @@
   }
 
   const loginNote = $('.login-note');
-  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.64';
+  if (loginNote) loginNote.innerHTML = '登录后同步收藏 / 历史 / 大会员画质<br>使用 B 站官方短信验证码登录 · v0.4.65';
 
   const accountAction = $('#myAccountAction');
   if (accountAction) accountAction.addEventListener('click', () => {
