@@ -4395,6 +4395,7 @@
 
   function closePlayerFromDrop(direction, fromY, scale) {
     if (!state.playerOpen) return;
+    holdNativePageChrome();
     app.classList.remove('player-open');
     syncStatusBarStyle();
     const token = ++playerDropExitToken;
@@ -4455,8 +4456,17 @@
     }
   }
 
+  function holdNativePageChrome() {
+    /* The player surfaces are transparent only while this class is present.
+       Keep it through a collapse so the outgoing window never repaints as an
+       opaque dark rectangle over the feed. */
+    document.documentElement.classList.add('native-player-ready');
+    document.body.classList.add('native-player-ready');
+  }
+
   function minimizePlayer(fromY = 0, fromScale = 1) {
     if (!state.playerOpen) return;
+    holdNativePageChrome();
     playerMediaOpenToken += 1;
     clearTimeout(playerMediaOpenTimer);
     playerMediaOpenTimer = null;
