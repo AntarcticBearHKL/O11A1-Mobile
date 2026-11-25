@@ -30,9 +30,6 @@
   const playerDropZones = playerDrop ? $$('.player-drop-zone', playerDrop) : [];
   const seekRipple = $('#seekRipple');
   const lockBadge = $('#lockBadge');
-  const rateHud = $('#rateHud');
-  const rateValue = $('#rateValue');
-  const rateLabel = $('#rateLabel');
   const playerNotice = $('#playerNotice');
   const playerNoticeTitle = $('#playerNoticeTitle');
   const playerNoticeText = $('#playerNoticeText');
@@ -75,7 +72,6 @@
   const myPage = $('.page[data-page="my"]');
   const pdCollapsed = $('#pdCollapsed');
   const pdDisc = $('#pdDisc');
-  const pdDiscArt = $('#pdDiscArt');
   const pdTitle = $('#pdTitle');
   const pdMeta = $('#pdMeta');
   const pdProgress = $('#pdProgress');
@@ -381,7 +377,6 @@
   let wheelDragBasis = null;
   const GRID_CELLS = 36;
   let gridCells = [];
-  let rateHudTimer = null;
   let playerNoticeTimer = null;
   let gyroBound = false;
   let gyroCandidateDir = null;
@@ -411,7 +406,6 @@
   let playerDropControlsVisible = false;
   let panelTransitionGuardUntil = 0;
   let rowSwipe = null;
-  let sidebarPicked = null;
   let menuSwipeStart = null;
   let searchDrag = null;
   let searchSwipeStart = null;
@@ -802,6 +796,13 @@
   }
 
   function triggerHaptic(style = 'light') {
+    try {
+      const native = window.O11A1Native;
+      if (native && typeof native.haptic === 'function') {
+        native.haptic(style);
+        return;
+      }
+    } catch (_) {}
     try {
       if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'haptic', style }));
@@ -2251,17 +2252,6 @@
     updatePlaylistDock();
   }
 
-  function playlistOwnerName(item) {
-    if (!item) return '';
-    const owner = String(item.owner || '').trim();
-    if (owner) return owner;
-    const meta = String(item.meta || '').trim();
-    if (!meta) return '';
-    const first = meta.split('·')[0].trim();
-    if (!first || first === '播放列表') return '';
-    return first;
-  }
-
   function resetDockClear() {
     dockClearArmed = false;
     clearTimeout(dockClearTimer);
@@ -2289,37 +2279,6 @@
     clearPlaylist();
   }
 
-  function setPlaylistDisc(item) {
-    const src = item ? playlistCoverUrl(item) : '';
-    if (pdDisc) {
-      pdDisc.classList.toggle('playing', Boolean(item && state.playing));
-    }
-    if (!pdDiscArt) return;
-    if (!src) {
-      pdDiscArt.hidden = true;
-      pdDiscArt.removeAttribute('src');
-      pdDiscArt.dataset.src = '';
-      return;
-    }
-    if (pdDiscArt.dataset.src === src) {
-      if (pdDiscArt.complete && pdDiscArt.naturalWidth) pdDiscArt.hidden = false;
-      return;
-    }
-    pdDiscArt.dataset.src = src;
-    pdDiscArt.hidden = true;
-    pdDiscArt.src = src;
-    if (pdDiscArt.complete && pdDiscArt.naturalWidth) pdDiscArt.hidden = false;
-  }
-
-  if (pdDiscArt) {
-    pdDiscArt.addEventListener('load', () => {
-      if (pdDiscArt.dataset.src) pdDiscArt.hidden = false;
-    });
-    pdDiscArt.addEventListener('error', () => {
-      pdDiscArt.hidden = true;
-    });
-  }
-
   function updatePlaylistDock() {
     /* The playlist dock is retired. Keep this no-op so the many playback
        callbacks that refresh player chrome do not need to special-case it. */
@@ -2328,15 +2287,6 @@
     playlistDock.classList.remove('show');
     playlistDock.setAttribute('aria-hidden', 'true');
     playlistDock.inert = true;
-  }
-
-  function pulsePlaylistDock() {
-    updatePlaylistDock();
-    if (!playlistDock.classList.contains('show')) return;
-    playlistDock.classList.remove('receiving');
-    void playlistDock.offsetWidth;
-    playlistDock.classList.add('receiving');
-    setTimeout(() => playlistDock.classList.remove('receiving'), 500);
   }
 
   function absorbPlaylistDock() {
@@ -3183,53 +3133,6 @@
   }
 
   /* ---------- live sidebar drag ---------- */
-  function clearSidebarPicked() {
-    sidebarPicked = null;
-    $$('.sidebar-item.picked', sidebar).forEach((row) => row.classList.remove('picked'));
-  }
-
-  function setSidebarPicked(row) {
-    if (!row || row === sidebarPicked) return;
-    sidebarPicked = row;
-    $$('.sidebar-item.picked', sidebar).forEach((item) => item.classList.remove('picked'));
-    row.classList.add('picked');
-    if (navigator.vibrate) navigator.vibrate(6);
-  }
-
-  function sidebarSelectRows() {
-    return $$('.sidebar-nav .sidebar-item', sidebar);
-  }
-
-  function sidebarSelectStep(count) {
-    const travel = Math.min(320, Math.max(180, window.innerHeight * 0.28));
-    return travel / Math.max(1, count - 1);
-  }
-
-  function beginSidebarSelect(gesture) {
-    const rows = sidebarSelectRows();
-    if (!rows.length) return;
-    const active = rows.find((row) => row.dataset.nav === state.navActive)
-      || (state.navActive === 'my' ? rows[rows.length - 1] : rows[0]);
-    gesture.sidebarRows = rows;
-    gesture.sidebarIndex = Math.max(0, rows.indexOf(active));
-    gesture.sidebarAnchorY = gesture.sidebarLastY;
-    gesture.sidebarStep = sidebarSelectStep(rows.length);
-    gesture.sidebarSteps = 0;
-    setSidebarPicked(active);
-  }
-
-  function moveSidebarSelect(gesture, clientY) {
-    const rows = gesture.sidebarRows;
-    if (!rows || !rows.length || !gesture.sidebarStep) return;
-    const steps = Math.trunc((clientY - gesture.sidebarAnchorY) / gesture.sidebarStep);
-    if (steps === gesture.sidebarSteps) return;
-    const delta = steps - gesture.sidebarSteps;
-    gesture.sidebarSteps = steps;
-    const count = rows.length;
-    gesture.sidebarIndex = ((gesture.sidebarIndex + delta) % count + count) % count;
-    setSidebarPicked(rows[gesture.sidebarIndex]);
-  }
-
   function beginSidebarDrag() {
     if (!state.loggedIn) return false;
     cancelSidebarSettle();
@@ -3242,8 +3145,6 @@
       renderSidebar();
     }
     updateMiniPlayer();
-    clearSidebarPicked();
-    sidebar.classList.remove('selecting');
     sidebar.inert = false;
     sidebar.setAttribute('aria-hidden', 'false');
     app.classList.remove('sidebar-opening', 'sidebar-closing');
@@ -3303,7 +3204,6 @@
     app.classList.remove('sidebar-dragging');
     sidebar.classList.remove('selecting', 'dragging');
     sidebarBackdrop.classList.remove('dragging');
-    clearSidebarPicked();
     appMain.style.transform = '';
     appMain.style.borderRadius = '';
     appMain.style.boxShadow = '';
@@ -3315,7 +3215,6 @@
     app.classList.remove('sidebar-dragging');
     sidebar.classList.remove('selecting', 'dragging');
     sidebarBackdrop.classList.remove('dragging');
-    clearSidebarPicked();
     closeSidebar();
     appMain.style.transform = '';
     appMain.style.borderRadius = '';
@@ -3330,28 +3229,16 @@
     start.sidebarHoldTimer = null;
     const progress = start.sidebarProgress || 0;
     const velocity = typeof vx === 'number' ? vx : (start.vx || 0);
-    const selecting = start.sidebarSelecting === true;
-    const picked = sidebarPicked;
     const cancelled = event && event.type === 'pointercancel';
     try {
       window.__swipeDebug = {
-        kind: 'end', at: Date.now(), progress, velocity, cancelled, selecting,
+        kind: 'end', at: Date.now(), progress, velocity, cancelled,
         eventType: event && event.type,
       };
     } catch (_) {}
     suppressFeedClickUntil = Date.now() + 1200;
     suppressSidebarClickUntil = Date.now() + 180;
     suppressSidebarBackdropUntil = Date.now() + 1200;
-    if (selecting && picked && !cancelled) {
-      if (progress < 0.12) {
-        closeSidebarFromDrag();
-        return;
-      }
-      const item = NAV_ITEMS.find((entry) => entry.id === picked.dataset.nav);
-      closeSidebarFromDrag();
-      if (item) handleNav(item, picked);
-      return;
-    }
     /* If the system cancels a slow touch after the drawer is already mostly
        open, keep it open instead of snapping it shut. */
     if ((!cancelled && (progress >= 0.14 || velocity > 0.32)) || progress >= 0.12) {
@@ -3763,12 +3650,6 @@
       || videoDetailOpen
       || videoDetailPanel.classList.contains('peeking')
       || videoDetailPanel.classList.contains('closing');
-  }
-
-  function showMiniPlayer() {
-    if (!state.playlist.length) return;
-    state.miniVisible = true;
-    updateMiniPlayer();
   }
 
   function hideMiniPlayer() {
@@ -4540,7 +4421,6 @@
     closeSheet();
     resetComments();
     hidePlayerNotice();
-    hideRateHud(0);
     hideControlsInstant();
     startGyro();
     if (expandFromRow) {
@@ -4595,35 +4475,6 @@
     player.classList.remove('to-playlist');
   }
 
-  function setPlayerDropZone(zone) {
-    if (playerDropZone === zone) return;
-    const previous = playerDropZone;
-    playerDropZone = zone;
-    playerDropZones.forEach((element) => {
-      element.classList.toggle('hot', Number(element.dataset.dropZone) === zone);
-    });
-    if (previous !== null && zone !== null && previous !== zone && navigator.vibrate) {
-      navigator.vibrate(4);
-    }
-  }
-
-  function showPlayerDrop() {
-    if (!playerDrop) return;
-    clearTimeout(playerDropHideTimer);
-    playerDropHideTimer = null;
-    playerDropControlsVisible = !playerControls.classList.contains('hidden')
-      && !player.classList.contains('ui-hidden');
-    if (playerDropControlsVisible) {
-      playerControls.classList.add('hidden');
-      player.classList.add('ui-hidden');
-      clearTimeout(hideTimer);
-    }
-    playerDropZones.forEach((element) => element.classList.remove('fired', 'armed'));
-    playerDrop.style.setProperty('--drop-opacity', '0.4');
-    playerDrop.classList.add('show');
-    playerDrop.setAttribute('aria-hidden', 'false');
-  }
-
   function hidePlayerDrop(delay = 0, options = {}) {
     if (!playerDrop) return;
     clearTimeout(playerDropHideTimer);
@@ -4640,15 +4491,6 @@
     };
     if (delay > 0) playerDropHideTimer = setTimeout(run, delay);
     else run();
-  }
-
-  function firePlayerDropZone(zone) {
-    playerDropZones.forEach((element) => {
-      const active = Number(element.dataset.dropZone) === zone;
-      element.classList.toggle('hot', active);
-      element.classList.toggle('fired', active);
-    });
-    playerDropZone = zone;
   }
 
   function cancelPlayerDropExit() {
@@ -4770,7 +4612,6 @@
     lockBadge.classList.remove('show');
     updatePlaylistDock();
     resetComments();
-    hideRateHud(0);
     setPlayIcon(false);
     closeSheet();
     if (document.fullscreenElement && document.exitFullscreen) {
@@ -4791,7 +4632,6 @@
     playerControls.classList.add('hidden');
     lockBadge.classList.add('show');
     resetComments();
-    hideRateHud(0);
     closeSheet();
   }
 
@@ -4874,27 +4714,6 @@
     });
   }
 
-  function openPlayerSideSheet() {
-    openSheet('播放器面板', '信息 / 评论 / 性能 / 设置', (body) => {
-      actionRow(body, '信息', '标题 / UP / 数据', () => {
-        closeSheet();
-        openPlayerInfoSheet();
-      });
-      actionRow(body, '评论', '全屏评论', () => {
-        closeSheet();
-        openComments();
-      });
-      actionRow(body, '性能', 'fps / 码率 / 缓存', () => {
-        closeSheet();
-        openPlayerPerfSheet();
-      });
-      actionRow(body, '设置', '播放 / 弹幕 / 截图', () => {
-        closeSheet();
-        openPlayerMoreSheet();
-      });
-    });
-  }
-
   function showRipple(text, leftPercent) {
     seekRipple.textContent = text;
     seekRipple.style.left = `${leftPercent}%`;
@@ -4919,26 +4738,6 @@
     if (document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().catch(() => {});
     }
-  }
-
-  function showRateHud(direction) {
-    const restore = state.settings.speed || '1.0×';
-    clearTimeout(rateHudTimer);
-    rateHudTimer = null;
-    rateValue.textContent = direction === 'left' ? '0.5×' : '2.0×';
-    rateLabel.textContent = `${direction === 'left' ? '慢放' : '快放'}中 · 松开恢复 ${restore}`;
-    rateHud.classList.add('show');
-    if (window.O11A1Media && typeof window.O11A1Media.onRateHold === 'function') {
-      window.O11A1Media.onRateHold(direction === 'left' ? 0.5 : 2.0);
-    }
-  }
-
-  function hideRateHud(delay = 0) {
-    clearTimeout(rateHudTimer);
-    rateHudTimer = setTimeout(() => {
-      rateHudTimer = null;
-      rateHud.classList.remove('show');
-    }, delay);
   }
 
   function showPlayerNotice(title, text, duration = 2800) {
@@ -5235,7 +5034,6 @@
     return 'middle';
   }
 
-  let playerDragSnapshot = null;
   let playerHoleRaf = 0;
   let playerHoleUntil = 0;
 
@@ -5310,10 +5108,6 @@
     app.classList.remove('player-dragging');
     app.style.setProperty('--player-reveal', '0px');
     clearPlayerWindowHole();
-    if (playerDragSnapshot) {
-      playerDragSnapshot.remove();
-      playerDragSnapshot = null;
-    }
   }
 
   function startStageGesture(event) {
@@ -5349,7 +5143,6 @@
         gesture.longPressFired = true;
         gesture.mode = 'rate';
         clearTimeout(hideTimer);
-        hideRateHud(0);
         if (window.O11A1Media && typeof window.O11A1Media.onRateHold === 'function') {
           window.O11A1Media.onRateHold(2);
         }
@@ -5507,7 +5300,6 @@
       if (window.O11A1Media && typeof window.O11A1Media.onRateHoldEnd === 'function') {
         window.O11A1Media.onRateHoldEnd();
       }
-      hideRateHud(0);
       return;
     }
 
@@ -6747,25 +6539,6 @@
     }
   }, true);
 
-  function enterDockSearch() {
-    if (!pdSearchInput || !playlistDock.classList.contains('show')) return;
-    clearTimeout(dockSearchPullTimer);
-    dockSearchPullTimer = null;
-    playlistDock.style.transition = '';
-    playlistDock.style.transform = '';
-    playlistDock.style.opacity = '';
-    setDockExpanded(false);
-    playlistDock.classList.remove('receiving', 'absorbing');
-    playlistDock.classList.add('searching');
-    pdSearchInput.value = '';
-    updateDockSearch();
-    void pdSearchInput.offsetWidth;
-    try {
-      pdSearchInput.focus({ preventScroll: true });
-      pdSearchInput.setSelectionRange(0, 0);
-    } catch (_) {}
-  }
-
   function exitDockSearch() {
     if (!pdSearchInput) return;
     playlistDock.classList.remove('searching');
@@ -7218,7 +6991,6 @@
       upMode: false,
       sidebarActive: false,
       sidebarProgress: 0,
-      sidebarSelecting: false,
       sidebarHoldTimer: null,
       sidebarLastX: event.clientX,
       sidebarLastY: event.clientY,
@@ -7371,7 +7143,6 @@
       const progress = Math.min(1, Math.max(0, travel / (width * 0.5)));
       rowSwipe.sidebarProgress = progress;
       applySidebarDrag(progress);
-      if (rowSwipe.sidebarSelecting) moveSidebarSelect(rowSwipe, event.clientY);
       return;
     }
     if (rowSwipe.direction !== 'left') return;
@@ -7510,7 +7281,6 @@
       start.active = true;
       start.base = Math.min(SWIPE_LOCK_PX, -dx);
       app.classList.add('sidebar-dragging');
-      sidebar.classList.remove('selecting');
     }
     if (event.cancelable) event.preventDefault();
     const width = app.clientWidth || window.innerWidth;
@@ -7966,676 +7736,4 @@
   });
   window.addEventListener('focus', () => syncNativeLogin());
   setTimeout(syncNativeLogin, 800);
-
-  /* ---------- prototype review modes (?demo= / ?selftest=1) ---------- */
-  function stagePoint(zone) {
-    const rect = playerStage.getBoundingClientRect();
-    const ratio = zone === 'left' ? 0.16 : zone === 'right' ? 0.84 : 0.5;
-    return {
-      x: rect.left + rect.width * ratio,
-      y: rect.top + rect.height * 0.5,
-    };
-  }
-
-  function pointerEvent(type, x, y, buttons) {
-    return new PointerEvent(type, {
-      bubbles: true,
-      cancelable: true,
-      pointerId: 11,
-      pointerType: 'touch',
-      isPrimary: true,
-      button: 0,
-      buttons,
-      clientX: x,
-      clientY: y,
-    });
-  }
-
-  function dispatchSwipe(zone, dx, dy) {
-    const start = stagePoint(zone);
-    playerStage.dispatchEvent(pointerEvent('pointerdown', start.x, start.y, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent(
-        'pointermove',
-        start.x + (dx * step) / 6,
-        start.y + (dy * step) / 6,
-        1,
-      ));
-    }
-    window.dispatchEvent(pointerEvent('pointerup', start.x + dx, start.y + dy, 0));
-  }
-
-  function pressStage(zone) {
-    const point = stagePoint(zone);
-    playerStage.dispatchEvent(pointerEvent('pointerdown', point.x, point.y, 1));
-    return {
-      release() {
-        window.dispatchEvent(pointerEvent('pointerup', point.x, point.y, 0));
-      },
-    };
-  }
-
-  async function runGestureSelfTest() {
-    const results = [];
-    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-    const gate = app.dataset.page === 'login';
-    if (!state.loggedIn) {
-      state.loggedIn = true;
-      app.classList.remove('auth-gate');
-      save();
-      showPage('home');
-    }
-    results.push(`gate=${gate}`);
-
-    openPlayer();
-    await sleep(1000);
-    playerControls.classList.add('hidden');
-    player.classList.add('ui-hidden');
-    const sideTap = stagePoint('left');
-    playerStage.dispatchEvent(pointerEvent('pointerdown', sideTap.x, sideTap.y, 1));
-    window.dispatchEvent(pointerEvent('pointerup', sideTap.x, sideTap.y, 0));
-    await sleep(420);
-    results.push(`sideTap=${!playerControls.classList.contains('hidden')}`);
-    window.O11A1Host.setTiltDir(1);
-    await sleep(480);
-    const nativeTilt = state.playerLandscape === true && state.playerLandscapeDir === 1;
-    window.O11A1Host.setTiltDir(0);
-    await sleep(480);
-    results.push(`tiltDir=${nativeTilt && state.playerLandscape === false}`);
-    if (typeof DeviceOrientationEvent === 'function') {
-      window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', { alpha: 0, beta: 0, gamma: 85 }));
-      await sleep(520);
-      const gyroLandscape = state.playerLandscape === true;
-      window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', { alpha: 0, beta: 90, gamma: 0 }));
-      await sleep(520);
-      results.push(`gyro=${gyroLandscape && state.playerLandscape === false}`);
-    } else {
-      results.push('gyro=skip');
-    }
-
-    await sleep(140);
-    dispatchSwipe('left', 0, -150);
-    await sleep(450);
-    results.push(`noRotate=${state.playerLandscape === false}`);
-    const settingsOpened = playerSettingsOpen;
-    const settingsRect = playerSettingsCard.getBoundingClientRect();
-    const settingsTitleLeft = $('.player-settings-titlebar b').getBoundingClientRect().left;
-    const qualityRow = $('#pcQuality');
-    const qualityTop = qualityRow.getBoundingClientRect().top;
-    qualityRow.click();
-    await sleep(160);
-    const settingsFixed = Math.abs(playerSettingsCard.getBoundingClientRect().height - settingsRect.height) < 1.5
-      && Math.abs(qualityRow.getBoundingClientRect().top - qualityTop) < 1.5
-      && $('#pcQualityGroup').classList.contains('open');
-    qualityRow.click();
-    await sleep(100);
-    results.push(`settingsFixed=${settingsFixed}`);
-    results.push(`settingsTitleLeft=${settingsTitleLeft < settingsRect.left + 80}`);
-    const settingsX = settingsRect.left + settingsRect.width * 0.5;
-    const settingsY = settingsRect.top + 30;
-    playerSettingsCard.dispatchEvent(pointerEvent('pointerdown', settingsX, settingsY, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', settingsX, settingsY + (110 * step) / 6, 1));
-    }
-    window.dispatchEvent(pointerEvent('pointerup', settingsX, settingsY + 110, 0));
-    await sleep(500);
-    results.push(`settings=${settingsOpened && !playerSettingsOpen}`);
-
-    await sleep(180);
-    const collapseStart = stagePoint('middle');
-    playerStage.dispatchEvent(pointerEvent('pointerdown', collapseStart.x, collapseStart.y, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', collapseStart.x, collapseStart.y + (190 * step) / 6, 1));
-    }
-    await sleep(90);
-    const dropDown = playerDrop.classList.contains('show')
-      && playerDrop.querySelector('.player-drop-zone.hot')?.dataset.dropZone === '0';
-    window.dispatchEvent(pointerEvent('pointerup', collapseStart.x, collapseStart.y + 190, 0));
-    await sleep(620);
-    results.push(`dropDown=${dropDown}`);
-    results.push(`dropCloseDown=${!state.playerOpen && !state.miniVisible}`);
-
-    await sleep(260);
-    openPlayer({ resume: true });
-    await sleep(650);
-    const closeStart = stagePoint('middle');
-    playerStage.dispatchEvent(pointerEvent('pointerdown', closeStart.x, closeStart.y, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', closeStart.x - (150 * step) / 6, closeStart.y + (190 * step) / 6, 1));
-    }
-    await sleep(90);
-    const dropLeft = playerDrop.querySelector('.player-drop-zone.hot')?.dataset.dropZone === '-1';
-    window.dispatchEvent(pointerEvent('pointerup', closeStart.x - 150, closeStart.y + 190, 0));
-    await sleep(900);
-    results.push(`dropZones=${dropLeft}`);
-    results.push(`collapsed=${!state.playerOpen && state.miniVisible}`);
-
-    await sleep(260);
-    const detailSeedRow = $('#homeFeed .video-row');
-    const detailSeedItem = detailSeedRow ? detailSeedRow.__nativeItem : null;
-    const detailCurrent = state.playlist[state.currentIndex];
-    if (detailSeedItem && detailCurrent && !detailCurrent.bvid) {
-      Object.assign(detailCurrent, {
-        bvid: detailSeedItem.bvid,
-        aid: detailSeedItem.aid,
-        cid: detailSeedItem.cid,
-        mid: detailSeedItem.mid,
-        title: detailSeedItem.title,
-        owner: detailSeedItem.owner,
-        pic: detailSeedItem.pic,
-        duration: detailSeedItem.duration,
-        durationSec: detailSeedItem.durationSec,
-      });
-      updatePlayerLabels();
-      save();
-    }
-    openPlayer({ resume: true });
-    await sleep(360);
-    dispatchSwipe('middle', 240, 0);
-    await sleep(650);
-    results.push(`detail=${videoDetailPanel.classList.contains('open')}`);
-    results.push(`detailNoRelated=${!videoDetailBody.querySelector('.detail-related, .vd-section')}`);
-    const detailRect = videoDetailPanel.getBoundingClientRect();
-    const detailRow = videoDetailBody.querySelector('.feed-item .video-row');
-    const detailRowRect = detailRow ? detailRow.getBoundingClientRect() : detailRect;
-    const detailStartX = detailRow
-      ? detailRowRect.left + Math.max(20, detailRowRect.width * 0.7)
-      : detailRect.left + detailRect.width * 0.62;
-    const detailStartY = detailRow
-      ? detailRowRect.top + detailRowRect.height * 0.5
-      : detailRect.top + 120;
-    const detailSwipeTarget = detailRow || videoDetailPanel;
-    detailSwipeTarget.dispatchEvent(pointerEvent('pointerdown', detailStartX, detailStartY, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', detailStartX - (150 * step) / 6, detailStartY, 1));
-    }
-    window.dispatchEvent(pointerEvent('pointerup', detailStartX - 150, detailStartY, 0));
-    const playlistBeforeDetailClick = state.playlist.length;
-    if (detailRow) {
-      detailRow.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    }
-    await sleep(500);
-    results.push(`detailClose=${!videoDetailPanel.classList.contains('open')}`);
-    results.push(`detailSwipeNoClick=${state.playlist.length === playlistBeforeDetailClick}`);
-    dispatchSwipe('middle', -240, 0);
-    results.push(`comments=${commentsPanel.classList.contains('open')}`);
-    results.push(`commentsClean=${!commentsPanel.querySelector('.comments-top, .comments-input')}`);
-
-    closeComments();
-    await sleep(380);
-
-    const hold = pressStage('right');
-    await sleep(430);
-    results.push(`rate=${rateHud.classList.contains('show') && rateValue.textContent === '2.0×'}`);
-    hold.release();
-    await sleep(320);
-    results.push(`rateEnd=${!rateHud.classList.contains('show')}`);
-
-    const tap = stagePoint('middle');
-    playerStage.dispatchEvent(pointerEvent('pointerdown', tap.x, tap.y, 1));
-    window.dispatchEvent(pointerEvent('pointerup', tap.x, tap.y, 0));
-    await sleep(420);
-    const tapHidden = playerControls.classList.contains('hidden');
-    playerStage.dispatchEvent(pointerEvent('pointerdown', tap.x, tap.y, 1));
-    window.dispatchEvent(pointerEvent('pointerup', tap.x, tap.y, 0));
-    await sleep(420);
-    const tapShown = !playerControls.classList.contains('hidden');
-    await sleep(2300);
-    results.push(`toolbarHide=${tapShown && playerControls.classList.contains('hidden')}`);
-    results.push(`tapToggle=${tapHidden && tapShown}`);
-    playerStage.dispatchEvent(pointerEvent('pointerdown', tap.x, tap.y, 1));
-    window.dispatchEvent(pointerEvent('pointerup', tap.x, tap.y, 0));
-    await sleep(100);
-    playerStage.dispatchEvent(pointerEvent('pointerdown', tap.x, tap.y, 1));
-    window.dispatchEvent(pointerEvent('pointerup', tap.x, tap.y, 0));
-    await sleep(380);
-    const doubleKeptHidden = playerControls.classList.contains('hidden');
-    playerStage.dispatchEvent(pointerEvent('pointerdown', tap.x, tap.y, 1));
-    window.dispatchEvent(pointerEvent('pointerup', tap.x, tap.y, 0));
-    await sleep(420);
-    const singleAfterDouble = !playerControls.classList.contains('hidden');
-    results.push(`doubleTapSingle=${doubleKeptHidden && singleAfterDouble}`);
-    showControls();
-    await sleep(40);
-    setProgress(20, false);
-    await sleep(30);
-    const gridTest = $('#gridProgress');
-    const wheelTest = $('#progressBar');
-    const gridTestRect = gridTest.getBoundingClientRect();
-    const gridTestX = gridTestRect.left + gridTestRect.width * 0.2;
-    const gridTestY = gridTestRect.top + gridTestRect.height / 2;
-    const gridStep = gridTestRect.width * 0.25;
-    gridTest.dispatchEvent(pointerEvent('pointerdown', gridTestX, gridTestY, 1));
-    for (let step = 1; step <= 5; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', gridTestX + (gridStep * step) / 5, gridTestY, 1));
-    }
-    const gridFlat = Number(gridTest.getAttribute('aria-valuenow'));
-    window.dispatchEvent(pointerEvent('pointerup', gridTestX + gridStep, gridTestY, 0));
-    await sleep(60);
-    setProgress(20, false);
-    await sleep(30);
-    gridTest.dispatchEvent(pointerEvent('pointerdown', gridTestX, gridTestY, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', gridTestX, gridTestY - (160 * step) / 6, 1));
-    }
-    for (let step = 1; step <= 5; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', gridTestX + (gridStep * step) / 5, gridTestY - 160, 1));
-    }
-    const gridLifted = Number(gridTest.getAttribute('aria-valuenow'));
-    window.dispatchEvent(pointerEvent('pointerup', gridTestX + gridStep, gridTestY - 160, 0));
-    await sleep(60);
-    results.push(`grid=${gridTest.children.length === 36 && Math.abs(gridFlat - 45) < 1.2 && gridLifted > 20 && gridLifted - 20 < 12}`);
-    const litCells = Array.from(gridTest.querySelectorAll('.grid-cell.on'));
-    const litColors = new Set(litCells.map((cell) => getComputedStyle(cell).backgroundColor));
-    const litColor = litColors.size === 1 ? Array.from(litColors)[0] : '';
-    const rgbMatch = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/.exec(litColor);
-    results.push(`gridBlue=${Boolean(rgbMatch)
-      && Number(rgbMatch[3]) > Number(rgbMatch[1])
-      && Number(rgbMatch[3]) > Number(rgbMatch[2])}`);
-    const wheelTestRect = wheelTest.getBoundingClientRect();
-    const needleTestRect = $('.wheel-needle').getBoundingClientRect();
-    const bandTestRect = $('.wheel-band').getBoundingClientRect();
-    results.push(`needle=${Math.abs(needleTestRect.height - wheelTestRect.height) < 1 && Math.abs(bandTestRect.height - wheelTestRect.height) < 1}`);
-    setProgress(41.6667, false);
-    await sleep(30);
-    const wheelCenter = wheelTestRect.left + wheelTestRect.width / 2;
-    const labelCenters = Array.from(wheelTest.querySelectorAll('.wheel-tick-label'))
-      .map((label) => {
-        const labelRect = label.getBoundingClientRect();
-        return labelRect.left + labelRect.width / 2;
-      })
-      .sort((left, right) => left - right);
-    let centerGap = Infinity;
-    for (let index = 1; index < labelCenters.length; index += 1) {
-      if (labelCenters[index - 1] <= wheelCenter && labelCenters[index] >= wheelCenter) {
-        centerGap = labelCenters[index] - labelCenters[index - 1];
-      }
-    }
-    results.push(`labels=${labelCenters.length >= 4 && centerGap < 90}`);
-
-    minimizePlayer();
-    await sleep(420);
-    results.push(`dock=${playlistDock.classList.contains('show')}`);
-    const dockRect = playlistDock.getBoundingClientRect();
-    const dockX = dockRect.left + dockRect.width * 0.45;
-    const dockY = dockRect.top + Math.min(50, dockRect.height * 0.5);
-    playlistDock.dispatchEvent(pointerEvent('pointerdown', dockX, dockY, 1));
-    window.dispatchEvent(pointerEvent('pointermove', dockX, dockY - 24, 1));
-    window.dispatchEvent(pointerEvent('pointermove', dockX, dockY - 82, 1));
-    window.dispatchEvent(pointerEvent('pointerup', dockX, dockY - 82, 0));
-    await sleep(480);
-    const dockExpanded = playlistDock.classList.contains('expanded') && state.page !== 'playlist';
-    results.push(`dockExpand=${dockExpanded}`);
-    if (dockPlaylistBody) dockPlaylistBody.scrollTop = 0;
-    const dockBodyRect = dockPlaylistBody.getBoundingClientRect();
-    const dockBodyX = dockBodyRect.left + dockBodyRect.width * 0.5;
-    const dockBodyY = dockBodyRect.top + Math.min(36, dockBodyRect.height * 0.5);
-    dockPlaylistBody.dispatchEvent(pointerEvent('pointerdown', dockBodyX, dockBodyY, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', dockBodyX, dockBodyY + (90 * step) / 6, 1));
-    }
-    window.dispatchEvent(pointerEvent('pointerup', dockBodyX, dockBodyY + 90, 0));
-    await sleep(480);
-    results.push(`dockBodyClose=${!playlistDock.classList.contains('expanded') && playlistDock.classList.contains('show')}`);
-    let searchPanelFocus = false;
-    let searchInlineResults = false;
-    let searchPanelClosed = false;
-    if (pdSearch && searchPanel && searchInput) {
-      pdSearch.click();
-      searchPanelFocus = state.searchOpen
-        && searchPanel.classList.contains('open')
-        && document.activeElement === searchInput;
-      const hotChip = $('#hotSearchList .search-hot-row');
-      if (hotChip) hotChip.click();
-      await sleep(420);
-      searchInlineResults = Boolean(hotChip)
-        && !searchResultsBlock.hidden
-        && searchPanel.classList.contains('open');
-      closeSearch();
-      await sleep(420);
-      searchPanelClosed = !state.searchOpen
-        && !searchPanel.classList.contains('open')
-        && !app.classList.contains('search-open');
-    }
-    results.push(`searchPanel=${searchPanelFocus && searchPanelClosed}`);
-    results.push(`searchInline=${searchInlineResults}`);
-    openPlaylistPage();
-    await sleep(480);
-    const playlistOpened = state.page === 'playlist';
-    const grab = $('#playlistGrab');
-    const grabRect = grab.getBoundingClientRect();
-    const grabX = grabRect.left + grabRect.width / 2;
-    const grabY = grabRect.top + grabRect.height / 2;
-    grab.dispatchEvent(pointerEvent('pointerdown', grabX, grabY, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', grabX, grabY + (140 * step) / 6, 1));
-    }
-    window.dispatchEvent(pointerEvent('pointerup', grabX, grabY + 140, 0));
-    await sleep(520);
-    results.push(`playlistSwipe=${playlistOpened && state.page !== 'playlist'}`);
-
-    const reorderBackup = state.playlist.slice();
-    const reorderCurrentBackup = state.currentIndex;
-    if (state.playlist.length < 4) {
-      for (let index = state.playlist.length; index < 4; index += 1) {
-        addToPlaylist(`排序自测 ${index + 1}`, 'UP · 00:30', `selftest:reorder:${index}`, { duration: '00:30', owner: 'UP' });
-      }
-    }
-    openPlaylistPage();
-    await sleep(480);
-    const reorderRows = $$('#playlistPageList .playlist-page-item');
-    let rowReorder = false;
-    if (reorderRows.length >= 3) {
-      const reorderFrom = reorderRows[0];
-      const reorderTo = reorderRows[2];
-      const fromRect = reorderFrom.getBoundingClientRect();
-      const toRect = reorderTo.getBoundingClientRect();
-      const reorderX = fromRect.left + fromRect.width * 0.5;
-      const reorderY = fromRect.top + fromRect.height * 0.5;
-      const reorderTargetY = toRect.top + toRect.height * 0.6;
-      const reorderBefore = state.playlist.map((item) => item.title).join('|');
-      reorderFrom.dispatchEvent(pointerEvent('pointerdown', reorderX, reorderY, 1));
-      await sleep(480);
-      const reorderLifted = Boolean($('.reorder-ghost'));
-      window.dispatchEvent(pointerEvent('pointermove', reorderX, reorderTargetY, 1));
-      await sleep(140);
-      window.dispatchEvent(pointerEvent('pointerup', reorderX, reorderTargetY, 0));
-      await sleep(420);
-      rowReorder = reorderLifted
-        && !$('.reorder-ghost')
-        && state.playlist.map((item) => item.title).join('|') !== reorderBefore;
-    }
-    results.push(`rowReorder=${rowReorder}`);
-    state.playlist = reorderBackup;
-    state.currentIndex = Math.min(reorderCurrentBackup, Math.max(0, state.playlist.length - 1));
-    updatePlayerLabels();
-    updatePlaylistCounts();
-    save();
-    closePlaylistPage();
-    await sleep(460);
-
-    const rect = appScroll.getBoundingClientRect();
-    const startX = rect.left + rect.width * 0.5;
-    const startY = rect.top + rect.height * 0.5;
-    appScroll.dispatchEvent(pointerEvent('pointerdown', startX, startY, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', startX + (120 * step) / 6, startY, 1));
-    }
-    window.dispatchEvent(pointerEvent('pointerup', startX + 120, startY, 0));
-    await sleep(80);
-    results.push(`sidebar=${sidebar.classList.contains('open')}`);
-    const sideRect = sidebar.getBoundingClientRect();
-    const sideX = sideRect.left + sideRect.width * 0.5;
-    const sideY = sideRect.top + sideRect.height * 0.5;
-    sidebar.dispatchEvent(pointerEvent('pointerdown', sideX, sideY, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', sideX - (120 * step) / 6, sideY, 1));
-    }
-    window.dispatchEvent(pointerEvent('pointerup', sideX - 120, sideY, 0));
-    await sleep(120);
-    results.push(`sidebarClose=${!sidebar.classList.contains('open')}`);
-    if (sidebar.classList.contains('open')) closeSidebar();
-
-    const row = $('#homeFeed .video-row');
-    const countBefore = state.playlist.length;
-    const rowRect = row.getBoundingClientRect();
-    const rowY = rowRect.top + rowRect.height / 2;
-    const rowX = rowRect.left + rowRect.width / 2;
-    row.dispatchEvent(pointerEvent('pointerdown', rowX, rowY, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', rowX - (42 * step) / 6, rowY, 1));
-    }
-    window.dispatchEvent(pointerEvent('pointerup', rowX - 42, rowY, 0));
-    await sleep(220);
-    results.push(`rowQueue=${state.playlist.length > countBefore}`);
-    if (state.playlist.length > countBefore) {
-      state.playlist.pop();
-      state.currentIndex = Math.min(state.currentIndex, Math.max(0, state.playlist.length - 1));
-      updatePlayerLabels();
-      updatePlaylistCounts();
-      save();
-    }
-
-    const metaEl = row.querySelector('.real-meta');
-    const metaFresh = row.querySelector('.meta-fresh');
-    const metaPlay = row.querySelector('.meta-play');
-    const metaTitle = row.querySelector('.real-title');
-    const copyEl = row.querySelector('.row-copy');
-    const avatarEl = row.querySelector('.row-avatar');
-    const thumbEl = row.querySelector('.row-thumb');
-    let feedMeta = false;
-    if (metaEl && metaFresh && metaPlay && metaTitle && copyEl && avatarEl && thumbEl) {
-      const copyRect = copyEl.getBoundingClientRect();
-      const avatarRect = avatarEl.getBoundingClientRect();
-      const titleRect = metaTitle.getBoundingClientRect();
-      feedMeta = Math.abs(thumbEl.getBoundingClientRect().width - row.getBoundingClientRect().width) < 1
-        && parseFloat(getComputedStyle(thumbEl).borderRadius) <= 1
-        && Math.abs(avatarRect.left - (copyRect.left + 16)) < 3
-        && Math.abs(titleRect.left - (avatarRect.right + 12)) < 3
-        && metaPlay.textContent.includes('播放')
-        && Boolean(metaFresh.style.color)
-        && parseFloat(getComputedStyle(metaTitle).fontSize) >= 15
-        && parseFloat(getComputedStyle(metaEl).fontSize) >= 11;
-    }
-    results.push(`feedMeta=${feedMeta}`);
-
-    const upRow = $('#homeFeed .video-row');
-    const upRect = upRow.getBoundingClientRect();
-    const upY = upRect.top + upRect.height / 2;
-    const upX = upRect.left + upRect.width / 2;
-    upRow.dispatchEvent(pointerEvent('pointerdown', upX, upY, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', upX - (120 * step) / 6, upY, 1));
-    }
-    await sleep(560);
-    window.dispatchEvent(pointerEvent('pointerup', upX - 120, upY, 0));
-    await sleep(560);
-    results.push(`rowUp=${state.page === 'up' && $$('#upFeed .real-row').length > 0}`);
-    const upSortClick = $('#upSort [data-up-sort="click"]');
-    if (upSortClick) upSortClick.click();
-    await sleep(420);
-    const firstUpTitle = $('#upFeed .real-title') ? $('#upFeed .real-title').textContent : '';
-    results.push(`upSort=${upSortClick ? upSortClick.classList.contains('on') && /最多播放/.test(firstUpTitle) : false}`);
-    const upRowCheck = $('#upFeed .video-row');
-    const homeRowCheck = $('#homeFeed .video-row');
-    const upSortBar = $('#upSort');
-    const upInfoCard = $('.up-info-card');
-    let upRowMatch = false;
-    let upSortFloat = false;
-    if (upRowCheck && homeRowCheck && upSortBar && upInfoCard && upScroll) {
-      const upThumbCheck = upRowCheck.querySelector('.row-thumb');
-      const homeThumbCheck = homeRowCheck.querySelector('.row-thumb');
-      const upRowStyle = getComputedStyle(upRowCheck);
-      const homeRowStyle = getComputedStyle(homeRowCheck);
-      upRowMatch = Math.abs(upRowCheck.offsetWidth - homeRowCheck.offsetWidth) < 1.5
-        && Math.abs(upRowCheck.offsetHeight - homeRowCheck.offsetHeight) < 1.5
-        && Math.abs(upThumbCheck.offsetWidth - homeThumbCheck.offsetWidth) < 1.5
-        && Math.abs(upThumbCheck.offsetHeight - homeThumbCheck.offsetHeight) < 1.5
-        && upRowStyle.borderRadius === homeRowStyle.borderRadius
-        && Math.abs(parseFloat(upRowStyle.paddingRight) - parseFloat(homeRowStyle.paddingRight)) < 0.5;
-      const sortRect = upSortBar.getBoundingClientRect();
-      const sortStyle = getComputedStyle(upSortBar);
-      const infoRect = upInfoCard.getBoundingClientRect();
-      const scrollRect = upScroll.getBoundingClientRect();
-      const commentsDock = $('#commentsSort');
-      const commentsButton = commentsDock ? commentsDock.querySelector('.comments-sort:not(.on)') : null;
-      const upButton = upSortBar.querySelector('.up-sort-btn:not(.on)');
-      const dockStyle = commentsDock ? getComputedStyle(commentsDock) : null;
-      const commentsButtonStyle = commentsButton ? getComputedStyle(commentsButton) : null;
-      const upButtonStyle = upButton ? getComputedStyle(upButton) : null;
-      const glassMatch = Boolean(dockStyle
-        && Math.abs(parseFloat(sortStyle.paddingLeft) - parseFloat(dockStyle.paddingLeft)) < 0.5
-        && sortStyle.borderRadius === dockStyle.borderRadius
-        && sortStyle.backgroundColor === dockStyle.backgroundColor
-        && sortStyle.boxShadow === dockStyle.boxShadow
-        && sortStyle.backdropFilter === dockStyle.backdropFilter
-        && sortStyle.borderColor === dockStyle.borderColor
-        && sortStyle.gap === dockStyle.gap);
-      const buttonMatch = Boolean(commentsButtonStyle && upButtonStyle
-        && upButtonStyle.backgroundColor === commentsButtonStyle.backgroundColor
-        && upButtonStyle.color === commentsButtonStyle.color
-        && Math.abs(parseFloat(upButtonStyle.height) - parseFloat(commentsButtonStyle.height)) < 0.5
-        && Math.abs(parseFloat(upButtonStyle.minWidth) - parseFloat(commentsButtonStyle.minWidth)) < 0.5
-        && Math.abs(parseFloat(upButtonStyle.paddingLeft) - parseFloat(commentsButtonStyle.paddingLeft)) < 0.5
-        && upButtonStyle.borderRadius === commentsButtonStyle.borderRadius);
-      upSortFloat = sortStyle.position === 'absolute'
-        && glassMatch
-        && buttonMatch
-        && sortRect.top >= scrollRect.top
-        && sortRect.bottom <= scrollRect.bottom
-        && sortRect.top < infoRect.top;
-    }
-    results.push(`upRowMatch=${upRowMatch}`);
-    results.push(`upSortFloat=${upSortFloat}`);
-    const upOverlay = $('.page[data-page="up"]');
-    const upOverlayRect = upOverlay.getBoundingClientRect();
-    const upOverlayX = upOverlayRect.left + upOverlayRect.width * 0.5;
-    const upOverlayY = upOverlayRect.top + Math.min(120, upOverlayRect.height * 0.3);
-    upOverlay.dispatchEvent(pointerEvent('pointerdown', upOverlayX, upOverlayY, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', upOverlayX + (150 * step) / 6, upOverlayY, 1));
-    }
-    window.dispatchEvent(pointerEvent('pointerup', upOverlayX + 150, upOverlayY, 0));
-    await sleep(420);
-    results.push(`upBack=${state.page === 'home'}`);
-
-    const feedViewHeight = appScroll.style.height;
-    const feedViewBottom = appScroll.style.bottom;
-    if (window.innerHeight > 1100) {
-      appScroll.style.bottom = 'auto';
-      appScroll.style.height = '844px';
-    }
-    for (let wait = 0; wait < 30; wait += 1) {
-      if ($('#homeFeed [data-block="2"]')) break;
-      await sleep(100);
-    }
-    const blocksBefore = Array.from(new Set($$('#homeFeed [data-block]').map((row) => row.dataset.block)));
-    const blockTwo = $('#homeFeed [data-block="2"]');
-    const blockTwoTop = blockTwo
-      ? blockTwo.getBoundingClientRect().top - appScroll.getBoundingClientRect().top + appScroll.scrollTop
-      : appScroll.scrollHeight;
-    appScroll.scrollTop = blockTwoTop;
-    appScroll.dispatchEvent(new Event('scroll'));
-    const feedAnchorRow = $$('#homeFeed .feed-item:not(.feed-skeleton)')
-      .find((row) => row.getBoundingClientRect().bottom > appScroll.getBoundingClientRect().top + 1);
-    const feedAnchorTitle = feedAnchorRow ? feedAnchorRow.querySelector('.real-title')?.textContent : '';
-    const feedAnchorTop = feedAnchorRow ? feedAnchorRow.getBoundingClientRect().top : 0;
-    await sleep(700);
-    const feedAnchorAfter = feedAnchorTitle
-      ? $$('#homeFeed .feed-item:not(.feed-skeleton)')
-        .find((row) => row.querySelector('.real-title')?.textContent === feedAnchorTitle)
-      : null;
-    const feedAnchor = Boolean(feedAnchorAfter
-      && Math.abs(feedAnchorAfter.getBoundingClientRect().top - feedAnchorTop) < 3);
-    const blocksAfter = Array.from(new Set($$('#homeFeed [data-block]').map((row) => row.dataset.block)));
-    const rowsAfter = $$('#homeFeed .feed-item:not(.feed-skeleton)').length;
-    results.push(`feedWindow=${blocksBefore.length === 3 && blocksBefore[0] === '0'
-      && blocksAfter.length === 3 && !blocksAfter.includes('0')
-      && rowsAfter >= 20 && rowsAfter <= 30}`);
-    results.push(`feedAnchor=${feedAnchor}`);
-
-    await sleep(900);
-    const blockThree = $('#homeFeed [data-block="3"]');
-    const blockThreeTop = blockThree
-      ? blockThree.getBoundingClientRect().top - appScroll.getBoundingClientRect().top + appScroll.scrollTop
-      : appScroll.scrollHeight;
-    appScroll.scrollTop = blockThreeTop;
-    appScroll.dispatchEvent(new Event('scroll'));
-    await sleep(700);
-    const blocksNext = Array.from(new Set($$('#homeFeed [data-block]').map((row) => row.dataset.block)));
-    const rowsNext = $$('#homeFeed .feed-item:not(.feed-skeleton)').length;
-    results.push(`feedSlide=${blocksNext.length === 3 && rowsNext >= 20 && rowsNext <= 30
-      && Number(blocksNext[0]) > Number(blocksAfter[0])}`);
-    appScroll.style.height = feedViewHeight;
-    appScroll.style.bottom = feedViewBottom;
-    appScroll.dispatchEvent(new Event('scroll'));
-
-    const sideStartX = appScroll.getBoundingClientRect().left + 60;
-    const sideStartY = appScroll.getBoundingClientRect().top + appScroll.getBoundingClientRect().height * 0.5;
-    appScroll.dispatchEvent(pointerEvent('pointerdown', sideStartX, sideStartY, 1));
-    for (let step = 1; step <= 6; step += 1) {
-      window.dispatchEvent(pointerEvent('pointermove', sideStartX + (160 * step) / 6, sideStartY, 1));
-    }
-    await sleep(320);
-    const sideItems = $$('.sidebar-nav .sidebar-item', sidebar);
-    const homeRow = sideItems.find((row) => row.dataset.nav === 'home');
-    const pickVisible = Boolean($('.sidebar-item.picked'));
-    const initialPick = pickVisible ? $('.sidebar-item.picked').dataset.nav : '';
-    const sideStep = Math.min(320, Math.max(180, window.innerHeight * 0.28)) / Math.max(1, sideItems.length - 1);
-    const sideTravel = Math.round(sideStep * 4 + 4);
-    window.dispatchEvent(pointerEvent('pointermove', sideStartX + 160, sideStartY + sideTravel, 1));
-    await sleep(80);
-    const sidePickedRow = $('.sidebar-item.picked');
-    const sideTargetPicked = Boolean(sidePickedRow && sidePickedRow !== homeRow);
-    window.dispatchEvent(pointerEvent('pointerup', sideStartX + 160, sideStartY + sideTravel, 0));
-    await sleep(460);
-    results.push(`sidebarPick=${pickVisible && initialPick === 'home'}`);
-    results.push(`sidebarSelect=${sideTargetPicked && !sidebar.classList.contains('open') && state.page !== 'home'}`);
-
-    const myBefore = state.page;
-    showPage('my');
-    await sleep(540);
-    const myOpened = state.page === 'my'
-      && app.classList.contains('my-open')
-      && myPage.classList.contains('active')
-      && myPage.getAttribute('aria-hidden') === 'false';
-    const myRows = $$('.my-page .my-row').length;
-    const myCard = $('.my-page .my-account-card');
-    const myCardRect = myCard ? myCard.getBoundingClientRect() : null;
-    const myPageRect = myPage.getBoundingClientRect();
-    const myCardFixed = Boolean(myCardRect)
-      && Math.abs(myCardRect.bottom - myPageRect.bottom) <= 2
-      && myCardRect.height >= 60;
-    closeMyPageFromSwipe();
-    await sleep(640);
-    const myClosed = state.page === myBefore
-      && !app.classList.contains('my-open')
-      && !myPage.classList.contains('active');
-    results.push(`myPage=${myOpened && myCardFixed && myRows >= 10}`);
-    results.push(`myBack=${myClosed}`);
-
-    document.title = `SELFTEST ${results.join(' ')}`;
-  }
-
-  const reviewParams = new URLSearchParams(window.location.search);
-  const demo = reviewParams.get('demo');
-  if (window.O11A1Native && typeof window.O11A1Native.setOrientation === 'function') {
-    try { window.O11A1Native.setOrientation('portrait'); } catch (_) {}
-  }
-  if (reviewParams.has('nomotion')) document.body.classList.add('reduce-motion');
-  if (demo === 'login') {
-    state.loggedIn = false;
-    app.classList.add('auth-gate');
-    save();
-    showPage('login');
-  } else if (demo && !state.loggedIn) {
-    state.loggedIn = true;
-    app.classList.remove('auth-gate');
-    save();
-    showPage('home');
-  }
-  if (demo === 'comments') {
-    openPlayer();
-    setTimeout(() => openComments(), 220);
-  } else if (demo === 'sidebar') {
-    setTimeout(openSidebar, 300);
-  } else if (demo === 'feed') {
-    setTimeout(() => {
-      appScroll.scrollTop = appScroll.scrollHeight;
-      appScroll.dispatchEvent(new Event('scroll'));
-    }, 700);
-  } else if (demo === 'queue') {
-    setTimeout(() => {
-      const row = $('#homeFeed .video-row');
-      if (row) addFeedRowToPlaylist(row);
-    }, 700);
-  } else if (demo === 'rate') {
-    openPlayer();
-    setTimeout(() => {
-      showRateHud('right');
-      hideRateHud(9000);
-    }, 220);
-  }
-  if (reviewParams.has('selftest')) setTimeout(runGestureSelfTest, 400);
 })();

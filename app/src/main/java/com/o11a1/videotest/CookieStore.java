@@ -155,7 +155,6 @@ final class CookieStore {
         connection.setRequestProperty("User-Agent", UA);
         connection.setRequestProperty("Referer", "https://www.bilibili.com/");
         connection.setRequestProperty("Accept", "application/json, text/plain, */*");
-        connection.setRequestProperty("Accept-Encoding", "identity");
         String cookie = header();
         if (!cookie.isEmpty()) connection.setRequestProperty("Cookie", cookie);
         if (extraHeaders != null) {
@@ -200,7 +199,6 @@ final class CookieStore {
         }
         Map<String, List<String>> fields = connection.getHeaderFields();
         absorbSetCookies(fields);
-        connection.disconnect();
         if (code >= 400) Log.w(TAG, "HTTP " + code + " for " + url);
         return body.toString();
     }

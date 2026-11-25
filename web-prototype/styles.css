@@ -1563,7 +1563,6 @@ body.grid .grid-overlay{display:block}
 }
 .player.window-opening .player-video,
 .player.window-opening .player-controls,
-.player.window-opening .rate-hud,
 .player.window-opening .lock-badge,
 .player.window-opening .swipe-hint,
 .player.window-opening .video-debug,
@@ -1976,18 +1975,6 @@ body[data-theme="light"] .grid-progress .grid-cell.on{background:var(--blue,#2F7
 .lock-badge.show{opacity:1;pointer-events:auto}
 
 /* ---------- player gesture HUDs ---------- */
-.rate-hud{
-  position:absolute;left:50%;top:40%;z-index:10;transform:translate(-50%,-50%) scale(.9);
-  display:flex;flex-direction:column;align-items:center;gap:3px;
-  padding:13px 22px;border-radius:17px;
-  background:rgba(10,12,17,.64);border:1px solid rgba(255,255,255,.16);
-  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
-  color:#fff;opacity:0;pointer-events:none;
-  transition:opacity .16s ease,transform .18s cubic-bezier(.16,1,.3,1);
-}
-.rate-hud.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
-.rate-hud b{font-size:23px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.rate-hud small{font-size:8.5px;letter-spacing:.08em;color:rgba(255,255,255,.5)}
 
 /* ---------- debug HUD ---------- */
 .feed-debug{
@@ -2100,7 +2087,6 @@ body[data-theme="light"] .up-page{
 .swipe-hint.left{right:auto;left:max(20px,5%)}
 .player.gesture-active .player-controls{pointer-events:none}
 .player.to-playlist .player-controls,
-.player.to-playlist .rate-hud,
 .player.to-playlist .lock-badge,
 .player.to-playlist .swipe-hint,
 .player.to-playlist .video-debug,
@@ -2553,13 +2539,10 @@ body[data-theme="dark"] .app.sidebar-closing .sidebar{
 }
 .sidebar-item:hover{background:rgba(30,30,34,.04)}
 .sidebar-item.on{background:var(--blue-soft);color:var(--blue);font-weight:700}
-.sidebar-item.picked{background:var(--blue);color:#fff;font-weight:700;box-shadow:0 10px 24px rgba(0,95,184,.24)}
 .sidebar-ico{width:22px;flex:none;display:grid;place-items:center;color:var(--muted)}
 .sidebar-ico .nav-svg{width:19px;height:19px;display:block}
 .sidebar-ico .nav-avatar{width:23px;height:23px;border-radius:50%;object-fit:cover;display:block;background:var(--surface-2)}
 .sidebar-item.on .sidebar-ico{color:var(--blue)}
-.sidebar-item.picked .sidebar-ico{color:#fff}
-.sidebar-item.picked .sidebar-count{background:rgba(255,255,255,.18);color:#fff}
 .sidebar-label{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sidebar-count{
   min-width:18px;height:18px;padding:0 5px;display:grid;place-items:center;
@@ -2936,8 +2919,6 @@ body[data-theme="dark"] .sidebar{
 }
 body[data-theme="dark"] .sidebar-item .sidebar-ico{background:var(--surface-2);border-color:var(--line)}
 body[data-theme="dark"] .sidebar-item.on{background:var(--blue-soft);color:var(--blue)}
-body[data-theme="dark"] .sidebar-item.picked{background:var(--blue);color:#0B1020}
-body[data-theme="dark"] .sidebar-item.picked .sidebar-ico{background:none;border-color:transparent;color:#0B1020}
 body[data-theme="dark"] .playlist-dock{
   border:0;border-top:1px solid rgba(255,255,255,.13);
   border-left:0!important;border-right:0!important;border-bottom:0!important;

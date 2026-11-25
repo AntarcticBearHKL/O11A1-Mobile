@@ -23,12 +23,6 @@
   };
   const NATIVE_MEDIA = Boolean(window.O11A1NativeMedia && window.O11A1NativeMedia.available);
   const NATIVE_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const nativeUrl = (result) => NATIVE_MEDIA
-    ? String(result && (result.remote || '') || '')
-    : String(result && (result.url || '') || '');
-  const nativeBackup = (result) => NATIVE_MEDIA
-    ? String(result && (result.backupRemote || '') || '')
-    : String(result && (result.backup || '') || '');
 
   let netBytes = 0;
   let netAt = 0;
@@ -125,10 +119,6 @@
     if (delta < 86400 * 30) return `${Math.floor(delta / 86400)} 天前`;
     const date = new Date(seconds * 1000);
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  }
-
-  function feedTime(value) {
-    return timeAgo(value).replace(/\s+(分钟前|小时前|天前)$/, '$1');
   }
 
   function feedFreshness(value) {
@@ -594,9 +584,10 @@
   }
 
   function prewarmPreviewItems(items) {
-    if (!items || !items.length || typeof bridge.prewarmPreviews !== 'function') return;
+    if (!items || !items.length || state.playerOpen || state.miniVisible) return;
+    if (typeof bridge.prewarmPreviews !== 'function') return;
     const rows = [];
-    for (let index = 0; index < items.length; index += 1) {
+    for (let index = 0; index < items.length && rows.length < 3; index += 1) {
       const item = items[index];
       if (!item || item.live || item.epId || !item.bvid) continue;
       rows.push({ bvid: item.bvid, cid: Number(item.cid) || 0 });
@@ -735,7 +726,6 @@
   /* ---------- inline focused-card preview ---------- */
   const previewUrlCache = new Map();
   const previewPending = new Set();
-  const previewWarmPending = new Set();
   const playerWarmPending = new Set();
   const PREVIEW_URL_TTL = 10 * 60 * 1000;
   let previewVideo = null;
@@ -1207,15 +1197,6 @@
     });
   }
 
-  function warmPreviewPrefix(item) {
-    if (!item || !item.bvid || typeof bridge.previewWarm !== 'function') return;
-    const key = `${item.bvid}:${item.cid || 0}`;
-    if (previewWarmPending.has(key)) return;
-    previewWarmPending.add(key);
-    setTimeout(() => previewWarmPending.delete(key), 30000);
-    try { bridge.previewWarm(item.bvid, item.cid || 0); } catch (_) {}
-  }
-
   function prewarmFeedRows(items) {
     if (!NATIVE_MEDIA || typeof bridge.prewarmPreviews !== 'function' || !Array.isArray(items)) return;
     const list = [];
@@ -1260,17 +1241,6 @@
     return row;
   }
 
-  function warmFocusPreview(feed) {
-    if (!feed || state.playerOpen || state.miniVisible) return;
-    const view = feedViewport(feed);
-    if (!view.isActive) return;
-    const row = previewFocusRow(feed, view.scroll);
-    if (!row || row === previewRow) return;
-    const item = row.__nativeItem;
-    if (!item || item.live || !item.bvid) return;
-    warmPreviewPrefix(item);
-  }
-
   function previewUrlFor(item) {
     const key = `${item.bvid}:${item.cid || 0}`;
     const cached = previewUrlCache.get(key);
@@ -1293,6 +1263,9 @@
           cid: Number(cachedResult.cid) || 0,
           at: Date.now(),
         });
+        while (previewUrlCache.size > 120) {
+          previewUrlCache.delete(previewUrlCache.keys().next().value);
+        }
         if (!item.cid && cachedResult.cid) {
           item.cid = Number(cachedResult.cid) || 0;
           if (previewRow && previewRow.__nativeItem === item) previewRow.__nativeItem.cid = item.cid;
@@ -1318,6 +1291,9 @@
         cid: Number(result.cid) || 0,
         at: Date.now(),
       });
+      while (previewUrlCache.size > 120) {
+        previewUrlCache.delete(previewUrlCache.keys().next().value);
+      }
       if (!item.cid && result.cid) {
         item.cid = Number(result.cid) || 0;
         if (previewRow && previewRow.__nativeItem === item) previewRow.__nativeItem.cid = item.cid;
@@ -1690,6 +1666,7 @@
     const win = windows[feedKey(feed)];
     const view = feedViewport(feed);
     if (!fw || !win || !view.isActive || !view.scroll || !win.hasMore || win.loading) return;
+    if (state.playerOpen) return;
     if (fw.queue.length >= FEED_BLOCK_SIZE) return;
     if (view.scroll.scrollTop + view.scroll.clientHeight
       < view.scroll.scrollHeight - FEED_PREFETCH) return;
@@ -1722,10 +1699,6 @@
     try { previewVideo.playbackRate = rate; } catch (_) {}
   }
 
-  function previewPlaybackRate() {
-    return 1;
-  }
-
   let previewFocusFrame = 0;
   function schedulePreviewFocus(feed) {
     if (!feed || previewFocusFrame) return;
@@ -1750,7 +1723,6 @@
     clearTimeout(fw.previewSettleTimer);
     fw.previewSettleTimer = setTimeout(() => {
       fw.previewSettleTimer = null;
-      warmFocusPreview(feed);
       updateFeedPreview(feed, true);
     }, 60);
     scheduleWindowSettle(feed);
@@ -1774,6 +1746,7 @@
     clearTimeout(fw.fillTimer);
     fw.fillTimer = setTimeout(() => {
       fw.fillTimer = null;
+      if (state.playerOpen) return;
       const win = windows[feedKey(feed)];
       const view = feedViewport(feed);
       if (!win || !view.isActive || !win.hasMore || win.loading) return;
@@ -3109,11 +3082,11 @@
       qualityOptionsPending.delete(key);
     }
     qualityOptionsPending.add(key);
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       qualityOptionsTimers.delete(key);
       let result = null;
       try {
-        result = call('dash', item.bvid, item.cid || 0, 120);
+        result = await fetchDashInfo(item);
       } catch (_) {
         result = null;
       }
@@ -3597,18 +3570,6 @@
     return `${item.bvid || item.epId || ''}:${qn}`;
   }
 
-  function playQualityCached(item, qn) {
-    const key = playInfoKey(item, qn);
-    const hit = playInfoCache.get(key);
-    if (hit && Date.now() - hit.at < PLAY_INFO_TTL) return hit.value;
-    const value = call('playQuality', item.bvid, item.cid || 0, qn);
-    if (value && value.ok) {
-      if (value.cid) item.cid = value.cid;
-      playInfoCache.set(key, { at: Date.now(), value });
-    }
-    return value;
-  }
-
   function bridgeAsync(name, ...args) {
     const fn = bridge && bridge[name];
     if (typeof fn !== 'function') return Promise.resolve(null);
@@ -3631,17 +3592,66 @@
     }
   }
 
+  const dashInfoCache = new Map();
+  const dashInfoPending = new Map();
+  const DASH_INFO_TTL = 4 * 60 * 1000;
+  const DASH_INFO_MAX = 60;
+
+  function fetchDashInfo(item) {
+    if (!item || !item.bvid || item.epId) return Promise.resolve(null);
+    const cid = Number(item.cid) || 0;
+    const key = `${item.bvid}:${cid}:120`;
+    const hit = dashInfoCache.get(key);
+    if (hit && Date.now() - hit.at < DASH_INFO_TTL) {
+      return Promise.resolve(hit.value);
+    }
+    const pending = dashInfoPending.get(key);
+    if (pending) return pending;
+    const request = bridgeCallMaybe('dash', 'dashAsync', item.bvid, cid, 120).then((value) => {
+      if (value && value.ok) {
+        if (value.cid) item.cid = value.cid;
+        const now = Date.now();
+        dashInfoCache.set(key, { at: now, value });
+        if (value.cid && Number(value.cid) !== cid) {
+          dashInfoCache.set(`${item.bvid}:${value.cid}:120`, { at: now, value });
+        }
+        while (dashInfoCache.size > DASH_INFO_MAX) {
+          dashInfoCache.delete(dashInfoCache.keys().next().value);
+        }
+      }
+      return value;
+    }).finally(() => {
+      dashInfoPending.delete(key);
+    });
+    dashInfoPending.set(key, request);
+    return request;
+  }
+
+  const playInfoPending = new Map();
+
   async function playQualityCachedAsync(item, qn) {
     const key = playInfoKey(item, qn);
     const hit = playInfoCache.get(key);
     if (hit && Date.now() - hit.at < PLAY_INFO_TTL) return hit.value;
-    const value = await bridgeCallMaybe('playQuality', 'playQualityAsync', item.bvid, item.cid || 0, qn)
-      || { ok: false, error: 'network' };
-    if (value && value.ok) {
-      if (value.cid) item.cid = value.cid;
-      playInfoCache.set(key, { at: Date.now(), value });
-    }
-    return value;
+    const pending = playInfoPending.get(key);
+    if (pending) return pending;
+    const request = bridgeCallMaybe('playQuality', 'playQualityAsync', item.bvid, item.cid || 0, qn)
+      .then((value) => {
+        const result = value || { ok: false, error: 'network' };
+        if (result.ok) {
+          if (result.cid) item.cid = result.cid;
+          playInfoCache.set(key, { at: Date.now(), value: result });
+          while (playInfoCache.size > 80) {
+            playInfoCache.delete(playInfoCache.keys().next().value);
+          }
+        }
+        return result;
+      })
+      .finally(() => {
+        playInfoPending.delete(key);
+      });
+    playInfoPending.set(key, request);
+    return request;
   }
 
   const danmakuCidPending = new Set();
@@ -3669,18 +3679,6 @@
     }).catch(() => {
       danmakuCidPending.delete(key);
     });
-  }
-
-  function prefetchPlayInfo(item) {
-    if (!item || item.live || !item.bvid || item.epId) return;
-    const qn = qualityQn(state.settings.quality);
-    const key = playInfoKey(item, qn);
-    if (playInfoCache.has(key)) return;
-    const value = call('playQuality', item.bvid, item.cid || 0, qn);
-    if (value && value.ok) {
-      if (value.cid) item.cid = value.cid;
-      playInfoCache.set(key, { at: Date.now(), value });
-    }
   }
 
   function applyPendingMediaStart() {
@@ -3763,7 +3761,7 @@
       && item.bvid && !item.epId
       && (typeof bridge.dash === 'function' || typeof bridge.dashAsync === 'function')) {
       dashTried = true;
-      const dash = await bridgeCallMaybe('dash', 'dashAsync', item.bvid, item.cid || 0, 120) || {};
+      const dash = await fetchDashInfo(item) || {};
       if (loadToken !== mediaLoadToken) return;
       const dashMax = dash.ok && Array.isArray(dash.video)
         ? dash.video.reduce((max, track) => Math.max(max, Number(track.qn) || 0), 0)
@@ -3786,7 +3784,7 @@
     if (!result || !result.ok) {
       if (!dashTried && DASH_PLAYBACK && allowDash && item.bvid && !item.epId
         && (typeof bridge.dash === 'function' || typeof bridge.dashAsync === 'function')) {
-        const dash = await bridgeCallMaybe('dash', 'dashAsync', item.bvid, item.cid || 0, 120) || {};
+        const dash = await fetchDashInfo(item) || {};
         if (loadToken !== mediaLoadToken) return;
         if (dash.ok && Array.isArray(dash.video) && Array.isArray(dash.audio) && dash.video.length && dash.audio.length) {
           if (dash.cid) {
@@ -4435,6 +4433,9 @@
       videoInfoCache.clear();
       playInfoCache.clear();
       previewUrlCache.clear();
+      dashInfoCache.clear();
+      dashInfoPending.clear();
+      playInfoPending.clear();
       qualityOptionsCache.clear();
       qualityOptionsPending.clear();
       qualityOptionsTimers.forEach((timer) => clearTimeout(timer));
@@ -5451,15 +5452,17 @@
       else scheduleWindowSettle(feeds.search, 220);
     }
     if (state.page === 'module') {
-      loadModule(1);
+      if (!feeds.module.querySelector('.real-row')) loadModule(1);
       scheduleWindowSettle(feeds.module, 220);
     }
     if (state.page === 'up') scheduleWindowSettle(feeds.up, 220);
-    if (state.page === 'dynamic') {
+    if (state.page === 'dynamic'
+      && !$('#dynamicFeed').querySelector('.dynamic-card:not(.skeleton-card)')) {
       pages.dynamic = 1;
       loadDynamic(1, false);
     }
-    if (state.page === 'messages') {
+    if (state.page === 'messages'
+      && !$('#messageFeed').querySelector('.message-row:not(.skeleton-message)')) {
       pages.messages = 1;
       loadMessages(1, false);
     }

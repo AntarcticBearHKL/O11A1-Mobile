@@ -108,6 +108,9 @@ final class O11A1BiliClient {
     apiConfig.requestCachePolicy = .reloadIgnoringLocalCacheData
     apiConfig.timeoutIntervalForRequest = 20
     apiConfig.timeoutIntervalForResource = 45
+    apiConfig.httpMaximumConnectionsPerHost = 8
+    apiConfig.waitsForConnectivity = true
+    apiConfig.networkServiceType = .responsiveData
     apiSession = URLSession(configuration: apiConfig)
   }
 

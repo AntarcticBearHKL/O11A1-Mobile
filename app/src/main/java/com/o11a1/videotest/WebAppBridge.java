@@ -13,6 +13,8 @@ import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.view.PixelCopy;
@@ -499,6 +501,26 @@ final class WebAppBridge {
     }
 
     @JavascriptInterface
+    public String haptic(String style) {
+        JSONObject out = new JSONObject();
+        try {
+            Vibrator vibrator = (Vibrator) activity.getSystemService(Context.VIBRATOR_SERVICE);
+            if (vibrator == null || !vibrator.hasVibrator()) {
+                out.put("ok", false);
+                out.put("error", "no vibrator");
+                return out.toString();
+            }
+            String value = style == null ? "light" : style;
+            int amplitude = "heavy".equals(value) ? 255 : ("medium".equals(value) ? 190 : 130);
+            vibrator.vibrate(VibrationEffect.createOneShot(8, amplitude));
+            out.put("ok", true);
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out.toString();
+    }
+
+    @JavascriptInterface
     public String screenshot() {
         JSONObject out = new JSONObject();
         try {
@@ -562,11 +584,6 @@ final class WebAppBridge {
             return cached.json;
         }
         return "{\"ok\":false,\"missing\":true}";
-    }
-
-    @JavascriptInterface
-    public void previewWarm(String bvid, long cid) {
-        // Native players fetch directly from the CDN; nothing to prewarm here.
     }
 
     @JavascriptInterface

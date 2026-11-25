@@ -60,7 +60,7 @@
   }
   window.O11A1Native = {
     available: function () { return true; },
-    version: function () { return '0.4.84-ios'; },
+    version: function () { return '0.4.85-ios'; },
     popular: function (page, ps) { return call('popular', { page: page, ps: ps }); },
     recommend: function (page, ps, fresh) { return call('recommend', { page: page, ps: ps, fresh: fresh }); },
     search: function (keyword, page) { return call('search', { keyword: keyword, page: page }); },
@@ -99,9 +99,7 @@
     },
     play: function (bvid, cid) { return call('play', { bvid: bvid, cid: cid }); },
     playLow: function (bvid, cid) { return call('playLow', { bvid: bvid, cid: cid }); },
-    previewUrlCached: function (bvid, cid) { return call('previewCached', { bvid: bvid, cid: cid }); },
     previewCached: function (bvid, cid) { return call('previewCached', { bvid: bvid, cid: cid }); },
-    previewWarm: function () {},
     playQuality: function (bvid, cid, qn) { return call('playQuality', { bvid: bvid, cid: cid, qn: qn }); },
     playQualityAsync: function (bvid, cid, qn) { return callAsync('playQuality', { bvid: bvid, cid: cid, qn: qn }); },
     playPgc: function (epId, bvid, cid, qn) { return call('playPgc', { epId: epId, bvid: bvid, cid: cid, qn: qn }); },
