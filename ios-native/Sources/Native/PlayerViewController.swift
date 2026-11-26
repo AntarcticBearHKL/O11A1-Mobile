@@ -1072,6 +1072,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     openSettingsPanel()
   }
 
+  func testOpenRelated() {
+    openRelatedPanel()
+  }
+
   @objc private func closeTapped() {
     closePlayer(animated: true)
   }

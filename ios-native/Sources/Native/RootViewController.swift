@@ -152,7 +152,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     testFlowTriggered = true
     let flow = ProcessInfo.processInfo.environment["O11A1_TEST_FLOW"] ?? ""
     switch flow {
-    case "player", "player-detail", "player-comments", "player-settings":
+    case "player", "player-detail", "player-comments", "player-settings", "player-related":
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
         self?.feed?.openFirstForTest()
       }
@@ -305,6 +305,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
         case "player-detail": controller?.testOpenDetail()
         case "player-comments": controller?.testOpenComments()
         case "player-settings": controller?.testOpenSettings()
+        case "player-related": controller?.testOpenRelated()
         default: break
         }
       }
@@ -472,6 +473,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     if gestureRecognizer === sidebarEdgePan {
+      guard player == nil, presentedViewController == nil,
+            feed?.isSearchOpen() != true else { return false }
       let velocity = (gestureRecognizer as? UIPanGestureRecognizer)?.velocity(in: view) ?? .zero
       return velocity.x > 0 && sidebar?.superview == nil
     }
