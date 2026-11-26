@@ -3,6 +3,8 @@ import UIKit
 final class CommentsPanelViewController: UIViewController, UITableViewDataSource,
   UITableViewDelegate, UIGestureRecognizerDelegate {
   var embedded = false
+  var onSwipeLeft: (() -> Void)?
+  var onSwipeRight: (() -> Void)?
   private let aid: Int64
   private let card = UIView()
   private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
@@ -18,6 +20,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   private var sort = 2
   private var loading = false
   private var dismissPan: UIPanGestureRecognizer?
+  private var embeddedSwipePan: UIPanGestureRecognizer?
   private var repliesCache: [Int64: [CommentItem]] = [:]
   private var expandedRoots: Set<Int64> = []
   private var loadingReplies: Set<Int64> = []
@@ -155,6 +158,11 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
       pan.delegate = self
       view.addGestureRecognizer(pan)
       dismissPan = pan
+    } else {
+      let swipe = UIPanGestureRecognizer(target: self, action: #selector(handleEmbeddedSwipe(_:)))
+      swipe.delegate = self
+      view.addGestureRecognizer(swipe)
+      embeddedSwipePan = swipe
     }
 
     load(reset: true)
@@ -329,12 +337,33 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     }
   }
 
-  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-    guard let pan = gestureRecognizer as? UIPanGestureRecognizer, pan === dismissPan else {
-      return true
+  @objc private func handleEmbeddedSwipe(_ gesture: UIPanGestureRecognizer) {
+    guard gesture.state == .ended || gesture.state == .cancelled else { return }
+    let translation = gesture.translation(in: view).x
+    if translation < -60 {
+      onSwipeLeft?()
+    } else if translation > 60 {
+      onSwipeRight?()
     }
+  }
+
+  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+    if pan === embeddedSwipePan {
+      let velocity = pan.velocity(in: view)
+      return abs(velocity.x) > abs(velocity.y) * 1.2
+    }
+    guard pan === dismissPan else { return true }
     let velocity = pan.velocity(in: view)
     return abs(velocity.x) > abs(velocity.y)
+  }
+
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+    if gestureRecognizer === embeddedSwipePan || otherGestureRecognizer === embeddedSwipePan {
+      return true
+    }
+    return false
   }
 }
 

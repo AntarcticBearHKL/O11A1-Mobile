@@ -485,6 +485,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     if let comments = portraitComments { return comments }
     let comments = CommentsPanelViewController(aid: item.aid)
     comments.embedded = true
+    comments.onSwipeLeft = { [weak self] in self?.openRelatedPanel() }
+    comments.onSwipeRight = { [weak self] in self?.openDetailPanel() }
     addChild(comments)
     comments.view.frame = .zero
     comments.view.autoresizingMask = []
