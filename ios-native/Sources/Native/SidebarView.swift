@@ -85,7 +85,27 @@ final class SidebarView: UIView {
     addRow(stack, "历史", "clock.arrow.circlepath",
            { [weak self] in self?.onModule?(.history, "历史") })
     addRow(stack, "搜索", "magnifyingglass", onSearch)
-    addRow(stack, "我的", "person", onMy)
+
+    let footerLine = UIView()
+    footerLine.backgroundColor = NativeTheme.hairline
+    panel.addSubview(footerLine)
+    footerLine.translatesAutoresizingMaskIntoConstraints = false
+
+    let footer = UIStackView()
+    footer.axis = .vertical
+    footer.alignment = .fill
+    panel.addSubview(footer)
+    footer.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      footer.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 8),
+      footer.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -12),
+      footer.bottomAnchor.constraint(equalTo: panel.safeAreaLayoutGuide.bottomAnchor, constant: -8),
+      footerLine.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 26),
+      footerLine.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
+      footerLine.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -2),
+      footerLine.heightAnchor.constraint(equalToConstant: 0.5),
+    ])
+    addRow(footer, "我的", "person", onMy)
   }
 
   required init?(coder: NSCoder) {
