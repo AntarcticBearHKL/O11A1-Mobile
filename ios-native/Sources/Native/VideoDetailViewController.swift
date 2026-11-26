@@ -497,7 +497,8 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
 
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
     let width = max(1, view.bounds.width)
-    let translation = gesture.translation(in: view).x
+    let reference = view.superview ?? view
+    let translation = gesture.translation(in: reference).x
     switch gesture.state {
     case .changed:
       view.transform = CGAffineTransform(translationX: min(0, translation), y: 0)

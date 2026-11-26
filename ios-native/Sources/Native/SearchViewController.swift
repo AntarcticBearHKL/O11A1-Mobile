@@ -276,7 +276,8 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   }
 
   @objc private func handleDismissPan(_ gesture: UIPanGestureRecognizer) {
-    let translation = max(0, gesture.translation(in: view).x)
+    let reference = view.superview ?? view
+    let translation = max(0, gesture.translation(in: reference).x)
     let width = max(1, view.bounds.width)
     switch gesture.state {
     case .changed:

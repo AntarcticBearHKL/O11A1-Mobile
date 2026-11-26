@@ -540,9 +540,17 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       comments.view.isHidden = false
       comments.view.frame = CGRect(x: 0, y: targetVideo.maxY,
                                    width: full.width, height: full.height - targetVideo.maxY)
-      view.bringSubviewToFront(comments.view)
-      view.bringSubviewToFront(bottomPanel)
-      view.bringSubviewToFront(seekBubble)
+      if relatedPanel == nil && detailPanel == nil {
+        view.bringSubviewToFront(comments.view)
+        view.bringSubviewToFront(bottomPanel)
+        view.bringSubviewToFront(seekBubble)
+      }
+    }
+    if let related = relatedPanel {
+      view.bringSubviewToFront(related.view)
+    }
+    if let detail = detailPanel {
+      view.bringSubviewToFront(detail.view)
     }
 
     bottomPanel.layoutIfNeeded()
@@ -779,7 +787,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
-    let translation = gesture.translation(in: view)
+    let reference = view.superview ?? view
+    let translation = gesture.translation(in: reference)
     switch gesture.state {
     case .began:
       let velocity = gesture.velocity(in: videoContainer)
@@ -894,12 +903,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     panel.onClose = { [weak self] in
       self?.closeRelatedPanel()
     }
+    relatedPanel = panel
     addChild(panel)
     panel.view.frame = view.bounds
     panel.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     view.addSubview(panel.view)
     panel.didMove(toParent: self)
-    relatedPanel = panel
     panel.view.transform = CGAffineTransform(translationX: view.bounds.width, y: 0)
     UIView.animate(withDuration: 0.34, delay: 0, options: [.curveEaseOut]) {
       panel.view.transform = .identity
@@ -988,12 +997,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self.loopOn = on
       self.engine.setLoop(on)
     }
+    detailPanel = detail
     addChild(detail)
     detail.view.frame = view.bounds
     detail.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     view.addSubview(detail.view)
     detail.didMove(toParent: self)
-    detailPanel = detail
     detail.view.transform = CGAffineTransform(translationX: -view.bounds.width, y: 0)
     UIView.animate(withDuration: 0.34, delay: 0, options: [.curveEaseOut]) {
       detail.view.transform = .identity

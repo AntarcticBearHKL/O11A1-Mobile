@@ -108,7 +108,8 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
 
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
     let width = max(1, view.bounds.width)
-    let translation = max(0, gesture.translation(in: view).x)
+    let reference = view.superview ?? view
+    let translation = max(0, gesture.translation(in: reference).x)
     switch gesture.state {
     case .changed:
       view.transform = CGAffineTransform(translationX: translation, y: 0)
