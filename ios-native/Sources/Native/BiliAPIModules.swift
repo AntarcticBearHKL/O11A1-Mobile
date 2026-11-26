@@ -114,6 +114,74 @@ extension BiliAPI {
     }
   }
 
+  func liveHistory(roomId: Int64, completion: @escaping (Result<[LiveMessage], Error>) -> Void) {
+    run({ self.client.liveHistory(roomId: roomId) }) { result in
+      switch result {
+      case .failure(let error):
+        completion(.failure(error))
+      case .success(let json):
+        let rows = (json["items"] as? [[String: Any]]) ?? []
+        let items = rows.map { row -> LiveMessage in
+          var item = LiveMessage()
+          item.user = o11a1String(row["user"])
+          item.text = o11a1String(row["text"])
+          item.time = o11a1String(row["time"])
+          if item.user.isEmpty { item.user = "观众" }
+          return item
+        }.filter { !$0.text.isEmpty }
+        completion(.success(items))
+      }
+    }
+  }
+
+  func searchHot(completion: @escaping (Result<[String], Error>) -> Void) {
+    run({ self.client.searchHot() }) { result in
+      switch result {
+      case .failure(let error):
+        completion(.failure(error))
+      case .success(let json):
+        let rows = (json["items"] as? [[String: Any]]) ?? []
+        let values = rows.compactMap { row -> String? in
+          let keyword = o11a1String(row["keyword"])
+          return keyword.isEmpty ? nil : keyword
+        }
+        completion(.success(values))
+      }
+    }
+  }
+
+  func memberCenter(completion: @escaping (Result<MemberInfo, Error>) -> Void) {
+    run({ self.client.memberCenter() }) { result in
+      switch result {
+      case .failure(let error):
+        completion(.failure(error))
+      case .success(let json):
+        var info = MemberInfo()
+        info.vip = (json["vip"] as? Bool) ?? false
+        info.vipType = o11a1Int(json["vipType"])
+        info.vipDue = o11a1Int64(json["vipDue"])
+        let tasks = (json["tasks"] as? [[String: Any]]) ?? []
+        info.tasks = tasks.map { row -> MemberTask in
+          var task = MemberTask()
+          task.label = o11a1String(row["label"])
+          task.detail = o11a1String(row["detail"])
+          task.done = (row["done"] as? Bool) ?? false
+          task.reward = o11a1Int(row["reward"])
+          return task
+        }
+        let logs = (json["log"] as? [[String: Any]]) ?? []
+        info.log = logs.map { row -> MemberLog in
+          var entry = MemberLog()
+          entry.delta = o11a1Int(row["delta"])
+          entry.reason = o11a1String(row["reason"])
+          entry.time = o11a1String(row["time"])
+          return entry
+        }
+        completion(.success(info))
+      }
+    }
+  }
+
   func danmaku(cid: Int64, completion: @escaping (Result<[DanmakuItem], Error>) -> Void) {
     run({ self.client.danmaku(cid: cid) }) { result in
       switch result {

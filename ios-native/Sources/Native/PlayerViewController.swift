@@ -29,7 +29,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let danmakuToggle = UIButton(type: .system)
   private let danmakuSend = UIButton(type: .system)
   private let danmakuOverlay = DanmakuOverlayView()
+  private let liveChat = LiveChatView()
   private let errorLabel = UILabel()
+  private var liveTimer: Timer?
   private var sourceFrame: CGRect = .zero
   private var panStartFrame: CGRect = .zero
   private var isScrubbing = false
@@ -186,6 +188,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     danmakuOverlay.backgroundColor = .clear
     danmakuOverlay.isUserInteractionEnabled = false
     videoContainer.addSubview(danmakuOverlay)
+
+    liveChat.isHidden = true
+    videoContainer.addSubview(liveChat)
+    liveChat.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      liveChat.leadingAnchor.constraint(equalTo: videoContainer.leadingAnchor, constant: 14),
+      liveChat.trailingAnchor.constraint(lessThanOrEqualTo: videoContainer.trailingAnchor, constant: -14),
+      liveChat.bottomAnchor.constraint(equalTo: videoContainer.bottomAnchor, constant: -190),
+    ])
 
     errorLabel.font = NativeTheme.bodyFont(13)
     errorLabel.textColor = NativeTheme.pipRose
@@ -377,7 +388,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       qualityLabel.text = "LIVE"
       wheel.isHidden = true
       speedLabel.isHidden = true
+      danmakuToggle.isHidden = true
+      danmakuSend.isHidden = true
       danmakuOverlay.isHidden = true
+      liveChat.isHidden = false
+      startLiveChat()
       BiliAPI.shared.liveRoom(roomId: item.roomId) { [weak self] result in
         guard let self = self, token == self.loadToken else { return }
         switch result {
@@ -431,9 +446,35 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   @objc private func cycleQuality() {
+    if item.roomId > 0 { return }
     if currentQuality > 64 { loadQuality(64) }
     else if currentQuality > 32 { loadQuality(32) }
     else { loadQuality(80) }
+  }
+
+  private func startLiveChat() {
+    guard item.roomId > 0, liveTimer == nil else { return }
+    pollLiveChat()
+    liveTimer = Timer.scheduledTimer(withTimeInterval: 6, repeats: true) { [weak self] _ in
+      self?.pollLiveChat()
+    }
+  }
+
+  private func pollLiveChat() {
+    guard item.roomId > 0 else { return }
+    BiliAPI.shared.liveHistory(roomId: item.roomId) { [weak self] result in
+      guard let self = self, case .success(let messages) = result else { return }
+      self.liveChat.setMessages(messages)
+    }
+  }
+
+  private func stopLiveChat() {
+    liveTimer?.invalidate()
+    liveTimer = nil
+  }
+
+  deinit {
+    liveTimer?.invalidate()
   }
 
   @objc private func cycleSpeed() {
@@ -551,6 +592,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private func closePlayer(animated: Bool) {
     guard !closing else { return }
     closing = true
+    stopLiveChat()
     engine.stop()
     engine.stopPip()
     if animated {
@@ -566,6 +608,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   private func closeFromPip() {
     closing = true
+    stopLiveChat()
     engine.stop()
     onClose?()
   }

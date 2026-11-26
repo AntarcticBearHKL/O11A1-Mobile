@@ -4,11 +4,20 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
   var onClose: (() -> Void)?
   var onOpenVideo: ((VideoItem) -> Void)?
 
+  private enum Mode {
+    case hot
+    case suggest
+    case results
+  }
+
   private let searchBar = UISearchBar()
   private let table = UITableView(frame: .zero, style: .plain)
   private let backButton = UIButton(type: .system)
   private let statusLabel = UILabel()
   private var items: [VideoItem] = []
+  private var hot: [String] = []
+  private var suggestions: [String] = []
+  private var mode: Mode = .hot
   private var workItem: DispatchWorkItem?
   private var loading = false
 
@@ -41,6 +50,7 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
     table.delegate = self
     table.keyboardDismissMode = .onDrag
     table.register(SearchResultCell.self, forCellReuseIdentifier: SearchResultCell.reuseID)
+    table.register(UITableViewCell.self, forCellReuseIdentifier: "SuggestionCell")
     view.addSubview(table)
     table.translatesAutoresizingMaskIntoConstraints = false
 
@@ -72,6 +82,19 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
       statusLabel.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 32),
       statusLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -32),
     ])
+
+    loadHot()
+  }
+
+  private func loadHot() {
+    BiliAPI.shared.searchHot { [weak self] result in
+      guard let self = self else { return }
+      guard case .success(let values) = result else { return }
+      self.hot = values
+      if self.mode == .hot {
+        self.table.reloadData()
+      }
+    }
   }
 
   func focus() {
@@ -89,16 +112,31 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
     workItem?.cancel()
     let term = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !term.isEmpty else {
+      mode = .hot
       items = []
+      suggestions = []
       table.reloadData()
       statusLabel.isHidden = true
       return
     }
+    mode = .suggest
+    table.reloadData()
+    statusLabel.isHidden = true
     let task = DispatchWorkItem { [weak self] in
-      self?.performSearch(term)
+      self?.loadSuggestions(term)
     }
     workItem = task
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.32, execute: task)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.22, execute: task)
+  }
+
+  private func loadSuggestions(_ term: String) {
+    BiliAPI.shared.suggest(term) { [weak self] values in
+      guard let self = self, self.mode == .suggest else { return }
+      let current = (self.searchBar.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      guard current == term else { return }
+      self.suggestions = values
+      self.table.reloadData()
+    }
   }
 
   func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
@@ -110,6 +148,10 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
 
   private func performSearch(_ term: String) {
     guard !loading else { return }
+    workItem?.cancel()
+    mode = .results
+    items = []
+    table.reloadData()
     loading = true
     statusLabel.text = "搜索中…"
     statusLabel.isHidden = false
@@ -130,19 +172,46 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
   }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-    return items.count
+    switch mode {
+    case .hot: return hot.count
+    case .suggest: return suggestions.count
+    case .results: return items.count
+    }
+  }
+
+  func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+    if mode == .hot && !hot.isEmpty { return "热搜" }
+    return nil
   }
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-    let cell = tableView.dequeueReusableCell(withIdentifier: SearchResultCell.reuseID, for: indexPath) as! SearchResultCell
-    cell.configure(items[indexPath.row])
+    if mode == .results {
+      let cell = tableView.dequeueReusableCell(withIdentifier: SearchResultCell.reuseID, for: indexPath) as! SearchResultCell
+      cell.configure(items[indexPath.row])
+      return cell
+    }
+    let cell = tableView.dequeueReusableCell(withIdentifier: "SuggestionCell", for: indexPath)
+    let isHot = mode == .hot
+    cell.textLabel?.text = isHot ? hot[indexPath.row] : suggestions[indexPath.row]
+    cell.textLabel?.font = NativeTheme.bodyFont(15)
+    cell.textLabel?.textColor = NativeTheme.foreground
+    cell.imageView?.image = UIImage(systemName: isHot ? "flame.fill" : "magnifyingglass")
+    cell.imageView?.tintColor = isHot ? NativeTheme.accent : NativeTheme.secondary
+    cell.backgroundColor = .clear
     return cell
   }
 
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     tableView.deselectRow(at: indexPath, animated: true)
+    if mode == .results {
+      searchBar.resignFirstResponder()
+      onOpenVideo?(items[indexPath.row])
+      return
+    }
+    let term = mode == .hot ? hot[indexPath.row] : suggestions[indexPath.row]
+    searchBar.text = term
     searchBar.resignFirstResponder()
-    onOpenVideo?(items[indexPath.row])
+    performSearch(term)
   }
 }
 

@@ -48,6 +48,20 @@ and hides/shows with a 0.75 s animation while scrolling.
 - Left-edge horizontal drag opens search and tracks the finger 1:1. Commit at
   26% width or a fast left flick.
 
+### Search
+
+- Left-edge drag opens the search screen and tracks the finger 1:1.
+- Empty query shows the live hot-search list (`search/square`).
+- Typing shows debounced suggestions (`s/main/suggest`); pressing the keyboard
+  search action or tapping a suggestion/hot item runs the video search.
+- Results use a native list with cover, title, UP name, play count and duration.
+
+### Member centre
+
+- Opened from 我的 → 会员中心.
+- Shows VIP state and expiry, daily experience tasks and the recent exp log,
+  read from the native member endpoints. Not logged in shows the QR login path.
+
 ### Player
 
 - Opens from the focused card; native AVPlayer / ExoPlayer.

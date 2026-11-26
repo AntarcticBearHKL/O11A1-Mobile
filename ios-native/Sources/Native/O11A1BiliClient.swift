@@ -1337,6 +1337,62 @@ final class O11A1BiliClient {
     ])
   }
 
+  func liveHistory(roomId: Int64) -> Data {
+    guard roomId > 0,
+          let url = URL(string: "https://api.live.bilibili.com/xlive/web-room/v1/dM/gethistory?roomid=\(roomId)&room_type=0") else {
+      return o11a1Error("直播弹幕不可用")
+    }
+    var request = URLRequest(url: url)
+    request.timeoutInterval = 12
+    request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+    request.setValue("https://live.bilibili.com/\(roomId)", forHTTPHeaderField: "Referer")
+    request.setValue("https://live.bilibili.com", forHTTPHeaderField: "Origin")
+    let cookie = cookies.header()
+    if !cookie.isEmpty { request.setValue(cookie, forHTTPHeaderField: "Cookie") }
+    guard let (data, http) = perform(request, session: apiSession) else {
+      return o11a1Error("直播弹幕不可用")
+    }
+    cookies.absorb(http)
+    guard let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+          let room = (payload["data"] as? [String: Any])?["room"] as? [[String: Any]] else {
+      return o11a1Error("直播弹幕不可用")
+    }
+    let rows: [[String: Any]] = room.suffix(20).compactMap { row in
+      let text = o11a1String(row["text"])
+      if text.isEmpty { return nil }
+      let base = (row["user"] as? [String: Any])?["base"] as? [String: Any]
+      var name = o11a1String(row["nickname"])
+      if name.isEmpty { name = o11a1String(base?["name"]) }
+      return [
+        "user": name.isEmpty ? "观众" : name,
+        "text": text,
+        "time": o11a1String(row["timeline"])
+      ]
+    }
+    return o11a1Data(["ok": true, "items": rows])
+  }
+
+  func searchHot() -> Data {
+    guard let payload = json(
+      base: Self.apiBase,
+      path: "/x/web-interface/search/square",
+      query: ["limit": "10"]
+    ),
+      o11a1Int(payload["code"]) == 0,
+      let data = payload["data"] as? [String: Any],
+      let trending = data["trending"] as? [String: Any],
+      let list = trending["list"] as? [[String: Any]] else {
+      return o11a1Error("热搜不可用")
+    }
+    let rows: [[String: Any]] = list.compactMap { row in
+      let keyword = o11a1String(row["keyword"])
+      if keyword.isEmpty { return nil }
+      let show = o11a1String(row["show_name"])
+      return ["keyword": keyword, "show": show.isEmpty ? keyword : show]
+    }
+    return o11a1Data(["ok": true, "items": rows])
+  }
+
   private func liveURL(_ codec: [String: Any]) -> String? {
     let base = o11a1String(codec["base_url"])
     guard !base.isEmpty, let infos = codec["url_info"] as? [[String: Any]], let info = infos.first else { return nil }

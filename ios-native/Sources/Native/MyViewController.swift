@@ -96,6 +96,7 @@ final class MyViewController: UIViewController {
       ("关注", { [weak self] in self?.open(.following, 0, "关注") }),
       ("动态", { [weak self] in self?.open(.dynamic, 0, "动态") }),
       ("消息", { [weak self] in self?.open(.messages, 0, "消息") }),
+      ("会员中心", { [weak self] in self?.openMember() }),
       ("养鱼", { [weak self] in self?.onFish?() }),
       ("设置", { [weak self] in self?.onSettings?() }),
       ("我的主页", { [weak self] in
@@ -169,6 +170,12 @@ final class MyViewController: UIViewController {
 
   private func open(_ mode: ModuleListViewController.Mode, _ target: Int64, _ title: String) {
     onOpenModule?(mode, target, title)
+  }
+
+  private func openMember() {
+    let member = MemberCenterViewController()
+    member.modalPresentationStyle = .pageSheet
+    present(member, animated: true)
   }
 
   @objc private func close() {

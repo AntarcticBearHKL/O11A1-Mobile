@@ -152,6 +152,8 @@ final class MyView extends FrameLayout {
         addButton(grid, "关注", () -> host.openModule(ModuleView.Type.FOLLOWING, 0, "关注"));
         addButton(grid, "动态", () -> host.openModule(ModuleView.Type.DYNAMIC, 0, "动态"));
         addButton(grid, "消息", () -> host.openModule(ModuleView.Type.MESSAGES, 0, "消息"));
+        addButton(grid, "会员中心", () -> MemberView.show(context, extras,
+            () -> LoginDialog.show(context, api, this::loadAccount)));
         addButton(grid, "养鱼", host::openFish);
         addButton(grid, "设置", host::openSettings);
         addButton(grid, "我的主页", () -> {

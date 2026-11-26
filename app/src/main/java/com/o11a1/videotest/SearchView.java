@@ -40,11 +40,17 @@ final class SearchView extends FrameLayout {
     private final Runnable onClose;
     private final EditText field;
     private final RecyclerView list;
+    private final RecyclerView suggestionList;
     private final VideoRowAdapter adapter;
+    private final SuggestionAdapter suggestionAdapter;
     private final TextView status;
+    private final TextView sectionLabel;
     private final ExecutorService pool = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
-    private final Runnable searchRunnable = this::searchNow;
+    private final Runnable suggestRunnable = this::suggestNow;
+    private final List<String> hot = new ArrayList<>();
+    private boolean hotLoaded = false;
+    private int mode = 0;
     private int token = 0;
 
     SearchView(Context context, BiliApi api, OnOpen onOpen, Runnable onClose) {
@@ -106,23 +112,52 @@ final class SearchView extends FrameLayout {
         listParams.topMargin = NativeTheme.dp(context, 56);
         addView(list, listParams);
 
+        sectionLabel = new TextView(context);
+        sectionLabel.setTextColor(NativeTheme.secondary(context));
+        sectionLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        sectionLabel.setTypeface(NativeTheme.titleTypeface());
+        sectionLabel.setVisibility(View.GONE);
+        LayoutParams labelParams = new LayoutParams(
+            LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+        labelParams.topMargin = NativeTheme.dp(context, 64);
+        labelParams.leftMargin = NativeTheme.dp(context, 20);
+        addView(sectionLabel, labelParams);
+
+        suggestionList = new RecyclerView(context);
+        suggestionList.setLayoutManager(new LinearLayoutManager(context));
+        suggestionList.setBackgroundColor(Color.TRANSPARENT);
+        suggestionAdapter = new SuggestionAdapter(context, value -> {
+            main.removeCallbacks(suggestRunnable);
+            field.setText(value);
+            field.setSelection(value.length());
+            hideKeyboard();
+            searchNow();
+        });
+        suggestionList.setAdapter(suggestionAdapter);
+        LayoutParams suggestionParams = new LayoutParams(
+            LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+        suggestionParams.topMargin = NativeTheme.dp(context, 90);
+        addView(suggestionList, suggestionParams);
+
         field.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                main.removeCallbacks(searchRunnable);
-                main.postDelayed(searchRunnable, 320);
+                main.removeCallbacks(suggestRunnable);
+                main.postDelayed(suggestRunnable, 250);
             }
             @Override public void afterTextChanged(Editable s) {}
         });
         field.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                main.removeCallbacks(searchRunnable);
+                main.removeCallbacks(suggestRunnable);
                 searchNow();
                 hideKeyboard();
                 return true;
             }
             return false;
         });
+
+        loadHot();
 
         setOnApplyWindowInsetsListener((v, insets) -> {
             int insetTop = insets.getSystemWindowInsetTop();
@@ -147,15 +182,100 @@ final class SearchView extends FrameLayout {
         if (imm != null) imm.hideSoftInputFromWindow(field.getWindowToken(), 0);
     }
 
-    private void searchNow() {
+    private void loadHot() {
+        if (hotLoaded) {
+            if (field.getText().toString().trim().isEmpty()) showHot();
+            return;
+        }
+        pool.execute(() -> {
+            JSONObject result = api.searchHot();
+            final List<String> values = new ArrayList<>();
+            if (result != null && result.optBoolean("ok", false)) {
+                JSONArray array = result.optJSONArray("items");
+                if (array != null) {
+                    for (int i = 0; i < array.length(); i += 1) {
+                        JSONObject row = array.optJSONObject(i);
+                        if (row == null) continue;
+                        String keyword = row.optString("keyword", "");
+                        if (!keyword.isEmpty()) values.add(keyword);
+                    }
+                }
+            }
+            main.post(() -> {
+                hotLoaded = true;
+                hot.clear();
+                hot.addAll(values);
+                if (field.getText().toString().trim().isEmpty() && mode == 0) showHot();
+            });
+        });
+    }
+
+    private void showHot() {
+        mode = 0;
+        sectionLabel.setText("热搜");
+        sectionLabel.setVisibility(hot.isEmpty() ? View.GONE : View.VISIBLE);
+        suggestionAdapter.setItems(hot, true);
+        suggestionList.setVisibility(View.VISIBLE);
+        list.setVisibility(View.GONE);
+        status.setVisibility(View.GONE);
+        if (hot.isEmpty() && !hotLoaded) loadHot();
+    }
+
+    private void suggestNow() {
         String term = field.getText().toString().trim();
         if (term.isEmpty()) {
-            adapter.setItems(new ArrayList<>());
-            status.setVisibility(View.GONE);
+            showHot();
             return;
         }
         token += 1;
         final int current = token;
+        pool.execute(() -> {
+            JSONObject result = api.suggest(term);
+            final List<String> values = new ArrayList<>();
+            if (result != null && result.optBoolean("ok", false)) {
+                JSONArray array = result.optJSONArray("items");
+                if (array != null) {
+                    for (int i = 0; i < array.length(); i += 1) {
+                        JSONObject row = array.optJSONObject(i);
+                        if (row == null) continue;
+                        String value = row.optString("value", "");
+                        if (value.isEmpty()) value = row.optString("term", "");
+                        if (!value.isEmpty()) values.add(value);
+                    }
+                }
+            }
+            main.post(() -> {
+                if (current != token) return;
+                if (!field.getText().toString().trim().equals(term)) return;
+                mode = 1;
+                sectionLabel.setText("搜索建议");
+                sectionLabel.setVisibility(values.isEmpty() ? View.GONE : View.VISIBLE);
+                suggestionAdapter.setItems(values, false);
+                suggestionList.setVisibility(View.VISIBLE);
+                list.setVisibility(View.GONE);
+                status.setVisibility(View.GONE);
+            });
+        });
+    }
+
+    private void showResultsMode() {
+        mode = 2;
+        sectionLabel.setVisibility(View.GONE);
+        suggestionList.setVisibility(View.GONE);
+        list.setVisibility(View.VISIBLE);
+    }
+
+    private void searchNow() {
+        main.removeCallbacks(suggestRunnable);
+        String term = field.getText().toString().trim();
+        if (term.isEmpty()) {
+            showHot();
+            return;
+        }
+        token += 1;
+        final int current = token;
+        showResultsMode();
+        adapter.setItems(new ArrayList<>());
         status.setText("搜索中…");
         status.setVisibility(View.VISIBLE);
         pool.execute(() -> {
@@ -172,6 +292,7 @@ final class SearchView extends FrameLayout {
             }
             main.post(() -> {
                 if (current != token) return;
+                showResultsMode();
                 adapter.setItems(rows);
                 status.setText(rows.isEmpty() ? "没有找到相关视频" : "");
                 status.setVisibility(rows.isEmpty() ? View.VISIBLE : View.GONE);
@@ -181,7 +302,63 @@ final class SearchView extends FrameLayout {
 
     void destroy() {
         token += 1;
-        main.removeCallbacks(searchRunnable);
+        main.removeCallbacks(suggestRunnable);
         pool.shutdownNow();
+    }
+
+    private static final class SuggestionAdapter
+        extends RecyclerView.Adapter<SuggestionAdapter.Holder> {
+        interface OnPick {
+            void pick(String value);
+        }
+
+        private final Context context;
+        private final List<String> items = new ArrayList<>();
+        private final OnPick onPick;
+        private boolean hot = false;
+
+        SuggestionAdapter(Context context, OnPick onPick) {
+            this.context = context;
+            this.onPick = onPick;
+        }
+
+        void setItems(List<String> values, boolean hot) {
+            this.items.clear();
+            this.items.addAll(values);
+            this.hot = hot;
+            notifyDataSetChanged();
+        }
+
+        @Override public Holder onCreateViewHolder(ViewGroup parent, int viewType) {
+            TextView view = new TextView(context);
+            view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+            view.setSingleLine(true);
+            view.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            view.setPadding(NativeTheme.dp(context, 20), NativeTheme.dp(context, 13),
+                NativeTheme.dp(context, 20), NativeTheme.dp(context, 13));
+            return new Holder(view);
+        }
+
+        @Override public void onBindViewHolder(Holder holder, int position) {
+            final String value = items.get(position);
+            holder.text.setText(hot ? (position + 1) + ".  " + value : value);
+            holder.text.setTextColor(hot && position < 3
+                ? 0xFFFB7299
+                : NativeTheme.foreground(context));
+            holder.text.setOnClickListener(v -> onPick.pick(value));
+        }
+
+        @Override public int getItemCount() {
+            return items.size();
+        }
+
+        static final class Holder extends RecyclerView.ViewHolder {
+            final TextView text;
+
+            Holder(TextView view) {
+                super(view);
+                text = view;
+            }
+        }
     }
 }

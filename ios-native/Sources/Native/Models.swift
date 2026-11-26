@@ -116,6 +116,33 @@ struct SeasonResult {
   var episodes: [VideoItem] = []
 }
 
+struct MemberTask {
+  var label = ""
+  var detail = ""
+  var done = false
+  var reward = 0
+}
+
+struct MemberLog {
+  var delta = 0
+  var reason = ""
+  var time = ""
+}
+
+struct MemberInfo {
+  var vip = false
+  var vipType = 0
+  var vipDue: Int64 = 0
+  var tasks: [MemberTask] = []
+  var log: [MemberLog] = []
+}
+
+struct LiveMessage {
+  var user = ""
+  var text = ""
+  var time = ""
+}
+
 enum NativeError: LocalizedError {
   case message(String)
   case cancelled

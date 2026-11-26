@@ -107,6 +107,75 @@ final class BiliApi {
         return out;
     }
 
+    JSONObject searchHot() {
+        JSONObject out = new JSONObject();
+        try {
+            String raw = cookies.request(
+                "https://api.bilibili.com/x/web-interface/search/square?limit=10", null, null);
+            JSONObject data = new JSONObject(raw).optJSONObject("data");
+            JSONObject trending = data == null ? null : data.optJSONObject("trending");
+            JSONArray list = trending == null ? null : trending.optJSONArray("list");
+            JSONArray items = new JSONArray();
+            if (list != null) {
+                for (int i = 0; i < list.length(); i += 1) {
+                    JSONObject row = list.optJSONObject(i);
+                    if (row == null) continue;
+                    String keyword = row.optString("keyword", "");
+                    if (keyword.isEmpty()) continue;
+                    String show = row.optString("show_name", "");
+                    items.put(new JSONObject()
+                        .put("keyword", keyword)
+                        .put("show", show.isEmpty() ? keyword : show));
+                }
+            }
+            out.put("ok", true);
+            out.put("items", items);
+        } catch (Throwable error) {
+            Log.w(TAG, "search hot failed", error);
+            out = error(error);
+        }
+        return out;
+    }
+
+    JSONObject suggest(String term) {
+        JSONObject out = new JSONObject();
+        try {
+            String q = URLEncoder.encode(term == null ? "" : term, "UTF-8");
+            if (q.isEmpty()) {
+                out.put("ok", true);
+                out.put("items", new JSONArray());
+                return out;
+            }
+            String raw = cookies.request(
+                "https://s.search.bilibili.com/main/suggest?term=" + q
+                    + "&main_ver=v1&highlight=",
+                null, null);
+            JSONObject result = new JSONObject(raw).optJSONObject("result");
+            JSONArray tags = result == null ? null : result.optJSONArray("tag");
+            JSONArray items = new JSONArray();
+            if (tags != null) {
+                for (int i = 0; i < tags.length() && items.length() < 10; i += 1) {
+                    JSONObject tag = tags.optJSONObject(i);
+                    if (tag == null) continue;
+                    String value = tag.optString("value", "");
+                    if (value.isEmpty()) value = tag.optString("term", "");
+                    if (value.isEmpty()) value = tag.optString("name", "");
+                    if (value.isEmpty()) continue;
+                    items.put(new JSONObject()
+                        .put("value", value)
+                        .put("term", value)
+                        .put("name", tag.optString("name", value)));
+                }
+            }
+            out.put("ok", true);
+            out.put("items", items);
+        } catch (Throwable error) {
+            Log.w(TAG, "suggest failed", error);
+            out = error(error);
+        }
+        return out;
+    }
+
     JSONObject play(String bvid, long cid) {
         return playWithQns(bvid, cid, new int[]{64, 32, 16}, false);
     }

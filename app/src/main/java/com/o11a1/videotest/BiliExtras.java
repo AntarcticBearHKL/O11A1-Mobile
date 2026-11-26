@@ -846,6 +846,45 @@ final class BiliExtras {
         return out;
     }
 
+    JSONObject liveHistory(long roomId) {
+        JSONObject out = new JSONObject();
+        try {
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Referer", "https://live.bilibili.com/" + roomId);
+            headers.put("Origin", "https://live.bilibili.com");
+            JSONObject json = new JSONObject(cookies.request(
+                "https://api.live.bilibili.com/xlive/web-room/v1/dM/gethistory?roomid=" + roomId
+                    + "&room_type=0",
+                headers, null));
+            JSONObject data = json.optJSONObject("data");
+            JSONArray room = data == null ? null : data.optJSONArray("room");
+            JSONArray items = new JSONArray();
+            if (room != null) {
+                for (int i = Math.max(0, room.length() - 20); i < room.length(); i += 1) {
+                    JSONObject row = room.optJSONObject(i);
+                    if (row == null) continue;
+                    String text = row.optString("text", "");
+                    if (text.isEmpty()) continue;
+                    String name = row.optString("nickname", "");
+                    if (name.isEmpty()) {
+                        JSONObject user = row.optJSONObject("user");
+                        JSONObject base = user == null ? null : user.optJSONObject("base");
+                        name = base == null ? "" : base.optString("name", "");
+                    }
+                    items.put(new JSONObject()
+                        .put("user", name.isEmpty() ? "观众" : name)
+                        .put("text", text)
+                        .put("time", row.optString("timeline", "")));
+                }
+            }
+            out.put("ok", true);
+            out.put("items", items);
+        } catch (Throwable error) {
+            out = error(error);
+        }
+        return out;
+    }
+
     private String liveUrl(JSONObject codec) {
         try {
             String base = codec.optString("base_url", "");

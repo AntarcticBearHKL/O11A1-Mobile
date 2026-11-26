@@ -17,6 +17,7 @@ import android.widget.TextView;
 
 import com.bumptech.glide.Glide;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.concurrent.ExecutorService;
@@ -43,9 +44,14 @@ final class PlayerOverlay extends FrameLayout {
     private final DanmakuView danmaku;
     private final ImageButton playButton;
     private final TextView error;
+    private final TextView dmToggle;
+    private final TextView dmSend;
+    private final TextView speed;
+    private final LinearLayout liveChat;
     private final ExecutorService pool = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable longPressRunnable;
+    private final Runnable liveChatPoll = this::pollLiveChat;
     private final int statusInset;
     private final long createdAt = System.currentTimeMillis();
     private int qualityQn;
@@ -91,6 +97,18 @@ final class PlayerOverlay extends FrameLayout {
         engine.view().setClickable(false);
         engine.view().setFocusable(false);
         videoHost.addView(engine.view(), new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+
+        liveChat = new LinearLayout(context);
+        liveChat.setOrientation(LinearLayout.VERTICAL);
+        liveChat.setGravity(Gravity.BOTTOM);
+        liveChat.setVisibility(View.GONE);
+        FrameLayout.LayoutParams chatParams = new FrameLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        chatParams.gravity = Gravity.BOTTOM;
+        chatParams.leftMargin = NativeTheme.dp(context, 14);
+        chatParams.rightMargin = NativeTheme.dp(context, 14);
+        chatParams.bottomMargin = NativeTheme.dp(context, 190);
+        videoHost.addView(liveChat, chatParams);
 
         danmaku = new DanmakuView(context, api, extras);
         addView(danmaku, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
@@ -215,7 +233,7 @@ final class PlayerOverlay extends FrameLayout {
         actions.addView(fav, new LinearLayout.LayoutParams(
             NativeTheme.dp(context, 38), NativeTheme.dp(context, 38)));
 
-        TextView dmToggle = new TextView(context);
+        dmToggle = new TextView(context);
         dmToggle.setText("弹");
         dmToggle.setTextColor(0xCCFFFFFF);
         dmToggle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
@@ -228,7 +246,7 @@ final class PlayerOverlay extends FrameLayout {
         actions.addView(dmToggle, new LinearLayout.LayoutParams(
             NativeTheme.dp(context, 32), NativeTheme.dp(context, 34)));
 
-        TextView dmSend = new TextView(context);
+        dmSend = new TextView(context);
         dmSend.setText("＋弹");
         dmSend.setTextColor(0xCCFFFFFF);
         dmSend.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
@@ -249,7 +267,7 @@ final class PlayerOverlay extends FrameLayout {
         actions.addView(quality, new LinearLayout.LayoutParams(
             LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
 
-        TextView speed = new TextView(context);
+        speed = new TextView(context);
         speed.setTextColor(0xB3FFFFFF);
         speed.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
         speed.setTypeface(NativeTheme.numberTypeface());
@@ -373,6 +391,11 @@ final class PlayerOverlay extends FrameLayout {
         if (live) {
             wheel.setVisibility(GONE);
             quality.setText("LIVE");
+            speed.setVisibility(GONE);
+            dmToggle.setVisibility(GONE);
+            dmSend.setVisibility(GONE);
+            liveChat.setVisibility(VISIBLE);
+            startLiveChat();
         }
         pool.execute(() -> {
             JSONObject result;
@@ -415,6 +438,49 @@ final class PlayerOverlay extends FrameLayout {
         if (qualityQn > 64) loadQuality(64);
         else if (qualityQn > 32) loadQuality(32);
         else loadQuality(80);
+    }
+
+    private void startLiveChat() {
+        main.removeCallbacks(liveChatPoll);
+        main.post(liveChatPoll);
+    }
+
+    private void pollLiveChat() {
+        if (destroyed || closing || item.roomId <= 0) return;
+        pool.execute(() -> {
+            JSONObject result = extras.liveHistory(item.roomId);
+            main.post(() -> {
+                if (destroyed || closing) return;
+                renderLiveChat(result == null ? null : result.optJSONArray("items"));
+                main.removeCallbacks(liveChatPoll);
+                main.postDelayed(liveChatPoll, 6000);
+            });
+        });
+    }
+
+    private void renderLiveChat(JSONArray items) {
+        liveChat.removeAllViews();
+        if (items == null || items.length() == 0) return;
+        int start = Math.max(0, items.length() - 7);
+        for (int i = start; i < items.length(); i += 1) {
+            JSONObject row = items.optJSONObject(i);
+            if (row == null) continue;
+            String user = row.optString("user", "观众");
+            String text = row.optString("text", "");
+            if (text.isEmpty()) continue;
+            TextView line = new TextView(getContext());
+            String prefix = user + "：";
+            android.text.SpannableString value = new android.text.SpannableString(prefix + text);
+            value.setSpan(new android.text.style.ForegroundColorSpan(0xFF8FC4FF),
+                0, prefix.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            line.setText(value);
+            line.setTextColor(Color.WHITE);
+            line.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+            line.setMaxLines(1);
+            line.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            line.setShadowLayer(2f, 0f, 0f, Color.BLACK);
+            liveChat.addView(line);
+        }
     }
 
     private boolean onRootTouch(View view, MotionEvent event) {
@@ -566,6 +632,7 @@ final class PlayerOverlay extends FrameLayout {
             playButton.setVisibility(View.GONE);
             poster.setVisibility(View.GONE);
             danmaku.setVisibility(View.GONE);
+            liveChat.setVisibility(View.GONE);
             dim.setVisibility(View.GONE);
             setBackgroundColor(Color.BLACK);
         } else {
@@ -574,6 +641,7 @@ final class PlayerOverlay extends FrameLayout {
             playButton.setVisibility(View.VISIBLE);
             dim.setVisibility(View.VISIBLE);
             danmaku.setVisibility(danmaku.isDanmakuEnabled() ? View.VISIBLE : View.GONE);
+            liveChat.setVisibility(item.roomId > 0 ? View.VISIBLE : View.GONE);
             setBackgroundColor(Color.TRANSPARENT);
         }
     }
@@ -581,6 +649,7 @@ final class PlayerOverlay extends FrameLayout {
     void close() {
         if (closing) return;
         closing = true;
+        main.removeCallbacks(liveChatPoll);
         engine.stop();
         onClose.run();
     }
@@ -588,6 +657,7 @@ final class PlayerOverlay extends FrameLayout {
     void destroy() {
         if (destroyed) return;
         destroyed = true;
+        main.removeCallbacks(liveChatPoll);
         danmaku.destroy();
         engine.release();
         pool.shutdownNow();

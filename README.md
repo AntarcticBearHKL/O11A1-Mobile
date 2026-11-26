@@ -29,11 +29,14 @@ WebView, HTML, CSS, JavaScript, local web server, or bundled web UI**.
   - Android `onUserLeaveHint`.
   - Pulling the player closed never enters PiP.
 - Native QR login (Bilibili passport), no web login page.
-- Native search with left-swipe drag tracking.
+- Native search with left-swipe drag tracking, hot-search list, live suggestions
+  and result list.
 - 推荐 / 关注 / 动态 / 养鱼 tabs.
 - 我的 hub with account and modules: 热门, 排行, 番剧, 影视, 直播, 分区,
-  收藏, 历史, 关注, 动态, 消息, 养鱼, 设置, 我的主页.
+  收藏, 历史, 关注, 动态, 消息, 会员中心, 养鱼, 设置, 我的主页.
 - Native module lists and pagination; UP space; season episode lists.
+- Member centre with VIP status, daily experience tasks and recent exp log.
+- Live player with polling live chat column (no login required to read).
 - Comments with native input; danmaku load/send/toggle.
 - AI 养鱼 screen using an OpenAI-compatible endpoint, native fields and output.
 - Settings: theme system/light/dark, default quality, account, about.
