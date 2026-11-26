@@ -16,6 +16,7 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -35,13 +36,14 @@ final class SearchView extends FrameLayout {
         void open(VideoItem item);
     }
 
+    private final Context context;
     private final BiliApi api;
     private final OnOpen onOpen;
     private final Runnable onClose;
     private final EditText field;
     private final RecyclerView list;
     private final RecyclerView suggestionList;
-    private final VideoRowAdapter adapter;
+    private final ResultAdapter adapter;
     private final SuggestionAdapter suggestionAdapter;
     private final TextView status;
     private final TextView sectionLabel;
@@ -55,6 +57,7 @@ final class SearchView extends FrameLayout {
 
     SearchView(Context context, BiliApi api, OnOpen onOpen, Runnable onClose) {
         super(context);
+        this.context = context;
         this.api = api;
         this.onOpen = onOpen;
         this.onClose = onClose;
@@ -65,7 +68,7 @@ final class SearchView extends FrameLayout {
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
         top.setPadding(NativeTheme.dp(context, 8), 0, NativeTheme.dp(context, 12), 0);
-        addView(top, new LayoutParams(LayoutParams.MATCH_PARENT, NativeTheme.dp(context, 56)));
+        addView(top, new LayoutParams(LayoutParams.MATCH_PARENT, NativeTheme.dp(context, 64)));
 
         ImageButton back = new ImageButton(context);
         back.setImageResource(R.drawable.ic_back);
@@ -75,20 +78,34 @@ final class SearchView extends FrameLayout {
         top.addView(back, new LinearLayout.LayoutParams(
             NativeTheme.dp(context, 44), NativeTheme.dp(context, 44)));
 
+        FrameLayout searchBox = new FrameLayout(context);
+        searchBox.setBackground(NativeTheme.rounded(
+            NativeTheme.isDark(context) ? 0x22FFFFFF : 0x0D000000,
+            NativeTheme.dp(context, 18)));
+        ImageView magnifier = new ImageView(context);
+        magnifier.setImageResource(R.drawable.ic_nav_search);
+        magnifier.setColorFilter(NativeTheme.secondary(context));
+        FrameLayout.LayoutParams magParams = new FrameLayout.LayoutParams(
+            NativeTheme.dp(context, 19), NativeTheme.dp(context, 19));
+        magParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
+        magParams.leftMargin = NativeTheme.dp(context, 14);
+        searchBox.addView(magnifier, magParams);
+
         field = new EditText(context);
         field.setSingleLine(true);
-        field.setHint("搜索视频、UP 主");
+        field.setHint("搜索视频 / UP / 番剧");
         field.setTextColor(NativeTheme.foreground(context));
         field.setHintTextColor(NativeTheme.secondary(context));
         field.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
         field.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
-        field.setPadding(NativeTheme.dp(context, 14), 0, NativeTheme.dp(context, 14), 0);
-        field.setBackground(NativeTheme.rounded(
-            NativeTheme.isDark(context) ? 0x22FFFFFF : 0x0D000000,
-            NativeTheme.dp(context, 14)));
+        field.setPadding(NativeTheme.dp(context, 40), 0, NativeTheme.dp(context, 14), 0);
+        field.setBackgroundColor(Color.TRANSPARENT);
+        searchBox.addView(field, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
         LinearLayout.LayoutParams fieldParams = new LinearLayout.LayoutParams(
-            0, NativeTheme.dp(context, 42), 1f);
-        top.addView(field, fieldParams);
+            0, NativeTheme.dp(context, 54), 1f);
+        top.addView(searchBox, fieldParams);
 
         status = new TextView(context);
         status.setTextColor(NativeTheme.secondary(context));
@@ -103,13 +120,12 @@ final class SearchView extends FrameLayout {
         list = new RecyclerView(context);
         list.setLayoutManager(new LinearLayoutManager(context));
         list.setBackgroundColor(Color.TRANSPARENT);
-        adapter = new VideoRowAdapter(context, (item, source) -> {
-            hideKeyboard();
-            onOpen.open(item);
-        });
+        list.setPadding(0, 0, NativeTheme.dp(context, 8), 0);
+        list.setClipToPadding(false);
+        adapter = new ResultAdapter();
         list.setAdapter(adapter);
         LayoutParams listParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
-        listParams.topMargin = NativeTheme.dp(context, 56);
+        listParams.topMargin = NativeTheme.dp(context, 64);
         addView(list, listParams);
 
         sectionLabel = new TextView(context);
@@ -119,7 +135,7 @@ final class SearchView extends FrameLayout {
         sectionLabel.setVisibility(View.GONE);
         LayoutParams labelParams = new LayoutParams(
             LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
-        labelParams.topMargin = NativeTheme.dp(context, 64);
+        labelParams.topMargin = NativeTheme.dp(context, 72);
         labelParams.leftMargin = NativeTheme.dp(context, 20);
         addView(sectionLabel, labelParams);
 
@@ -136,7 +152,7 @@ final class SearchView extends FrameLayout {
         suggestionList.setAdapter(suggestionAdapter);
         LayoutParams suggestionParams = new LayoutParams(
             LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
-        suggestionParams.topMargin = NativeTheme.dp(context, 90);
+        suggestionParams.topMargin = NativeTheme.dp(context, 98);
         addView(suggestionList, suggestionParams);
 
         field.addTextChangedListener(new TextWatcher() {
@@ -162,7 +178,7 @@ final class SearchView extends FrameLayout {
         setOnApplyWindowInsetsListener((v, insets) -> {
             int insetTop = insets.getSystemWindowInsetTop();
             v.setPadding(0, insetTop, 0, 0);
-            listParams.topMargin = NativeTheme.dp(context, 56);
+            listParams.topMargin = NativeTheme.dp(context, 64);
             return insets;
         });
     }
@@ -304,6 +320,49 @@ final class SearchView extends FrameLayout {
         token += 1;
         main.removeCallbacks(suggestRunnable);
         pool.shutdownNow();
+    }
+
+    private final class ResultAdapter extends RecyclerView.Adapter<ResultHolder> {
+        private final List<VideoItem> items = new ArrayList<>();
+
+        void setItems(List<VideoItem> values) {
+            items.clear();
+            if (values != null) items.addAll(values);
+            notifyDataSetChanged();
+        }
+
+        @Override public ResultHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+            HomeCardView card = new HomeCardView(context);
+            RecyclerView.LayoutParams params = new RecyclerView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            params.bottomMargin = NativeTheme.dp(context, 14);
+            card.setLayoutParams(params);
+            return new ResultHolder(card);
+        }
+
+        @Override public void onBindViewHolder(ResultHolder holder, int position) {
+            VideoItem item = items.get(position);
+            holder.card.setItem(item, () -> {
+                hideKeyboard();
+                onOpen.open(item);
+            }, () -> {
+                hideKeyboard();
+                onOpen.open(item);
+            });
+        }
+
+        @Override public int getItemCount() {
+            return items.size();
+        }
+    }
+
+    private static final class ResultHolder extends RecyclerView.ViewHolder {
+        final HomeCardView card;
+
+        ResultHolder(HomeCardView card) {
+            super(card);
+            this.card = card;
+        }
     }
 
     private static final class SuggestionAdapter

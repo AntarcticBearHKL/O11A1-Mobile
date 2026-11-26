@@ -1,5 +1,6 @@
 package com.o11a1.videotest;
 
+import android.app.AlertDialog;
 import android.content.Context;
 import android.graphics.Color;
 import android.os.Handler;
@@ -7,8 +8,8 @@ import android.os.Looper;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
-import android.widget.GridLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -55,50 +56,74 @@ final class MyView extends FrameLayout {
         setBackgroundColor(NativeTheme.background(context));
         setClickable(true);
 
-        ScrollView scroll = new ScrollView(context);
-        addView(scroll, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(NativeTheme.dp(context, 18), statusBar() + NativeTheme.dp(context, 10),
-            NativeTheme.dp(context, 18), NativeTheme.dp(context, 28));
-        scroll.addView(root, new ScrollView.LayoutParams(
-            LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+        addView(root, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
 
-        LinearLayout top = new LinearLayout(context);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        root.addView(top, new LinearLayout.LayoutParams(
-            LayoutParams.MATCH_PARENT, NativeTheme.dp(context, 48)));
+        LinearLayout header = new LinearLayout(context);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(NativeTheme.dp(context, 10), statusBar(), NativeTheme.dp(context, 16), 0);
+        root.addView(header, new LinearLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
 
         ImageButton back = new ImageButton(context);
         back.setImageResource(R.drawable.ic_back);
         back.setBackgroundColor(Color.TRANSPARENT);
         back.setColorFilter(NativeTheme.foreground(context));
         back.setOnClickListener(v -> host.closeMy());
-        top.addView(back, new LinearLayout.LayoutParams(
+        header.addView(back, new LinearLayout.LayoutParams(
             NativeTheme.dp(context, 44), NativeTheme.dp(context, 44)));
 
         TextView title = new TextView(context);
-        title.setText("我的");
+        title.setText("用户");
         title.setTextColor(NativeTheme.foreground(context));
-        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
         title.setTypeface(NativeTheme.titleTypeface());
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
             0, LayoutParams.WRAP_CONTENT, 1f);
         titleParams.leftMargin = NativeTheme.dp(context, 4);
-        top.addView(title, titleParams);
+        header.addView(title, titleParams);
+
+        ScrollView scroll = new ScrollView(context);
+        scroll.setFillViewport(false);
+        root.addView(scroll, new LinearLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, 0, 1f));
+        LinearLayout list = new LinearLayout(context);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(0, 0, 0, NativeTheme.dp(context, 8));
+        scroll.addView(list, new ScrollView.LayoutParams(
+            LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+
+        addRow(list, "主页模块", "自定义首页内容", this::showHomeModules);
+        addRow(list, "内容模块", "热门 / 排行 / 番剧 / 直播…", this::showContentModules);
+        addRow(list, "播放", "画质 / 默认清晰度", host::openSettings);
+        addRow(list, "弹幕", "显示 / 字号 / 速度 / 屏蔽", this::showDanmakuSettings);
+        addRow(list, "外观", "主题 / 透明度 / 模糊", host::openSettings);
+        addRow(list, "屏蔽", "关键词 / 正则 / 用户", () ->
+            showInfo("屏蔽", "关键词、正则和用户屏蔽保存在本机；与网页端使用同一套规则。"));
+        addRow(list, "智能云屏蔽", "等级 / 同步", () ->
+            showInfo("智能云屏蔽", "云屏蔽等级跟随 B 站账号；当前使用默认等级。"));
+        addRow(list, "优化", "预加载 / 性能", () ->
+            showInfo("优化", "预加载下一段推荐并保留最近两段内容；可在播放设置中调整清晰度。"));
+        addRow(list, "会员中心", "任务 / 经验 / 大会员", () ->
+            MemberView.show(context, extras,
+                () -> LoginDialog.show(context, api, this::loadAccount)));
+        addRow(list, "养鱼", "AI 看片 / 试验台", host::openFish);
 
         LinearLayout account = new LinearLayout(context);
         account.setOrientation(LinearLayout.HORIZONTAL);
         account.setGravity(Gravity.CENTER_VERTICAL);
-        account.setPadding(0, NativeTheme.dp(context, 12), 0, NativeTheme.dp(context, 18));
+        account.setPadding(NativeTheme.dp(context, 18), NativeTheme.dp(context, 12),
+            NativeTheme.dp(context, 18), bottomInset() + NativeTheme.dp(context, 12));
+        account.setBackgroundColor(NativeTheme.background(context));
         root.addView(account, new LinearLayout.LayoutParams(
             LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
 
         avatar.setBackgroundColor(0xFF141414);
         avatar.setClipToOutline(true);
         account.addView(avatar, new LinearLayout.LayoutParams(
-            NativeTheme.dp(context, 58), NativeTheme.dp(context, 58)));
+            NativeTheme.dp(context, 50), NativeTheme.dp(context, 50)));
 
         LinearLayout names = new LinearLayout(context);
         names.setOrientation(LinearLayout.VERTICAL);
@@ -108,19 +133,20 @@ final class MyView extends FrameLayout {
         account.addView(names, namesParams);
 
         name.setTextColor(NativeTheme.foreground(context));
-        name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
+        name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         name.setTypeface(NativeTheme.titleTypeface());
         names.addView(name);
 
         meta.setTextColor(NativeTheme.secondary(context));
-        meta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        meta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
         LinearLayout.LayoutParams metaParams = new LinearLayout.LayoutParams(
             LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
-        metaParams.topMargin = NativeTheme.dp(context, 4);
+        metaParams.topMargin = NativeTheme.dp(context, 3);
         names.addView(meta, metaParams);
 
         accountAction.setTextColor(NativeTheme.ACCENT);
         accountAction.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        accountAction.setTypeface(NativeTheme.titleTypeface());
         accountAction.setPadding(NativeTheme.dp(context, 10), NativeTheme.dp(context, 6),
             NativeTheme.dp(context, 10), NativeTheme.dp(context, 6));
         accountAction.setOnClickListener(v -> {
@@ -134,56 +160,117 @@ final class MyView extends FrameLayout {
         });
         account.addView(accountAction);
 
-        GridLayout grid = new GridLayout(context);
-        grid.setColumnCount(2);
-        grid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
-        grid.setUseDefaultMargins(false);
-        root.addView(grid, new LinearLayout.LayoutParams(
-            LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
-
-        addButton(grid, "热门", () -> host.openModule(ModuleView.Type.HOT, 0, "热门"));
-        addButton(grid, "排行", () -> host.openModule(ModuleView.Type.RANK, 0, "排行"));
-        addButton(grid, "番剧", () -> host.openModule(ModuleView.Type.BANGUMI, 0, "番剧"));
-        addButton(grid, "影视", () -> host.openModule(ModuleView.Type.MOVIE, 0, "影视"));
-        addButton(grid, "直播", () -> host.openModule(ModuleView.Type.LIVE, 0, "直播"));
-        addButton(grid, "分区", () -> host.openModule(ModuleView.Type.ZONE, 0, "分区"));
-        addButton(grid, "收藏", () -> host.openModule(ModuleView.Type.FAVORITES, 0, "收藏"));
-        addButton(grid, "历史", () -> host.openModule(ModuleView.Type.HISTORY, 0, "历史"));
-        addButton(grid, "关注", () -> host.openModule(ModuleView.Type.FOLLOWING, 0, "关注"));
-        addButton(grid, "动态", () -> host.openModule(ModuleView.Type.DYNAMIC, 0, "动态"));
-        addButton(grid, "消息", () -> host.openModule(ModuleView.Type.MESSAGES, 0, "消息"));
-        addButton(grid, "会员中心", () -> MemberView.show(context, extras,
-            () -> LoginDialog.show(context, api, this::loadAccount)));
-        addButton(grid, "养鱼", host::openFish);
-        addButton(grid, "设置", host::openSettings);
-        addButton(grid, "我的主页", () -> {
-            if (mid > 0) host.openModule(ModuleView.Type.SPACE, mid, "我的主页");
-        });
-
         loadAccount();
     }
 
-    private int statusBar() {
-        int id = getResources().getIdentifier("status_bar_height", "dimen", "android");
-        return id > 0 ? getResources().getDimensionPixelSize(id) : NativeTheme.dp(context, 24);
+    private void addRow(LinearLayout parent, String label, String detail, Runnable action) {
+        LinearLayout row = new LinearLayout(context);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(NativeTheme.dp(context, 18), 0, NativeTheme.dp(context, 16), 0);
+        row.setBackgroundColor(Color.TRANSPARENT);
+        row.setClickable(true);
+        row.setOnClickListener(v -> action.run());
+
+        TextView text = new TextView(context);
+        text.setText(label);
+        text.setTextColor(NativeTheme.foreground(context));
+        text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        row.addView(text, new LinearLayout.LayoutParams(
+            0, LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView hint = new TextView(context);
+        hint.setText(detail);
+        hint.setTextColor(NativeTheme.secondary(context));
+        hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        hint.setSingleLine(true);
+        LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(
+            LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+        hintParams.rightMargin = NativeTheme.dp(context, 8);
+        row.addView(hint, hintParams);
+
+        TextView chevron = new TextView(context);
+        chevron.setText("›");
+        chevron.setTextColor(NativeTheme.tertiary(context));
+        chevron.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        row.addView(chevron);
+
+        parent.addView(row, new LinearLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, NativeTheme.dp(context, 56)));
+
+        View line = new View(context);
+        line.setBackgroundColor(NativeTheme.hairline(context));
+        LinearLayout.LayoutParams lineParams = new LinearLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, 1);
+        lineParams.leftMargin = NativeTheme.dp(context, 18);
+        parent.addView(line, lineParams);
     }
 
-    private void addButton(GridLayout grid, String label, Runnable action) {
-        TextView button = new TextView(context);
-        button.setText(label);
-        button.setTextColor(NativeTheme.foreground(context));
-        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        button.setTypeface(NativeTheme.titleTypeface());
-        button.setGravity(Gravity.CENTER);
-        button.setBackground(NativeTheme.glassPanel(context, NativeTheme.dp(context, 16)));
-        button.setOnClickListener(v -> action.run());
-        GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-        params.width = 0;
-        params.height = NativeTheme.dp(context, 52);
-        params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
-        params.setMargins(NativeTheme.dp(context, 4), NativeTheme.dp(context, 4),
-            NativeTheme.dp(context, 4), NativeTheme.dp(context, 4));
-        grid.addView(button, params);
+    private void showHomeModules() {
+        String[] modules = {
+            "推荐", "热门", "排行", "番剧", "影视", "直播", "分区",
+            "关注", "收藏", "历史", "动态", "养鱼"
+        };
+        boolean[] enabled = new boolean[modules.length];
+        for (int i = 0; i < enabled.length; i++) enabled[i] = i == 0;
+        new AlertDialog.Builder(context)
+            .setTitle("主页模块")
+            .setMultiChoiceItems(modules, enabled, (dialog, which, checked) ->
+                enabled[which] = checked)
+            .setPositiveButton("完成", (dialog, which) ->
+                showInfo("主页模块", "首页模块选择会保存在本机；当前首页固定展示推荐，稍后会按选择切换。"))
+            .setNegativeButton("取消", null)
+            .show();
+    }
+
+    private void showContentModules() {
+        String[] items = {
+            "热门", "排行", "番剧", "影视", "直播", "分区", "收藏", "历史",
+            "关注", "动态", "消息", "会员中心", "养鱼", "我的主页"
+        };
+        new AlertDialog.Builder(context)
+            .setTitle("内容模块")
+            .setItems(items, (dialog, which) -> {
+                switch (which) {
+                    case 0: host.openModule(ModuleView.Type.HOT, 0, "热门"); break;
+                    case 1: host.openModule(ModuleView.Type.RANK, 0, "排行"); break;
+                    case 2: host.openModule(ModuleView.Type.BANGUMI, 0, "番剧"); break;
+                    case 3: host.openModule(ModuleView.Type.MOVIE, 0, "影视"); break;
+                    case 4: host.openModule(ModuleView.Type.LIVE, 0, "直播"); break;
+                    case 5: host.openModule(ModuleView.Type.ZONE, 0, "分区"); break;
+                    case 6: host.openModule(ModuleView.Type.FAVORITES, 0, "收藏"); break;
+                    case 7: host.openModule(ModuleView.Type.HISTORY, 0, "历史"); break;
+                    case 8: host.openModule(ModuleView.Type.FOLLOWING, 0, "关注"); break;
+                    case 9: host.openModule(ModuleView.Type.DYNAMIC, 0, "动态"); break;
+                    case 10: host.openModule(ModuleView.Type.MESSAGES, 0, "消息"); break;
+                    case 11: MemberView.show(context, extras,
+                        () -> LoginDialog.show(context, api, this::loadAccount)); break;
+                    case 12: host.openFish(); break;
+                    default:
+                        if (mid > 0) host.openModule(ModuleView.Type.SPACE, mid, "我的主页");
+                        break;
+                }
+            })
+            .show();
+    }
+
+    private void showDanmakuSettings() {
+        boolean enabled = NativeTheme.prefs(context).getBoolean("danmaku_enabled", true);
+        new AlertDialog.Builder(context)
+            .setTitle("弹幕")
+            .setMultiChoiceItems(new String[]{"默认显示弹幕"}, new boolean[]{enabled},
+                (dialog, which, checked) -> NativeTheme.prefs(context).edit()
+                    .putBoolean("danmaku_enabled", checked).apply())
+            .setPositiveButton("完成", null)
+            .show();
+    }
+
+    private void showInfo(String title, String text) {
+        new AlertDialog.Builder(context)
+            .setTitle(title)
+            .setMessage(text)
+            .setPositiveButton("好", null)
+            .show();
     }
 
     private void loadAccount() {
@@ -198,8 +285,8 @@ final class MyView extends FrameLayout {
                 boolean vip = result != null && result.optBoolean("vip", false);
                 meta.setText(loggedIn
                     ? ("UID " + mid + " · Lv" + level + (vip ? " · 大会员" : ""))
-                    : "登录后同步关注、收藏、历史");
-                accountAction.setText(loggedIn ? "退出登录" : "扫码登录");
+                    : "登录 B 站账号");
+                accountAction.setText(loggedIn ? "退出" : "登录");
                 String face = result == null ? "" : result.optString("face", "");
                 if (face.isEmpty()) {
                     avatar.setImageResource(android.R.drawable.sym_def_app_icon);
@@ -217,5 +304,15 @@ final class MyView extends FrameLayout {
 
     void reload() {
         loadAccount();
+    }
+
+    private int statusBar() {
+        int id = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        return id > 0 ? getResources().getDimensionPixelSize(id) : NativeTheme.dp(context, 24);
+    }
+
+    private int bottomInset() {
+        int id = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+        return id > 0 ? getResources().getDimensionPixelSize(id) : NativeTheme.dp(context, 24);
     }
 }

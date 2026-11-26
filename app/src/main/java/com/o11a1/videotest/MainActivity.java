@@ -3,6 +3,7 @@ package com.o11a1.videotest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.PictureInPictureParams;
+import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.os.Build;
@@ -31,6 +32,7 @@ public final class MainActivity extends Activity implements FeedView.Host, MyVie
     private FishView fish;
     private MyView myView;
     private ModuleView moduleView;
+    private SidebarView sidebarView;
     private View currentView;
     private PlayerOverlay overlay;
     private boolean toolbarHidden;
@@ -38,6 +40,7 @@ public final class MainActivity extends Activity implements FeedView.Host, MyVie
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         NativeTheme.applySystemBars(this);
         getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(
@@ -94,6 +97,11 @@ public final class MainActivity extends Activity implements FeedView.Host, MyVie
         myParams.topMargin = statusBar() + NativeTheme.dp(this, 6);
         root.addView(myButton, myParams);
 
+        // The original home has no top buttons. My and settings live in the
+        // left navigation drawer; keep these views invisible for compatibility.
+        settingsButton.setVisibility(View.GONE);
+        myButton.setVisibility(View.GONE);
+
         showTab(0);
     }
 
@@ -131,10 +139,7 @@ public final class MainActivity extends Activity implements FeedView.Host, MyVie
         content.addView(currentView, new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         tabBar.select(index, false);
-        myButton.setVisibility(index == 0 ? View.VISIBLE : View.GONE);
         root.bringChildToFront(tabBar);
-        root.bringChildToFront(settingsButton);
-        root.bringChildToFront(myButton);
     }
 
     @Override public void onOpenPlayer(VideoItem item, View source) {
@@ -149,23 +154,63 @@ public final class MainActivity extends Activity implements FeedView.Host, MyVie
         toolbarHidden = hidden;
         if (searchVisible) return;
         tabBar.setHidden(hidden, true);
-        settingsButton.animate().alpha(hidden ? 0 : 1).setDuration(350).start();
-        myButton.animate().alpha(hidden ? 0 : 1).setDuration(350).start();
     }
 
     @Override public void onSearchVisibility(boolean visible) {
         searchVisible = visible;
         tabBar.setHidden(visible || toolbarHidden, true);
-        settingsButton.animate().alpha(visible || toolbarHidden ? 0 : 1).setDuration(250).start();
-        myButton.animate().alpha(visible || toolbarHidden ? 0 : 1).setDuration(250).start();
+    }
+
+    @Override public void onOpenSidebar() {
+        openSidebar();
+    }
+
+    private void openSidebar() {
+        if (sidebarView == null) {
+            sidebarView = new SidebarView(this, new SidebarView.Host() {
+                @Override public void onSidebarHome() {
+                    showTab(0);
+                }
+
+                @Override public void onSidebarModule(ModuleView.Type type, String title) {
+                    openModuleView(type, 0, title);
+                }
+
+                @Override public void onSidebarMy() {
+                    openMyView();
+                }
+
+                @Override public void onSidebarSearch() {
+                    showTab(0);
+                    if (feed != null) feed.openSearchFromHost();
+                }
+
+                @Override public void onSidebarClosed() {
+                }
+            });
+            sidebarView.setVisibility(View.GONE);
+            root.addView(sidebarView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+        root.bringChildToFront(sidebarView);
+        sidebarView.open();
     }
 
     private void openPlayer(VideoItem item, View source) {
         if (overlay != null || item == null) return;
         if (feed != null) feed.onPauseFeed();
         tabBar.setHidden(true, true);
-        settingsButton.animate().alpha(0).setDuration(250).start();
-        myButton.animate().alpha(0).setDuration(250).start();
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        if (Build.VERSION.SDK_INT >= 30) {
+            android.view.WindowInsetsController controller = getWindow().getInsetsController();
+            if (controller != null) controller.hide(android.view.WindowInsets.Type.systemBars());
+        } else {
+            getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    | View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        }
         PlayerOverlay view = new PlayerOverlay(this, api, cookies, item, source,
             () -> closeOverlay(), this::openProfile);
         overlay = view;
@@ -180,14 +225,16 @@ public final class MainActivity extends Activity implements FeedView.Host, MyVie
         overlay = null;
         root.removeView(view);
         view.destroy();
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        if (Build.VERSION.SDK_INT >= 30) {
+            android.view.WindowInsetsController controller = getWindow().getInsetsController();
+            if (controller != null) controller.show(android.view.WindowInsets.Type.systemBars());
+        }
+        NativeTheme.applySystemBars(this);
         if (moduleView != null) {
             tabBar.setHidden(true, false);
-            settingsButton.animate().alpha(0).setDuration(250).start();
-            myButton.animate().alpha(0).setDuration(250).start();
         } else {
             tabBar.setHidden(toolbarHidden, false);
-            settingsButton.animate().alpha(toolbarHidden ? 0 : 1).setDuration(250).start();
-            myButton.animate().alpha(toolbarHidden ? 0 : 1).setDuration(250).start();
         }
         if (feed != null) feed.onResumeFeed();
     }
@@ -234,11 +281,11 @@ public final class MainActivity extends Activity implements FeedView.Host, MyVie
         if (myView != null) return;
         MyView view = new MyView(this, api, extras, cookies, this);
         myView = view;
+        view.setTranslationX(-getResources().getDisplayMetrics().widthPixels);
         root.addView(view, new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        view.animate().translationX(0).setDuration(240).start();
         tabBar.setHidden(true, true);
-        settingsButton.animate().alpha(0).setDuration(200).start();
-        myButton.animate().alpha(0).setDuration(200).start();
         if (feed != null) feed.onPauseFeed();
     }
 
@@ -246,14 +293,15 @@ public final class MainActivity extends Activity implements FeedView.Host, MyVie
         if (myView == null) return;
         MyView view = myView;
         myView = null;
-        root.removeView(view);
-        view.destroy();
-        if (moduleView == null) {
-            tabBar.setHidden(toolbarHidden, false);
-            settingsButton.animate().alpha(toolbarHidden ? 0 : 1).setDuration(200).start();
-            myButton.animate().alpha(toolbarHidden ? 0 : 1).setDuration(200).start();
-        }
-        if (feed != null) feed.onResumeFeed();
+        view.animate().translationX(-getResources().getDisplayMetrics().widthPixels)
+            .setDuration(200).withEndAction(() -> {
+                root.removeView(view);
+                view.destroy();
+                if (moduleView == null) {
+                    tabBar.setHidden(toolbarHidden, false);
+                }
+                if (feed != null) feed.onResumeFeed();
+            }).start();
     }
 
     private void openModuleView(ModuleView.Type type, long targetId, String title) {
@@ -285,8 +333,6 @@ public final class MainActivity extends Activity implements FeedView.Host, MyVie
         root.addView(view, new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         tabBar.setHidden(true, true);
-        settingsButton.animate().alpha(0).setDuration(200).start();
-        myButton.animate().alpha(0).setDuration(200).start();
         if (feed != null) feed.onPauseFeed();
     }
 
@@ -298,8 +344,6 @@ public final class MainActivity extends Activity implements FeedView.Host, MyVie
         view.destroy();
         if (myView == null) {
             tabBar.setHidden(toolbarHidden, false);
-            settingsButton.animate().alpha(toolbarHidden ? 0 : 1).setDuration(200).start();
-            myButton.animate().alpha(toolbarHidden ? 0 : 1).setDuration(200).start();
         }
         if (feed != null) feed.onResumeFeed();
     }
@@ -399,8 +443,6 @@ public final class MainActivity extends Activity implements FeedView.Host, MyVie
         if (overlay != null) overlay.setPipMode(inPip);
         content.setVisibility(inPip ? View.GONE : View.VISIBLE);
         tabBar.setVisibility(inPip ? View.GONE : View.VISIBLE);
-        settingsButton.setVisibility(inPip ? View.GONE : View.VISIBLE);
-        myButton.setVisibility(inPip ? View.GONE : View.VISIBLE);
         root.setBackgroundColor(inPip ? Color.BLACK : NativeTheme.background(this));
         if (!inPip && isFinishing() && overlay != null) overlay.close();
     }

@@ -4,15 +4,14 @@ import android.content.Context;
 import android.graphics.Color;
 import android.os.Handler;
 import android.os.Looper;
-import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.viewpager2.widget.ViewPager2;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -22,12 +21,17 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * Home feed matching the original web layout: a vertical list of 16:9 cards
+ * with a glass information row below each cover, followed by pagination.
+ */
 final class FeedView extends FrameLayout {
     interface Host {
         void onOpenPlayer(VideoItem item, View source);
         void onOpenProfile(long mid);
         void onToolbarHidden(boolean hidden);
         void onSearchVisibility(boolean visible);
+        void onOpenSidebar();
     }
 
     private final Context context;
@@ -35,14 +39,14 @@ final class FeedView extends FrameLayout {
     private final BiliExtras extras;
     private final CookieStore cookies;
     private final Host host;
-    private final ViewPager2 pager;
-    private final PageAdapter adapter;
+    private final RecyclerView list;
+    private final LinearLayoutManager layoutManager;
+    private final CardAdapter adapter;
     private final ExecutorService pool = Executors.newFixedThreadPool(2);
     private final Handler main = new Handler(Looper.getMainLooper());
     private VideoEngine previewEngine;
     private String previewKey = "";
     private int previewToken = 0;
-    private int focused = 0;
     private int nextPage = 1;
     private int fresh = 1;
     private boolean loading = false;
@@ -53,6 +57,8 @@ final class FeedView extends FrameLayout {
     private float gestureDownY;
     private long gestureStartAt;
     private boolean searchDragging = false;
+    private boolean sidebarGesture = false;
+    private boolean toolbarHidden = false;
 
     FeedView(Context context, BiliApi api, BiliExtras extras, CookieStore cookies, Host host) {
         super(context);
@@ -64,38 +70,65 @@ final class FeedView extends FrameLayout {
         setBackgroundColor(NativeTheme.background(context));
         setClipChildren(true);
 
-        pager = new ViewPager2(context);
-        pager.setOrientation(ViewPager2.ORIENTATION_VERTICAL);
-        pager.setOffscreenPageLimit(1);
-        pager.setBackgroundColor(Color.BLACK);
-        adapter = new PageAdapter();
-        pager.setAdapter(adapter);
-        addView(pager, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        list = new RecyclerView(context);
+        layoutManager = new LinearLayoutManager(context);
+        list.setLayoutManager(layoutManager);
+        list.setBackgroundColor(NativeTheme.background(context));
+        list.setClipToPadding(false);
+        list.setPadding(0, NativeTheme.dp(context, 12), NativeTheme.dp(context, 8),
+            NativeTheme.dp(context, 96) + bottomInset());
+        adapter = new CardAdapter();
+        list.setAdapter(adapter);
+        addView(list, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
 
-        pager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
-            @Override public void onPageSelected(int position) {
-                if (position > focused) {
+        View fade = new View(context);
+        android.graphics.drawable.GradientDrawable fadeDrawable =
+            new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{NativeTheme.background(context), 0x00FFFFFF & NativeTheme.background(context)});
+        fade.setBackground(fadeDrawable);
+        fade.setClickable(false);
+        addView(fade, new LayoutParams(LayoutParams.MATCH_PARENT,
+            statusBar() + NativeTheme.dp(context, 18)));
+
+        list.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            private int lastDy = 0;
+
+            @Override public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                if (dy > 4 && !toolbarHidden && layoutManager.findFirstVisibleItemPosition() > 0) {
+                    toolbarHidden = true;
                     host.onToolbarHidden(true);
-                } else if (position < focused || position == 0) {
+                } else if (dy < -4 && toolbarHidden) {
+                    toolbarHidden = false;
                     host.onToolbarHidden(false);
                 }
-                focused = position;
-                previewViewHidden(true);
-                schedulePreview();
-                if (position >= adapter.getItemCount() - 3) load(false);
+                if (layoutManager.findLastVisibleItemPosition()
+                    >= adapter.getItemCount() - 3) {
+                    load(false);
+                }
             }
 
-            @Override public void onPageScrollStateChanged(int state) {
-                if (state == ViewPager2.SCROLL_STATE_DRAGGING) {
-                    previewViewHidden(true);
+            @Override public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int state) {
+                if (state == RecyclerView.SCROLL_STATE_DRAGGING) {
+                    previewHidden(true);
                     if (previewEngine != null) previewEngine.pause();
-                } else if (state == ViewPager2.SCROLL_STATE_IDLE) {
+                } else if (state == RecyclerView.SCROLL_STATE_IDLE) {
                     schedulePreview();
                 }
             }
         });
 
         post(this::loadInitial);
+    }
+
+    private int bottomInset() {
+        int id = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+        return id > 0 ? getResources().getDimensionPixelSize(id) : NativeTheme.dp(context, 24);
+    }
+
+    private int statusBar() {
+        int id = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        return id > 0 ? getResources().getDimensionPixelSize(id) : NativeTheme.dp(context, 24);
     }
 
     private void loadInitial() {
@@ -127,12 +160,9 @@ final class FeedView extends FrameLayout {
                 fresh += 1;
                 if (reset) {
                     adapter.setItems(rows);
+                    list.scrollToPosition(0);
                 } else {
                     adapter.append(rows);
-                }
-                if (reset && rows.isEmpty()) {
-                    // Keep the feed empty but usable; a retry happens on the
-                    // next pull or tab visit.
                 }
                 schedulePreview();
             });
@@ -152,19 +182,39 @@ final class FeedView extends FrameLayout {
 
     private void schedulePreview() {
         main.removeCallbacks(previewRunnable);
-        main.postDelayed(previewRunnable, 140);
+        main.postDelayed(previewRunnable, 180);
     }
 
     private final Runnable previewRunnable = this::startPreview;
 
     private void startPreview() {
         if (searchOpen || adapter.getItemCount() == 0) return;
-        VideoPageView page = pageAt(focused);
-        if (page == null || page.item() == null) return;
-        VideoItem item = page.item();
+        int first = layoutManager.findFirstVisibleItemPosition();
+        int last = layoutManager.findLastVisibleItemPosition();
+        if (first < 0) return;
+        int viewportCenter = getHeight() / 2 + list.getPaddingTop() - list.getPaddingBottom();
+        int best = -1;
+        int bestDistance = Integer.MAX_VALUE;
+        for (int index = first; index <= last; index++) {
+            View child = layoutManager.findViewByPosition(index);
+            if (child == null) continue;
+            int center = child.getTop() + child.getHeight() / 2;
+            int distance = Math.abs(center - viewportCenter);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = index;
+            }
+        }
+        if (best < 0) return;
+        final int previewIndex = best;
+        View child = layoutManager.findViewByPosition(previewIndex);
+        if (!(child instanceof HomeCardView)) return;
+        HomeCardView card = (HomeCardView) child;
+        VideoItem item = card.item();
+        if (item == null || item.bvid.isEmpty()) return;
         String key = item.bvid + ":" + item.cid;
         if (previewEngine != null && key.equals(previewKey) && previewEngine.isPlaying()) {
-            previewViewHidden(false);
+            previewHidden(false);
             previewEngine.play();
             return;
         }
@@ -184,21 +234,21 @@ final class FeedView extends FrameLayout {
                 }
             });
         }
-        previewViewHidden(false);
+        previewHidden(false);
         if (previewEngine.view().getParent() instanceof ViewGroup) {
             ((ViewGroup) previewEngine.view().getParent()).removeView(previewEngine.view());
         }
-        page.mediaHost.addView(previewEngine.view(), new LayoutParams(
+        card.mediaHost().addView(previewEngine.view(), new LayoutParams(
             LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         previewEngine.view().setAlpha(0f);
         previewEngine.view().setVisibility(View.VISIBLE);
-        final VideoPageView target = page;
         pool.execute(() -> {
             JSONObject result = api.playLow(item.bvid, item.cid);
             final JSONObject value = result;
             main.post(() -> {
                 if (token != previewToken || value == null || !value.optBoolean("ok", false)) return;
-                if (pageAt(focused) != target) return;
+                View current = layoutManager.findViewByPosition(previewIndex);
+                if (current != card) return;
                 String url = value.optString("url", value.optString("remote", ""));
                 String backup = value.optString("backup", value.optString("backupRemote", ""));
                 if (url.isEmpty()) return;
@@ -208,18 +258,9 @@ final class FeedView extends FrameLayout {
         });
     }
 
-    private void previewViewHidden(boolean hidden) {
+    private void previewHidden(boolean hidden) {
         if (previewEngine == null) return;
         previewEngine.view().setVisibility(hidden ? View.INVISIBLE : View.VISIBLE);
-    }
-
-    private VideoPageView pageAt(int index) {
-        if (index < 0 || index >= adapter.getItemCount()) return null;
-        RecyclerView recycler = (RecyclerView) pager.getChildAt(0);
-        if (recycler == null) return null;
-        View child = recycler.getLayoutManager() == null ? null
-            : recycler.getLayoutManager().findViewByPosition(index);
-        return child instanceof VideoPageView ? (VideoPageView) child : null;
     }
 
     @Override public boolean onInterceptTouchEvent(MotionEvent event) {
@@ -230,14 +271,20 @@ final class FeedView extends FrameLayout {
                 gestureDownY = event.getY();
                 gestureStartAt = System.currentTimeMillis();
                 searchDragging = false;
+                sidebarGesture = false;
                 return false;
             case MotionEvent.ACTION_MOVE:
                 float dx = event.getX() - gestureDownX;
                 float dy = event.getY() - gestureDownY;
-                if (!searchDragging && -dx > NativeTheme.dp(context, 28)
+                if (!searchDragging && !sidebarGesture
+                    && Math.abs(dx) > NativeTheme.dp(context, 28)
                     && Math.abs(dx) > Math.abs(dy) * 1.3f) {
-                    beginSearchDrag();
-                    searchDragging = true;
+                    if (dx < 0) {
+                        beginSearchDrag();
+                        searchDragging = true;
+                    } else {
+                        sidebarGesture = true;
+                    }
                     return true;
                 }
                 return false;
@@ -247,6 +294,15 @@ final class FeedView extends FrameLayout {
     }
 
     @Override public boolean onTouchEvent(MotionEvent event) {
+        if (sidebarGesture) {
+            if (event.getActionMasked() == MotionEvent.ACTION_UP
+                || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                float dx = event.getX() - gestureDownX;
+                if (dx > getWidth() * 0.12f) host.onOpenSidebar();
+                sidebarGesture = false;
+            }
+            return true;
+        }
         if (!searchDragging) return super.onTouchEvent(event);
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_MOVE:
@@ -274,16 +330,15 @@ final class FeedView extends FrameLayout {
         searchOpen = false;
         searchView.setVisibility(View.VISIBLE);
         searchView.setTranslationX(getWidth());
-        pager.setTranslationX(0);
-        pager.setUserInputEnabled(false);
-        previewViewHidden(true);
+        list.setTranslationX(0);
+        previewHidden(true);
         if (previewEngine != null) previewEngine.pause();
     }
 
     private void updateSearchDrag(float translation) {
         if (searchView == null) return;
         searchView.setTranslationX(Math.max(0, getWidth() - translation));
-        pager.setTranslationX(-translation * 0.18f);
+        list.setTranslationX(-translation * 0.18f);
     }
 
     private void ensureSearch() {
@@ -296,11 +351,16 @@ final class FeedView extends FrameLayout {
         searchView.setVisibility(View.GONE);
     }
 
+    void openSearchFromHost() {
+        ensureSearch();
+        openSearch();
+    }
+
     private void openSearch() {
         searchOpen = true;
         searchView.setVisibility(View.VISIBLE);
         searchView.setTranslationX(0);
-        pager.setUserInputEnabled(false);
+        list.setTranslationX(0);
         host.onSearchVisibility(true);
         searchView.focus();
     }
@@ -313,17 +373,16 @@ final class FeedView extends FrameLayout {
         if (searchView == null) return;
         searchOpen = false;
         host.onSearchVisibility(false);
-        pager.setUserInputEnabled(true);
         if (animate) {
             searchView.animate().translationX(getWidth()).setDuration(220).withEndAction(() -> {
                 searchView.setVisibility(View.GONE);
-                pager.setTranslationX(0);
+                list.setTranslationX(0);
                 schedulePreview();
             }).start();
         } else {
             searchView.setVisibility(View.GONE);
             searchView.setTranslationX(getWidth());
-            pager.setTranslationX(0);
+            list.setTranslationX(0);
             schedulePreview();
         }
     }
@@ -357,14 +416,13 @@ final class FeedView extends FrameLayout {
         closeSearch(true);
     }
 
-    private final class PageAdapter extends RecyclerView.Adapter<PageHolder> {
+    private final class CardAdapter extends RecyclerView.Adapter<CardHolder> {
         private final List<VideoItem> items = new ArrayList<>();
 
         void setItems(List<VideoItem> values) {
             items.clear();
             if (values != null) items.addAll(values);
             notifyDataSetChanged();
-            if (!items.isEmpty()) pager.setCurrentItem(0, false);
         }
 
         void append(List<VideoItem> values) {
@@ -376,20 +434,22 @@ final class FeedView extends FrameLayout {
 
         @NonNull
         @Override
-        public PageHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            VideoPageView page = new VideoPageView(context);
-            page.setLayoutParams(new RecyclerView.LayoutParams(
+        public CardHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            HomeCardView card = new HomeCardView(context);
+            RecyclerView.LayoutParams params = new RecyclerView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT));
-            return new PageHolder(page);
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+            params.bottomMargin = NativeTheme.dp(context, 14);
+            card.setLayoutParams(params);
+            return new CardHolder(card);
         }
 
         @Override
-        public void onBindViewHolder(@NonNull PageHolder holder, int position) {
+        public void onBindViewHolder(@NonNull CardHolder holder, int position) {
             VideoItem item = items.get(position);
-            holder.page.setItem(item,
+            holder.card.setItem(item,
                 () -> host.onOpenProfile(item.mid),
-                () -> host.onOpenPlayer(item, holder.page.mediaHost));
+                () -> host.onOpenPlayer(item, holder.card.mediaHost()));
         }
 
         @Override
@@ -398,11 +458,12 @@ final class FeedView extends FrameLayout {
         }
     }
 
-    static final class PageHolder extends RecyclerView.ViewHolder {
-        final VideoPageView page;
-        PageHolder(VideoPageView page) {
-            super(page);
-            this.page = page;
+    static final class CardHolder extends RecyclerView.ViewHolder {
+        final HomeCardView card;
+
+        CardHolder(HomeCardView card) {
+            super(card);
+            this.card = card;
         }
     }
 }

@@ -17,10 +17,10 @@ final class GlassTabBarView extends LinearLayout {
 
     private final String[] titles = {"推荐", "关注", "动态", "养鱼"};
     private final int[] icons = {
-        android.R.drawable.ic_media_play,
-        android.R.drawable.ic_menu_myplaces,
-        android.R.drawable.ic_menu_sort_by_size,
-        android.R.drawable.ic_menu_compass
+        R.drawable.ic_nav_home,
+        R.drawable.ic_nav_follow,
+        R.drawable.ic_nav_dynamic,
+        R.drawable.ic_nav_fish
     };
     private final LinearLayout[] items = new LinearLayout[titles.length];
     private final ImageView[] images = new ImageView[titles.length];
