@@ -34,10 +34,10 @@ final class GlassTabBarView extends LinearLayout {
         setOrientation(HORIZONTAL);
         setGravity(Gravity.CENTER);
         android.graphics.drawable.GradientDrawable bar =
-            NativeTheme.rounded(NativeTheme.isDark(context) ? 0xF7141414 : 0xF7FFFFFF,
-                NativeTheme.dp(context, 26));
+            NativeTheme.rounded(NativeTheme.isDark(context) ? 0xD60A0A0C : 0xB8FFFFFF,
+                NativeTheme.dp(context, 29));
         bar.setStroke(Math.max(1, NativeTheme.dp(context, 0.5f)),
-            NativeTheme.isDark(context) ? 0x1AFFFFFF : 0x0F000000);
+            NativeTheme.isDark(context) ? 0x1AFFFFFF : 0xCCFFFFFF);
         setBackground(bar);
         setElevation(NativeTheme.dp(context, 12));
         setPadding(NativeTheme.dp(context, 6), 0, NativeTheme.dp(context, 6), 0);
@@ -52,17 +52,17 @@ final class GlassTabBarView extends LinearLayout {
             });
             ImageView icon = new ImageView(context);
             icon.setImageResource(icons[i]);
-            icon.setColorFilter(NativeTheme.secondary(context));
+            icon.setColorFilter(NativeTheme.tertiary(context));
             item.addView(icon, new LinearLayout.LayoutParams(
-                NativeTheme.dp(context, 21), NativeTheme.dp(context, 21)));
+                NativeTheme.dp(context, 18), NativeTheme.dp(context, 18)));
             TextView label = new TextView(context);
             label.setText(titles[i]);
-            label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+            label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9.5f);
             label.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL));
-            label.setTextColor(NativeTheme.secondary(context));
+            label.setTextColor(NativeTheme.tertiary(context));
             LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            labelParams.topMargin = NativeTheme.dp(context, 3);
+            labelParams.topMargin = NativeTheme.dp(context, 2);
             item.addView(label, labelParams);
             addView(item, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
             items[i] = item;
@@ -83,16 +83,18 @@ final class GlassTabBarView extends LinearLayout {
             boolean active = i == index;
             int color = active
                 ? NativeTheme.navBlue(getContext())
-                : NativeTheme.secondary(getContext());
+                : NativeTheme.tertiary(getContext());
             images[i].setColorFilter(color);
             labels[i].setTextColor(color);
+            labels[i].setTypeface(Typeface.create(
+                Typeface.SANS_SERIF, active ? Typeface.BOLD : Typeface.NORMAL));
             if (active) {
                 android.graphics.drawable.InsetDrawable pill =
                     new android.graphics.drawable.InsetDrawable(
-                        NativeTheme.rounded(NativeTheme.navSoft(getContext()),
-                            NativeTheme.dp(getContext(), 22)),
-                        NativeTheme.dp(getContext(), 4), NativeTheme.dp(getContext(), 5),
-                        NativeTheme.dp(getContext(), 4), NativeTheme.dp(getContext(), 5));
+                        NativeTheme.rounded(NativeTheme.navPill(),
+                            NativeTheme.dp(getContext(), 24)),
+                        NativeTheme.dp(getContext(), 4), NativeTheme.dp(getContext(), 4),
+                        NativeTheme.dp(getContext(), 4), NativeTheme.dp(getContext(), 4));
                 items[i].setBackground(pill);
             } else {
                 items[i].setBackground(null);

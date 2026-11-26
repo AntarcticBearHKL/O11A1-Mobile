@@ -3,6 +3,7 @@ package com.o11a1.videotest;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.TypedValue;
@@ -44,6 +45,7 @@ final class MyView extends FrameLayout {
     private final TextView meta = new TextView(getContext());
     private final TextView accountAction = new TextView(getContext());
     private boolean loggedIn = false;
+    private boolean vip = false;
     private long mid = 0;
 
     MyView(Context context, BiliApi api, BiliExtras extras, CookieStore cookies, Host host) {
@@ -63,7 +65,8 @@ final class MyView extends FrameLayout {
         LinearLayout header = new LinearLayout(context);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(NativeTheme.dp(context, 10), statusBar(), NativeTheme.dp(context, 16), 0);
+        header.setPadding(NativeTheme.dp(context, 10),
+            statusBar() + NativeTheme.dp(context, 8), NativeTheme.dp(context, 16), 0);
         root.addView(header, new LinearLayout.LayoutParams(
             LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
 
@@ -78,7 +81,7 @@ final class MyView extends FrameLayout {
         TextView title = new TextView(context);
         title.setText("用户");
         title.setTextColor(NativeTheme.foreground(context));
-        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 19);
         title.setTypeface(NativeTheme.titleTypeface());
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
             0, LayoutParams.WRAP_CONTENT, 1f);
@@ -91,13 +94,13 @@ final class MyView extends FrameLayout {
             LayoutParams.MATCH_PARENT, 0, 1f));
         LinearLayout list = new LinearLayout(context);
         list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(0, 0, 0, NativeTheme.dp(context, 8));
+        list.setPadding(NativeTheme.dp(context, 18), 0, NativeTheme.dp(context, 18),
+            NativeTheme.dp(context, 8));
         scroll.addView(list, new ScrollView.LayoutParams(
             LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
 
         addRow(list, "主页模块", "自定义首页内容", this::showHomeModules);
-        addRow(list, "内容模块", "热门 / 排行 / 番剧 / 直播…", this::showContentModules);
-        addRow(list, "播放", "画质 / 默认清晰度", host::openSettings);
+        addRow(list, "播放", "画质 / 硬解 / 默认", host::openSettings);
         addRow(list, "弹幕", "显示 / 字号 / 速度 / 屏蔽", this::showDanmakuSettings);
         addRow(list, "外观", "主题 / 透明度 / 模糊", host::openSettings);
         addRow(list, "屏蔽", "关键词 / 正则 / 用户", () ->
@@ -106,10 +109,11 @@ final class MyView extends FrameLayout {
             showInfo("智能云屏蔽", "云屏蔽等级跟随 B 站账号；当前使用默认等级。"));
         addRow(list, "优化", "预加载 / 性能", () ->
             showInfo("优化", "预加载下一段推荐并保留最近两段内容；可在播放设置中调整清晰度。"));
-        addRow(list, "会员中心", "任务 / 经验 / 大会员", () ->
-            MemberView.show(context, extras,
-                () -> LoginDialog.show(context, api, this::loadAccount)));
-        addRow(list, "养鱼", "AI 看片 / 试验台", host::openFish);
+
+        View accountLine = new View(context);
+        accountLine.setBackgroundColor(NativeTheme.hairline(context));
+        root.addView(accountLine, new LinearLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, Math.max(1, NativeTheme.dp(context, 0.5f))));
 
         LinearLayout account = new LinearLayout(context);
         account.setOrientation(LinearLayout.HORIZONTAL);
@@ -133,27 +137,32 @@ final class MyView extends FrameLayout {
         account.addView(names, namesParams);
 
         name.setTextColor(NativeTheme.foreground(context));
-        name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15.5f);
         name.setTypeface(NativeTheme.titleTypeface());
         names.addView(name);
 
         meta.setTextColor(NativeTheme.secondary(context));
-        meta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        meta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
         LinearLayout.LayoutParams metaParams = new LinearLayout.LayoutParams(
             LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
         metaParams.topMargin = NativeTheme.dp(context, 3);
         names.addView(meta, metaParams);
 
         accountAction.setTextColor(NativeTheme.navBlue(context));
-        accountAction.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        accountAction.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
         accountAction.setTypeface(NativeTheme.titleTypeface());
-        accountAction.setPadding(NativeTheme.dp(context, 10), NativeTheme.dp(context, 6),
-            NativeTheme.dp(context, 10), NativeTheme.dp(context, 6));
+        accountAction.setGravity(Gravity.CENTER);
+        accountAction.setMinHeight(NativeTheme.dp(context, 34));
+        accountAction.setPadding(NativeTheme.dp(context, 15), 0,
+            NativeTheme.dp(context, 15), 0);
+        GradientDrawable actionBg = NativeTheme.rounded(0x00000000,
+            NativeTheme.dp(context, 17));
+        actionBg.setStroke(Math.max(1, NativeTheme.dp(context, 0.5f)),
+            NativeTheme.hairline(context));
+        accountAction.setBackground(actionBg);
         accountAction.setOnClickListener(v -> {
             if (loggedIn) {
-                cookies.clear();
-                loggedIn = false;
-                loadAccount();
+                showAccount();
             } else {
                 LoginDialog.show(context, api, this::loadAccount);
             }
@@ -167,7 +176,7 @@ final class MyView extends FrameLayout {
         LinearLayout row = new LinearLayout(context);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(NativeTheme.dp(context, 18), 0, NativeTheme.dp(context, 16), 0);
+        row.setPadding(NativeTheme.dp(context, 2), 0, NativeTheme.dp(context, 2), 0);
         row.setBackgroundColor(Color.TRANSPARENT);
         row.setClickable(true);
         row.setOnClickListener(v -> action.run());
@@ -181,29 +190,21 @@ final class MyView extends FrameLayout {
 
         TextView hint = new TextView(context);
         hint.setText(detail);
-        hint.setTextColor(NativeTheme.secondary(context));
+        hint.setTextColor(NativeTheme.tertiary(context));
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
         hint.setSingleLine(true);
         LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(
             LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
-        hintParams.rightMargin = NativeTheme.dp(context, 8);
+        hintParams.leftMargin = NativeTheme.dp(context, 8);
         row.addView(hint, hintParams);
 
-        TextView chevron = new TextView(context);
-        chevron.setText("›");
-        chevron.setTextColor(NativeTheme.tertiary(context));
-        chevron.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
-        row.addView(chevron);
-
         parent.addView(row, new LinearLayout.LayoutParams(
-            LayoutParams.MATCH_PARENT, NativeTheme.dp(context, 56)));
+            LayoutParams.MATCH_PARENT, NativeTheme.dp(context, 58)));
 
         View line = new View(context);
         line.setBackgroundColor(NativeTheme.hairline(context));
-        LinearLayout.LayoutParams lineParams = new LinearLayout.LayoutParams(
-            LayoutParams.MATCH_PARENT, 1);
-        lineParams.leftMargin = NativeTheme.dp(context, 18);
-        parent.addView(line, lineParams);
+        parent.addView(line, new LinearLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, Math.max(1, NativeTheme.dp(context, 0.5f))));
     }
 
     private void showHomeModules() {
@@ -282,11 +283,17 @@ final class MyView extends FrameLayout {
                 String displayName = result == null ? "" : result.optString("name", "");
                 name.setText(loggedIn ? (displayName.isEmpty() ? "已登录" : displayName) : "未登录");
                 int level = result == null ? 0 : result.optInt("level", 0);
-                boolean vip = result != null && result.optBoolean("vip", false);
+                vip = result != null && result.optBoolean("vip", false);
                 meta.setText(loggedIn
                     ? ("UID " + mid + " · Lv" + level + (vip ? " · 大会员" : ""))
                     : "登录 B 站账号");
-                accountAction.setText(loggedIn ? "退出" : "登录");
+                accountAction.setText(loggedIn ? (vip ? "大会员" : "账户") : "登录");
+                GradientDrawable actionBg = NativeTheme.rounded(
+                    loggedIn && vip ? NativeTheme.navSoft(context) : 0x00000000,
+                    NativeTheme.dp(context, 17));
+                actionBg.setStroke(Math.max(1, NativeTheme.dp(context, 0.5f)),
+                    loggedIn && vip ? 0x592F7CF6 : NativeTheme.hairline(context));
+                accountAction.setBackground(actionBg);
                 String face = result == null ? "" : result.optString("face", "");
                 if (face.isEmpty()) {
                     avatar.setImageResource(android.R.drawable.sym_def_app_icon);
@@ -295,6 +302,22 @@ final class MyView extends FrameLayout {
                 }
             });
         });
+    }
+
+    private void showAccount() {
+        String message = "昵称  " + name.getText()
+            + "\nUID  " + mid
+            + "\n大会员  " + (vip ? "大会员" : "未开通");
+        new AlertDialog.Builder(context)
+            .setTitle("账户")
+            .setMessage(message)
+            .setPositiveButton("退出登录", (dialog, which) -> {
+                cookies.clear();
+                loggedIn = false;
+                loadAccount();
+            })
+            .setNegativeButton("取消", null)
+            .show();
     }
 
     void destroy() {

@@ -34,17 +34,22 @@ final class SidebarView extends FrameLayout {
         setVisibility(GONE);
 
         backdrop = new View(context);
-        backdrop.setBackgroundColor(0x66000000);
+        backdrop.setBackgroundColor(NativeTheme.isDark(context) ? 0x8C000000 : 0x47000000);
         backdrop.setOnClickListener(v -> close());
         addView(backdrop, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
 
         panelWidth = Math.round(getResources().getDisplayMetrics().widthPixels * 0.50f);
         LinearLayout sheet = new LinearLayout(context);
         sheet.setOrientation(LinearLayout.VERTICAL);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(NativeTheme.isDark(context) ? 0xF20F1117 : 0xF2FBFBFD);
+        GradientDrawable bg = new GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            NativeTheme.isDark(context)
+                ? new int[]{0xBD121720, 0xE00A0D13}
+                : new int[]{0xBDFAFAFC, 0xE0F4F5F9});
         float r = NativeTheme.dp(context, 26);
         bg.setCornerRadii(new float[]{0, 0, r, r, r, r, 0, 0});
+        bg.setStroke(Math.max(1, NativeTheme.dp(context, 1)),
+            NativeTheme.isDark(context) ? 0x14FFFFFF : 0x94FFFFFF);
         sheet.setBackground(bg);
         sheet.setPadding(NativeTheme.dp(context, 0), statusBar() + NativeTheme.dp(context, 16),
             NativeTheme.dp(context, 12), bottomInset() + NativeTheme.dp(context, 8));
@@ -58,33 +63,33 @@ final class SidebarView extends FrameLayout {
         nav.setOrientation(LinearLayout.VERTICAL);
         sheet.addView(nav, new LinearLayout.LayoutParams(
             LayoutParams.MATCH_PARENT, 0, 1f));
+        nav.addView(new View(context), new LinearLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, 0, 1f));
 
-        addRow(nav, "首页", R.drawable.ic_nav_home, host::onSidebarHome);
-        addRow(nav, "热门", R.drawable.ic_nav_dynamic,
-            () -> host.onSidebarModule(ModuleView.Type.HOT, "热门"));
-        addRow(nav, "排行", R.drawable.ic_nav_dynamic,
-            () -> host.onSidebarModule(ModuleView.Type.RANK, "排行"));
-        addRow(nav, "番剧", R.drawable.ic_nav_bangumi,
-            () -> host.onSidebarModule(ModuleView.Type.BANGUMI, "番剧"));
-        addRow(nav, "影视", R.drawable.ic_nav_bangumi,
-            () -> host.onSidebarModule(ModuleView.Type.MOVIE, "影视"));
         addRow(nav, "直播", R.drawable.ic_nav_live,
             () -> host.onSidebarModule(ModuleView.Type.LIVE, "直播"));
-        addRow(nav, "分区", R.drawable.ic_nav_home,
-            () -> host.onSidebarModule(ModuleView.Type.ZONE, "分区"));
-        addRow(nav, "收藏", R.drawable.ic_nav_favorite,
-            () -> host.onSidebarModule(ModuleView.Type.FAVORITES, "收藏"));
-        addRow(nav, "历史", R.drawable.ic_nav_history,
-            () -> host.onSidebarModule(ModuleView.Type.HISTORY, "历史"));
-        addRow(nav, "关注", R.drawable.ic_nav_follow,
-            () -> host.onSidebarModule(ModuleView.Type.FOLLOWING, "关注"));
-        addRow(nav, "动态", R.drawable.ic_nav_dynamic,
-            () -> host.onSidebarModule(ModuleView.Type.DYNAMIC, "动态"));
+        addRow(nav, "番剧", R.drawable.ic_nav_bangumi,
+            () -> host.onSidebarModule(ModuleView.Type.BANGUMI, "番剧"));
         addRow(nav, "消息", R.drawable.ic_nav_messages,
             () -> host.onSidebarModule(ModuleView.Type.MESSAGES, "消息"));
+        addRow(nav, "历史", R.drawable.ic_nav_history,
+            () -> host.onSidebarModule(ModuleView.Type.HISTORY, "历史"));
+        nav.addView(new View(context), new LinearLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, 0, 1f));
 
-        addRow(sheet, "搜索", R.drawable.ic_nav_search, host::onSidebarSearch);
-        addRow(sheet, "我的", R.drawable.ic_nav_my, host::onSidebarMy);
+        View footerLine = new View(context);
+        footerLine.setBackgroundColor(NativeTheme.hairline(context));
+        LinearLayout.LayoutParams lineParams = new LinearLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, Math.max(1, NativeTheme.dp(context, 0.5f)));
+        lineParams.leftMargin = NativeTheme.dp(context, 26);
+        lineParams.topMargin = NativeTheme.dp(context, 10);
+        sheet.addView(footerLine, lineParams);
+
+        LinearLayout footer = new LinearLayout(context);
+        footer.setOrientation(LinearLayout.VERTICAL);
+        sheet.addView(footer, new LinearLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+        addRow(footer, "用户", R.drawable.ic_nav_my, host::onSidebarMy);
     }
 
     private void addRow(LinearLayout parent, String label, int iconRes, Runnable action) {

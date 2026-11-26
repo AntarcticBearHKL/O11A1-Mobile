@@ -110,15 +110,18 @@ final class HomeCardView extends LinearLayout {
 
         LinearLayout copy = new LinearLayout(context);
         copy.setOrientation(HORIZONTAL);
-        copy.setGravity(Gravity.TOP);
+        copy.setGravity(Gravity.CENTER_VERTICAL);
         copy.setPadding(NativeTheme.dp(context, 16), NativeTheme.dp(context, 13),
             NativeTheme.dp(context, 16), NativeTheme.dp(context, 16));
-        GradientDrawable copyBg = new GradientDrawable();
-        copyBg.setColor(NativeTheme.isDark(context) ? 0xE61C1E25 : 0xF2FFFFFF);
+        GradientDrawable copyBg = new GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            NativeTheme.isDark(context)
+                ? new int[]{0xDB1C1E25, 0xC2111217}
+                : new int[]{0xCCFFFFFF, 0x94FFFFFF});
         float r = NativeTheme.dp(context, 14);
         copyBg.setCornerRadii(new float[]{0, 0, 0, 0, r, r, r, r});
         copyBg.setStroke(Math.max(1, NativeTheme.dp(context, 0.5f)),
-            NativeTheme.isDark(context) ? 0x14FFFFFF : 0x14000000);
+            NativeTheme.isDark(context) ? 0x12FFFFFF : 0x75FFFFFF);
         copy.setBackground(copyBg);
         copy.setElevation(NativeTheme.dp(context, 3));
         addView(copy, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
@@ -139,10 +142,10 @@ final class HomeCardView extends LinearLayout {
         title = new TextView(context);
         title.setTextColor(NativeTheme.foreground(context));
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        title.setTypeface(NativeTheme.titleTypeface());
+        title.setTypeface(NativeTheme.titleTypeface(), android.graphics.Typeface.BOLD);
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
-        title.setLineSpacing(0, 1.18f);
+        title.setLineSpacing(0, 1.2f);
         text.addView(title, new LinearLayout.LayoutParams(
             LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
 
@@ -151,19 +154,19 @@ final class HomeCardView extends LinearLayout {
         meta.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams metaParams = new LinearLayout.LayoutParams(
             LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-        metaParams.topMargin = NativeTheme.dp(context, 7);
+        metaParams.topMargin = NativeTheme.dp(context, 5);
         text.addView(meta, metaParams);
 
         owner = new TextView(context);
         owner.setTextColor(NativeTheme.secondary(context));
-        owner.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
+        owner.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         owner.setSingleLine(true);
         owner.setEllipsize(TextUtils.TruncateAt.END);
         meta.addView(owner, new LinearLayout.LayoutParams(0,
             LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         play = new TextView(context);
-        play.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
+        play.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         play.setTypeface(NativeTheme.numberTypeface());
         play.setGravity(Gravity.CENTER);
         play.setSingleLine(true);
@@ -172,7 +175,7 @@ final class HomeCardView extends LinearLayout {
 
         time = new TextView(context);
         time.setTextColor(NativeTheme.tertiary(context));
-        time.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
+        time.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         time.setTypeface(NativeTheme.numberTypeface());
         time.setGravity(Gravity.END);
         time.setSingleLine(true);
@@ -193,7 +196,7 @@ final class HomeCardView extends LinearLayout {
         onOpen = openAction;
         title.setText(value.title);
         owner.setText(value.owner);
-        play.setText(value.playText.isEmpty() ? "" : value.playText + " 播放");
+        play.setText(value.playText.isEmpty() ? "" : value.playText + "播放");
         play.setTextColor(NativeTheme.playColor(value.play));
         time.setText(NativeTheme.freshness(value.pubdate));
         time.setTextColor(NativeTheme.freshnessColor(value.pubdate));

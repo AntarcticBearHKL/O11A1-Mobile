@@ -75,8 +75,7 @@ final class FeedView extends FrameLayout {
         list.setLayoutManager(layoutManager);
         list.setBackgroundColor(NativeTheme.background(context));
         list.setClipToPadding(false);
-        list.setPadding(0, NativeTheme.dp(context, 12), NativeTheme.dp(context, 8),
-            NativeTheme.dp(context, 96) + bottomInset());
+        list.setPadding(0, statusBar(), 0, NativeTheme.dp(context, 104) + bottomInset());
         adapter = new CardAdapter();
         list.setAdapter(adapter);
         addView(list, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));

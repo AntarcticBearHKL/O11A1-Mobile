@@ -74,11 +74,15 @@ final class NativeTheme {
     }
 
     static int navBlue(Context context) {
-        return isDark(context) ? 0xFF7FB6FF : 0xFF005FB8;
+        return isDark(context) ? 0xFF54A7FF : 0xFF005FB8;
     }
 
     static int navSoft(Context context) {
-        return isDark(context) ? 0x332F7CF6 : 0xFFDCEEFF;
+        return isDark(context) ? 0xFF12253F : 0xFFDCEEFF;
+    }
+
+    static int navPill() {
+        return 0x1A2F7CF6;
     }
 
     static int playColor(long count) {
