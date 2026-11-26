@@ -181,6 +181,11 @@ final class RootViewController: UIViewController {
     controller.onSearchOpen = { [weak self] item in
       self?.openPlayer(item, from: nil)
     }
+    controller.onSeason = { [weak self] item in
+      guard let self = self else { return }
+      let title = item.title.isEmpty ? "番剧" : item.title
+      self.presentModule(from: self, mode: .season, target: item.seasonId, title: title)
+    }
     controller.onSidebar = { [weak self] in
       self?.openSidebar()
     }
@@ -191,6 +196,11 @@ final class RootViewController: UIViewController {
         self.settingsButton.alpha = hidden ? 0 : 1
         self.myButton.alpha = hidden ? 0 : 1
       }
+    }
+    if let module = HomeModules.currentDef, module.source != "recommend" {
+      controller.initialSource = (module.source, module.name)
+    } else if HomeModules.enabledCount == 0 {
+      controller.initialSource = ("none", "主页模块")
     }
     feed = controller
     return controller
@@ -407,6 +417,9 @@ final class RootViewController: UIViewController {
     my.onOpenModule = { [weak self, weak my] mode, target, title in
       guard let self = self, let host = my else { return }
       self.presentModule(from: host, mode: mode, target: target, title: title)
+    }
+    my.onHomeModule = { [weak self] source, title in
+      self?.feed?.setSource(source, title: title)
     }
     present(my, animated: false)
     my.view.transform = CGAffineTransform(translationX: -view.bounds.width, y: 0)

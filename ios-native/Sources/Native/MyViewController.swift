@@ -4,6 +4,7 @@ final class MyViewController: UIViewController {
   var onOpenModule: ((ModuleListViewController.Mode, Int64, String) -> Void)?
   var onFish: (() -> Void)?
   var onSettings: (() -> Void)?
+  var onHomeModule: ((String, String) -> Void)?
 
   private let scroll = UIScrollView()
   private let list = UIStackView()
@@ -128,9 +129,9 @@ final class MyViewController: UIViewController {
     ])
 
     addRow("主页模块", "自定义首页内容", #selector(showHomeModules))
-    addRow("播放", "画质 / 硬解 / 默认", #selector(openSettings))
+    addRow("播放", "画质 / 硬解 / 默认", #selector(showPlayback))
     addRow("弹幕", "显示 / 字号 / 速度 / 屏蔽", #selector(showDanmaku))
-    addRow("外观", "主题 / 透明度 / 模糊", #selector(openSettings))
+    addRow("外观", "主题 / 透明度 / 模糊", #selector(showAppearance))
     addRow("屏蔽", "关键词 / 正则 / 用户", #selector(showBlock))
     addRow("智能云屏蔽", "等级 / 同步", #selector(showCloud))
     addRow("优化", "预加载 / 性能", #selector(showOptimize))
@@ -220,80 +221,251 @@ final class MyViewController: UIViewController {
     }
   }
 
-  @objc private func openSettings() {
-    onSettings?()
-  }
-
-  @objc private func openFish() {
-    onFish?()
-  }
-
-  @objc private func openMember() {
-    let member = MemberCenterViewController()
-    member.modalPresentationStyle = .pageSheet
-    present(member, animated: true)
-  }
-
   @objc private func showHomeModules() {
-    let alert = UIAlertController(
-      title: "主页模块",
-      message: "首页模块选择会保存在本机；当前首页固定展示推荐。",
-      preferredStyle: .alert)
-    alert.addAction(UIAlertAction(title: "好", style: .default))
-    present(alert, animated: true)
+    var rows: [SettingsSheetRow] = []
+    for group in ["首页", "内容", "社区"] {
+      rows.append(.section(group))
+      for module in HomeModules.all where module.group == group {
+        let on = HomeModules.states[module.id] == true
+        rows.append(.toggle(label: module.name, detail: module.desc, isOn: on) {
+          [weak self] value in
+          let changed = HomeModules.setOn(module.id, value)
+          guard changed, let self = self else { return }
+          if let current = HomeModules.currentDef {
+            self.onHomeModule?(current.source, current.name)
+          } else {
+            self.onHomeModule?("none", "主页模块")
+          }
+        })
+      }
+    }
+    rows.append(.note("关闭当前模块后会自动切换到下一个已启用模块。"))
+    presentSheet(SettingsSheetViewController(
+      title: "主页模块", subtitle: "选择要在首页显示的模块", rows: rows))
   }
 
-  @objc private func showContentModules() {
-    let alert = UIAlertController(title: "内容模块", message: nil, preferredStyle: .actionSheet)
-    let entries: [(String, ModuleListViewController.Mode)] = [
-      ("热门", .hot), ("排行", .rank), ("番剧", .bangumi), ("影视", .movie),
-      ("直播", .live), ("分区", .zone), ("收藏", .favorites), ("历史", .history),
-      ("关注", .following), ("动态", .dynamic), ("消息", .messages),
-    ]
-    for (title, mode) in entries {
-      alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
-        self?.onOpenModule?(mode, 0, title)
-      })
-    }
-    alert.addAction(UIAlertAction(title: "我的主页", style: .default) { [weak self] _ in
-      guard let self = self, self.mid > 0 else { return }
-      self.onOpenModule?(.space, self.mid, "我的主页")
+  @objc private func showPlayback() {
+    let defaults = UserDefaults.standard
+    let options = ["最高", "4K", "1080P60", "1080P+", "1080P", "720P60", "720P", "480P", "360P"]
+    var rows: [SettingsSheetRow] = []
+    rows.append(.choices(label: "默认画质", options: options, selected: defaultQualityName()) {
+      [weak self] name in
+      defaults.set(name, forKey: "o11a1.defaultQuality")
+      if let self = self {
+        ThemeManager.shared.quality = self.qualityValue(name)
+      }
     })
-    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-    if let popover = alert.popoverPresentationController {
-      popover.sourceView = view
-      popover.sourceRect = view.bounds
-    }
-    present(alert, animated: true)
+    rows.append(.choices(label: "当前画质", options: options,
+                         selected: qualityName(ThemeManager.shared.quality)) {
+      [weak self] name in
+      guard let self = self else { return }
+      ThemeManager.shared.quality = self.qualityValue(name)
+    })
+    rows.append(.toggle(label: "陀螺仪自动横屏", detail: nil,
+                        isOn: defaults.bool(forKey: "o11a1.autoLandscape")) { value in
+      defaults.set(value, forKey: "o11a1.autoLandscape")
+    })
+    rows.append(.toggle(label: "视频调试 HUD", detail: nil,
+                        isOn: defaults.bool(forKey: "o11a1.debugHud")) { value in
+      defaults.set(value, forKey: "o11a1.debugHud")
+    })
+    rows.append(.toggle(label: "视频流刷新率", detail: nil,
+                        isOn: defaults.bool(forKey: "o11a1.feedDebug")) { value in
+      defaults.set(value, forKey: "o11a1.feedDebug")
+    })
+    rows.append(.value(label: "解码策略", value: "系统硬解 · 渐进优先 · 60Hz"))
+    presentSheet(SettingsSheetViewController(
+      title: "播放",
+      subtitle: "默认播放视频支持的最高画质；也可固定默认画质，高画质需大会员",
+      rows: rows))
   }
 
   @objc private func showDanmaku() {
-    let alert = UIAlertController(title: "弹幕", message: "默认显示弹幕", preferredStyle: .alert)
-    alert.addAction(UIAlertAction(title: "开启", style: .default) { _ in
-      UserDefaults.standard.set(true, forKey: "danmaku_enabled")
+    let defaults = UserDefaults.standard
+    var rows: [SettingsSheetRow] = []
+    rows.append(.toggle(label: "弹幕显示", detail: nil,
+                        isOn: storedBool("danmaku_enabled", true)) { value in
+      defaults.set(value, forKey: "danmaku_enabled")
     })
-    alert.addAction(UIAlertAction(title: "关闭", style: .default) { _ in
-      UserDefaults.standard.set(false, forKey: "danmaku_enabled")
+    rows.append(.slider(label: "不透明度", min: 0, max: 100,
+                        value: storedFloat("danmaku_opacity", 88),
+                        unit: "%", format: nil) { value in
+      defaults.set(value, forKey: "danmaku_opacity")
     })
-    present(alert, animated: true)
+    rows.append(.slider(label: "字号", min: 50, max: 150,
+                        value: storedFloat("danmaku_size", 100),
+                        unit: "%", format: nil) { value in
+      defaults.set(value, forKey: "danmaku_size")
+    })
+    rows.append(.slider(label: "速度", min: 50, max: 200,
+                        value: storedFloat("danmaku_speed", 100),
+                        unit: "", format: { String(format: "%.1f×", Double($0) / 100.0) }) { value in
+      defaults.set(value, forKey: "danmaku_speed")
+    })
+    rows.append(.choices(label: "显示区域", options: ["全屏", "1/2 屏", "1/3 屏"],
+                         selected: defaults.string(forKey: "danmaku_area") ?? "全屏") { value in
+      defaults.set(value, forKey: "danmaku_area")
+    })
+    rows.append(.toggle(label: "分布密度", detail: nil,
+                        isOn: storedBool("danmaku_density", true)) { value in
+      defaults.set(value, forKey: "danmaku_density")
+    })
+    rows.append(.value(label: "弹幕节拍", value: "原生动画 · 跟随显示刷新"))
+    presentSheet(SettingsSheetViewController(
+      title: "弹幕",
+      subtitle: "实时生效，现有弹幕不清空；屏蔽规则在「我的 → 屏蔽」",
+      rows: rows))
+  }
+
+  @objc private func showAppearance() {
+    var rows: [SettingsSheetRow] = []
+    rows.append(.choices(label: "主题", options: AppTheme.allCases.map { $0.title },
+                         selected: ThemeManager.shared.theme.title) { value in
+      if let theme = AppTheme.allCases.first(where: { $0.title == value }) {
+        ThemeManager.shared.theme = theme
+      }
+    })
+    rows.append(.slider(label: "玻璃模糊", min: 0, max: 100,
+                        value: storedFloat("o11a1.glassBlur", 100),
+                        unit: "%", format: nil) { value in
+      UserDefaults.standard.set(value, forKey: "o11a1.glassBlur")
+    })
+    rows.append(.value(label: "圆角", value: "18 / 24 / 27"))
+    presentSheet(SettingsSheetViewController(
+      title: "外观",
+      subtitle: "浅色为纯白，深色为纯黑；玻璃模糊控制悬浮层质感",
+      rows: rows))
   }
 
   @objc private func showBlock() {
-    presentInfo("屏蔽", "关键词、正则和用户屏蔽保存在本机；与网页端使用同一套规则。")
+    let keywords = UserDefaults.standard.stringArray(forKey: "o11a1.block.keywords") ?? []
+    var rows: [SettingsSheetRow] = []
+    rows.append(.value(label: "关键词",
+                       value: keywords.isEmpty ? "未设置" : keywords.joined(separator: "、")))
+    rows.append(.value(label: "正则", value: "无"))
+    rows.append(.value(label: "用户", value: "未设置"))
+    rows.append(.action(label: "添加规则", value: "", run: { [weak self] in
+      self?.addBlockRule()
+    }))
+    rows.append(.action(label: "清空规则", value: "", run: { [weak self] in
+      UserDefaults.standard.removeObject(forKey: "o11a1.block.keywords")
+      self?.showSheetInfo("屏蔽", "已清空本机关键词规则。")
+    }))
+    presentSheet(SettingsSheetViewController(
+      title: "屏蔽", subtitle: "关键词 / 正则 / 用户；弹幕与评论共用规则", rows: rows))
   }
 
   @objc private func showCloud() {
-    presentInfo("智能云屏蔽", "云屏蔽等级跟随 B 站账号；当前使用默认等级。")
+    let defaults = UserDefaults.standard
+    var rows: [SettingsSheetRow] = []
+    rows.append(.toggle(label: "智能云屏蔽", detail: nil,
+                        isOn: storedBool("o11a1.cloudBlock", true)) { value in
+      defaults.set(value, forKey: "o11a1.cloudBlock")
+    })
+    rows.append(.slider(label: "AI 等级", min: 0, max: 10,
+                        value: storedFloat("o11a1.cloudLevel", 5),
+                        unit: "", format: nil) { value in
+      defaults.set(value, forKey: "o11a1.cloudLevel")
+    })
+    rows.append(.action(label: "立即同步", value: "", run: { [weak self] in
+      self?.showSheetInfo("智能云屏蔽", "已保存本地设置。")
+    }))
+    presentSheet(SettingsSheetViewController(
+      title: "智能云屏蔽", subtitle: "服务端同步的 AI 屏蔽等级", rows: rows))
   }
 
   @objc private func showOptimize() {
-    presentInfo("优化", "预加载下一段推荐并保留最近两段内容；可在播放设置中调整清晰度。")
+    let defaults = UserDefaults.standard
+    var rows: [SettingsSheetRow] = []
+    rows.append(.toggle(label: "后台预加载", detail: nil,
+                        isOn: storedBool("o11a1.preloadNext", true)) { value in
+      defaults.set(value, forKey: "o11a1.preloadNext")
+    })
+    rows.append(.toggle(label: "缓存下一批推荐", detail: nil,
+                        isOn: storedBool("o11a1.warmPages", true)) { value in
+      defaults.set(value, forKey: "o11a1.warmPages")
+    })
+    rows.append(.value(label: "硬件解码", value: "强制开启"))
+    rows.append(.value(label: "插帧管线", value: "原生媒体层"))
+    presentSheet(SettingsSheetViewController(
+      title: "优化", subtitle: "预加载与页面预热；硬件解码在移动端强制开启", rows: rows))
   }
 
-  private func presentInfo(_ title: String, _ message: String) {
+  private func presentSheet(_ sheet: SettingsSheetViewController) {
+    present(sheet, animated: false)
+  }
+
+  private func qualityName(_ qn: Int) -> String {
+    switch qn {
+    case 120: return "4K"
+    case 116: return "1080P60"
+    case 112: return "1080P+"
+    case 80: return "1080P"
+    case 74: return "720P60"
+    case 64: return "720P"
+    case 32: return "480P"
+    case 16: return "360P"
+    default: return "1080P"
+    }
+  }
+
+  private func qualityValue(_ name: String) -> Int {
+    switch name {
+    case "4K": return 120
+    case "1080P60": return 116
+    case "1080P+": return 112
+    case "1080P": return 80
+    case "720P60": return 74
+    case "720P": return 64
+    case "480P": return 32
+    case "360P": return 16
+    default: return 80
+    }
+  }
+
+  private func defaultQualityName() -> String {
+    if let saved = UserDefaults.standard.string(forKey: "o11a1.defaultQuality"),
+       !saved.isEmpty {
+      return saved
+    }
+    return qualityName(ThemeManager.shared.quality)
+  }
+
+  private func storedFloat(_ key: String, _ fallback: Float) -> Float {
+    let defaults = UserDefaults.standard
+    if defaults.object(forKey: key) == nil { return fallback }
+    return defaults.float(forKey: key)
+  }
+
+  private func storedBool(_ key: String, _ fallback: Bool) -> Bool {
+    let defaults = UserDefaults.standard
+    if defaults.object(forKey: key) == nil { return fallback }
+    return defaults.bool(forKey: key)
+  }
+
+  private func addBlockRule() {
+    guard let host = presentedViewController else { return }
+    let alert = UIAlertController(title: "添加屏蔽关键词", message: nil, preferredStyle: .alert)
+    alert.addTextField { field in
+      field.placeholder = "关键词或正则"
+      field.clearButtonMode = .whileEditing
+    }
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    alert.addAction(UIAlertAction(title: "添加", style: .default) { [weak alert] _ in
+      let text = alert?.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      guard !text.isEmpty else { return }
+      var list = UserDefaults.standard.stringArray(forKey: "o11a1.block.keywords") ?? []
+      if !list.contains(text) { list.append(text) }
+      UserDefaults.standard.set(list, forKey: "o11a1.block.keywords")
+    })
+    host.present(alert, animated: true)
+  }
+
+  private func showSheetInfo(_ title: String, _ message: String) {
+    guard let host = presentedViewController else { return }
     let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
     alert.addAction(UIAlertAction(title: "好", style: .default))
-    present(alert, animated: true)
+    host.present(alert, animated: true)
   }
 
   private func loadAccount() {

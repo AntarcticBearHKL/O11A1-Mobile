@@ -9,7 +9,9 @@ final class FeedViewController: UIViewController,
   var onProfile: ((Int64) -> Void)?
   var onToolbar: ((Bool) -> Void)?
   var onSearchOpen: ((VideoItem) -> Void)?
+  var onSeason: ((VideoItem) -> Void)?
   var onSidebar: (() -> Void)?
+  var initialSource: (source: String, title: String)?
 
   private(set) var items: [VideoItem] = []
   private let table = UITableView(frame: .zero, style: .plain)
@@ -33,6 +35,8 @@ final class FeedViewController: UIViewController,
   private var sidebarEdge: UIScreenEdgePanGestureRecognizer?
   private var searchOpen = false
   private var dragDirection = 0
+  private var homeSource = "recommend"
+  private var sourceTitle = "推荐"
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -126,6 +130,10 @@ final class FeedViewController: UIViewController,
     view.addGestureRecognizer(edge)
     sidebarEdge = edge
 
+    if let initial = initialSource {
+      homeSource = initial.source
+      sourceTitle = initial.title
+    }
     load(reset: true)
   }
 
@@ -172,20 +180,51 @@ final class FeedViewController: UIViewController,
 
   // MARK: - data
 
+  func setSource(_ source: String, title: String) {
+    guard source != homeSource || items.isEmpty else { return }
+    homeSource = source
+    sourceTitle = title
+    loading = false
+    hasMore = source != "none" && source != "dynamic" && source != "fish"
+    nextPage = 1
+    fresh = 1
+    items = []
+    previewIndex = -1
+    previewCell = nil
+    previewEngine.stop()
+    statusLabel.isHidden = true
+    table.reloadData()
+    table.setContentOffset(CGPoint(x: 0, y: -table.contentInset.top), animated: false)
+    load(reset: true)
+  }
+
   private func load(reset: Bool) {
     guard !loading else { return }
     if reset {
       nextPage = 1
       fresh = 1
-      hasMore = true
+      hasMore = homeSource != "none" && homeSource != "dynamic" && homeSource != "fish"
+    }
+    if homeSource == "none" {
+      showEmpty("所有主页模块已关闭\n在「主页模块」中启用")
+      return
+    }
+    if homeSource == "dynamic" {
+      showEmpty("动态请在底部「动态」查看")
+      return
+    }
+    if homeSource == "fish" {
+      showEmpty("养鱼请在底部「养鱼」查看")
+      return
     }
     guard hasMore else { return }
     loading = true
     if reset && items.isEmpty {
-      statusLabel.text = "正在加载推荐…"
+      statusLabel.text = "正在加载\(sourceTitle)…"
       statusLabel.isHidden = false
     }
-    BiliAPI.shared.recommend(page: nextPage, fresh: fresh) { [weak self] result in
+    let pageValue = nextPage
+    let done: (Result<[VideoItem], Error>) -> Void = { [weak self] result in
       guard let self = self else { return }
       self.loading = false
       switch result {
@@ -196,27 +235,77 @@ final class FeedViewController: UIViewController,
           let tap = UITapGestureRecognizer(target: self, action: #selector(self.retry))
           self.view.addGestureRecognizer(tap)
         }
-      case .success(let feed):
-        if reset {
-          self.items = feed.items
-        } else {
-          let existing = Set(self.items.map { $0.bvid })
-          self.items.append(contentsOf: feed.items.filter { !existing.contains($0.bvid) })
-        }
-        self.hasMore = !feed.items.isEmpty
-        self.nextPage += 1
-        self.fresh += 1
-        self.statusLabel.isHidden = !self.items.isEmpty
-        if self.items.isEmpty {
-          self.statusLabel.text = "暂时没有推荐\n轻触屏幕重试"
-          self.statusLabel.isHidden = false
-        }
-        self.table.reloadData()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-          self.startPreviewIfNeeded()
+      case .success(let values):
+        self.finish(values, reset: reset)
+      }
+    }
+    switch homeSource {
+    case "hot":
+      BiliAPI.shared.popularItems(page: pageValue, completion: done)
+    case "rank":
+      BiliAPI.shared.ranking(page: pageValue, completion: done)
+    case "following":
+      BiliAPI.shared.following(page: pageValue, completion: done)
+    case "favorites":
+      BiliAPI.shared.favorites(page: pageValue, completion: done)
+    case "history":
+      BiliAPI.shared.history(page: pageValue, completion: done)
+    case "zone":
+      BiliAPI.shared.zone(rid: 1, page: pageValue, completion: done)
+    case "bangumi":
+      BiliAPI.shared.bangumi(page: pageValue, seasonType: 1, completion: done)
+    case "movie":
+      BiliAPI.shared.bangumi(page: pageValue, seasonType: 2, completion: done)
+    case "live":
+      BiliAPI.shared.live(page: pageValue, completion: done)
+    default:
+      BiliAPI.shared.recommend(page: pageValue, fresh: fresh) { [weak self] result in
+        guard let self = self else { return }
+        self.loading = false
+        switch result {
+        case .failure(let error):
+          if self.items.isEmpty {
+            self.statusLabel.text = error.localizedDescription + "\n轻触屏幕重试"
+            self.statusLabel.isHidden = false
+          }
+        case .success(let feed):
+          self.finish(feed.items, reset: reset)
+          self.fresh += 1
         }
       }
     }
+  }
+
+  private func finish(_ values: [VideoItem], reset: Bool) {
+    if reset {
+      items = values
+    } else {
+      var existing = Set(items.map { "\($0.bvid)-\($0.roomId)" })
+      for item in values where !existing.contains("\(item.bvid)-\(item.roomId)") {
+        items.append(item)
+        existing.insert("\(item.bvid)-\(item.roomId)")
+      }
+    }
+    hasMore = !values.isEmpty
+    nextPage += 1
+    statusLabel.isHidden = !items.isEmpty
+    if items.isEmpty {
+      statusLabel.text = "\(sourceTitle)暂时没有内容\n轻触屏幕重试"
+      statusLabel.isHidden = false
+    }
+    table.reloadData()
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+      self.startPreviewIfNeeded()
+    }
+  }
+
+  private func showEmpty(_ text: String) {
+    loading = false
+    hasMore = false
+    items = []
+    table.reloadData()
+    statusLabel.text = text
+    statusLabel.isHidden = false
   }
 
   @objc private func retry() {
@@ -249,6 +338,10 @@ final class FeedViewController: UIViewController,
   }
 
   private func open(_ item: VideoItem, cell: HomeCardCell?) {
+    if item.seasonId > 0 || item.kind == "season" {
+      onSeason?(item)
+      return
+    }
     guard let cell = cell else { return }
     onOpen?(item, cell)
   }

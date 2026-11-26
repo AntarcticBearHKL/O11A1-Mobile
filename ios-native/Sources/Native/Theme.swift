@@ -62,6 +62,14 @@ enum NativeTheme {
   static var navPill: UIColor {
     UIColor(red: 47.0 / 255.0, green: 124.0 / 255.0, blue: 246.0 / 255.0, alpha: 0.10)
   }
+  static var sheetGlass: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(red: 8.0 / 255.0, green: 8.0 / 255.0, blue: 10.0 / 255.0, alpha: 0.94)
+        : UIColor(white: 1.0, alpha: 0.84)
+    }
+  }
+
   static var barGlass: UIColor {
     UIColor { trait in
       trait.userInterfaceStyle == .dark
