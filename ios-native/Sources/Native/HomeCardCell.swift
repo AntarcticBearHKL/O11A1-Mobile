@@ -17,11 +17,13 @@ final class HomeCardCell: UITableViewCell {
   private var progressWidth: NSLayoutConstraint?
   private let copyGradient = CAGradientLayer()
   private let avatar = UIImageView()
+  private let avatarInitial = UILabel()
   private let avatarButton = UIButton(type: .custom)
   private let title = UILabel()
   private let owner = UILabel()
   private let play = UILabel()
   private let time = UILabel()
+  private let metaStack = UIStackView()
   private let copyView = UIView()
   private var item: VideoItem?
 
@@ -108,9 +110,24 @@ final class HomeCardCell: UITableViewCell {
     avatar.contentMode = .scaleAspectFill
     avatar.clipsToBounds = true
     avatar.layer.cornerRadius = 25
-    avatar.backgroundColor = UIColor(white: 0.90, alpha: 1)
+    avatar.backgroundColor = UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(red: 20.0 / 255.0, green: 20.0 / 255.0, blue: 22.0 / 255.0, alpha: 1)
+        : UIColor(red: 245.0 / 255.0, green: 245.0 / 255.0, blue: 247.0 / 255.0, alpha: 1)
+    }
     copyView.addSubview(avatar)
     avatar.translatesAutoresizingMaskIntoConstraints = false
+
+    avatarInitial.font = UIFont.systemFont(ofSize: 15, weight: .bold)
+    avatarInitial.textColor = NativeTheme.secondary
+    avatarInitial.textAlignment = .center
+    avatarInitial.isHidden = true
+    avatar.addSubview(avatarInitial)
+    avatarInitial.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      avatarInitial.centerXAnchor.constraint(equalTo: avatar.centerXAnchor),
+      avatarInitial.centerYAnchor.constraint(equalTo: avatar.centerYAnchor),
+    ])
 
     avatarButton.backgroundColor = .clear
     avatarButton.addTarget(self, action: #selector(tapAvatar), for: .touchUpInside)
@@ -136,13 +153,15 @@ final class HomeCardCell: UITableViewCell {
     time.textAlignment = .right
     time.numberOfLines = 1
 
-    let meta = UIStackView(arrangedSubviews: [owner, play, time])
-    meta.axis = .horizontal
-    meta.distribution = .fillEqually
-    meta.alignment = .center
-    meta.spacing = 0
-    copyView.addSubview(meta)
-    meta.translatesAutoresizingMaskIntoConstraints = false
+    metaStack.axis = .horizontal
+    metaStack.distribution = .fillEqually
+    metaStack.alignment = .center
+    metaStack.spacing = 0
+    metaStack.addArrangedSubview(owner)
+    metaStack.addArrangedSubview(play)
+    metaStack.addArrangedSubview(time)
+    copyView.addSubview(metaStack)
+    metaStack.translatesAutoresizingMaskIntoConstraints = false
 
     NSLayoutConstraint.activate([
       media.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
@@ -202,10 +221,10 @@ final class HomeCardCell: UITableViewCell {
       title.trailingAnchor.constraint(equalTo: copyView.trailingAnchor, constant: -16),
       title.topAnchor.constraint(equalTo: copyView.topAnchor, constant: 13),
 
-      meta.leadingAnchor.constraint(equalTo: title.leadingAnchor),
-      meta.trailingAnchor.constraint(equalTo: title.trailingAnchor),
-      meta.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 5),
-      meta.bottomAnchor.constraint(equalTo: copyView.bottomAnchor, constant: -16),
+      metaStack.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+      metaStack.trailingAnchor.constraint(equalTo: title.trailingAnchor),
+      metaStack.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 5),
+      metaStack.bottomAnchor.constraint(equalTo: copyView.bottomAnchor, constant: -16),
     ])
     progressWidth = progressFill.widthAnchor.constraint(equalToConstant: 0)
     progressWidth?.isActive = true
@@ -263,16 +282,35 @@ final class HomeCardCell: UITableViewCell {
         .foregroundColor: NativeTheme.foreground,
         .paragraphStyle: paragraph,
       ])
-    owner.text = item.owner
+    let season = item.seasonId > 0 || item.kind == "season"
+    let live = item.roomId > 0
+    owner.text = season && !item.meta.isEmpty ? item.meta : item.owner
+    play.isHidden = season || live
+    time.isHidden = season
+    metaStack.distribution = season ? .fill : .fillEqually
     play.text = item.playText.isEmpty ? "" : item.playText + "播放"
     play.textColor = NativeTheme.playCountColor(item.play)
-    time.text = NativeTheme.freshness(item.pubdate)
-    time.textColor = NativeTheme.freshnessColor(item.pubdate)
-    duration.text = item.duration
-    duration.isHidden = item.roomId > 0
-    live.isHidden = item.roomId == 0
+    if live {
+      time.text = "直播中"
+      time.textColor = UIColor(red: 217.0 / 255.0, green: 120.0 / 255.0,
+                              blue: 98.0 / 255.0, alpha: 1)
+    } else {
+      time.text = NativeTheme.freshness(item.pubdate)
+      time.textColor = NativeTheme.freshnessColor(item.pubdate)
+    }
+    duration.text = season && (item.duration.isEmpty || item.duration == "00:00")
+      ? "番剧" : item.duration
+    duration.isHidden = live
+    self.live.isHidden = !live
     ImageLoader.shared.load(item.pic, into: cover)
-    ImageLoader.shared.load(item.ownerFace, into: avatar, placeholder: nil)
+    if item.ownerFace.isEmpty {
+      avatar.image = nil
+      avatarInitial.text = String(item.owner.prefix(1))
+      avatarInitial.isHidden = false
+    } else {
+      avatarInitial.isHidden = true
+      ImageLoader.shared.load(item.ownerFace, into: avatar, placeholder: nil)
+    }
     if item.progress > 0, item.durationSec > 0 {
       progressTrack.isHidden = false
       let ratio = min(1.0, Double(item.progress) / Double(item.durationSec))
