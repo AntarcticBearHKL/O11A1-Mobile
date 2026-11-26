@@ -39,7 +39,7 @@ final class AIViewController: UIViewController, UITextViewDelegate {
     root.addArrangedSubview(title)
 
     let hint = UILabel()
-    hint.text = "OpenAI 鍏煎鎺ュ彛 路 鐪熷疄璇锋眰 路 缁撴灉鍙湪鏈満鏄剧ず\n娌℃湁 API Key 鏃朵笉浼氫吉閫犵粨鏋?
+    hint.text = "OpenAI 兼容接口 · 真实请求 · 结果只在本机显示\n没有 API Key 时不会伪造结果"
     hint.font = NativeTheme.bodyFont(12)
     hint.textColor = NativeTheme.secondary
     hint.numberOfLines = 0
@@ -62,7 +62,7 @@ final class AIViewController: UIViewController, UITextViewDelegate {
     modelField.text = defaults.string(forKey: "ai_model") ?? modelField.placeholder
     root.addArrangedSubview(modelField)
 
-    root.addArrangedSubview(label("楗叉枡 / 鎻愮ず璇?))
+    root.addArrangedSubview(label("饲料 / 提示词"))
     promptView.font = NativeTheme.bodyFont(13)
     promptView.textColor = NativeTheme.foreground
     promptView.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
@@ -70,7 +70,7 @@ final class AIViewController: UIViewController, UITextViewDelegate {
     promptView.layer.cornerCurve = .continuous
     promptView.textContainerInset = UIEdgeInsets(top: 10, left: 8, bottom: 10, right: 8)
     promptView.text = defaults.string(forKey: "ai_prompt")
-      ?? "鐢ㄤ笁鍙ヨ瘽鐐硅瘎浠婂ぉ B 绔欐渶鐑殑涓€鏉¤棰戯紝骞剁粰鍑轰竴涓吇楸煎紡鐨勬瘮鍠汇€?
+      ?? "用三句话点评今天 B 站最热的一条视频，并给出一个养鱼式的比喻。"
     promptView.heightAnchor.constraint(equalToConstant: 120).isActive = true
     promptView.delegate = self
     root.addArrangedSubview(promptView)
@@ -91,7 +91,7 @@ final class AIViewController: UIViewController, UITextViewDelegate {
     outputView.layer.cornerRadius = 16
     outputView.layer.cornerCurve = .continuous
     outputView.textContainerInset = UIEdgeInsets(top: 14, left: 12, bottom: 14, right: 12)
-    outputView.text = "绛夊緟鎶曞杺銆?
+    outputView.text = "等待投喂。"
     outputView.isEditable = false
     outputView.isSelectable = true
     outputView.heightAnchor.constraint(greaterThanOrEqualToConstant: 160).isActive = true
@@ -131,16 +131,16 @@ final class AIViewController: UIViewController, UITextViewDelegate {
     defaults.set(model, forKey: "ai_model")
     defaults.set(prompt, forKey: "ai_prompt")
     if key.isEmpty {
-      outputView.text = "闇€瑕佸厛濉啓 API Key銆俓n杩欓噷涓嶄細鍦ㄦ病 Key 鏃朵吉閫犵粨鏋溿€?
+      outputView.text = "需要先填写 API Key。\n这里不会在没 Key 时伪造结果。"
       return
     }
     if prompt.isEmpty {
-      outputView.text = "鍏堝啓鐐归ゲ鏂?/ 鎻愮ず璇嶃€?
+      outputView.text = "先写点饲料 / 提示词。"
       return
     }
     runButton.isEnabled = false
-    runButton.setTitle("鐢熸垚涓€?, for: .normal)
-    outputView.text = "姝ｅ湪璇锋眰 AI鈥?
+    runButton.setTitle("生成中…", for: .normal)
+    outputView.text = "正在请求 AI…"
     BiliAPI.shared.aiChat(endpoint: endpoint, apiKey: key, model: model, prompt: prompt) { [weak self] result in
       guard let self = self else { return }
       self.runButton.isEnabled = true
