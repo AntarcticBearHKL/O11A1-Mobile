@@ -66,7 +66,7 @@ final class AIViewController: UIViewController, UITextViewDelegate {
     promptView.font = NativeTheme.bodyFont(13)
     promptView.textColor = NativeTheme.foreground
     promptView.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
-    promptView.layer.cornerRadius = 12
+    promptView.layer.cornerRadius = NativeTheme.cornerRadius
     promptView.layer.cornerCurve = .continuous
     promptView.textContainerInset = UIEdgeInsets(top: 10, left: 8, bottom: 10, right: 8)
     promptView.text = defaults.string(forKey: "ai_prompt")
@@ -79,7 +79,7 @@ final class AIViewController: UIViewController, UITextViewDelegate {
     runButton.setTitleColor(.white, for: .normal)
     runButton.titleLabel?.font = NativeTheme.titleFont(15)
     runButton.backgroundColor = NativeTheme.accent
-    runButton.layer.cornerRadius = 16
+    runButton.layer.cornerRadius = NativeTheme.cornerRadius
     runButton.layer.cornerCurve = .continuous
     runButton.heightAnchor.constraint(equalToConstant: 48).isActive = true
     runButton.addTarget(self, action: #selector(run), for: .touchUpInside)
@@ -88,7 +88,7 @@ final class AIViewController: UIViewController, UITextViewDelegate {
     outputView.font = NativeTheme.bodyFont(14)
     outputView.textColor = NativeTheme.foreground
     outputView.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
-    outputView.layer.cornerRadius = 16
+    outputView.layer.cornerRadius = NativeTheme.cornerRadius
     outputView.layer.cornerCurve = .continuous
     outputView.textContainerInset = UIEdgeInsets(top: 14, left: 12, bottom: 14, right: 12)
     outputView.text = "等待投喂。"
@@ -112,7 +112,7 @@ final class AIViewController: UIViewController, UITextViewDelegate {
     field.font = NativeTheme.bodyFont(13)
     field.textColor = NativeTheme.foreground
     field.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
-    field.layer.cornerRadius = 12
+    field.layer.cornerRadius = NativeTheme.cornerRadius
     field.layer.cornerCurve = .continuous
     field.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 12, height: 1))
     field.leftViewMode = .always

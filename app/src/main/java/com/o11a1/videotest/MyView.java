@@ -156,7 +156,7 @@ final class MyView extends FrameLayout {
         accountAction.setPadding(NativeTheme.dp(context, 15), 0,
             NativeTheme.dp(context, 15), 0);
         GradientDrawable actionBg = NativeTheme.rounded(0x00000000,
-            NativeTheme.dp(context, 17));
+            NativeTheme.dp(context, 18));
         actionBg.setStroke(Math.max(1, NativeTheme.dp(context, 0.5f)),
             NativeTheme.hairline(context));
         accountAction.setBackground(actionBg);
@@ -290,7 +290,7 @@ final class MyView extends FrameLayout {
                 accountAction.setText(loggedIn ? (vip ? "大会员" : "账户") : "登录");
                 GradientDrawable actionBg = NativeTheme.rounded(
                     loggedIn && vip ? NativeTheme.navSoft(context) : 0x00000000,
-                    NativeTheme.dp(context, 17));
+                    NativeTheme.dp(context, 18));
                 actionBg.setStroke(Math.max(1, NativeTheme.dp(context, 0.5f)),
                     loggedIn && vip ? 0x592F7CF6 : NativeTheme.hairline(context));
                 accountAction.setBackground(actionBg);

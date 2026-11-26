@@ -58,7 +58,7 @@ final class LoginDialog {
             NativeTheme.dp(context, 24), NativeTheme.dp(context, 20));
         root.setBackground(NativeTheme.rounded(
             NativeTheme.isDark(context) ? 0xFF141414 : 0xFFFFFFFF,
-            NativeTheme.dp(context, 20)));
+            NativeTheme.dp(context, 18)));
 
         TextView title = new TextView(context);
         title.setText("扫码登录 B 站");

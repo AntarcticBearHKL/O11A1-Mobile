@@ -46,7 +46,7 @@ final class SidebarView extends FrameLayout {
             NativeTheme.isDark(context)
                 ? new int[]{0xBD121720, 0xE00A0D13}
                 : new int[]{0xBDFAFAFC, 0xE0F4F5F9});
-        float r = NativeTheme.dp(context, 26);
+        float r = NativeTheme.dp(context, 18);
         bg.setCornerRadii(new float[]{0, 0, r, r, r, r, 0, 0});
         bg.setStroke(Math.max(1, NativeTheme.dp(context, 1)),
             NativeTheme.isDark(context) ? 0x14FFFFFF : 0x94FFFFFF);

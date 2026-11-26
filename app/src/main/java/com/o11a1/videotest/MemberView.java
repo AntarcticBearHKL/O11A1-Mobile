@@ -51,7 +51,7 @@ final class MemberView {
 
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackground(NativeTheme.rounded(NativeTheme.background(context), NativeTheme.dp(context, 22)));
+        root.setBackground(NativeTheme.rounded(NativeTheme.background(context), NativeTheme.dp(context, 18)));
 
         LinearLayout header = new LinearLayout(context);
         header.setOrientation(LinearLayout.HORIZONTAL);
@@ -132,7 +132,7 @@ final class MemberView {
                         login.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
                         login.setTypeface(NativeTheme.titleTypeface());
                         login.setGravity(Gravity.CENTER);
-                        login.setBackground(NativeTheme.rounded(NativeTheme.ACCENT, NativeTheme.dp(context, 16)));
+                        login.setBackground(NativeTheme.rounded(NativeTheme.ACCENT, NativeTheme.dp(context, 18)));
                         login.setOnClickListener(v -> {
                             dismiss();
                             if (onLogin != null) onLogin.run();
@@ -159,7 +159,7 @@ final class MemberView {
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(NativeTheme.dp(context, 16), NativeTheme.dp(context, 16),
             NativeTheme.dp(context, 16), NativeTheme.dp(context, 16));
-        card.setBackground(NativeTheme.glassPanel(context, NativeTheme.dp(context, 16)));
+        card.setBackground(NativeTheme.glassPanel(context, NativeTheme.dp(context, 18)));
         content.addView(card, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -271,7 +271,7 @@ final class MemberView {
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(NativeTheme.dp(context, 16), NativeTheme.dp(context, 14),
             NativeTheme.dp(context, 16), NativeTheme.dp(context, 14));
-        card.setBackground(NativeTheme.glassPanel(context, NativeTheme.dp(context, 16)));
+        card.setBackground(NativeTheme.glassPanel(context, NativeTheme.dp(context, 18)));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         params.topMargin = NativeTheme.dp(context, 8);

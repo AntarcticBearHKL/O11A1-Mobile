@@ -173,7 +173,7 @@ final class VideoRowCell: UITableViewCell {
 
     cover.contentMode = .scaleAspectFill
     cover.clipsToBounds = true
-    cover.layer.cornerRadius = 10
+    cover.layer.cornerRadius = NativeTheme.cornerRadius
     cover.backgroundColor = UIColor(white: 0.12, alpha: 1)
     contentView.addSubview(cover)
 
@@ -189,7 +189,7 @@ final class VideoRowCell: UITableViewCell {
     duration.font = NativeTheme.numberFont(11)
     duration.textColor = .white
     duration.backgroundColor = UIColor.black.withAlphaComponent(0.58)
-    duration.layer.cornerRadius = 4
+    duration.layer.cornerRadius = NativeTheme.cornerRadius
     duration.clipsToBounds = true
     duration.textAlignment = .center
     contentView.addSubview(duration)

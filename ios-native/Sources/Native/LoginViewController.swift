@@ -24,7 +24,7 @@ final class LoginViewController: UIViewController {
 
     let card = UIView()
     card.backgroundColor = NativeTheme.background
-    card.layer.cornerRadius = 22
+    card.layer.cornerRadius = NativeTheme.cornerRadius
     card.layer.cornerCurve = .continuous
     view.addSubview(card)
     card.translatesAutoresizingMaskIntoConstraints = false
@@ -50,7 +50,7 @@ final class LoginViewController: UIViewController {
 
     qrView.backgroundColor = .white
     qrView.contentMode = .scaleAspectFit
-    qrView.layer.cornerRadius = 8
+    qrView.layer.cornerRadius = NativeTheme.cornerRadius
     qrView.clipsToBounds = true
     card.addSubview(qrView)
 

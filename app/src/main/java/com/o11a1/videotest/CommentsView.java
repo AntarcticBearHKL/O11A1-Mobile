@@ -77,7 +77,7 @@ final class CommentsView {
 
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackground(NativeTheme.rounded(NativeTheme.background(context), NativeTheme.dp(context, 20)));
+        root.setBackground(NativeTheme.rounded(NativeTheme.background(context), NativeTheme.dp(context, 18)));
         root.setPadding(0, 0, 0, 0);
 
         LinearLayout header = new LinearLayout(context);

@@ -57,7 +57,7 @@ final class PlayerSettingsViewController: UIViewController, UIGestureRecognizerD
         ? UIColor(red: 247.0 / 255.0, green: 248.0 / 255.0, blue: 250.0 / 255.0, alpha: 1)
         : UIColor(red: 14.0 / 255.0, green: 17.0 / 255.0, blue: 23.0 / 255.0, alpha: 1)
     }
-    card.layer.cornerRadius = 30
+    card.layer.cornerRadius = NativeTheme.cornerRadius
     card.layer.cornerCurve = .continuous
     card.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
     card.clipsToBounds = true
@@ -126,7 +126,7 @@ final class PlayerSettingsViewController: UIViewController, UIGestureRecognizerD
       chip.tag = index
       chip.setTitle(entry.0, for: .normal)
       chip.titleLabel?.font = UIFont.systemFont(ofSize: 11, weight: .bold)
-      chip.layer.cornerRadius = 13
+      chip.layer.cornerRadius = NativeTheme.cornerRadius
       chip.layer.cornerCurve = .continuous
       chip.heightAnchor.constraint(equalToConstant: 26).isActive = true
       chip.addTarget(self, action: #selector(qualityTapped(_:)), for: .touchUpInside)
@@ -183,7 +183,7 @@ final class PlayerSettingsViewController: UIViewController, UIGestureRecognizerD
         ? .white
         : UIColor(red: 23.0 / 255.0, green: 28.0 / 255.0, blue: 36.0 / 255.0, alpha: 1)
     }
-    tile.layer.cornerRadius = 16
+    tile.layer.cornerRadius = NativeTheme.cornerRadius
     tile.layer.cornerCurve = .continuous
     tile.layer.borderWidth = 1
     tile.layer.borderColor = UIColor { trait in
@@ -229,7 +229,7 @@ final class PlayerSettingsViewController: UIViewController, UIGestureRecognizerD
         ? UIColor(red: 20.0 / 255.0, green: 25.0 / 255.0, blue: 35.0 / 255.0, alpha: 0.045)
         : UIColor(white: 1, alpha: 0.055)
     }
-    value.layer.cornerRadius = 10
+    value.layer.cornerRadius = NativeTheme.cornerRadius
     value.layer.cornerCurve = .continuous
     value.clipsToBounds = true
     value.isUserInteractionEnabled = false

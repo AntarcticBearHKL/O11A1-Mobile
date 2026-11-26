@@ -29,7 +29,7 @@ final class DynamicViewController: UIViewController, UITableViewDataSource, UITa
     filterButton.titleLabel?.font = UIFont.systemFont(ofSize: 10.5, weight: .medium)
     filterButton.setTitleColor(NativeTheme.secondary, for: .normal)
     filterButton.contentEdgeInsets = UIEdgeInsets(top: 5, left: 10, bottom: 5, right: 10)
-    filterButton.layer.cornerRadius = 12
+    filterButton.layer.cornerRadius = NativeTheme.cornerRadius
     filterButton.layer.cornerCurve = .continuous
     filterButton.layer.borderWidth = 1
     filterButton.layer.borderColor = NativeTheme.hairline.cgColor
@@ -65,7 +65,7 @@ final class DynamicViewController: UIViewController, UITableViewDataSource, UITa
     emptyButton.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .bold)
     emptyButton.setTitleColor(NativeTheme.navBlue, for: .normal)
     emptyButton.backgroundColor = NativeTheme.navSoft
-    emptyButton.layer.cornerRadius = 17
+    emptyButton.layer.cornerRadius = NativeTheme.cornerRadius
     emptyButton.layer.cornerCurve = .continuous
     emptyButton.contentEdgeInsets = UIEdgeInsets(top: 8, left: 18, bottom: 8, right: 18)
     emptyButton.addTarget(self, action: #selector(emptyAction), for: .touchUpInside)
@@ -284,7 +284,7 @@ final class DynamicCardCell: UITableViewCell {
     foot.addArrangedSubview(comments)
 
     videoCard.backgroundColor = NativeTheme.background
-    videoCard.layer.cornerRadius = 14
+    videoCard.layer.cornerRadius = NativeTheme.cornerRadius
     videoCard.layer.cornerCurve = .continuous
     videoCard.layer.borderWidth = 1
     videoCard.layer.borderColor = NativeTheme.hairline.cgColor
@@ -293,7 +293,7 @@ final class DynamicCardCell: UITableViewCell {
 
     videoCover.contentMode = .scaleAspectFill
     videoCover.clipsToBounds = true
-    videoCover.layer.cornerRadius = 10
+    videoCover.layer.cornerRadius = NativeTheme.cornerRadius
     videoCover.layer.cornerCurve = .continuous
     videoCover.backgroundColor = NativeTheme.tertiary.withAlphaComponent(0.15)
     videoCover.isUserInteractionEnabled = false
@@ -395,7 +395,7 @@ final class DynamicCardCell: UITableViewCell {
             let image = UIImageView()
             image.contentMode = .scaleAspectFill
             image.clipsToBounds = true
-            image.layer.cornerRadius = 10
+            image.layer.cornerRadius = NativeTheme.cornerRadius
             image.layer.cornerCurve = .continuous
             image.backgroundColor = NativeTheme.tertiary.withAlphaComponent(0.15)
             ImageLoader.shared.load(item.images[index + column], into: image, placeholder: nil)

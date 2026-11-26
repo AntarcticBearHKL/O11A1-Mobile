@@ -49,7 +49,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   override func viewDidLoad() {
     super.viewDidLoad()
     view.backgroundColor = NativeTheme.background
-    view.layer.cornerRadius = 28
+    view.layer.cornerRadius = NativeTheme.cornerRadius
     view.layer.cornerCurve = .continuous
     view.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
     view.clipsToBounds = true
@@ -93,7 +93,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     headerTitle.translatesAutoresizingMaskIntoConstraints = false
 
     bottomCard.backgroundColor = .clear
-    bottomCard.layer.cornerRadius = 24
+    bottomCard.layer.cornerRadius = NativeTheme.cornerRadius
     bottomCard.layer.cornerCurve = .continuous
     bottomCard.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
     bottomCard.clipsToBounds = true
@@ -137,7 +137,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     uidLabel.translatesAutoresizingMaskIntoConstraints = false
 
     followButton.titleLabel?.font = UIFont.systemFont(ofSize: 11.5, weight: .bold)
-    followButton.layer.cornerRadius = 17
+    followButton.layer.cornerRadius = NativeTheme.cornerRadius
     followButton.layer.cornerCurve = .continuous
     followButton.layer.borderWidth = 0.5
     followButton.contentEdgeInsets = UIEdgeInsets(top: 0, left: 15, bottom: 0, right: 15)
@@ -146,7 +146,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     followButton.translatesAutoresizingMaskIntoConstraints = false
     updateFollowButton()
 
-    sortDock.layer.cornerRadius = 26
+    sortDock.layer.cornerRadius = NativeTheme.cornerRadius
     sortDock.layer.cornerCurve = .continuous
     sortDock.layer.borderWidth = 0.5
     sortDock.layer.borderColor = NativeTheme.hairline.cgColor
@@ -158,7 +158,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     view.addSubview(sortDock)
     sortDock.translatesAutoresizingMaskIntoConstraints = false
 
-    sortBlur.layer.cornerRadius = 26
+    sortBlur.layer.cornerRadius = NativeTheme.cornerRadius
     sortBlur.layer.cornerCurve = .continuous
     sortBlur.clipsToBounds = true
     sortDock.addSubview(sortBlur)
@@ -167,7 +167,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     for (index, button) in [latestButton, playButton].enumerated() {
       button.tag = index
       button.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .bold)
-      button.layer.cornerRadius = 21
+      button.layer.cornerRadius = NativeTheme.cornerRadius
       button.layer.cornerCurve = .continuous
       button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
       button.widthAnchor.constraint(equalToConstant: 92).isActive = true

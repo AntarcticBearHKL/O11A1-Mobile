@@ -16,7 +16,7 @@ final class FishViewController: UIViewController {
     view.addSubview(titleLabel)
 
     tank.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
-    tank.layer.cornerRadius = 24
+    tank.layer.cornerRadius = NativeTheme.cornerRadius
     tank.layer.cornerCurve = .continuous
     tank.clipsToBounds = true
     view.addSubview(tank)

@@ -164,7 +164,9 @@ enum NativeTheme {
   static let warmOrange = UIColor(red: 1.0, green: 0.62, blue: 0.26, alpha: 1)
   static let hotPink = UIColor(red: 1.0, green: 0.36, blue: 0.54, alpha: 1)
 
-  static let cardRadius: CGFloat = 14
+  static let cardRadius: CGFloat = 18
+  /// The one radius used by rectangular surfaces across the app.
+  static let cornerRadius: CGFloat = 18
   static let toolbarInset: CGFloat = 12
   static let avatarSize: CGFloat = 50
 

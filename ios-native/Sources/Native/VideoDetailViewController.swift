@@ -55,7 +55,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     view.backgroundColor = .clear
 
     card.backgroundColor = NativeTheme.background.withAlphaComponent(0.98)
-    card.layer.cornerRadius = 28
+    card.layer.cornerRadius = NativeTheme.cornerRadius
     card.layer.cornerCurve = .continuous
     card.clipsToBounds = true
     view.addSubview(card)
@@ -95,7 +95,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
 
     cover.contentMode = .scaleAspectFill
     cover.clipsToBounds = true
-    cover.layer.cornerRadius = 22
+    cover.layer.cornerRadius = NativeTheme.cornerRadius
     cover.layer.cornerCurve = .continuous
     cover.backgroundColor = NativeTheme.tertiary.withAlphaComponent(0.18)
     ImageLoader.shared.load(item.pic, into: cover)
@@ -114,7 +114,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     durationChip.textColor = .white
     durationChip.textAlignment = .center
     durationChip.backgroundColor = UIColor.black.withAlphaComponent(0.78)
-    durationChip.layer.cornerRadius = 5
+    durationChip.layer.cornerRadius = NativeTheme.cornerRadius
     durationChip.clipsToBounds = true
     hero.addSubview(durationChip)
     durationChip.translatesAutoresizingMaskIntoConstraints = false
@@ -148,7 +148,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
 
     let author = UIView()
     author.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
-    author.layer.cornerRadius = 18
+    author.layer.cornerRadius = NativeTheme.cornerRadius
     author.layer.cornerCurve = .continuous
     stack.addArrangedSubview(author)
 
@@ -208,7 +208,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     stats.distribution = .fillEqually
     stats.alignment = .fill
     stats.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
-    stats.layer.cornerRadius = 14
+    stats.layer.cornerRadius = NativeTheme.cornerRadius
     stats.layer.cornerCurve = .continuous
     stats.isLayoutMarginsRelativeArrangement = true
     stats.layoutMargins = UIEdgeInsets(top: 10, left: 0, bottom: 10, right: 0)
@@ -257,7 +257,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
 
     let settingsTile = UIView()
     settingsTile.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
-    settingsTile.layer.cornerRadius = 16
+    settingsTile.layer.cornerRadius = NativeTheme.cornerRadius
     settingsTile.layer.cornerCurve = .continuous
     stack.addArrangedSubview(settingsTile)
 
@@ -365,7 +365,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       let button = UIButton(type: .custom)
       button.setTitle(entry.0, for: .normal)
       button.titleLabel?.font = UIFont.systemFont(ofSize: 10, weight: .bold)
-      button.layer.cornerRadius = 8
+      button.layer.cornerRadius = NativeTheme.cornerRadius
       button.layer.cornerCurve = .continuous
       button.layer.borderWidth = 1
       button.contentEdgeInsets = UIEdgeInsets(top: 5, left: 9, bottom: 5, right: 9)

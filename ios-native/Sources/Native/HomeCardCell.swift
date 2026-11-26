@@ -70,7 +70,7 @@ final class HomeCardCell: UITableViewCell {
     duration.textColor = .white
     duration.textAlignment = .center
     duration.backgroundColor = UIColor.black.withAlphaComponent(0.78)
-    duration.layer.cornerRadius = 5
+    duration.layer.cornerRadius = NativeTheme.cornerRadius
     duration.clipsToBounds = true
     media.addSubview(duration)
     duration.translatesAutoresizingMaskIntoConstraints = false
@@ -80,7 +80,7 @@ final class HomeCardCell: UITableViewCell {
     live.textColor = .white
     live.textAlignment = .center
     live.backgroundColor = UIColor(red: 0.90, green: 0.24, blue: 0.24, alpha: 1)
-    live.layer.cornerRadius = 5
+    live.layer.cornerRadius = NativeTheme.cornerRadius
     live.clipsToBounds = true
     media.addSubview(live)
     live.translatesAutoresizingMaskIntoConstraints = false
@@ -96,7 +96,7 @@ final class HomeCardCell: UITableViewCell {
     previewBar.translatesAutoresizingMaskIntoConstraints = false
 
     copyView.backgroundColor = .clear
-    copyView.layer.cornerRadius = 14
+    copyView.layer.cornerRadius = NativeTheme.cornerRadius
     copyView.layer.cornerCurve = .continuous
     copyView.layer.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
     copyView.clipsToBounds = true
@@ -273,7 +273,7 @@ final class HomeCardCell: UITableViewCell {
     contentView.layer.shadowPath = UIBezierPath(
       roundedRect: shadowRect,
       byRoundingCorners: [.bottomLeft, .bottomRight],
-      cornerRadii: CGSize(width: 14, height: 14)).cgPath
+      cornerRadii: CGSize(width: NativeTheme.cornerRadius, height: NativeTheme.cornerRadius)).cgPath
     contentView.layer.shadowOpacity =
       traitCollection.userInterfaceStyle == .dark ? 0.38 : 0.10
     CATransaction.commit()

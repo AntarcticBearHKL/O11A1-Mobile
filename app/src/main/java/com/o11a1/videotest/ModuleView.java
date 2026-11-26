@@ -200,7 +200,7 @@ final class ModuleView extends FrameLayout {
         chip.setTextColor(active ? Color.WHITE : NativeTheme.secondary(context));
         chip.setBackground(NativeTheme.rounded(
             active ? NativeTheme.ACCENT : (NativeTheme.isDark(context) ? 0x22FFFFFF : 0x0D000000),
-            NativeTheme.dp(context, 14)));
+            NativeTheme.dp(context, 18)));
     }
 
     private void load(boolean reset) {

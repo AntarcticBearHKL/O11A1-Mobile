@@ -155,7 +155,7 @@ final class PlayerOverlay extends FrameLayout {
         followButton.setGravity(android.view.Gravity.CENTER);
         followButton.setPadding(NativeTheme.dp(context, 10), NativeTheme.dp(context, 4),
             NativeTheme.dp(context, 10), NativeTheme.dp(context, 4));
-        followButton.setBackground(NativeTheme.rounded(0x33FFFFFF, NativeTheme.dp(context, 12)));
+        followButton.setBackground(NativeTheme.rounded(0x33FFFFFF, NativeTheme.dp(context, 18)));
         followButton.setOnClickListener(v -> pool.execute(() -> {
             JSONObject result = extras.follow(item.mid, true);
             final boolean ok = result != null && result.optBoolean("ok", false);

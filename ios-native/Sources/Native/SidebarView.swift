@@ -42,7 +42,7 @@ final class SidebarView: UIView {
     ])
 
     let bg = UIView()
-    bg.layer.cornerRadius = 26
+    bg.layer.cornerRadius = NativeTheme.cornerRadius
     bg.layer.cornerCurve = .continuous
     bg.layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
     bg.layer.borderWidth = 1
@@ -65,7 +65,7 @@ final class SidebarView: UIView {
       bg.bottomAnchor.constraint(equalTo: panel.bottomAnchor),
     ])
 
-    blur.layer.cornerRadius = 26
+    blur.layer.cornerRadius = NativeTheme.cornerRadius
     blur.layer.cornerCurve = .continuous
     blur.layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
     blur.clipsToBounds = true

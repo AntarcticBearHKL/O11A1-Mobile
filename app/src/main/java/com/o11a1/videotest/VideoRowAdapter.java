@@ -98,7 +98,7 @@ final class VideoRowAdapter extends RecyclerView.Adapter<VideoRowAdapter.Holder>
             duration.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
             duration.setTypeface(NativeTheme.numberTypeface());
             duration.setGravity(Gravity.CENTER);
-            duration.setBackground(NativeTheme.rounded(0x99000000, NativeTheme.dp(context, 4)));
+            duration.setBackground(NativeTheme.rounded(0x99000000, NativeTheme.dp(context, 18)));
             FrameLayout.LayoutParams dp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, NativeTheme.dp(context, 17));
             dp.gravity = Gravity.END | Gravity.BOTTOM;

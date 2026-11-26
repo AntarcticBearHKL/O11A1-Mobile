@@ -139,7 +139,7 @@ final class ModuleListViewController: UIViewController, UITableViewDataSource, U
       button.setTitle(label, for: .normal)
       button.titleLabel?.font = NativeTheme.bodyFont(12)
       button.contentEdgeInsets = UIEdgeInsets(top: 6, left: 14, bottom: 6, right: 14)
-      button.layer.cornerRadius = 15
+      button.layer.cornerRadius = NativeTheme.cornerRadius
       button.layer.cornerCurve = .continuous
       button.tag = index
       button.addTarget(self, action: #selector(filterTapped(_:)), for: .touchUpInside)
@@ -318,7 +318,7 @@ final class ModuleMediaCell: UITableViewCell {
 
     cover.contentMode = .scaleAspectFill
     cover.clipsToBounds = true
-    cover.layer.cornerRadius = 10
+    cover.layer.cornerRadius = NativeTheme.cornerRadius
     cover.backgroundColor = UIColor(white: 0.12, alpha: 1)
     contentView.addSubview(cover)
 
@@ -334,7 +334,7 @@ final class ModuleMediaCell: UITableViewCell {
     duration.font = NativeTheme.numberFont(10)
     duration.textColor = .white
     duration.backgroundColor = UIColor.black.withAlphaComponent(0.58)
-    duration.layer.cornerRadius = 4
+    duration.layer.cornerRadius = NativeTheme.cornerRadius
     duration.clipsToBounds = true
     duration.textAlignment = .center
     contentView.addSubview(duration)
@@ -342,7 +342,7 @@ final class ModuleMediaCell: UITableViewCell {
     badge.font = NativeTheme.numberFont(9)
     badge.textColor = .white
     badge.backgroundColor = NativeTheme.accent
-    badge.layer.cornerRadius = 4
+    badge.layer.cornerRadius = NativeTheme.cornerRadius
     badge.clipsToBounds = true
     badge.textAlignment = .center
     contentView.addSubview(badge)

@@ -136,7 +136,7 @@ final class ModuleAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             duration.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
             duration.setTypeface(NativeTheme.numberTypeface());
             duration.setGravity(Gravity.CENTER);
-            duration.setBackground(NativeTheme.rounded(0x99000000, NativeTheme.dp(context, 4)));
+            duration.setBackground(NativeTheme.rounded(0x99000000, NativeTheme.dp(context, 18)));
             duration.setPadding(NativeTheme.dp(context, 4), 0, NativeTheme.dp(context, 4), 0);
             FrameLayout.LayoutParams durationParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, NativeTheme.dp(context, 17));
@@ -148,7 +148,7 @@ final class ModuleAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
             badge.setTextColor(Color.WHITE);
             badge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
             badge.setGravity(Gravity.CENTER);
-            badge.setBackground(NativeTheme.rounded(0xCCFF5C75, NativeTheme.dp(context, 4)));
+            badge.setBackground(NativeTheme.rounded(0xCCFF5C75, NativeTheme.dp(context, 18)));
             badge.setPadding(NativeTheme.dp(context, 4), 0, NativeTheme.dp(context, 4), 0);
             FrameLayout.LayoutParams badgeParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, NativeTheme.dp(context, 18));

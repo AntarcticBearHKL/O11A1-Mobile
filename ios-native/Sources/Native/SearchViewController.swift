@@ -44,7 +44,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     blur.contentView.layer.addSublayer(headGradient)
 
     fieldWrap.backgroundColor = NativeTheme.background
-    fieldWrap.layer.cornerRadius = 16
+    fieldWrap.layer.cornerRadius = NativeTheme.cornerRadius
     fieldWrap.layer.cornerCurve = .continuous
     fieldWrap.layer.borderWidth = 1
     fieldWrap.layer.borderColor = NativeTheme.hairline.cgColor
@@ -477,7 +477,7 @@ private final class SearchResultCell: UITableViewCell {
 
     cover.contentMode = .scaleAspectFill
     cover.clipsToBounds = true
-    cover.layer.cornerRadius = 8
+    cover.layer.cornerRadius = NativeTheme.cornerRadius
     cover.backgroundColor = UIColor(white: 0.12, alpha: 1)
     contentView.addSubview(cover)
     cover.translatesAutoresizingMaskIntoConstraints = false
@@ -496,7 +496,7 @@ private final class SearchResultCell: UITableViewCell {
     duration.font = NativeTheme.numberFont(11)
     duration.textColor = .white
     duration.backgroundColor = UIColor.black.withAlphaComponent(0.58)
-    duration.layer.cornerRadius = 4
+    duration.layer.cornerRadius = NativeTheme.cornerRadius
     duration.clipsToBounds = true
     duration.textAlignment = .center
     contentView.addSubview(duration)

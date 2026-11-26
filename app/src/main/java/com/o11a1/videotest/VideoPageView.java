@@ -53,7 +53,7 @@ final class VideoPageView extends FrameLayout {
         panel.setOrientation(LinearLayout.VERTICAL);
         GradientDrawable panelBg = new GradientDrawable();
         panelBg.setColor(0xB3000000);
-        float radius = NativeTheme.dp(context, 14);
+        float radius = NativeTheme.dp(context, 18);
         panelBg.setCornerRadii(new float[]{0, 0, 0, 0, radius, radius, radius, radius});
         panelBg.setStroke(Math.max(1, NativeTheme.dp(context, 0.5f)), 0x22FFFFFF);
         panel.setBackground(panelBg);

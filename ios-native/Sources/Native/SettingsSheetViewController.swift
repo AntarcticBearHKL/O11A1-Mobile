@@ -53,7 +53,7 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
       scrim.bottomAnchor.constraint(equalTo: view.bottomAnchor),
     ])
 
-    card.layer.cornerRadius = 26
+    card.layer.cornerRadius = NativeTheme.cornerRadius
     card.layer.cornerCurve = .continuous
     card.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
     card.layer.borderWidth = 1
@@ -76,7 +76,7 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
                                 constant: 16),
     ])
 
-    blur.layer.cornerRadius = 26
+    blur.layer.cornerRadius = NativeTheme.cornerRadius
     blur.layer.cornerCurve = .continuous
     blur.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
     blur.clipsToBounds = true
@@ -89,7 +89,7 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
       blur.bottomAnchor.constraint(equalTo: card.bottomAnchor),
     ])
     tint.backgroundColor = NativeTheme.sheetGlass
-    tint.layer.cornerRadius = 26
+    tint.layer.cornerRadius = NativeTheme.cornerRadius
     tint.layer.cornerCurve = .continuous
     tint.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
     tint.clipsToBounds = true
@@ -139,7 +139,7 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
     closeButton.titleLabel?.font = UIFont.systemFont(ofSize: 12.5, weight: .bold)
     closeButton.setTitleColor(NativeTheme.foreground, for: .normal)
     closeButton.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.06)
-    closeButton.layer.cornerRadius = 12
+    closeButton.layer.cornerRadius = NativeTheme.cornerRadius
     closeButton.layer.cornerCurve = .continuous
     closeButton.addTarget(self, action: #selector(close), for: .touchUpInside)
     card.addSubview(closeButton)
@@ -222,7 +222,8 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
     card.layer.shadowPath = UIBezierPath(
       roundedRect: card.bounds,
       byRoundingCorners: [.topLeft, .topRight],
-      cornerRadii: CGSize(width: 26, height: 26)).cgPath
+      cornerRadii: CGSize(width: NativeTheme.cornerRadius,
+                          height: NativeTheme.cornerRadius)).cgPath
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -390,7 +391,7 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
         let button = UIButton(type: .custom)
         button.setTitle(option, for: .normal)
         button.titleLabel?.font = UIFont.systemFont(ofSize: 10, weight: .medium)
-        button.layer.cornerRadius = 8
+        button.layer.cornerRadius = NativeTheme.cornerRadius
         button.layer.cornerCurve = .continuous
         button.layer.borderWidth = 1
         button.contentEdgeInsets = UIEdgeInsets(top: 5, left: 9, bottom: 5, right: 9)

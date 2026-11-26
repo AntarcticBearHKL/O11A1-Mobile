@@ -65,7 +65,7 @@ final class MemberCenterViewController: UIViewController {
     status.textColor = NativeTheme.secondary
     status.textAlignment = .center
     status.numberOfLines = 0
-    status.text = "正在加载会员信息…"
+    status.text = "正在加载会员信息�?
     status.isHidden = false
 
     load()
@@ -76,7 +76,7 @@ final class MemberCenterViewController: UIViewController {
   }
 
   private func load() {
-    status.text = "正在加载会员信息…"
+    status.text = "正在加载会员信息�?
     status.isHidden = false
     BiliAPI.shared.memberCenter { [weak self] result in
       guard let self = self else { return }
@@ -91,7 +91,7 @@ final class MemberCenterViewController: UIViewController {
           login.setTitleColor(.white, for: .normal)
           login.titleLabel?.font = NativeTheme.titleFont(15)
           login.backgroundColor = NativeTheme.accent
-          login.layer.cornerRadius = 16
+          login.layer.cornerRadius = NativeTheme.cornerRadius
           login.layer.cornerCurve = .continuous
           login.heightAnchor.constraint(equalToConstant: 48).isActive = true
           login.addAction(UIAction { [weak self] _ in self?.showLogin() }, for: .touchUpInside)
@@ -116,7 +116,7 @@ final class MemberCenterViewController: UIViewController {
 
     let card = UIView()
     card.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
-    card.layer.cornerRadius = 16
+    card.layer.cornerRadius = NativeTheme.cornerRadius
     card.layer.cornerCurve = .continuous
     let cardStack = UIStackView()
     cardStack.axis = .vertical
@@ -131,17 +131,17 @@ final class MemberCenterViewController: UIViewController {
     ])
 
     let vipTitle = UILabel()
-    vipTitle.text = info.vip ? "大会员" : "普通用户"
+    vipTitle.text = info.vip ? "大会�? : "普通用�?
     vipTitle.font = NativeTheme.titleFont(22)
     vipTitle.textColor = info.vip ? NativeTheme.warmOrange : NativeTheme.foreground
     cardStack.addArrangedSubview(vipTitle)
 
     let vipMeta = UILabel()
     if info.vip {
-      let type = info.vipType == 2 ? "年度大会员" : (info.vipType == 1 ? "月度大会员" : "大会员")
+      let type = info.vipType == 2 ? "年度大会�? : (info.vipType == 1 ? "月度大会�? : "大会�?)
       vipMeta.text = type + " · 有效期至 " + formatDate(info.vipDue)
     } else {
-      vipMeta.text = "完成每日任务可积累经验，开通大会员享高清画质。"
+      vipMeta.text = "完成每日任务可积累经验，开通大会员享高清画质�?
     }
     vipMeta.font = NativeTheme.bodyFont(12)
     vipMeta.textColor = NativeTheme.secondary
@@ -178,7 +178,7 @@ final class MemberCenterViewController: UIViewController {
     }
 
     if !info.log.isEmpty {
-      root.addArrangedSubview(sectionTitle("最近经验"))
+      root.addArrangedSubview(sectionTitle("最近经�?))
       let logCard = cardView(info.log.map { entry in
         let row = UIStackView()
         row.axis = .horizontal
@@ -219,7 +219,7 @@ final class MemberCenterViewController: UIViewController {
   private func cardView(_ rows: [UIView]) -> UIView {
     let card = UIView()
     card.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
-    card.layer.cornerRadius = 16
+    card.layer.cornerRadius = NativeTheme.cornerRadius
     card.layer.cornerCurve = .continuous
     let stack = UIStackView(arrangedSubviews: rows)
     stack.axis = .vertical
@@ -236,7 +236,7 @@ final class MemberCenterViewController: UIViewController {
   }
 
   private func formatDate(_ raw: Int64) -> String {
-    guard raw > 0 else { return "—" }
+    guard raw > 0 else { return "�? }
     let seconds = raw > 20_000_000_000 ? raw / 1000 : raw
     let date = Date(timeIntervalSince1970: TimeInterval(seconds))
     let formatter = DateFormatter()

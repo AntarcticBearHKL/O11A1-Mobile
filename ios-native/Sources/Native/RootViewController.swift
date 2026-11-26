@@ -96,7 +96,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     NSLayoutConstraint.activate([
       tabBar.leadingAnchor.constraint(equalTo: mainHost.leadingAnchor, constant: 12),
       tabBar.trailingAnchor.constraint(equalTo: mainHost.trailingAnchor, constant: -12),
-      tabBar.bottomAnchor.constraint(equalTo: mainHost.bottomAnchor, constant: -8),
+      tabBar.bottomAnchor.constraint(equalTo: mainHost.bottomAnchor, constant: -14),
       tabBar.heightAnchor.constraint(equalToConstant: 72),
     ])
 
@@ -497,7 +497,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   private func setRecedeProgress(_ p: CGFloat) {
     let progress = max(0, min(1, p))
     mainHost.layer.masksToBounds = progress > 0
-    mainHost.layer.cornerRadius = 24 * progress
+    mainHost.layer.cornerRadius = NativeTheme.cornerRadius * progress
     let scale = 1 - 0.10 * progress
     let dx = view.bounds.width * 0.10 * progress
     let dy = -view.bounds.height * 0.5 * (1 - scale)

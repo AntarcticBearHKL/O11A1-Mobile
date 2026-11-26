@@ -72,7 +72,7 @@ final class HomeCardView extends LinearLayout {
         duration.setGravity(Gravity.CENTER);
         duration.setPadding(NativeTheme.dp(context, 6), NativeTheme.dp(context, 2),
             NativeTheme.dp(context, 6), NativeTheme.dp(context, 2));
-        duration.setBackground(NativeTheme.rounded(0xC7000000, NativeTheme.dp(context, 5)));
+        duration.setBackground(NativeTheme.rounded(0xC7000000, NativeTheme.dp(context, 18)));
         FrameLayout.LayoutParams durationParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
         durationParams.gravity = Gravity.END | Gravity.BOTTOM;
@@ -88,7 +88,7 @@ final class HomeCardView extends LinearLayout {
         live.setGravity(Gravity.CENTER);
         live.setPadding(NativeTheme.dp(context, 7), NativeTheme.dp(context, 2),
             NativeTheme.dp(context, 7), NativeTheme.dp(context, 2));
-        live.setBackground(NativeTheme.rounded(0xFFE53E3E, NativeTheme.dp(context, 5)));
+        live.setBackground(NativeTheme.rounded(0xFFE53E3E, NativeTheme.dp(context, 18)));
         FrameLayout.LayoutParams liveParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
         liveParams.gravity = Gravity.START | Gravity.TOP;
@@ -118,7 +118,7 @@ final class HomeCardView extends LinearLayout {
             NativeTheme.isDark(context)
                 ? new int[]{0xDB1C1E25, 0xC2111217}
                 : new int[]{0xCCFFFFFF, 0x94FFFFFF});
-        float r = NativeTheme.dp(context, 14);
+        float r = NativeTheme.dp(context, 18);
         copyBg.setCornerRadii(new float[]{0, 0, 0, 0, r, r, r, r});
         copyBg.setStroke(Math.max(1, NativeTheme.dp(context, 0.5f)),
             NativeTheme.isDark(context) ? 0x12FFFFFF : 0x75FFFFFF);

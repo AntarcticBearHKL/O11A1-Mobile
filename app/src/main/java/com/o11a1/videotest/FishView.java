@@ -79,7 +79,7 @@ final class FishView extends FrameLayout {
         run.setAllCaps(false);
         run.setTextColor(Color.WHITE);
         run.setTypeface(NativeTheme.titleTypeface());
-        run.setBackground(NativeTheme.rounded(NativeTheme.ACCENT, NativeTheme.dp(context, 16)));
+        run.setBackground(NativeTheme.rounded(NativeTheme.ACCENT, NativeTheme.dp(context, 18)));
         run.setOnClickListener(v -> generate());
         LinearLayout.LayoutParams runParams = new LinearLayout.LayoutParams(
             LayoutParams.MATCH_PARENT, NativeTheme.dp(context, 48));
@@ -93,7 +93,7 @@ final class FishView extends FrameLayout {
         output.setTextIsSelectable(true);
         output.setPadding(NativeTheme.dp(context, 14), NativeTheme.dp(context, 14),
             NativeTheme.dp(context, 14), NativeTheme.dp(context, 14));
-        output.setBackground(NativeTheme.glassPanel(context, NativeTheme.dp(context, 16)));
+        output.setBackground(NativeTheme.glassPanel(context, NativeTheme.dp(context, 18)));
         output.setText("等待投喂。");
         LinearLayout.LayoutParams outputParams = new LinearLayout.LayoutParams(
             LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
@@ -129,7 +129,7 @@ final class FishView extends FrameLayout {
             NativeTheme.dp(context, 12), NativeTheme.dp(context, 8));
         edit.setBackground(NativeTheme.rounded(
             NativeTheme.isDark(context) ? 0x22FFFFFF : 0x0D000000,
-            NativeTheme.dp(context, 12)));
+            NativeTheme.dp(context, 18)));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
             LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
         params.topMargin = NativeTheme.dp(context, 4);

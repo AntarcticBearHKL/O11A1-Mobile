@@ -43,7 +43,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     super.viewDidLoad()
     view.backgroundColor = .clear
 
-    card.layer.cornerRadius = 28
+    card.layer.cornerRadius = NativeTheme.cornerRadius
     card.layer.cornerCurve = .continuous
     card.clipsToBounds = true
     view.addSubview(card)
@@ -107,7 +107,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
       status.trailingAnchor.constraint(lessThanOrEqualTo: card.trailingAnchor, constant: -32),
     ])
 
-    sortDock.layer.cornerRadius = 26
+    sortDock.layer.cornerRadius = NativeTheme.cornerRadius
     sortDock.layer.cornerCurve = .continuous
     sortDock.layer.borderWidth = 1
     sortDock.layer.shadowColor = UIColor.black.cgColor
@@ -123,7 +123,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
       sortDock.heightAnchor.constraint(equalToConstant: 52),
     ])
     sortBlur.isUserInteractionEnabled = false
-    sortBlur.layer.cornerRadius = 26
+    sortBlur.layer.cornerRadius = NativeTheme.cornerRadius
     sortBlur.layer.cornerCurve = .continuous
     sortBlur.clipsToBounds = true
     sortDock.addSubview(sortBlur)
@@ -137,7 +137,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     for (index, button) in [latestButton, hotButton].enumerated() {
       button.tag = index
       button.titleLabel?.font = UIFont.systemFont(ofSize: 13.5, weight: .bold)
-      button.layer.cornerRadius = 21
+      button.layer.cornerRadius = NativeTheme.cornerRadius
       button.layer.cornerCurve = .continuous
       button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 22, bottom: 0, right: 22)
       button.widthAnchor.constraint(equalToConstant: 92).isActive = true
@@ -192,9 +192,9 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     updateInsets()
-    card.layer.cornerRadius = embedded ? 0 : 28
-    blur.layer.cornerRadius = embedded ? 0 : 28
-    tint.layer.cornerRadius = embedded ? 0 : 28
+    card.layer.cornerRadius = embedded ? 0 : NativeTheme.cornerRadius
+    blur.layer.cornerRadius = embedded ? 0 : NativeTheme.cornerRadius
+    tint.layer.cornerRadius = embedded ? 0 : NativeTheme.cornerRadius
   }
 
   override func viewSafeAreaInsetsDidChange() {

@@ -84,7 +84,7 @@ final class MyViewController: UIViewController {
 
     accountButton.titleLabel?.font = UIFont.systemFont(ofSize: 11.5, weight: .bold)
     accountButton.setTitleColor(NativeTheme.navBlue, for: .normal)
-    accountButton.layer.cornerRadius = 17
+    accountButton.layer.cornerRadius = NativeTheme.cornerRadius
     accountButton.layer.cornerCurve = .continuous
     accountButton.layer.borderWidth = 1
     accountButton.layer.borderColor = NativeTheme.hairline.cgColor

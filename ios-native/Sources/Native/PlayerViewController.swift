@@ -180,7 +180,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     followButton.setTitleColor(.white, for: .normal)
     followButton.titleLabel?.font = NativeTheme.bodyFont(12)
     followButton.backgroundColor = UIColor.white.withAlphaComponent(0.18)
-    followButton.layer.cornerRadius = 12
+    followButton.layer.cornerRadius = NativeTheme.cornerRadius
     followButton.layer.cornerCurve = .continuous
     followButton.addTarget(self, action: #selector(followTapped), for: .touchUpInside)
     topBar.addSubview(followButton)
@@ -192,7 +192,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     playButton.addTarget(self, action: #selector(togglePlay), for: .touchUpInside)
     view.addSubview(playButton)
 
-    bottomPanel.layer.cornerRadius = 18
+    bottomPanel.layer.cornerRadius = NativeTheme.cornerRadius
     bottomPanel.layer.cornerCurve = .continuous
     bottomPanel.clipsToBounds = true
     bottomPanel.layer.borderWidth = 1
@@ -203,7 +203,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     seekBubble.textColor = .white
     seekBubble.backgroundColor = UIColor(red: 10.0 / 255.0, green: 13.0 / 255.0,
                                          blue: 19.0 / 255.0, alpha: 0.94)
-    seekBubble.layer.cornerRadius = 7
+    seekBubble.layer.cornerRadius = NativeTheme.cornerRadius
     seekBubble.layer.cornerCurve = .continuous
     seekBubble.layer.borderWidth = 1
     seekBubble.layer.borderColor = UIColor(white: 1, alpha: 0.13).cgColor
@@ -1021,7 +1021,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
           let scale = max(0.82, 1 - down / 1600)
           let radius = min(1, down / 320)
           view.layer.cornerCurve = .continuous
-          view.layer.cornerRadius = 28 * radius
+          view.layer.cornerRadius = NativeTheme.cornerRadius * radius
           view.transform = CGAffineTransform(translationX: 0, y: down * 0.55)
             .scaledBy(x: scale, y: scale)
         }
@@ -1134,7 +1134,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     view.layer.cornerCurve = .continuous
     UIView.animate(withDuration: 0.30, delay: 0,
                    options: [.curveEaseIn, .beginFromCurrentState]) {
-      self.view.layer.cornerRadius = 28
+      self.view.layer.cornerRadius = NativeTheme.cornerRadius
       self.view.transform = CGAffineTransform(
         translationX: 0, y: self.view.bounds.height * 0.20
       ).scaledBy(x: 0.84, y: 0.84)

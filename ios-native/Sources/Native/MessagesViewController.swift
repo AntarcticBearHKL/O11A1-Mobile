@@ -29,7 +29,7 @@ final class MessagesViewController: UIViewController, UITableViewDataSource, UIT
     filterButton.titleLabel?.font = UIFont.systemFont(ofSize: 10.5, weight: .medium)
     filterButton.setTitleColor(NativeTheme.secondary, for: .normal)
     filterButton.contentEdgeInsets = UIEdgeInsets(top: 5, left: 10, bottom: 5, right: 10)
-    filterButton.layer.cornerRadius = 12
+    filterButton.layer.cornerRadius = NativeTheme.cornerRadius
     filterButton.layer.cornerCurve = .continuous
     filterButton.layer.borderWidth = 1
     filterButton.layer.borderColor = NativeTheme.hairline.cgColor
@@ -65,7 +65,7 @@ final class MessagesViewController: UIViewController, UITableViewDataSource, UIT
     emptyButton.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .bold)
     emptyButton.setTitleColor(NativeTheme.navBlue, for: .normal)
     emptyButton.backgroundColor = NativeTheme.navSoft
-    emptyButton.layer.cornerRadius = 17
+    emptyButton.layer.cornerRadius = NativeTheme.cornerRadius
     emptyButton.layer.cornerCurve = .continuous
     emptyButton.contentEdgeInsets = UIEdgeInsets(top: 8, left: 18, bottom: 8, right: 18)
     emptyButton.addTarget(self, action: #selector(emptyAction), for: .touchUpInside)
