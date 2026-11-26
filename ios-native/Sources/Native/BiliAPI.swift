@@ -223,21 +223,34 @@ final class BiliAPI {
     run({ self.client.comments(aid: aid, page: page) }) { result in
       switch result {
       case .failure(let error): completion(.failure(error))
-      case .success(let json):
-        let rows = (json["items"] as? [[String: Any]]) ?? []
-        let items = rows.map { row -> CommentItem in
-          var item = CommentItem()
-          item.rpid = o11a1Int64(row["rpid"])
-          item.name = o11a1String(row["name"])
-          item.face = o11a1HTTPS(o11a1String(row["face"]))
-          item.message = o11a1String(row["message"])
-          item.likes = o11a1Int(row["like"])
-          item.time = o11a1Int(row["time"])
-          item.replies = o11a1Int(row["count"])
-          return item
-        }
-        completion(.success(items))
+      case .success(let json): completion(.success(self.commentItems(json)))
       }
+    }
+  }
+
+  func commentReplies(aid: Int64, root: Int64, page: Int,
+                      completion: @escaping (Result<[CommentItem], Error>) -> Void) {
+    run({ self.client.commentsReplies(aid: aid, root: root, page: page) }) { result in
+      switch result {
+      case .failure(let error): completion(.failure(error))
+      case .success(let json): completion(.success(self.commentItems(json)))
+      }
+    }
+  }
+
+  private func commentItems(_ json: [String: Any]) -> [CommentItem] {
+    let rows = (json["items"] as? [[String: Any]]) ?? []
+    return rows.map { row -> CommentItem in
+      var item = CommentItem()
+      item.rpid = o11a1Int64(row["rpid"])
+      item.name = o11a1String(row["user"])
+      item.face = o11a1HTTPS(o11a1String(row["avatar"]))
+      item.message = o11a1String(row["message"])
+      item.likes = o11a1Int(row["like"])
+      item.time = o11a1Int(row["time"])
+      item.replies = o11a1Int(row["rcount"])
+      if item.name.isEmpty { item.name = "用户" }
+      return item
     }
   }
 

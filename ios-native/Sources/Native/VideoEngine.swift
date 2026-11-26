@@ -20,6 +20,7 @@ final class VideoEngine: NSObject {
   private var backgroundObserver: NSObjectProtocol?
   private var pipController: AVPictureInPictureController?
   private var pipDelegate: PictureInPictureDelegate?
+  private var restoringProgrammatically = false
   private var loadedURL = ""
   private var backupURL = ""
   private var didRetryBackup = false
@@ -221,6 +222,16 @@ final class VideoEngine: NSObject {
     controller.startPictureInPicture()
   }
 
+  var isPipActive: Bool {
+    return pipController?.isPictureInPictureActive ?? false
+  }
+
+  func stopPipForRestore() {
+    guard let controller = pipController, controller.isPictureInPictureActive else { return }
+    restoringProgrammatically = true
+    controller.stopPictureInPicture()
+  }
+
   func stopPip() {
     guard let controller = pipController, controller.isPictureInPictureActive else { return }
     controller.stopPictureInPicture()
@@ -238,6 +249,11 @@ final class VideoEngine: NSObject {
   }
 
   fileprivate func pipDidStop() {
+    if restoringProgrammatically {
+      restoringProgrammatically = false
+      onPipRestore?()
+      return
+    }
     let restoring = restoringFromPip
     restoringFromPip = false
     if !restoring {

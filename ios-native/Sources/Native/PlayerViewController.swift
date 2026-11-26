@@ -32,6 +32,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let liveChat = LiveChatView()
   private let errorLabel = UILabel()
   private var liveTimer: Timer?
+  private var activeObserver: NSObjectProtocol?
   private var sourceFrame: CGRect = .zero
   private var panStartFrame: CGRect = .zero
   private var isScrubbing = false
@@ -330,6 +331,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self?.closing = false
       self?.videoContainer.isHidden = false
     }
+    activeObserver = NotificationCenter.default.addObserver(
+      forName: UIApplication.didBecomeActiveNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      guard let self = self, self.engine.isPipActive else { return }
+      self.engine.stopPipForRestore()
+    }
 
     loadQuality(80)
     if item.roomId == 0, item.cid > 0 {
@@ -475,6 +484,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   deinit {
     liveTimer?.invalidate()
+    if let observer = activeObserver {
+      NotificationCenter.default.removeObserver(observer)
+    }
   }
 
   @objc private func cycleSpeed() {

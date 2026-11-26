@@ -3,7 +3,8 @@ import UIKit
 final class FeedViewController: UIViewController,
   UICollectionViewDataSource,
   UICollectionViewDelegateFlowLayout,
-  UIScrollViewDelegate {
+  UIScrollViewDelegate,
+  UIGestureRecognizerDelegate {
 
   var onOpen: ((VideoItem, VideoCardCell) -> Void)?
   var onProfile: ((Int64) -> Void)?
@@ -28,7 +29,7 @@ final class FeedViewController: UIViewController,
   private var toolbarHidden = false
   private let statusLabel = UILabel()
   private var searchController: SearchViewController?
-  private var searchPan: UIScreenEdgePanGestureRecognizer?
+  private var searchPan: UIPanGestureRecognizer?
   private var searchOpen = false
 
   init() {
@@ -107,8 +108,8 @@ final class FeedViewController: UIViewController,
     search.view.isHidden = true
     searchController = search
 
-    let pan = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(handleSearchPan(_:)))
-    pan.edges = .left
+    let pan = UIPanGestureRecognizer(target: self, action: #selector(handleSearchPan(_:)))
+    pan.delegate = self
     view.addGestureRecognizer(pan)
     searchPan = pan
 
@@ -359,7 +360,16 @@ final class FeedViewController: UIViewController,
 
   // MARK: - search drag
 
-  @objc private func handleSearchPan(_ gesture: UIScreenEdgePanGestureRecognizer) {
+  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    guard let pan = gestureRecognizer as? UIPanGestureRecognizer, pan === searchPan else {
+      return true
+    }
+    guard !searchOpen else { return false }
+    let velocity = pan.velocity(in: view)
+    return velocity.x < -120 && abs(velocity.x) > abs(velocity.y)
+  }
+
+  @objc private func handleSearchPan(_ gesture: UIPanGestureRecognizer) {
     guard let search = searchController else { return }
     let width = max(1, view.bounds.width)
     let translation = max(0, -gesture.translation(in: view).x)

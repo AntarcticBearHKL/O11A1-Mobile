@@ -42,6 +42,7 @@ final class CommentsView {
     private final BiliApi api;
     private final BiliExtras extras;
     private final long aid;
+    private final long rootId;
     private final Dialog dialog;
     private final RecyclerView list;
     private final TextView status;
@@ -53,14 +54,19 @@ final class CommentsView {
     private boolean loading = false;
 
     static void show(Context context, BiliApi api, BiliExtras extras, long aid) {
-        new CommentsView(context, api, extras, aid).open();
+        new CommentsView(context, api, extras, aid, 0).open();
     }
 
-    private CommentsView(Context context, BiliApi api, BiliExtras extras, long aid) {
+    static void showReplies(Context context, BiliApi api, BiliExtras extras, long aid, long root) {
+        new CommentsView(context, api, extras, aid, root).open();
+    }
+
+    private CommentsView(Context context, BiliApi api, BiliExtras extras, long aid, long rootId) {
         this.context = context;
         this.api = api;
         this.extras = extras;
         this.aid = aid;
+        this.rootId = rootId;
         dialog = new Dialog(context);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setCanceledOnTouchOutside(true);
@@ -83,7 +89,7 @@ final class CommentsView {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView title = new TextView(context);
-        title.setText("评论");
+        title.setText(rootId > 0 ? "回复" : "评论");
         title.setTextColor(NativeTheme.foreground(context));
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
         title.setTypeface(NativeTheme.titleTypeface());
@@ -108,7 +114,7 @@ final class CommentsView {
         list = new RecyclerView(context);
         list.setLayoutManager(new LinearLayoutManager(context));
         list.setBackgroundColor(Color.TRANSPARENT);
-        adapter = new CommentAdapter(context);
+        adapter = new CommentAdapter(context, rootId > 0 ? null : this::openReplies);
         list.setAdapter(adapter);
         list.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
@@ -150,6 +156,7 @@ final class CommentsView {
         send.setOnClickListener(v -> sendComment());
         composer.addView(send, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, NativeTheme.dp(context, 38)));
+        if (rootId > 0) composer.setVisibility(View.GONE);
 
         dialog.setContentView(root);
         dialog.setOnDismissListener(d -> destroy());
@@ -178,7 +185,9 @@ final class CommentsView {
         }
         final int request = page;
         pool.execute(() -> {
-            JSONObject result = api.comments(aid, request);
+            JSONObject result = rootId > 0
+                ? extras.commentsReplies(aid, rootId, request)
+                : api.comments(aid, request);
             final JSONObject value = result;
             main.post(() -> {
                 loading = false;
@@ -201,6 +210,11 @@ final class CommentsView {
                 if (rows.isEmpty() && adapter.getItemCount() == 0) status.setText("还没有评论");
             });
         });
+    }
+
+    private void openReplies(CommentItem item) {
+        if (item == null || item.rpid <= 0) return;
+        showReplies(context, api, extras, aid, item.rpid);
     }
 
     private void sendComment() {
@@ -234,29 +248,39 @@ final class CommentsView {
     }
 
     static final class CommentItem {
+        long rpid = 0;
         String user = "";
         String avatar = "";
         String message = "";
         int like = 0;
+        int rcount = 0;
         long time = 0;
 
         static CommentItem from(JSONObject json) {
             CommentItem item = new CommentItem();
+            item.rpid = json.optLong("rpid", 0);
             item.user = json.optString("user", "用户");
             item.avatar = json.optString("avatar", "");
             item.message = json.optString("message", "");
             item.like = json.optInt("like", 0);
+            item.rcount = json.optInt("rcount", 0);
             item.time = json.optLong("time", 0);
             return item;
         }
     }
 
+    private interface OnReplies {
+        void open(CommentItem item);
+    }
+
     private static final class CommentAdapter extends RecyclerView.Adapter<CommentHolder> {
         private final Context context;
         private final List<CommentItem> items = new ArrayList<>();
+        private final OnReplies onReplies;
 
-        CommentAdapter(Context context) {
+        CommentAdapter(Context context, OnReplies onReplies) {
             this.context = context;
+            this.onReplies = onReplies;
         }
 
         void setItems(List<CommentItem> values) {
@@ -289,7 +313,7 @@ final class CommentsView {
         }
 
         @Override public void onBindViewHolder(@androidx.annotation.NonNull CommentHolder holder, int position) {
-            holder.row.setItem(items.get(position));
+            holder.row.setItem(items.get(position), onReplies);
         }
     }
 
@@ -306,6 +330,7 @@ final class CommentsView {
         private final TextView name = new TextView(getContext());
         private final TextView message = new TextView(getContext());
         private final TextView meta = new TextView(getContext());
+        private final TextView replies = new TextView(getContext());
 
         CommentRow(Context context) {
             super(context);
@@ -342,9 +367,17 @@ final class CommentsView {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             metaParams.topMargin = NativeTheme.dp(context, 6);
             body.addView(meta, metaParams);
+
+            replies.setTextColor(NativeTheme.ACCENT);
+            replies.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+            replies.setVisibility(View.GONE);
+            LinearLayout.LayoutParams replyParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            replyParams.topMargin = NativeTheme.dp(context, 5);
+            body.addView(replies, replyParams);
         }
 
-        void setItem(CommentItem item) {
+        void setItem(CommentItem item, OnReplies onReplies) {
             name.setText(item.user);
             message.setText(item.message);
             String time = "";
@@ -358,6 +391,15 @@ final class CommentsView {
                 avatar.setImageResource(android.R.drawable.sym_def_app_icon);
             } else {
                 Glide.with(this).load(item.avatar).transform(new CircleCrop()).into(avatar);
+            }
+            if (onReplies != null && item.rcount > 0) {
+                replies.setText("查看 " + item.rcount + " 条回复");
+                replies.setVisibility(View.VISIBLE);
+                replies.setOnClickListener(v -> onReplies.open(item));
+            } else {
+                replies.setText("");
+                replies.setVisibility(View.GONE);
+                replies.setOnClickListener(null);
             }
         }
     }

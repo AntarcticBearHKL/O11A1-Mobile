@@ -298,8 +298,9 @@ final class MemberView {
         content.addView(label, params);
     }
 
-    private String formatDate(long seconds) {
-        if (seconds <= 0) return "—";
+    private String formatDate(long raw) {
+        if (raw <= 0) return "—";
+        long seconds = raw > 20_000_000_000L ? raw / 1000 : raw;
         return new SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
             .format(new Date(seconds * 1000L));
     }

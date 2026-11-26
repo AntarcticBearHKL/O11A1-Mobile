@@ -235,8 +235,9 @@ final class MemberCenterViewController: UIViewController {
     return card
   }
 
-  private func formatDate(_ seconds: Int64) -> String {
-    guard seconds > 0 else { return "—" }
+  private func formatDate(_ raw: Int64) -> String {
+    guard raw > 0 else { return "—" }
+    let seconds = raw > 20_000_000_000 ? raw / 1000 : raw
     let date = Date(timeIntervalSince1970: TimeInterval(seconds))
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyy-MM-dd"
