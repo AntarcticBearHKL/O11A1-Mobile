@@ -144,7 +144,7 @@ final class FeedViewController: UIViewController,
   private func updateInsets() {
     let insets = view.safeAreaInsets
     table.contentInset = UIEdgeInsets(top: insets.top, left: 0,
-                                      bottom: 104 + insets.bottom, right: 0)
+                                      bottom: 112 + insets.bottom, right: 0)
     table.verticalScrollIndicatorInsets.top = insets.top
     topFadeHeight?.constant = insets.top + 18
   }
@@ -476,8 +476,7 @@ final class FeedViewController: UIViewController,
     }
     guard !searchOpen else { return false }
     let velocity = pan.velocity(in: view)
-    guard abs(velocity.x) > abs(velocity.y) else { return false }
-    return velocity.x < -80
+    return velocity.x < 0 && abs(velocity.x) > abs(velocity.y)
   }
 
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {

@@ -368,14 +368,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     tap.delegate = self
     videoContainer.addGestureRecognizer(tap)
 
-    let longPress = UILongPressGestureRecognizer(target: self, action: #selector(longPress(_:)))
-    longPress.minimumPressDuration = 0.18
-    longPress.delegate = self
-    videoContainer.addGestureRecognizer(longPress)
-
     let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
     pan.delegate = self
     videoContainer.addGestureRecognizer(pan)
+
+    let longPress = UILongPressGestureRecognizer(target: self, action: #selector(longPress(_:)))
+    longPress.minimumPressDuration = 0.18
+    longPress.delegate = self
+    longPress.require(toFail: pan)
+    videoContainer.addGestureRecognizer(longPress)
 
     engine.onTime = { [weak self] seconds, duration in
       guard let self = self, !self.isScrubbing else { return }
@@ -1204,9 +1205,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     if let pan = gestureRecognizer as? UIPanGestureRecognizer {
       let velocity = pan.velocity(in: videoContainer)
       if abs(velocity.x) > abs(velocity.y) {
-        return abs(velocity.x) > 60
+        return abs(velocity.x) > 20
       }
-      return abs(velocity.y) > 60
+      return abs(velocity.y) > 20
     }
     return true
   }

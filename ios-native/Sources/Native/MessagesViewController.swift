@@ -97,14 +97,14 @@ final class MessagesViewController: UIViewController, UITableViewDataSource, UIT
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     table.contentInset = UIEdgeInsets(top: 0, left: 0,
-                                      bottom: 104 + view.safeAreaInsets.bottom, right: 0)
+                                      bottom: 112 + view.safeAreaInsets.bottom, right: 0)
     filterButton.layer.borderColor = NativeTheme.hairline.cgColor
   }
 
   override func viewSafeAreaInsetsDidChange() {
     super.viewSafeAreaInsetsDidChange()
     table.contentInset = UIEdgeInsets(top: 0, left: 0,
-                                      bottom: 104 + view.safeAreaInsets.bottom, right: 0)
+                                      bottom: 112 + view.safeAreaInsets.bottom, right: 0)
   }
 
   private func buildFilterMenu() {
