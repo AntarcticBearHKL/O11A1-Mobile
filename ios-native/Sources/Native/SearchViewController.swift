@@ -5,6 +5,8 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
 
   var onClose: (() -> Void)?
   var onOpenVideo: ((VideoItem) -> Void)?
+  var onInteractiveClose: ((CGFloat) -> Void)?
+  var onCloseSettled: ((Bool) -> Void)?
 
   private enum Mode {
     case hot
@@ -25,7 +27,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   private var workItem: DispatchWorkItem?
   private var loading = false
   private var dismissPan: UIPanGestureRecognizer?
-  private var startOffset: CGFloat = 0
+
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -277,20 +279,13 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     let translation = max(0, gesture.translation(in: view).x)
     let width = max(1, view.bounds.width)
     switch gesture.state {
-    case .began:
-      startOffset = 0
     case .changed:
-      view.transform = CGAffineTransform(translationX: translation, y: 0)
+      onInteractiveClose?(max(0, min(1, 1 - translation / width)))
     case .ended, .cancelled:
       let velocity = gesture.velocity(in: view).x
       let shouldClose = translation > width * 0.24 || velocity > 350
-      if shouldClose {
-        view.endEditing(true)
-        onClose?()
-      }
-      UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseOut]) {
-        self.view.transform = .identity
-      }
+      if shouldClose { view.endEditing(true) }
+      onCloseSettled?(shouldClose)
     default:
       break
     }

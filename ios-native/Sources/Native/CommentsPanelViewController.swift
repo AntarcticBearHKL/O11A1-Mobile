@@ -2,6 +2,7 @@ import UIKit
 
 final class CommentsPanelViewController: UIViewController, UITableViewDataSource,
   UITableViewDelegate, UIGestureRecognizerDelegate {
+  var embedded = false
   private let aid: Int64
   private let card = UIView()
   private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
@@ -149,24 +150,37 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     hotButton.setTitle("最热", for: .normal)
     updateSort()
 
-    let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
-    pan.delegate = self
-    view.addGestureRecognizer(pan)
-    dismissPan = pan
+    if !embedded {
+      let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+      pan.delegate = self
+      view.addGestureRecognizer(pan)
+      dismissPan = pan
+    }
 
     load(reset: true)
   }
 
+  private func updateInsets() {
+    if embedded {
+      table.contentInset = UIEdgeInsets(top: 12, left: 0,
+                                        bottom: 78 + view.safeAreaInsets.bottom, right: 0)
+    } else {
+      table.contentInset = UIEdgeInsets(top: view.safeAreaInsets.top + 16, left: 0,
+                                        bottom: 102 + view.safeAreaInsets.bottom, right: 0)
+    }
+  }
+
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    table.contentInset = UIEdgeInsets(top: view.safeAreaInsets.top + 16, left: 0,
-                                      bottom: 102 + view.safeAreaInsets.bottom, right: 0)
+    updateInsets()
+    card.layer.cornerRadius = embedded ? 0 : 28
+    blur.layer.cornerRadius = embedded ? 0 : 28
+    tint.layer.cornerRadius = embedded ? 0 : 28
   }
 
   override func viewSafeAreaInsetsDidChange() {
     super.viewSafeAreaInsetsDidChange()
-    table.contentInset = UIEdgeInsets(top: view.safeAreaInsets.top + 16, left: 0,
-                                      bottom: 102 + view.safeAreaInsets.bottom, right: 0)
+    updateInsets()
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {

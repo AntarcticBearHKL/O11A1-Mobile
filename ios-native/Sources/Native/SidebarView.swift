@@ -184,21 +184,35 @@ final class SidebarView: UIView {
     stack.addArrangedSubview(row)
   }
 
-  func present(in host: UIView) {
+  func prepare(in host: UIView) {
     guard superview == nil else { return }
     frame = host.bounds
     autoresizingMask = [.flexibleWidth, .flexibleHeight]
     host.addSubview(self)
     isHidden = false
     layoutIfNeeded()
-    panel.transform = CGAffineTransform(translationX: -panel.bounds.width - 24, y: 0)
-    backdrop.alpha = 0
+    setProgress(0)
+  }
+
+  func setProgress(_ value: CGFloat) {
+    let progress = max(0, min(1, value))
+    let offset = -panel.bounds.width - 24
+    panel.transform = CGAffineTransform(translationX: offset * (1 - progress), y: 0)
+    backdrop.alpha = progress
+  }
+
+  func animateOpen() {
     UIView.animate(withDuration: 0.36, delay: 0,
                    usingSpringWithDamping: 1, initialSpringVelocity: 0,
                    options: [.curveEaseOut]) {
-      self.panel.transform = .identity
-      self.backdrop.alpha = 1
+      self.setProgress(1)
     }
+  }
+
+  func present(in host: UIView) {
+    guard superview == nil else { return }
+    prepare(in: host)
+    animateOpen()
   }
 
   @objc func close() {

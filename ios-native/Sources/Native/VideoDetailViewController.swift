@@ -3,6 +3,12 @@ import UIKit
 final class VideoDetailViewController: UIViewController, UIGestureRecognizerDelegate {
   var onClose: (() -> Void)?
   var onProfile: ((Int64) -> Void)?
+  var onQuality: ((Int) -> Void)?
+  var onDanmaku: ((Bool) -> Void)?
+  var onLoop: ((Bool) -> Void)?
+  var initialQuality = 80
+  var initialDanmakuOn = true
+  var initialLoopOn = false
 
   private let item: VideoItem
   private let scroll = UIScrollView()
@@ -23,6 +29,14 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private let favoriteValue = UILabel()
   private let descLabel = UILabel()
   private let descToggle = UIButton(type: .system)
+  private let qualitySetting = UILabel()
+  private let danmakuSetting = UILabel()
+  private let loopSetting = UILabel()
+  private let qualityChips = UIStackView()
+  private var qualityButtons: [UIButton] = []
+  private var qualityValue = 80
+  private var danmakuOn = true
+  private var loopOn = false
   private var descExpanded = false
   private var detailMid: Int64 = 0
   private var dismissPan: UIPanGestureRecognizer?
@@ -231,12 +245,197 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     stack.addArrangedSubview(descToggle)
     descToggle.isHidden = item.desc.count <= 60
 
+    qualityValue = initialQuality
+    danmakuOn = initialDanmakuOn
+    loopOn = initialLoopOn
+
+    let settingsTitle = UILabel()
+    settingsTitle.text = "播放设置"
+    settingsTitle.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+    settingsTitle.textColor = NativeTheme.secondary
+    stack.addArrangedSubview(settingsTitle)
+
+    let settingsTile = UIView()
+    settingsTile.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
+    settingsTile.layer.cornerRadius = 16
+    settingsTile.layer.cornerCurve = .continuous
+    stack.addArrangedSubview(settingsTile)
+
+    let settingsStack = UIStackView()
+    settingsStack.axis = .vertical
+    settingsStack.alignment = .fill
+    settingsStack.spacing = 0
+    settingsTile.addSubview(settingsStack)
+    settingsStack.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      settingsStack.leadingAnchor.constraint(equalTo: settingsTile.leadingAnchor, constant: 14),
+      settingsStack.trailingAnchor.constraint(equalTo: settingsTile.trailingAnchor, constant: -14),
+      settingsStack.topAnchor.constraint(equalTo: settingsTile.topAnchor),
+      settingsStack.bottomAnchor.constraint(equalTo: settingsTile.bottomAnchor),
+    ])
+
+    qualitySetting.font = NativeTheme.bodyFont(11)
+    qualitySetting.textColor = NativeTheme.secondary
+    qualitySetting.textAlignment = .right
+    danmakuSetting.font = NativeTheme.bodyFont(11)
+    danmakuSetting.textColor = NativeTheme.secondary
+    danmakuSetting.textAlignment = .right
+    loopSetting.font = NativeTheme.bodyFont(11)
+    loopSetting.textColor = NativeTheme.secondary
+    loopSetting.textAlignment = .right
+
+    settingsStack.addArrangedSubview(makeSettingsRow(
+      title: "画质", value: qualitySetting, chevron: true,
+      action: #selector(toggleQualityChips)))
+    settingsStack.addArrangedSubview(settingsSeparator())
+    settingsStack.addArrangedSubview(makeQualityChips())
+    settingsStack.addArrangedSubview(makeSettingsRow(
+      title: "弹幕设置", value: danmakuSetting, chevron: false,
+      action: #selector(toggleDanmakuSetting)))
+    settingsStack.addArrangedSubview(settingsSeparator())
+    settingsStack.addArrangedSubview(makeSettingsRow(
+      title: "循环模式", value: loopSetting, chevron: false,
+      action: #selector(toggleLoopSetting)))
+
+    updateSettingsLabels()
+
     let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
     pan.delegate = self
     view.addGestureRecognizer(pan)
     dismissPan = pan
 
     loadDetail()
+  }
+
+  private func makeSettingsRow(title: String, value: UILabel, chevron: Bool,
+                               action: Selector) -> UIView {
+    let row = UIButton(type: .custom)
+    row.addTarget(self, action: action, for: .touchUpInside)
+    row.heightAnchor.constraint(equalToConstant: 52).isActive = true
+
+    let label = UILabel()
+    label.text = title
+    label.font = UIFont.systemFont(ofSize: 13.5, weight: .semibold)
+    label.textColor = NativeTheme.foreground
+    label.isUserInteractionEnabled = false
+    row.addSubview(label)
+    row.addSubview(value)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    value.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      label.leadingAnchor.constraint(equalTo: row.leadingAnchor),
+      label.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+      value.trailingAnchor.constraint(equalTo: row.trailingAnchor,
+                                      constant: chevron ? -22 : 0),
+      value.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+      value.leadingAnchor.constraint(greaterThanOrEqualTo: label.trailingAnchor, constant: 8),
+    ])
+    if chevron {
+      let arrow = UILabel()
+      arrow.text = "›"
+      arrow.font = NativeTheme.bodyFont(18)
+      arrow.textColor = NativeTheme.tertiary
+      arrow.isUserInteractionEnabled = false
+      row.addSubview(arrow)
+      arrow.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        arrow.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+        arrow.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+      ])
+    }
+    return row
+  }
+
+  private func settingsSeparator() -> UIView {
+    let line = UIView()
+    line.backgroundColor = NativeTheme.hairline
+    line.heightAnchor.constraint(equalToConstant: 0.5).isActive = true
+    return line
+  }
+
+  private func makeQualityChips() -> UIView {
+    qualityChips.axis = .horizontal
+    qualityChips.spacing = 6
+    qualityChips.alignment = .center
+    qualityChips.isLayoutMarginsRelativeArrangement = true
+    qualityChips.layoutMargins = UIEdgeInsets(top: 0, left: 0, bottom: 10, right: 0)
+    qualityChips.isHidden = true
+    let options: [(String, Int)] = [("4K", 120), ("1080P", 80), ("720P", 64), ("480P", 32)]
+    for entry in options {
+      let button = UIButton(type: .custom)
+      button.setTitle(entry.0, for: .normal)
+      button.titleLabel?.font = UIFont.systemFont(ofSize: 10, weight: .bold)
+      button.layer.cornerRadius = 8
+      button.layer.cornerCurve = .continuous
+      button.layer.borderWidth = 1
+      button.contentEdgeInsets = UIEdgeInsets(top: 5, left: 9, bottom: 5, right: 9)
+      button.heightAnchor.constraint(equalToConstant: 26).isActive = true
+      button.tag = entry.1
+      button.addTarget(self, action: #selector(qualityChipTapped(_:)), for: .touchUpInside)
+      qualityButtons.append(button)
+      qualityChips.addArrangedSubview(button)
+    }
+    let spacer = UIView()
+    spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    qualityChips.addArrangedSubview(spacer)
+    updateQualityChips()
+    return qualityChips
+  }
+
+  @objc private func toggleQualityChips() {
+    qualityChips.isHidden.toggle()
+    UIView.animate(withDuration: 0.22) {
+      self.view.layoutIfNeeded()
+    }
+  }
+
+  @objc private func qualityChipTapped(_ sender: UIButton) {
+    qualityValue = sender.tag
+    updateQualityChips()
+    updateSettingsLabels()
+    onQuality?(sender.tag)
+  }
+
+  private func updateQualityChips() {
+    for button in qualityButtons {
+      let active = button.tag == qualityValue
+      button.backgroundColor = active ? NativeTheme.navSoft : .clear
+      button.setTitleColor(active ? NativeTheme.navBlue : NativeTheme.secondary,
+                           for: .normal)
+      button.layer.borderColor = active
+        ? NativeTheme.navBlue.withAlphaComponent(0.4).cgColor
+        : NativeTheme.hairline.cgColor
+    }
+  }
+
+  @objc private func toggleDanmakuSetting() {
+    danmakuOn.toggle()
+    updateSettingsLabels()
+    onDanmaku?(danmakuOn)
+  }
+
+  @objc private func toggleLoopSetting() {
+    loopOn.toggle()
+    updateSettingsLabels()
+    onLoop?(loopOn)
+  }
+
+  private func updateSettingsLabels() {
+    let name: String
+    switch qualityValue {
+    case 120: name = "4K"
+    case 116: name = "1080P60"
+    case 112: name = "1080P+"
+    case 80: name = "1080P"
+    case 74: name = "720P60"
+    case 64: name = "720P"
+    case 32: name = "480P"
+    case 16: name = "360P"
+    default: name = "1080P"
+    }
+    qualitySetting.text = name
+    danmakuSetting.text = danmakuOn ? "开" : "关"
+    loopSetting.text = loopOn ? "循环" : "单个"
   }
 
   private func loadDetail() {

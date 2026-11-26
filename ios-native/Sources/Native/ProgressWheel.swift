@@ -55,7 +55,7 @@ final class ProgressWheel: UIControl {
     let band = CGRect(x: centerX - 26, y: 0, width: 52, height: bounds.height)
     (light ? UIColor(red: 47.0 / 255.0, green: 124.0 / 255.0, blue: 246.0 / 255.0, alpha: 0.1)
           : UIColor(red: 110.0 / 255.0, green: 168.0 / 255.0, blue: 1.0, alpha: 0.1)).setFill()
-    UIBezierPath(roundedRect: band, cornerRadius: 10).fill()
+    UIBezierPath(roundedRect: band, cornerRadius: 6).fill()
 
     if total > 0 {
       let step = minorStep
@@ -148,7 +148,7 @@ final class ProgressWheel: UIControl {
     let delta = x - lastX
     lastX = x
     if durationSeconds > 0 {
-      progress = max(0, min(1, progress + Double(delta) / (durationSeconds * Double(pxPerSecond))))
+      progress = max(0, min(1, progress - Double(delta) / (durationSeconds * Double(pxPerSecond))))
     } else {
       progress = max(0, min(1, Double(x / max(1, bounds.width))))
     }

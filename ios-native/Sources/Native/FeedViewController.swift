@@ -32,9 +32,7 @@ final class FeedViewController: UIViewController,
   private var toolbarWasHidden = false
   private var searchController: SearchViewController?
   private var searchPan: UIPanGestureRecognizer?
-  private var sidebarEdge: UIScreenEdgePanGestureRecognizer?
   private var searchOpen = false
-  private var dragDirection = 0
   private var homeSource = "recommend"
   private var sourceTitle = "推荐"
   private var sourceToken = 0
@@ -107,6 +105,12 @@ final class FeedViewController: UIViewController,
 
     let search = SearchViewController()
     search.onClose = { [weak self] in self?.closeSearch(animated: true) }
+    search.onInteractiveClose = { [weak self] progress in
+      self?.updateSearchProgress(progress)
+    }
+    search.onCloseSettled = { [weak self] shouldClose in
+      self?.settleSearch(open: !shouldClose)
+    }
     search.onOpenVideo = { [weak self] item in
       self?.onSearchOpen?(item)
     }
@@ -124,12 +128,6 @@ final class FeedViewController: UIViewController,
     view.addGestureRecognizer(pan)
     searchPan = pan
     table.panGestureRecognizer.require(toFail: pan)
-
-    let edge = UIScreenEdgePanGestureRecognizer(
-      target: self, action: #selector(handleSidebarEdge(_:)))
-    edge.edges = .left
-    view.addGestureRecognizer(edge)
-    sidebarEdge = edge
 
     if let initial = initialSource {
       homeSource = initial.source
@@ -479,101 +477,95 @@ final class FeedViewController: UIViewController,
     guard !searchOpen else { return false }
     let velocity = pan.velocity(in: view)
     guard abs(velocity.x) > abs(velocity.y) else { return false }
-    dragDirection = velocity.x > 0 ? 1 : -1
-    return abs(velocity.x) > 80
-  }
-
-  @objc private func handleSidebarEdge(_ gesture: UIScreenEdgePanGestureRecognizer) {
-    guard !searchOpen else { return }
-    switch gesture.state {
-    case .began:
-      suspendPreview()
-    case .ended, .cancelled:
-      if gesture.translation(in: view).x > 48 {
-        onSidebar?()
-      }
-    default:
-      break
-    }
+    return velocity.x < -80
   }
 
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
-    guard let search = searchController else { return }
+    guard searchController != nil else { return }
     let width = max(1, view.bounds.width)
     let translation = max(0, -gesture.translation(in: view).x)
     switch gesture.state {
     case .began:
       suspendPreview()
-      if dragDirection > 0 {
-        onSidebar?()
-        return
-      }
-      toolbarWasHidden = toolbarHidden
-      onToolbar?(true)
-      search.view.isHidden = false
-      view.bringSubviewToFront(search.view)
+      beginSearchInteractive()
     case .changed:
-      guard dragDirection < 0 else { return }
-      let x = max(0, width - translation)
-      search.view.frame = CGRect(x: x, y: 0, width: width, height: view.bounds.height)
-      table.transform = CGAffineTransform(translationX: -translation * 0.18, y: 0)
+      updateSearchProgress(translation / width)
     case .ended, .cancelled:
-      guard dragDirection < 0 else { return }
       let velocity = -gesture.velocity(in: view).x
       let progress = translation / width
-      if progress > 0.26 || velocity > 350 {
-        openSearch(animated: true)
-      } else {
-        closeSearch(animated: true)
-      }
+      settleSearch(open: progress > 0.26 || velocity > 350)
     default:
       break
     }
   }
 
-  private func openSearch(animated: Bool) {
+  private func updateSearchProgress(_ value: CGFloat) {
+    guard let search = searchController else { return }
+    let width = max(1, view.bounds.width)
+    let progress = max(0, min(1, value))
+    search.view.frame = CGRect(x: width * (1 - progress), y: 0,
+                               width: width, height: view.bounds.height)
+    table.transform = CGAffineTransform(translationX: -width * 0.18 * progress, y: 0)
+  }
+
+  private func beginSearchInteractive() {
     guard let search = searchController else { return }
     searchOpen = true
     search.view.isHidden = false
     view.bringSubviewToFront(search.view)
-    let width = max(1, view.bounds.width)
-    let changes = {
-      search.view.frame = CGRect(x: 0, y: 0, width: width, height: self.view.bounds.height)
-      self.table.transform = CGAffineTransform(translationX: -width * 0.18, y: 0)
-    }
-    if animated {
-      UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseOut], animations: changes) { _ in
-        search.focus()
-      }
-    } else {
-      changes()
-      search.focus()
-    }
     previewEngine.pause()
+    table.transform = .identity
+    updateSearchProgress(0)
+    toolbarWasHidden = toolbarHidden
+    onToolbar?(true)
+  }
+
+  private func settleSearch(open: Bool) {
+    guard let search = searchController else { return }
+    searchOpen = open
+    let changes = {
+      self.updateSearchProgress(open ? 1 : 0)
+    }
+    UIView.animate(withDuration: open ? 0.30 : 0.26, delay: 0,
+                   usingSpringWithDamping: open ? 0.9 : 1,
+                   initialSpringVelocity: 0,
+                   options: [.curveEaseOut, .allowUserInteraction],
+                   animations: changes) { [weak self] _ in
+      guard let self = self else { return }
+      if open {
+        search.focus()
+      } else {
+        search.view.isHidden = true
+        self.table.transform = .identity
+        self.onToolbar?(self.toolbarWasHidden)
+        self.startPreviewIfNeeded()
+      }
+    }
+  }
+
+  private func openSearch(animated: Bool) {
+    guard searchController != nil else { return }
+    beginSearchInteractive()
+    if animated {
+      settleSearch(open: true)
+    } else {
+      updateSearchProgress(1)
+      searchOpen = true
+      searchController?.focus()
+    }
   }
 
   private func closeSearch(animated: Bool) {
     guard let search = searchController else { return }
     searchOpen = false
-    let width = max(1, view.bounds.width)
-    let changes = {
-      search.view.frame = CGRect(x: width, y: 0, width: width, height: self.view.bounds.height)
-      self.table.transform = .identity
-    }
-    let finish = { [weak self] in
-      guard let self = self else { return }
-      search.view.isHidden = true
-      self.table.transform = .identity
-      self.onToolbar?(self.toolbarWasHidden)
-      self.startPreviewIfNeeded()
-    }
     if animated {
-      UIView.animate(withDuration: 0.26, delay: 0, options: [.curveEaseInOut], animations: changes) { _ in
-        finish()
-      }
+      settleSearch(open: false)
     } else {
-      changes()
-      finish()
+      updateSearchProgress(0)
+      search.view.isHidden = true
+      table.transform = .identity
+      onToolbar?(toolbarWasHidden)
+      startPreviewIfNeeded()
     }
   }
 

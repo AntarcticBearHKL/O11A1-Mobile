@@ -1,6 +1,6 @@
 import UIKit
 
-final class RootViewController: UIViewController {
+final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   private let mainHost = UIView()
   private let contentView = UIView()
   private let tabBar = GlassTabBar()
@@ -14,6 +14,10 @@ final class RootViewController: UIViewController {
   private var messages: MessagesViewController?
   private var fish: AIViewController?
   private var sidebar: SidebarView?
+  private var sidebarProgress: CGFloat = 0
+  private var sidebarDragStartProgress: CGFloat = 0
+  private var sidebarEdgePan: UIScreenEdgePanGestureRecognizer?
+  private var sidebarClosePan: UIPanGestureRecognizer?
   private var testFlowTriggered = false
 
   override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -23,7 +27,7 @@ final class RootViewController: UIViewController {
   override var prefersHomeIndicatorAutoHidden: Bool { true }
 
   override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
-    return player == nil ? .portrait : .landscape
+    return player == nil ? .portrait : .allButUpsideDown
   }
 
   override var prefersStatusBarHidden: Bool {
@@ -80,7 +84,7 @@ final class RootViewController: UIViewController {
       tabBar.leadingAnchor.constraint(equalTo: mainHost.leadingAnchor, constant: 12),
       tabBar.trailingAnchor.constraint(equalTo: mainHost.trailingAnchor, constant: -12),
       tabBar.bottomAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.bottomAnchor, constant: -10),
-      tabBar.heightAnchor.constraint(equalToConstant: 58),
+      tabBar.heightAnchor.constraint(equalToConstant: 66),
     ])
 
     settingsButton.setImage(UIImage(systemName: "gearshape.fill"), for: .normal)
@@ -123,6 +127,20 @@ final class RootViewController: UIViewController {
     // left navigation drawer. Keep these views for compatibility only.
     settingsButton.isHidden = true
     myButton.isHidden = true
+
+    let edge = UIScreenEdgePanGestureRecognizer(
+      target: self, action: #selector(handleSidebarEdge(_:)))
+    edge.edges = .left
+    edge.delegate = self
+    view.addGestureRecognizer(edge)
+    sidebarEdgePan = edge
+
+    let closePan = UIPanGestureRecognizer(
+      target: self, action: #selector(handleSidebarCloseDrag(_:)))
+    closePan.delegate = self
+    closePan.cancelsTouchesInView = false
+    view.addGestureRecognizer(closePan)
+    sidebarClosePan = closePan
 
     selectTab(0, force: true)
   }
@@ -279,7 +297,6 @@ final class RootViewController: UIViewController {
     settingsButton.isHidden = true
     myButton.isHidden = true
     controller.start()
-    setPlayerOrientation(true)
     setNeedsStatusBarAppearanceUpdate()
     let flow = ProcessInfo.processInfo.environment["O11A1_TEST_FLOW"] ?? ""
     if flow.hasPrefix("player-") {
@@ -323,56 +340,147 @@ final class RootViewController: UIViewController {
     present(nav, animated: true)
   }
 
+  @discardableResult
+  private func ensureSidebar() -> SidebarView {
+    if let sidebar = sidebar { return sidebar }
+    let view = SidebarView()
+    view.onHome = { [weak self] in
+      self?.selectTab(0)
+    }
+    view.onModule = { [weak self] mode, title in
+      guard let self = self else { return }
+      if mode == .messages {
+        self.openMessages()
+      } else {
+        self.presentModule(from: self, mode: mode, target: 0, title: title)
+      }
+    }
+    view.onMy = { [weak self] in
+      self?.openMy()
+    }
+    view.onSearch = { [weak self] in
+      guard let self = self else { return }
+      self.selectTab(0)
+      self.feed?.openSearchFromHost()
+    }
+    view.onClose = { [weak self] in
+      guard let self = self else { return }
+      self.sidebarProgress = 0
+      self.animateRecede(to: 0)
+    }
+    sidebar = view
+    return view
+  }
+
+  private func setSidebarProgress(_ value: CGFloat) {
+    let p = max(0, min(1, value))
+    sidebarProgress = p
+    sidebar?.setProgress(p)
+    setRecedeProgress(p)
+  }
+
+  private func setRecedeProgress(_ p: CGFloat) {
+    let progress = max(0, min(1, p))
+    mainHost.layer.masksToBounds = progress > 0
+    mainHost.layer.cornerRadius = 24 * progress
+    mainHost.transform = CGAffineTransform(
+      translationX: view.bounds.width * 0.10 * progress, y: 0
+    ).scaledBy(x: 1 - 0.10 * progress, y: 1 - 0.10 * progress)
+  }
+
+  private func animateRecede(to p: CGFloat) {
+    UIView.animate(withDuration: 0.34, delay: 0,
+                   usingSpringWithDamping: 1, initialSpringVelocity: 0,
+                   options: [.curveEaseOut]) {
+      self.setRecedeProgress(p)
+    }
+  }
+
+  private func prepareSidebarForDrag() {
+    let sidebar = ensureSidebar()
+    sidebar.prepare(in: view)
+    view.bringSubviewToFront(sidebar)
+    setSidebarProgress(0)
+  }
+
+  private func finishSidebarOpen() {
+    guard let sidebar = sidebar, sidebar.superview != nil else { return }
+    sidebar.animateOpen()
+    sidebarProgress = 1
+    animateRecede(to: 1)
+  }
+
+  private func finishSidebarClose() {
+    guard let sidebar = sidebar, sidebar.superview != nil else { return }
+    sidebarProgress = 0
+    sidebar.close()
+  }
+
   private func openSidebar() {
-    if sidebar == nil {
-      let view = SidebarView()
-      view.onHome = { [weak self] in
-        self?.selectTab(0)
-      }
-      view.onModule = { [weak self] mode, title in
-        guard let self = self else { return }
-        if mode == .messages {
-          self.openMessages()
-        } else {
-          self.presentModule(from: self, mode: mode, target: 0, title: title)
-        }
-      }
-      view.onMy = { [weak self] in
-        self?.openMy()
-      }
-      view.onSearch = { [weak self] in
-        guard let self = self else { return }
-        self.selectTab(0)
-        self.feed?.openSearchFromHost()
-      }
-      view.onClose = { [weak self] in
-        self?.restoreFromSidebar()
-      }
-      sidebar = view
-    }
-    sidebar?.present(in: view)
-    recedeForSidebar()
+    if let sidebar = sidebar, sidebar.superview != nil { return }
+    prepareSidebarForDrag()
+    finishSidebarOpen()
   }
 
-  private func recedeForSidebar() {
-    mainHost.layer.masksToBounds = true
-    UIView.animate(withDuration: 0.36, delay: 0,
-                   usingSpringWithDamping: 1, initialSpringVelocity: 0,
-                   options: [.curveEaseOut]) {
-      let transform = CGAffineTransform(translationX: self.view.bounds.width * 0.10, y: 0)
-        .scaledBy(x: 0.9, y: 0.9)
-      self.mainHost.transform = transform
-      self.mainHost.layer.cornerRadius = 24
+  @objc private func handleSidebarEdge(_ gesture: UIScreenEdgePanGestureRecognizer) {
+    let translation = gesture.translation(in: view)
+    let width = max(1, view.bounds.width)
+    switch gesture.state {
+    case .began:
+      guard sidebar?.superview == nil,
+            feed?.isSearchOpen() != true else { return }
+      prepareSidebarForDrag()
+    case .changed:
+      guard sidebar?.superview != nil else { return }
+      setSidebarProgress(max(0, translation.x) / (width * 0.50))
+    case .ended, .cancelled:
+      guard sidebar?.superview != nil else { return }
+      let velocity = gesture.velocity(in: view).x
+      let progress = max(0, translation.x) / (width * 0.50)
+      if translation.x > 0 && (progress > 0.35 || velocity > 500) {
+        finishSidebarOpen()
+      } else {
+        finishSidebarClose()
+      }
+    default:
+      break
     }
   }
 
-  private func restoreFromSidebar() {
-    UIView.animate(withDuration: 0.32, delay: 0,
-                   usingSpringWithDamping: 1, initialSpringVelocity: 0,
-                   options: [.curveEaseOut]) {
-      self.mainHost.transform = .identity
-      self.mainHost.layer.cornerRadius = 0
+  @objc private func handleSidebarCloseDrag(_ gesture: UIPanGestureRecognizer) {
+    let width = max(1, view.bounds.width)
+    switch gesture.state {
+    case .began:
+      guard sidebar?.superview != nil else { return }
+      sidebarDragStartProgress = sidebarProgress
+    case .changed:
+      guard sidebar?.superview != nil else { return }
+      let translation = gesture.translation(in: view).x
+      setSidebarProgress(sidebarDragStartProgress + translation / (width * 0.50))
+    case .ended, .cancelled:
+      guard sidebar?.superview != nil else { return }
+      let velocity = gesture.velocity(in: view).x
+      if sidebarProgress < 0.65 || velocity < -500 {
+        finishSidebarClose()
+      } else {
+        finishSidebarOpen()
+      }
+    default:
+      break
     }
+  }
+
+  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    if gestureRecognizer === sidebarEdgePan {
+      let velocity = (gestureRecognizer as? UIPanGestureRecognizer)?.velocity(in: view) ?? .zero
+      return velocity.x > 0 && sidebar?.superview == nil
+    }
+    if gestureRecognizer === sidebarClosePan {
+      guard sidebar?.superview != nil else { return false }
+      let velocity = (gestureRecognizer as? UIPanGestureRecognizer)?.velocity(in: view) ?? .zero
+      return velocity.x < 0 && abs(velocity.x) > abs(velocity.y)
+    }
+    return true
   }
 
   private func openMessages() {
