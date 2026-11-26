@@ -18,6 +18,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   private var sidebarDragStartProgress: CGFloat = 0
   private var sidebarEdgePan: UIScreenEdgePanGestureRecognizer?
   private var sidebarClosePan: UIPanGestureRecognizer?
+  private var orientationObserver: NSObjectProtocol?
   private var testFlowTriggered = false
 
   override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -91,7 +92,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     NSLayoutConstraint.activate([
       tabBar.leadingAnchor.constraint(equalTo: mainHost.leadingAnchor, constant: 12),
       tabBar.trailingAnchor.constraint(equalTo: mainHost.trailingAnchor, constant: -12),
-      tabBar.bottomAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.bottomAnchor, constant: -4),
+      tabBar.bottomAnchor.constraint(equalTo: mainHost.bottomAnchor, constant: -8),
       tabBar.heightAnchor.constraint(equalToConstant: 72),
     ])
 
@@ -323,6 +324,12 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     settingsButton.isHidden = true
     myButton.isHidden = true
     controller.start()
+    if #available(iOS 16.0, *) {
+      setNeedsUpdateOfSupportedInterfaceOrientations()
+    } else {
+      UIViewController.attemptRotationToDeviceOrientation()
+    }
+    beginOrientationTracking()
     setNeedsStatusBarAppearanceUpdate()
     let flow = ProcessInfo.processInfo.environment["O11A1_TEST_FLOW"] ?? ""
     if flow.hasPrefix("player-") {
@@ -344,10 +351,51 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     controller.view.removeFromSuperview()
     controller.removeFromParent()
     player = nil
+    endOrientationTracking()
     tabBar.isHidden = false
     setPlayerOrientation(false)
     setNeedsStatusBarAppearanceUpdate()
     feed?.resumePreview()
+  }
+
+  private func beginOrientationTracking() {
+    guard orientationObserver == nil else { return }
+    UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+    orientationObserver = NotificationCenter.default.addObserver(
+      forName: UIDevice.orientationDidChangeNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      guard let self = self, self.player != nil else { return }
+      self.requestPlayerOrientation(for: UIDevice.current.orientation)
+    }
+  }
+
+  private func endOrientationTracking() {
+    if let observer = orientationObserver {
+      NotificationCenter.default.removeObserver(observer)
+      orientationObserver = nil
+    }
+    UIDevice.current.endGeneratingDeviceOrientationNotifications()
+  }
+
+  private func requestPlayerOrientation(for device: UIDeviceOrientation) {
+    guard device.isPortrait || device.isLandscape else { return }
+    if #available(iOS 16.0, *) {
+      let mask: UIInterfaceOrientationMask
+      switch device {
+      case .landscapeLeft:
+        mask = .landscapeRight
+      case .landscapeRight:
+        mask = .landscapeLeft
+      default:
+        mask = .portrait
+      }
+      view.window?.windowScene?.requestGeometryUpdate(
+        .iOS(interfaceOrientations: mask))
+    } else {
+      UIViewController.attemptRotationToDeviceOrientation()
+    }
   }
 
   private func openProfile(_ mid: Int64) {

@@ -181,7 +181,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
 
   private func updateInsets() {
     if embedded {
-      table.contentInset = UIEdgeInsets(top: 12, left: 0,
+      table.contentInset = UIEdgeInsets(top: 0, left: 0,
                                         bottom: 78 + view.safeAreaInsets.bottom, right: 0)
     } else {
       table.contentInset = UIEdgeInsets(top: view.safeAreaInsets.top + 16, left: 0,
@@ -361,7 +361,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   @objc private func handlePullDown(_ gesture: UIPanGestureRecognizer) {
     let reference = view.superview ?? view
     let translation = max(0, gesture.translation(in: reference).y)
-    let progress = min(1, translation / 150)
+    let progress = min(1, translation / 240)
     switch gesture.state {
     case .changed:
       onPullDown?(progress)
@@ -434,55 +434,69 @@ private final class PanelCommentCell: UITableViewCell {
 
     avatar.contentMode = .scaleAspectFill
     avatar.clipsToBounds = true
-    avatar.layer.cornerRadius = 17
-    avatar.backgroundColor = NativeTheme.tertiary.withAlphaComponent(0.2)
-    avatar.widthAnchor.constraint(equalToConstant: 34).isActive = true
-    avatar.heightAnchor.constraint(equalToConstant: 34).isActive = true
+    avatar.layer.cornerRadius = 19
+    avatar.layer.cornerCurve = .continuous
+    avatar.backgroundColor = NativeTheme.tertiary.withAlphaComponent(0.16)
+    avatar.widthAnchor.constraint(equalToConstant: 38).isActive = true
+    avatar.heightAnchor.constraint(equalToConstant: 38).isActive = true
 
-    name.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+    name.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
     name.textColor = NativeTheme.foreground
+    name.lineBreakMode = .byTruncatingTail
+    name.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-    time.font = NativeTheme.bodyFont(10)
+    time.font = UIFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .regular)
     time.textColor = NativeTheme.tertiary
+    time.textAlignment = .right
+    time.setContentHuggingPriority(.required, for: .horizontal)
+    time.setContentCompressionResistancePriority(.required, for: .horizontal)
 
-    let meta = UIStackView(arrangedSubviews: [name, time])
+    let metaSpacer = UIView()
+    metaSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    let meta = UIStackView(arrangedSubviews: [name, metaSpacer, time])
     meta.axis = .horizontal
-    meta.alignment = .firstBaseline
-    meta.spacing = 7
+    meta.alignment = .center
+    meta.spacing = 8
 
-    message.font = NativeTheme.bodyFont(13.5)
+    message.font = UIFont.systemFont(ofSize: 14.5, weight: .regular)
     message.textColor = NativeTheme.foreground
     message.numberOfLines = 0
+    message.lineBreakMode = .byWordWrapping
 
-    likes.font = NativeTheme.bodyFont(10.5)
+    likes.font = UIFont.systemFont(ofSize: 11, weight: .medium)
     likes.textColor = NativeTheme.tertiary
 
-    replies.titleLabel?.font = UIFont.systemFont(ofSize: 10.5, weight: .bold)
+    replies.titleLabel?.font = UIFont.systemFont(ofSize: 11, weight: .semibold)
     replies.setTitleColor(NativeTheme.secondary, for: .normal)
-    replies.contentHorizontalAlignment = .left
-    replies.contentEdgeInsets = UIEdgeInsets(top: 2, left: 0, bottom: 2, right: 0)
+    replies.contentHorizontalAlignment = .right
+    replies.contentEdgeInsets = UIEdgeInsets(top: 2, left: 8, bottom: 2, right: 0)
     replies.isHidden = true
     replies.addTarget(self, action: #selector(tapReplies), for: .touchUpInside)
+    replies.setContentHuggingPriority(.required, for: .horizontal)
 
-    let actions = UIStackView(arrangedSubviews: [likes, replies])
+    let actionSpacer = UIView()
+    actionSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    let actions = UIStackView(arrangedSubviews: [likes, actionSpacer, replies])
     actions.axis = .horizontal
     actions.alignment = .center
-    actions.spacing = 16
+    actions.spacing = 8
 
     repliesStack.axis = .vertical
-    repliesStack.spacing = 8
+    repliesStack.spacing = 13
     repliesStack.isHidden = true
 
     let copy = UIStackView(arrangedSubviews: [meta, message, actions, repliesStack])
     copy.axis = .vertical
     copy.alignment = .fill
-    copy.spacing = 4
-    copy.setCustomSpacing(7, after: message)
+    copy.spacing = 0
+    copy.setCustomSpacing(7, after: meta)
+    copy.setCustomSpacing(9, after: message)
+    copy.setCustomSpacing(13, after: actions)
 
     let header = UIStackView(arrangedSubviews: [avatar, copy])
     header.axis = .horizontal
     header.alignment = .top
-    header.spacing = 11
+    header.spacing = 12
     contentView.addSubview(header)
     header.translatesAutoresizingMaskIntoConstraints = false
 
@@ -493,10 +507,10 @@ private final class PanelCommentCell: UITableViewCell {
     NSLayoutConstraint.activate([
       header.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
       header.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-      header.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16),
-      header.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -16),
+      header.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 18),
+      header.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -18),
 
-      separator.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      separator.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 70),
       separator.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
       separator.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
       separator.heightAnchor.constraint(equalToConstant: 0.5),
@@ -518,7 +532,7 @@ private final class PanelCommentCell: UITableViewCell {
                  expanded: Bool, loading: Bool) {
     name.text = item.name.isEmpty ? "用户" : item.name
     time.text = NativeTheme.timeAgo(Int64(item.time))
-    message.text = item.message
+    setMessage(item.message)
     likes.text = "赞 \(item.likes)"
     let hasReplies = item.replies > 0 || !items.isEmpty
     replies.isHidden = !hasReplies
@@ -533,7 +547,7 @@ private final class PanelCommentCell: UITableViewCell {
     if loading && items.isEmpty {
       let loadingLabel = UILabel()
       loadingLabel.text = "正在加载回复…"
-      loadingLabel.font = NativeTheme.bodyFont(11)
+      loadingLabel.font = UIFont.systemFont(ofSize: 12, weight: .regular)
       loadingLabel.textColor = NativeTheme.tertiary
       repliesStack.addArrangedSubview(loadingLabel)
       return
@@ -544,35 +558,54 @@ private final class PanelCommentCell: UITableViewCell {
     if items.count > 3 {
       let more = UILabel()
       more.text = "共 \(items.count) 条回复"
-      more.font = NativeTheme.bodyFont(10)
+      more.font = UIFont.systemFont(ofSize: 11.5, weight: .medium)
       more.textColor = NativeTheme.tertiary
       repliesStack.addArrangedSubview(more)
     }
+  }
+
+  private func setMessage(_ text: String) {
+    let style = NSMutableParagraphStyle()
+    style.lineSpacing = 3.5
+    style.lineBreakMode = .byWordWrapping
+    message.attributedText = NSAttributedString(
+      string: text,
+      attributes: [.paragraphStyle: style]
+    )
   }
 
   private func makeReplyRow(_ item: CommentItem) -> UIView {
     let replyAvatar = UIImageView()
     replyAvatar.contentMode = .scaleAspectFill
     replyAvatar.clipsToBounds = true
-    replyAvatar.layer.cornerRadius = 12
-    replyAvatar.backgroundColor = NativeTheme.tertiary.withAlphaComponent(0.2)
-    replyAvatar.widthAnchor.constraint(equalToConstant: 24).isActive = true
-    replyAvatar.heightAnchor.constraint(equalToConstant: 24).isActive = true
+    replyAvatar.layer.cornerRadius = 14
+    replyAvatar.layer.cornerCurve = .continuous
+    replyAvatar.backgroundColor = NativeTheme.tertiary.withAlphaComponent(0.16)
+    replyAvatar.widthAnchor.constraint(equalToConstant: 28).isActive = true
+    replyAvatar.heightAnchor.constraint(equalToConstant: 28).isActive = true
     ImageLoader.shared.load(item.face, into: replyAvatar)
 
     let replyName = UILabel()
     replyName.text = item.name.isEmpty ? "用户" : item.name
-    replyName.font = UIFont.systemFont(ofSize: 10.5, weight: .bold)
-    replyName.textColor = NativeTheme.foreground
+    replyName.font = UIFont.systemFont(ofSize: 11.5, weight: .semibold)
+    replyName.textColor = NativeTheme.secondary
+
     let replyMessage = UILabel()
-    replyMessage.text = item.message
-    replyMessage.font = NativeTheme.bodyFont(12.5)
+    replyMessage.font = UIFont.systemFont(ofSize: 13, weight: .regular)
     replyMessage.textColor = NativeTheme.foreground
     replyMessage.numberOfLines = 0
+    let style = NSMutableParagraphStyle()
+    style.lineSpacing = 2.5
+    style.lineBreakMode = .byWordWrapping
+    replyMessage.attributedText = NSAttributedString(
+      string: item.message,
+      attributes: [.paragraphStyle: style]
+    )
 
     let copy = UIStackView(arrangedSubviews: [replyName, replyMessage])
     copy.axis = .vertical
-    copy.spacing = 2
+    copy.alignment = .fill
+    copy.spacing = 3
 
     let row = UIStackView(arrangedSubviews: [replyAvatar, copy])
     row.axis = .horizontal

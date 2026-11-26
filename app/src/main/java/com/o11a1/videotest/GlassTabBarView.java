@@ -51,7 +51,7 @@ final class GlassTabBarView extends FrameLayout {
 
         pill = new View(context);
         GradientDrawable pillBg = NativeTheme.rounded(NativeTheme.navPill(),
-            NativeTheme.dp(context, 14));
+            NativeTheme.dp(context, 18));
         pill.setBackground(pillBg);
         LayoutParams pillParams = new LayoutParams(0, 0);
         pillParams.gravity = Gravity.TOP | Gravity.LEFT;
@@ -60,7 +60,7 @@ final class GlassTabBarView extends FrameLayout {
         row = new LinearLayout(context);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER);
-        row.setPadding(NativeTheme.dp(context, 8), 0, NativeTheme.dp(context, 8), 0);
+        row.setPadding(0, 0, 0, 0);
         addView(row, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
 
         for (int i = 0; i < titles.length; i++) {
@@ -146,18 +146,17 @@ final class GlassTabBarView extends FrameLayout {
 
     private void positionPill() {
         if (items[selected].getWidth() <= 0) return;
-        int inset = NativeTheme.dp(getContext(), 5);
-        int width = Math.max(0, items[selected].getWidth() - inset * 2);
-        int height = Math.max(0, getHeight() - inset * 2);
+        int width = Math.max(0, items[selected].getWidth());
+        int height = Math.max(0, getHeight());
         LayoutParams params = (LayoutParams) pill.getLayoutParams();
         if (params.width != width || params.height != height) {
             params.width = width;
             params.height = height;
             params.leftMargin = 0;
-            params.topMargin = inset;
+            params.topMargin = 0;
             pill.setLayoutParams(params);
         }
-        pillLeft = row.getLeft() + items[selected].getLeft() + inset;
+        pillLeft = row.getLeft() + items[selected].getLeft();
         pill.setTranslationX(pillLeft);
     }
 
@@ -170,8 +169,7 @@ final class GlassTabBarView extends FrameLayout {
             positionPill();
             return;
         }
-        float target = row.getLeft() + items[selected].getLeft()
-            + NativeTheme.dp(getContext(), 5);
+        float target = row.getLeft() + items[selected].getLeft();
         if (pillAnimator != null) pillAnimator.cancel();
         float startLeft = pill.getTranslationX();
         pillAnimator = ValueAnimator.ofFloat(0f, 1f);

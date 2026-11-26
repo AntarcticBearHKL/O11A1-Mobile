@@ -15,6 +15,7 @@ final class HomeCardCell: UITableViewCell {
   private let progressTrack = UIView()
   private let progressFill = UIView()
   private var progressWidth: NSLayoutConstraint?
+  private let previewBar = PreviewProgressBar()
   private let copyGradient = CAGradientLayer()
   private let avatar = UIImageView()
   private let avatarInitial = UILabel()
@@ -89,6 +90,9 @@ final class HomeCardCell: UITableViewCell {
     progressFill.backgroundColor = UIColor(red: 1, green: 45.0 / 255.0, blue: 45.0 / 255.0, alpha: 1)
     progressTrack.addSubview(progressFill)
     progressFill.translatesAutoresizingMaskIntoConstraints = false
+
+    media.addSubview(previewBar)
+    previewBar.translatesAutoresizingMaskIntoConstraints = false
 
     copyView.backgroundColor = .clear
     copyView.layer.cornerRadius = 14
@@ -196,6 +200,11 @@ final class HomeCardCell: UITableViewCell {
       progressFill.leadingAnchor.constraint(equalTo: progressTrack.leadingAnchor),
       progressFill.topAnchor.constraint(equalTo: progressTrack.topAnchor),
       progressFill.bottomAnchor.constraint(equalTo: progressTrack.bottomAnchor),
+
+      previewBar.leadingAnchor.constraint(equalTo: media.leadingAnchor),
+      previewBar.trailingAnchor.constraint(equalTo: media.trailingAnchor),
+      previewBar.bottomAnchor.constraint(equalTo: media.bottomAnchor),
+      previewBar.heightAnchor.constraint(equalToConstant: 4),
 
       copyView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
       copyView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
@@ -312,15 +321,41 @@ final class HomeCardCell: UITableViewCell {
       ImageLoader.shared.load(item.ownerFace, into: avatar, placeholder: nil)
     }
     if item.progress > 0, item.durationSec > 0 {
-      progressTrack.isHidden = false
-      let ratio = min(1.0, Double(item.progress) / Double(item.durationSec))
-      progressWidth?.isActive = false
-      progressWidth = progressFill.widthAnchor.constraint(
-        equalTo: progressTrack.widthAnchor, multiplier: CGFloat(ratio))
-      progressWidth?.isActive = true
+      applyWatchProgress()
     } else {
       progressTrack.isHidden = true
     }
+    previewBar.isHidden = true
+    previewBar.progress = 0
+  }
+
+  func setPreviewProgress(_ ratio: CGFloat?) {
+    if let ratio = ratio {
+      previewBar.isHidden = false
+      previewBar.progress = ratio
+      progressTrack.isHidden = true
+    } else {
+      previewBar.isHidden = true
+      previewBar.progress = 0
+      guard let item = item, item.progress > 0, item.durationSec > 0 else {
+        progressTrack.isHidden = true
+        return
+      }
+      applyWatchProgress()
+    }
+  }
+
+  private func applyWatchProgress() {
+    guard let item = item, item.progress > 0, item.durationSec > 0 else {
+      progressTrack.isHidden = true
+      return
+    }
+    progressTrack.isHidden = false
+    let ratio = min(1.0, Double(item.progress) / Double(item.durationSec))
+    progressWidth?.isActive = false
+    progressWidth = progressFill.widthAnchor.constraint(
+      equalTo: progressTrack.widthAnchor, multiplier: CGFloat(ratio))
+    progressWidth?.isActive = true
   }
 
   @objc private func tapAvatar() {

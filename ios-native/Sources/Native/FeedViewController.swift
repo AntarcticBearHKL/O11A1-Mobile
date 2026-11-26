@@ -26,6 +26,7 @@ final class FeedViewController: UIViewController,
   private var previewCell: HomeCardCell?
   private var previewIndex = -1
   private var previewToken = 0
+  private var previewSuspended = false
   private var nextPage = 1
   private var fresh = 1
   private var loading = false
@@ -103,6 +104,12 @@ final class FeedViewController: UIViewController,
     }
     previewEngine.onError = { [weak self] _ in
       self?.previewView.alpha = 0
+      self?.previewCell?.setPreviewProgress(nil)
+    }
+    previewEngine.onTime = { [weak self] seconds, duration in
+      guard let self = self, !self.previewSuspended, duration > 0,
+            let cell = self.previewCell else { return }
+      cell.setPreviewProgress(CGFloat(max(0, min(1, seconds / duration))))
     }
     previewView.alpha = 0
     previewView.isUserInteractionEnabled = false
@@ -184,7 +191,9 @@ final class FeedViewController: UIViewController,
 
   override func viewDidDisappear(_ animated: Bool) {
     super.viewDidDisappear(animated)
+    previewSuspended = true
     previewEngine.pause()
+    previewCell?.setPreviewProgress(nil)
   }
 
   // MARK: - data
@@ -200,7 +209,9 @@ final class FeedViewController: UIViewController,
     fresh = 1
     items = []
     previewIndex = -1
+    previewCell?.setPreviewProgress(nil)
     previewCell = nil
+    previewSuspended = true
     previewEngine.stop()
     statusLabel.isHidden = true
     table.reloadData()
@@ -411,14 +422,19 @@ final class FeedViewController: UIViewController,
     guard let cell = table.cellForRow(at: IndexPath(row: bestRow, section: 0)) as? HomeCardCell else {
       return
     }
+    if previewCell !== cell {
+      previewCell?.setPreviewProgress(nil)
+    }
     previewIndex = bestRow
     previewCell = cell
+    previewSuspended = false
     if previewEngine.player.currentItem != nil, previewView.superview === cell.mediaHost {
       previewView.alpha = 1
       previewEngine.play()
       return
     }
     attachPreview(cell)
+    cell.setPreviewProgress(0)
     previewView.alpha = 0
     previewToken += 1
     let token = previewToken
@@ -451,12 +467,15 @@ final class FeedViewController: UIViewController,
   }
 
   func suspendPreview() {
+    previewSuspended = true
     previewEngine.pause()
     previewView.alpha = 0
+    previewCell?.setPreviewProgress(nil)
   }
 
   func resumePreview() {
     guard !searchOpen else { return }
+    previewSuspended = false
     startPreviewIfNeeded()
   }
 

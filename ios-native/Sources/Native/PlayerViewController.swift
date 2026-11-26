@@ -8,6 +8,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   private let engine = VideoEngine()
   private lazy var playerView = PlayerLayerView(playerLayer: engine.playerLayer)
+  private let speedFeedback = UIImpactFeedbackGenerator(style: .medium)
   private let backdrop = UIImageView()
   private let backdropVideo = UIView()
   private lazy var backdropLayer: AVPlayerLayer = {
@@ -130,8 +131,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     videoContainer.backgroundColor = .black
     videoContainer.clipsToBounds = true
-    videoContainer.layer.cornerRadius = 16
-    videoContainer.layer.cornerCurve = .continuous
     view.addSubview(videoContainer)
 
     poster.contentMode = .scaleAspectFill
@@ -296,7 +295,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     danmakuOverlay.backgroundColor = .clear
     danmakuOverlay.isUserInteractionEnabled = false
-    videoContainer.addSubview(danmakuOverlay)
+    view.addSubview(danmakuOverlay)
 
     liveChat.isHidden = true
     videoContainer.addSubview(liveChat)
@@ -358,12 +357,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
       wheel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 8),
       wheel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -8),
-      wheel.topAnchor.constraint(equalTo: content.topAnchor, constant: 38),
-      wheel.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -4),
+      wheel.topAnchor.constraint(equalTo: content.topAnchor, constant: 44),
+      wheel.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -12),
 
       grid.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
       grid.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
-      grid.topAnchor.constraint(equalTo: content.topAnchor, constant: 5),
+      grid.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
       grid.heightAnchor.constraint(equalToConstant: 14),
 
       qualityLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
@@ -403,12 +402,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap))
     doubleTap.numberOfTapsRequired = 2
     doubleTap.delegate = self
-    videoContainer.addGestureRecognizer(doubleTap)
+    view.addGestureRecognizer(doubleTap)
 
     let tap = UITapGestureRecognizer(target: self, action: #selector(handleSingleTap))
     tap.require(toFail: doubleTap)
     tap.delegate = self
-    videoContainer.addGestureRecognizer(tap)
+    view.addGestureRecognizer(tap)
 
     let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
     pan.delegate = self
@@ -417,7 +416,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let longPress = UILongPressGestureRecognizer(target: self, action: #selector(longPress(_:)))
     longPress.minimumPressDuration = 0.18
     longPress.delegate = self
-    videoContainer.addGestureRecognizer(longPress)
+    view.addGestureRecognizer(longPress)
 
     engine.onTime = { [weak self] seconds, duration in
       guard let self = self, !self.isScrubbing else { return }
@@ -478,6 +477,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     [ownerLabel, ownerButton, qualityLabel, speedLabel, commentsButton,
      likeButton, coinButton, favButton].forEach { $0.removeFromSuperview() }
     _ = ensurePortraitComments()
+    speedFeedback.prepare()
     loadQuality(ThemeManager.shared.quality)
     if item.roomId == 0, item.cid > 0 {
       danmakuOverlay.load(cid: item.cid)
@@ -526,15 +526,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   private func portraitVideoRects() -> (center: CGRect, top: CGRect) {
     let full = view.bounds
-    let inset: CGFloat = 12
-    let centerWidth = max(1, full.width - inset * 2)
-    let centerHeight = centerWidth * 9.0 / 16.0
-    let centerY = full.midY + 4
-    let center = CGRect(x: inset, y: centerY - centerHeight / 2,
-                        width: centerWidth, height: centerHeight)
-    let topY = view.safeAreaInsets.top
-    let topHeight = full.width * 9.0 / 16.0
-    let top = CGRect(x: 0, y: topY, width: full.width, height: topHeight)
+    let height = full.width * 9.0 / 16.0
+    let center = CGRect(x: 0, y: full.midY - height / 2 + 2,
+                        width: full.width, height: height)
+    let top = CGRect(x: 0, y: view.safeAreaInsets.top,
+                     width: full.width, height: height)
     return (center, top)
   }
 
@@ -553,7 +549,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     poster.frame = videoContainer.bounds
     pausedVeil.frame = videoContainer.bounds
     pausedGradient.frame = pausedVeil.bounds
-    danmakuOverlay.frame = videoContainer.bounds
     playButton.center = CGPoint(x: videoContainer.center.x,
                                 y: videoContainer.center.y)
   }
@@ -566,14 +561,17 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let rects = portraitVideoRects()
     let videoRect = lerpRect(rects.center, rects.top, p)
     videoContainer.frame = videoRect
-    videoContainer.layer.cornerRadius = 16 * (1 - p)
+    videoContainer.layer.cornerRadius = 0
     layoutVideoSubviews()
+    danmakuOverlay.frame = lerpRect(full, videoRect, p)
 
-    let panelHeight: CGFloat = 84
+    let panelHeight: CGFloat = 108
     let panelWidth = max(1, full.width - 24)
+    let centerPanelY = full.height - view.safeAreaInsets.bottom - panelHeight - 8
+    let topPanelY = max(0, videoRect.maxY - panelHeight - 8)
     bottomPanel.frame = CGRect(
       x: 12,
-      y: max(0, videoRect.maxY - panelHeight - 8),
+      y: centerPanelY + (topPanelY - centerPanelY) * p,
       width: panelWidth,
       height: panelHeight
     )
@@ -584,9 +582,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     comments.view.frame = CGRect(x: 0, y: videoRect.maxY,
                                  width: full.width,
                                  height: max(0, full.height - videoRect.maxY))
-    comments.view.alpha = p
+    let reveal = p * p * (3 - 2 * p)
+    comments.view.alpha = reveal
     comments.view.isHidden = p < 0.01
     comments.view.isUserInteractionEnabled = true
+    view.bringSubviewToFront(danmakuOverlay)
     if p > 0.01 && relatedPanel == nil && detailPanel == nil {
       view.bringSubviewToFront(comments.view)
       view.bringSubviewToFront(bottomPanel)
@@ -606,8 +606,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     hideControls()
     let target: CGFloat = top ? 1 : 0
     if animated {
-      UIView.animate(withDuration: 0.40, delay: 0,
-                     usingSpringWithDamping: 0.92, initialSpringVelocity: 0.25,
+      UIView.animate(withDuration: 0.58, delay: 0,
+                     usingSpringWithDamping: 0.88, initialSpringVelocity: 0.15,
                      options: [.allowUserInteraction, .beginFromCurrentState]) {
         self.applyPortraitTransition(target)
       } completion: { _ in
@@ -687,11 +687,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       }
       videoContainer.layer.cornerRadius = 0
       layoutVideoSubviews()
-      let panelHeight: CGFloat = 92
+      danmakuOverlay.frame = full
+      let panelHeight: CGFloat = 104
       let panelWidth = min(560, full.width - 32)
       bottomPanel.frame = CGRect(
         x: (full.width - panelWidth) / 2,
-        y: full.height - view.safeAreaInsets.bottom - panelHeight - 2,
+        y: full.height - view.safeAreaInsets.bottom - panelHeight - 6,
         width: panelWidth,
         height: panelHeight
       )
@@ -934,7 +935,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     case .began:
       guard engine.isPlaying else { return }
       engine.setRate(2.0)
-      UIImpactFeedbackGenerator(style: .light).impactOccurred()
+      speedFeedback.impactOccurred(intensity: 1.0)
+      speedFeedback.prepare()
     case .ended, .cancelled, .failed:
       engine.setRate(1.0)
     default:
@@ -997,7 +999,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       guard !relatedSwipe && !detailSwipe else { return }
       if !isLandscapePlayer {
         let rects = portraitVideoRects()
-        let distance = max(120, rects.center.midY - rects.top.minY)
+        let distance = max(120, rects.center.minY - rects.top.minY)
         if portraitUpDrag {
           let p = min(1, max(0, -translation.y / distance))
           applyPortraitTransition(p)
@@ -1007,6 +1009,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         } else if portraitDismissDrag {
           let down = max(0, translation.y)
           let scale = max(0.82, 1 - down / 1600)
+          let radius = min(1, down / 320)
+          view.layer.cornerCurve = .continuous
+          view.layer.cornerRadius = 28 * radius
           view.transform = CGAffineTransform(translationX: 0, y: down * 0.55)
             .scaledBy(x: scale, y: scale)
         }
@@ -1058,7 +1063,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       }
       if !isLandscapePlayer {
         let rects = portraitVideoRects()
-        let distance = max(120, rects.center.midY - rects.top.minY)
+        let distance = max(120, rects.center.minY - rects.top.minY)
         if portraitUpDrag {
           portraitUpDrag = false
           panDirectionDecided = false
@@ -1079,9 +1084,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
           if translation.y > 120 || endVelocity.y > 700 {
             closePortraitWithShrink()
           } else {
-            UIView.animate(withDuration: 0.28, delay: 0,
+            UIView.animate(withDuration: 0.32, delay: 0,
                            usingSpringWithDamping: 0.9, initialSpringVelocity: 0.3) {
               self.view.transform = .identity
+              self.view.layer.cornerRadius = 0
             }
           }
           portraitDragActive = false
@@ -1115,10 +1121,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     guard !closing && !portraitShrinking else { return }
     portraitShrinking = true
     portraitDragActive = false
-    UIView.animate(withDuration: 0.26, delay: 0,
+    view.layer.cornerCurve = .continuous
+    UIView.animate(withDuration: 0.30, delay: 0,
                    options: [.curveEaseIn, .beginFromCurrentState]) {
+      self.view.layer.cornerRadius = 28
       self.view.transform = CGAffineTransform(
-        translationX: 0, y: self.view.bounds.height * 0.18
+        translationX: 0, y: self.view.bounds.height * 0.20
       ).scaledBy(x: 0.84, y: 0.84)
       self.view.alpha = 0
     } completion: { _ in

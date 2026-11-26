@@ -56,7 +56,7 @@ final class GlassTabBar: UIView {
     ])
 
     pill.backgroundColor = NativeTheme.navPill
-    pill.layer.cornerRadius = 14
+    pill.layer.cornerRadius = barRadius
     pill.layer.cornerCurve = .continuous
     pill.isUserInteractionEnabled = false
     addSubview(pill)
@@ -68,8 +68,8 @@ final class GlassTabBar: UIView {
     addSubview(stack)
     stack.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-      stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+      stack.leadingAnchor.constraint(equalTo: leadingAnchor),
+      stack.trailingAnchor.constraint(equalTo: trailingAnchor),
       stack.topAnchor.constraint(equalTo: topAnchor),
       stack.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
@@ -107,7 +107,7 @@ final class GlassTabBar: UIView {
   private func layoutPill(animated: Bool) {
     guard selectedIndex >= 0 && selectedIndex < buttons.count else { return }
     let button = buttons[selectedIndex]
-    let target = button.convert(button.bounds, to: self).insetBy(dx: 5, dy: 5)
+    let target = button.convert(button.bounds, to: self)
     if animated {
       pillAnimating = true
       pill.layer.removeAllAnimations()
