@@ -27,11 +27,12 @@ Bottom bar, left to right:
 4. 养鱼 (`Fish`)
 
 The bar is glass, nearly full width, 72 dp/pt tall with an 18 dp/pt corner
-radius. It sits 4 dp/pt above the safe-area bottom and gives its buttons 8 dp/pt
-of horizontal breathing room. The selected tab sits on a 14 dp/pt-radius pill
-that springs between tabs, bounces its icon and crossfades the label; only one
-tab is selected at a time and the initial highlight is visible on first layout.
-The bar hides/shows with a 0.75 s animation while scrolling.
+radius. It sits 8 dp/pt above the physical bottom edge. Tabs span the full bar
+width; the selected tab is filled by a 18 dp/pt-radius highlight with no inset,
+so it touches the bar's top, bottom and side edges. The highlight springs
+between tabs, bounces its icon and uses a selection haptic. Only one tab is
+selected at a time and the initial highlight is visible on first layout. The bar
+hides/shows with a 0.75 s animation while scrolling.
 
 ### Sidebar
 
@@ -47,6 +48,8 @@ The bar hides/shows with a 0.75 s animation while scrolling.
 - One video per screen, edge-to-edge.
 - Muted, looping preview of the focused card. Preview uses 360P progressive
   MP4 (`qn=16`). It starts only when the card is centred and the feed is idle.
+- The focused preview shows a slim, inset progress bar at the bottom of the
+  cover: a quiet track, an accent-blue played span and a small glowing head.
 - Glass information panel over the bottom of the video, 14 dp/pt bottom radius.
 - Three-column footer inside the panel:
   - left: UP name
@@ -80,20 +83,24 @@ The bar hides/shows with a 0.75 s animation while scrolling.
 
 - Opens in portrait and plays immediately. The progress panel is hidden on
   entry; tap the video to show it.
-- Portrait centre stage: the 16:9 video is centred on a full-screen, blurred,
-  enlarged copy of the same video, with the status bar visible over the blur.
-- Swipe up on the video (or its blurred stage) to push the video to the top.
-  The video then starts below the visible status bar and the comment stream
-  fills the space below it.
+- Portrait centre stage: the 16:9 video is full width with square corners, so
+  both sides touch the screen edge. It is centred vertically over a full-screen,
+  blurred, enlarged live copy of the same video; the status bar is visible over
+  the blur. Danmaku uses the whole screen in this stage.
+- The floating progress panel sits at the bottom of the screen in the centre
+  stage: same small 18 dp/pt radius as the toolbar, taller with generous top and
+  bottom padding.
+- Swipe up on the video or blurred stage to push the video below the visible
+  status bar and reveal the comment stream. The transition follows the finger
+  1:1 and settles with a slow spring.
 - Swipe down on the top video to return to the centre stage. Scrolling the
   comments back to the top and pulling down continues into the same spring
   transition back to the centre stage.
-- Swipe down on the centre video to shrink and close the player. Closing
-  restores portrait.
-- The phone only enters landscape when it is physically rotated; the layout
-  animates between portrait and landscape.
-- Landscape is the full-screen player: video edge-to-edge, precision wheel
-  docked at the bottom.
+- Swipe down on the centre stage to shrink and close the player; the shrinking
+  window keeps rounded corners. Closing restores portrait.
+- The phone enters landscape when it is physically rotated; the app observes
+  device orientation and requests the matching geometry. Landscape is the
+  full-screen player with the precision wheel at the bottom.
 - Tap the video to toggle the floating control panel; it auto-hides after
   3.2 s of playback.
 - Left swipe on the video (or portrait comments) slides in a related-video feed
@@ -102,8 +109,12 @@ The bar hides/shows with a 0.75 s animation while scrolling.
 - Right swipe on the video (or portrait comments) slides in the video details
   panel. The panel bottom holds 画质 (inline quality chips), 弹幕设置 (on/off)
   and 循环模式 (loop/single). There is no separate upward settings menu.
-- Long-press anywhere on the video: 2x speed + light haptic. Release restores
-  1x. No HUD.
+- Comments: flat, minimal typography. 38 dp/pt avatars, semibold names,
+  right-aligned relative times, 14.5 dp/pt messages with 3.5 dp/pt line
+  spacing, likes left and reply counts right, separators aligned to the text
+  column, and indented inline replies.
+- Long-press the video: 2x speed and a medium haptic fire immediately on press;
+  releasing restores 1x.
 - Progress wheel: 48 dp/pt tall, proportional ticks, labels and needle. The
   ruler moves under a centred red needle; dragging the ruler left advances and
   dragging it right rewinds.

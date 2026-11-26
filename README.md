@@ -21,18 +21,23 @@ WebView, HTML, CSS, JavaScript, local web server, or bundled web UI**.
 
 - Native vertical video feed with muted 360P previews, home card layout,
   magnitude-coloured play counts and 50pt avatar.
-- Interactive toolbar: 72pt glass bar with an 18pt radius, mounted 4pt above
-  the safe-area bottom, a single 14pt-radius selection pill that springs between
-  tabs with an icon bounce and haptic.
+- Interactive toolbar: 72pt glass bar with an 18pt radius, mounted 8pt above
+  the physical bottom, with a full-height selection highlight that touches the
+  bar edges and springs between tabs with an icon bounce and haptic.
+- Feed previews show a slim inset progress bar with an accent-blue played span
+  and a glowing head on the focused card.
 - Interactive navigation: finger-following left drawer (right drag opens,
   left drag closes, feed recedes live) and finger-following search open/close.
-- Portrait player: the video opens centred and playing over a full-screen
-  blurred, enlarged copy of the same video, with the status bar visible and no
-  progress panel; swipe up to pin the video below the status bar and reveal the
-  native comments, pull the comments down from the top to return to the centre
-  stage, and swipe down on the centre stage to shrink and close.
-- Rotates to the full-screen landscape player only when the phone is physically
-  rotated and returns to portrait on close.
+- Portrait player: the video opens centred and playing at full width with
+  square edges over a full-screen live blurred copy of the same video, with the
+  status bar visible, no progress panel until tapped, and full-screen danmaku;
+  swipe up to pin the video below the status bar and reveal the redesigned
+  comments, pull the comments down from the top to spring back to the centre
+  stage, and swipe down on the centre stage to shrink and close with a rounded
+  window.
+- Rotates to the full-screen landscape player when the phone is physically
+  rotated (device orientation drives the geometry request) and returns to
+  portrait on close.
 - Related-video panel on left swipe, using the home card feed; selecting a card
   replaces the current playback with no navigation stack.
 - Video-details panel on right swipe, with 画质, 弹幕设置 and 循环模式 at the
@@ -54,8 +59,9 @@ WebView, HTML, CSS, JavaScript, local web server, or bundled web UI**.
 - Native module lists and pagination; UP space; season episode lists.
 - Member centre with VIP status, daily experience tasks and recent exp log.
 - Live player with a native WBI-signed WebSocket danmaku column.
-- Comments with native input and one-tap nested reply lists; danmaku
-  load/send/toggle.
+- Comments with native input and one-tap nested reply lists, in a flat minimal
+  layout with aligned avatars, semibold names, right-aligned relative times,
+  generous line spacing and text-column separators; danmaku load/send/toggle.
 - AI 养鱼 screen using an OpenAI-compatible endpoint, native fields and output.
 - Settings: theme system/light/dark, default quality, account, about.
 - Light theme pure `#FFFFFF`; dark theme pure `#000000`.

@@ -404,10 +404,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     doubleTap.delegate = self
     videoContainer.addGestureRecognizer(doubleTap)
 
-    let tap = UITapGestureRecognizer(target: self, action: #selector(handleSingleTap))
-    tap.delegate = self
-    videoContainer.addGestureRecognizer(tap)
-
     let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
     pan.delegate = self
     view.addGestureRecognizer(pan)
@@ -416,6 +412,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     longPress.minimumPressDuration = 0.18
     longPress.delegate = self
     view.addGestureRecognizer(longPress)
+
+    let tap = UITapGestureRecognizer(target: self, action: #selector(handleSingleTap))
+    tap.delegate = self
+    tap.cancelsTouchesInView = false
+    view.addGestureRecognizer(tap)
 
     engine.onTime = { [weak self] seconds, duration in
       guard let self = self, !self.isScrubbing else { return }
@@ -566,7 +567,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     let panelHeight: CGFloat = 108
     let panelWidth = max(1, full.width - 24)
-    let centerPanelY = full.height - view.safeAreaInsets.bottom - panelHeight - 8
+    let centerPanelY = full.height - panelHeight - 8
     let topPanelY = max(0, videoRect.maxY - panelHeight - 8)
     bottomPanel.frame = CGRect(
       x: 12,
@@ -878,7 +879,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   @objc private func handleSingleTap() {
-    if controlsVisible {
+    let visible = bottomPanel.alpha > 0.5 && !bottomPanel.isHidden
+    if visible {
       hideControls()
     } else {
       showControls()
@@ -1340,6 +1342,18 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   func testOpenRelated() {
     openRelatedPanel()
+  }
+
+  func testLandscape() {
+    if #available(iOS 16.0, *) {
+      view.window?.windowScene?.requestGeometryUpdate(
+        .iOS(interfaceOrientations: .landscapeRight))
+    } else {
+      UIDevice.current.setValue(
+        UIInterfaceOrientation.landscapeRight.rawValue,
+        forKey: "orientation")
+      UIViewController.attemptRotationToDeviceOrientation()
+    }
   }
 
   @objc private func closeTapped() {
