@@ -11,6 +11,7 @@ final class RootViewController: UIViewController {
   private var following: VideoListViewController?
   private var dynamic: VideoListViewController?
   private var fish: AIViewController?
+  private var testFlowTriggered = false
 
   override var preferredStatusBarStyle: UIStatusBarStyle {
     return traitCollection.userInterfaceStyle == .dark ? .lightContent : .darkContent
@@ -88,10 +89,36 @@ final class RootViewController: UIViewController {
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
     ThemeManager.shared.apply()
-    if ProcessInfo.processInfo.environment["O11A1_TEST_FLOW"] == "player" {
+    guard !testFlowTriggered else { return }
+    testFlowTriggered = true
+    let flow = ProcessInfo.processInfo.environment["O11A1_TEST_FLOW"] ?? ""
+    switch flow {
+    case "player":
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
         self?.feed?.openFirstForTest()
       }
+    case "my":
+      DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        self?.openMy()
+      }
+    case "modules":
+      DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        guard let self = self else { return }
+        self.presentModule(from: self, mode: .hot, target: 0, title: "热门")
+      }
+    case "fish":
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+        self?.selectTab(3)
+      }
+    case "login":
+      DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        guard let self = self else { return }
+        let login = LoginViewController()
+        login.modalPresentationStyle = .formSheet
+        self.present(login, animated: true)
+      }
+    default:
+      break
     }
   }
 

@@ -114,6 +114,13 @@ jobs:
           SIMCTL_CHILD_O11A1_TEST_FLOW=player xcrun simctl launch "$DEVICE_ID" com.o11a1.videotest
           sleep 20
           xcrun simctl io "$DEVICE_ID" screenshot artifacts/ios-native-player.png
+          xcrun simctl terminate "$DEVICE_ID" com.o11a1.videotest 2>/dev/null || true
+          for FLOW in my modules fish login; do
+            SIMCTL_CHILD_O11A1_TEST_FLOW="$FLOW" xcrun simctl launch "$DEVICE_ID" com.o11a1.videotest
+            sleep 10
+            xcrun simctl io "$DEVICE_ID" screenshot "artifacts/ios-$FLOW.png" || true
+            xcrun simctl terminate "$DEVICE_ID" com.o11a1.videotest 2>/dev/null || true
+          done
           xcrun simctl spawn "$DEVICE_ID" log show --last 4m --style compact --predicate 'process == "O11A1"' > artifacts/ios-native.log 2>&1 || true
           echo "---- simulator log ----"
           tail -n 160 artifacts/ios-native.log || true
@@ -129,6 +136,7 @@ jobs:
             ios-native/artifacts/o11a1-ios-simulator.zip
             ios-native/artifacts/ios-native.png
             ios-native/artifacts/ios-native-player.png
+            ios-native/artifacts/ios-*.png
             ios-native/artifacts/ios-native.log
             ios-native/artifacts/*.log
           if-no-files-found: warn

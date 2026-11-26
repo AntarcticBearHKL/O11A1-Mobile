@@ -31,7 +31,7 @@ final class MyViewController: UIViewController {
       scroll.bottomAnchor.constraint(equalTo: view.bottomAnchor),
       root.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 20),
       root.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -20),
-      root.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: view.safeAreaInsets.top + 12),
+      root.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 58),
       root.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -24),
       root.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -40),
     ])
@@ -85,16 +85,16 @@ final class MyViewController: UIViewController {
     root.addArrangedSubview(accountRow)
 
     let entries: [(String, () -> Void)] = [
-      ("热门", { [weak self] in self?.open(.hot, 0, "热门") }),
-      ("排行", { [weak self] in self?.open(.rank, 0, "排行") }),
-      ("番剧", { [weak self] in self?.open(.bangumi, 0, "番剧") }),
-      ("影视", { [weak self] in self?.open(.movie, 0, "影视") }),
+      ("鐑棬", { [weak self] in self?.open(.hot, 0, "鐑棬") }),
+      ("鎺掕", { [weak self] in self?.open(.rank, 0, "鎺掕") }),
+      ("鐣墽", { [weak self] in self?.open(.bangumi, 0, "鐣墽") }),
+      ("褰辫", { [weak self] in self?.open(.movie, 0, "褰辫") }),
       ("直播", { [weak self] in self?.open(.live, 0, "直播") }),
       ("分区", { [weak self] in self?.open(.zone, 0, "分区") }),
       ("收藏", { [weak self] in self?.open(.favorites, 0, "收藏") }),
       ("历史", { [weak self] in self?.open(.history, 0, "历史") }),
       ("关注", { [weak self] in self?.open(.following, 0, "关注") }),
-      ("动态", { [weak self] in self?.open(.dynamic, 0, "动态") }),
+      ("鍔ㄦ€?, { [weak self] in self?.open(.dynamic, 0, "鍔ㄦ€?) }),
       ("消息", { [weak self] in self?.open(.messages, 0, "消息") }),
       ("养鱼", { [weak self] in self?.onFish?() }),
       ("设置", { [weak self] in self?.onSettings?() }),
@@ -138,11 +138,11 @@ final class MyViewController: UIViewController {
       guard let self = self else { return }
       self.account = info
       self.mid = info.mid
-      self.nameLabel.text = info.loggedIn ? (info.name.isEmpty ? "已登录" : info.name) : "未登录"
+      self.nameLabel.text = info.loggedIn ? (info.name.isEmpty ? "宸茬櫥褰? : info.name) : "鏈櫥褰?
       self.metaLabel.text = info.loggedIn
-        ? "UID \(info.mid) · Lv\(info.level)\(info.vip ? " · 大会员" : "")"
-        : "登录后同步关注、收藏、历史"
-      self.accountButton.setTitle(info.loggedIn ? "退出登录" : "扫码登录", for: .normal)
+        ? "UID \(info.mid) 路 Lv\(info.level)\(info.vip ? " 路 澶т細鍛? : "")"
+        : "鐧诲綍鍚庡悓姝ュ叧娉ㄣ€佹敹钘忋€佸巻鍙?
+      self.accountButton.setTitle(info.loggedIn ? "閫€鍑虹櫥褰? : "鎵爜鐧诲綍", for: .normal)
       if info.loggedIn, !info.face.isEmpty {
         ImageLoader.shared.load(info.face, into: self.avatar)
       } else {
