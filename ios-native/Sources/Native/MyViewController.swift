@@ -81,8 +81,13 @@ final class MyViewController: UIViewController {
     accountCard.addSubview(metaLabel)
     metaLabel.translatesAutoresizingMaskIntoConstraints = false
 
-    accountButton.titleLabel?.font = NativeTheme.titleFont(13)
+    accountButton.titleLabel?.font = UIFont.systemFont(ofSize: 11.5, weight: .bold)
     accountButton.setTitleColor(NativeTheme.navBlue, for: .normal)
+    accountButton.layer.cornerRadius = 17
+    accountButton.layer.cornerCurve = .continuous
+    accountButton.layer.borderWidth = 1
+    accountButton.layer.borderColor = NativeTheme.hairline.cgColor
+    accountButton.contentEdgeInsets = UIEdgeInsets(top: 0, left: 15, bottom: 0, right: 15)
     accountButton.addTarget(self, action: #selector(accountTapped), for: .touchUpInside)
     accountCard.addSubview(accountButton)
     accountButton.translatesAutoresizingMaskIntoConstraints = false
@@ -98,8 +103,9 @@ final class MyViewController: UIViewController {
       metaLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
       metaLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 3),
       metaLabel.trailingAnchor.constraint(lessThanOrEqualTo: accountButton.leadingAnchor, constant: -8),
-      accountButton.trailingAnchor.constraint(equalTo: accountCard.trailingAnchor, constant: -18),
+      accountButton.trailingAnchor.constraint(equalTo: accountCard.trailingAnchor, constant: -20),
       accountButton.centerYAnchor.constraint(equalTo: accountCard.centerYAnchor),
+      accountButton.heightAnchor.constraint(equalToConstant: 34),
     ])
 
     view.addSubview(scroll)
@@ -191,8 +197,21 @@ final class MyViewController: UIViewController {
 
   @objc private func accountTapped() {
     if account.loggedIn {
-      BiliAPI.shared.logout()
-      loadAccount()
+      let vip = account.vip ? "大会员" : "未开通"
+      let alert = UIAlertController(
+        title: "账户",
+        message: "昵称  \(account.name)\nUID  \(account.mid)\n等级  Lv\(account.level)\n大会员  \(vip)",
+        preferredStyle: .actionSheet)
+      alert.addAction(UIAlertAction(title: "退出登录", style: .destructive) { [weak self] _ in
+        BiliAPI.shared.logout()
+        self?.loadAccount()
+      })
+      alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+      if let popover = alert.popoverPresentationController {
+        popover.sourceView = accountButton
+        popover.sourceRect = accountButton.bounds
+      }
+      present(alert, animated: true)
     } else {
       let login = LoginViewController()
       login.modalPresentationStyle = .formSheet
@@ -286,7 +305,12 @@ final class MyViewController: UIViewController {
       self.metaLabel.text = info.loggedIn
         ? "UID \(info.mid) · Lv\(info.level)\(info.vip ? " · 大会员" : "")"
         : "登录 B 站账号"
-      self.accountButton.setTitle(info.loggedIn ? "退出" : "登录", for: .normal)
+      self.accountButton.setTitle(info.loggedIn ? (info.vip ? "大会员" : "账户") : "登录",
+                                  for: .normal)
+      self.accountButton.backgroundColor = info.vip ? NativeTheme.navSoft : .clear
+      self.accountButton.layer.borderColor = info.vip
+        ? NativeTheme.navBlue.withAlphaComponent(0.35).cgColor
+        : NativeTheme.hairline.cgColor
       if info.loggedIn, !info.face.isEmpty {
         ImageLoader.shared.load(info.face, into: self.avatar)
       } else {

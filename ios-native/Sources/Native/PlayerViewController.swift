@@ -620,6 +620,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private func showControls() {
     controlsTimer?.invalidate()
     controlsVisible = true
+    bottomPanel.isUserInteractionEnabled = true
     UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseOut]) {
       self.bottomPanel.alpha = 1
       self.bottomPanel.transform = .identity
@@ -633,6 +634,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseIn]) {
       self.bottomPanel.alpha = 0
       self.bottomPanel.transform = CGAffineTransform(translationX: 0, y: 16)
+    } completion: { _ in
+      if !self.controlsVisible {
+        self.bottomPanel.isUserInteractionEnabled = false
+      }
     }
   }
 

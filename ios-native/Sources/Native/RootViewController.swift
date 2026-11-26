@@ -1,6 +1,7 @@
 import UIKit
 
 final class RootViewController: UIViewController {
+  private let mainHost = UIView()
   private let contentView = UIView()
   private let tabBar = GlassTabBar()
   private let settingsButton = UIButton(type: .system)
@@ -47,14 +48,24 @@ final class RootViewController: UIViewController {
     ThemeManager.shared.apply()
     UIApplication.shared.isIdleTimerDisabled = true
 
+    mainHost.backgroundColor = NativeTheme.background
+    view.addSubview(mainHost)
+    mainHost.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      mainHost.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      mainHost.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      mainHost.topAnchor.constraint(equalTo: view.topAnchor),
+      mainHost.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
+
     contentView.backgroundColor = NativeTheme.background
-    view.addSubview(contentView)
+    mainHost.addSubview(contentView)
     contentView.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      contentView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-      contentView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      contentView.topAnchor.constraint(equalTo: view.topAnchor),
-      contentView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+      contentView.leadingAnchor.constraint(equalTo: mainHost.leadingAnchor),
+      contentView.trailingAnchor.constraint(equalTo: mainHost.trailingAnchor),
+      contentView.topAnchor.constraint(equalTo: mainHost.topAnchor),
+      contentView.bottomAnchor.constraint(equalTo: mainHost.bottomAnchor),
     ])
 
     tabBar.onSelect = { [weak self] index in
@@ -63,12 +74,12 @@ final class RootViewController: UIViewController {
     tabBar.onReselect = { [weak self] in
       self?.closeMessages()
     }
-    view.addSubview(tabBar)
+    mainHost.addSubview(tabBar)
     tabBar.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      tabBar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
-      tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
-      tabBar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -10),
+      tabBar.leadingAnchor.constraint(equalTo: mainHost.leadingAnchor, constant: 12),
+      tabBar.trailingAnchor.constraint(equalTo: mainHost.trailingAnchor, constant: -12),
+      tabBar.bottomAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.bottomAnchor, constant: -10),
       tabBar.heightAnchor.constraint(equalToConstant: 58),
     ])
 
@@ -81,11 +92,11 @@ final class RootViewController: UIViewController {
     settingsButton.layer.shadowRadius = 12
     settingsButton.layer.shadowOffset = CGSize(width: 0, height: 4)
     settingsButton.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
-    view.addSubview(settingsButton)
+    mainHost.addSubview(settingsButton)
     settingsButton.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      settingsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-      settingsButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 6),
+      settingsButton.trailingAnchor.constraint(equalTo: mainHost.trailingAnchor, constant: -16),
+      settingsButton.topAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.topAnchor, constant: 6),
       settingsButton.widthAnchor.constraint(equalToConstant: 40),
       settingsButton.heightAnchor.constraint(equalToConstant: 40),
     ])
@@ -99,11 +110,11 @@ final class RootViewController: UIViewController {
     myButton.layer.shadowRadius = 12
     myButton.layer.shadowOffset = CGSize(width: 0, height: 4)
     myButton.addTarget(self, action: #selector(openMy), for: .touchUpInside)
-    view.addSubview(myButton)
+    mainHost.addSubview(myButton)
     myButton.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      myButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-      myButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 6),
+      myButton.leadingAnchor.constraint(equalTo: mainHost.leadingAnchor, constant: 16),
+      myButton.topAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.topAnchor, constant: 6),
       myButton.widthAnchor.constraint(equalToConstant: 40),
       myButton.heightAnchor.constraint(equalToConstant: 40),
     ])
@@ -233,9 +244,9 @@ final class RootViewController: UIViewController {
     contentView.addSubview(controller.view)
     controller.didMove(toParent: self)
     currentChild = controller
-    view.bringSubviewToFront(tabBar)
-    view.bringSubviewToFront(settingsButton)
-    view.bringSubviewToFront(myButton)
+    mainHost.bringSubviewToFront(tabBar)
+    mainHost.bringSubviewToFront(settingsButton)
+    mainHost.bringSubviewToFront(myButton)
   }
 
   private func openPlayer(_ item: VideoItem, from source: UIView?) {
@@ -313,9 +324,34 @@ final class RootViewController: UIViewController {
         self.selectTab(0)
         self.feed?.openSearchFromHost()
       }
+      view.onClose = { [weak self] in
+        self?.restoreFromSidebar()
+      }
       sidebar = view
     }
     sidebar?.present(in: view)
+    recedeForSidebar()
+  }
+
+  private func recedeForSidebar() {
+    mainHost.layer.masksToBounds = true
+    UIView.animate(withDuration: 0.36, delay: 0,
+                   usingSpringWithDamping: 1, initialSpringVelocity: 0,
+                   options: [.curveEaseOut]) {
+      let transform = CGAffineTransform(translationX: self.view.bounds.width * 0.10, y: 0)
+        .scaledBy(x: 0.9, y: 0.9)
+      self.mainHost.transform = transform
+      self.mainHost.layer.cornerRadius = 24
+    }
+  }
+
+  private func restoreFromSidebar() {
+    UIView.animate(withDuration: 0.32, delay: 0,
+                   usingSpringWithDamping: 1, initialSpringVelocity: 0,
+                   options: [.curveEaseOut]) {
+      self.mainHost.transform = .identity
+      self.mainHost.layer.cornerRadius = 0
+    }
   }
 
   private func openMessages() {
@@ -335,9 +371,9 @@ final class RootViewController: UIViewController {
     contentView.addSubview(controller.view)
     controller.didMove(toParent: self)
     messages = controller
-    view.bringSubviewToFront(tabBar)
-    view.bringSubviewToFront(settingsButton)
-    view.bringSubviewToFront(myButton)
+    mainHost.bringSubviewToFront(tabBar)
+    mainHost.bringSubviewToFront(settingsButton)
+    mainHost.bringSubviewToFront(myButton)
   }
 
   private func closeMessages() {

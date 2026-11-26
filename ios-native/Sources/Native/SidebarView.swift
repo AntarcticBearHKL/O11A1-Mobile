@@ -5,6 +5,7 @@ final class SidebarView: UIView {
   var onModule: ((ModuleListViewController.Mode, String) -> Void)?
   var onMy: (() -> Void)?
   var onSearch: (() -> Void)?
+  var onClose: (() -> Void)?
 
   private let panel = UIView()
   private let backdrop = UIView()
@@ -17,7 +18,9 @@ final class SidebarView: UIView {
     backgroundColor = .clear
     isHidden = true
 
-    backdrop.backgroundColor = UIColor.black.withAlphaComponent(0.35)
+    backdrop.backgroundColor = UIColor { trait in
+      UIColor.black.withAlphaComponent(trait.userInterfaceStyle == .dark ? 0.55 : 0.28)
+    }
     backdrop.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(close)))
     addSubview(backdrop)
     backdrop.translatesAutoresizingMaskIntoConstraints = false
@@ -200,6 +203,7 @@ final class SidebarView: UIView {
 
   @objc func close() {
     guard superview != nil else { return }
+    onClose?()
     UIView.animate(withDuration: 0.26, delay: 0, options: [.curveEaseIn], animations: {
       self.panel.transform = CGAffineTransform(
         translationX: -self.panel.bounds.width - 24, y: 0)
