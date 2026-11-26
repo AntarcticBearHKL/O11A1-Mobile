@@ -610,8 +610,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   @objc private func toggleDanmaku() {
-    danmakuOverlay.setEnabled(!danmakuOverlay.enabled)
-    danmakuToggle.alpha = danmakuOverlay.enabled ? 1 : 0.45
+    let enabled = !danmakuOverlay.enabled
+    danmakuOverlay.setEnabled(enabled)
+    UserDefaults.standard.set(enabled, forKey: "danmaku_enabled")
+    danmakuToggle.alpha = enabled ? 1 : 0.45
   }
 
   @objc private func sendDanmakuTapped() {
@@ -844,6 +846,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     panel.onDanmaku = { [weak self] on in
       self?.danmakuOverlay.setEnabled(on)
+      UserDefaults.standard.set(on, forKey: "danmaku_enabled")
       self?.danmakuToggle.alpha = on ? 1 : 0.45
     }
     panel.onLoop = { [weak self] on in

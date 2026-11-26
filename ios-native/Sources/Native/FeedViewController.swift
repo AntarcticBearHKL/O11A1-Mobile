@@ -37,6 +37,7 @@ final class FeedViewController: UIViewController,
   private var dragDirection = 0
   private var homeSource = "recommend"
   private var sourceTitle = "推荐"
+  private var sourceToken = 0
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -184,6 +185,7 @@ final class FeedViewController: UIViewController,
     guard source != homeSource || items.isEmpty else { return }
     homeSource = source
     sourceTitle = title
+    sourceToken += 1
     loading = false
     hasMore = source != "none" && source != "dynamic" && source != "fish"
     nextPage = 1
@@ -224,8 +226,9 @@ final class FeedViewController: UIViewController,
       statusLabel.isHidden = false
     }
     let pageValue = nextPage
+    let token = sourceToken
     let done: (Result<[VideoItem], Error>) -> Void = { [weak self] result in
-      guard let self = self else { return }
+      guard let self = self, token == self.sourceToken else { return }
       self.loading = false
       switch result {
       case .failure(let error):
@@ -260,7 +263,7 @@ final class FeedViewController: UIViewController,
       BiliAPI.shared.live(page: pageValue, completion: done)
     default:
       BiliAPI.shared.recommend(page: pageValue, fresh: fresh) { [weak self] result in
-        guard let self = self else { return }
+        guard let self = self, token == self.sourceToken else { return }
         self.loading = false
         switch result {
         case .failure(let error):
