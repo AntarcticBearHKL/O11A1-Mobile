@@ -1260,8 +1260,13 @@ final class O11A1BiliClient {
   }
 
   func liveDanmuInfo(roomId: Int64) -> Data {
+    let params = ["id": "\(roomId)", "type": "0", "web_location": "444.8"]
+    let key = wbiKey()
+    let query = key.isEmpty
+      ? "id=\(roomId)&type=0&web_location=444.8"
+      : wbiSign(params, key: key)
     guard roomId > 0,
-          let url = URL(string: "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=\(roomId)&type=0") else {
+          let url = URL(string: "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?" + query) else {
       return o11a1Error("直播弹幕信息不可用")
     }
     var request = URLRequest(url: url)

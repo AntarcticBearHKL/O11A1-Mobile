@@ -30,8 +30,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let danmakuSend = UIButton(type: .system)
   private let danmakuOverlay = DanmakuOverlayView()
   private let liveChat = LiveChatView()
+  private let liveSocket = LiveChatSocket()
   private let errorLabel = UILabel()
-  private var liveTimer: Timer?
+  private var liveMessages: [LiveMessage] = []
   private var activeObserver: NSObjectProtocol?
   private var sourceFrame: CGRect = .zero
   private var panStartFrame: CGRect = .zero
@@ -462,28 +463,31 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func startLiveChat() {
-    guard item.roomId > 0, liveTimer == nil else { return }
-    pollLiveChat()
-    liveTimer = Timer.scheduledTimer(withTimeInterval: 6, repeats: true) { [weak self] _ in
-      self?.pollLiveChat()
-    }
-  }
-
-  private func pollLiveChat() {
     guard item.roomId > 0 else { return }
-    BiliAPI.shared.liveHistory(roomId: item.roomId) { [weak self] result in
-      guard let self = self, case .success(let messages) = result else { return }
-      self.liveChat.setMessages(messages)
+    liveSocket.onMessage = { [weak self] user, text in
+      guard let self = self else { return }
+      var message = LiveMessage()
+      message.user = user
+      message.text = text
+      self.liveMessages.append(message)
+      if self.liveMessages.count > 7 {
+        self.liveMessages.removeFirst(self.liveMessages.count - 7)
+      }
+      self.liveChat.setMessages(self.liveMessages)
+    }
+    BiliAPI.shared.liveDanmuInfo(roomId: item.roomId) { [weak self] result in
+      guard let self = self, case .success(let info) = result else { return }
+      self.liveSocket.connect(roomId: self.item.roomId, token: info.0, host: info.1, port: info.2)
     }
   }
 
   private func stopLiveChat() {
-    liveTimer?.invalidate()
-    liveTimer = nil
+    liveSocket.close()
+    liveMessages.removeAll()
+    liveChat.setMessages([])
   }
 
   deinit {
-    liveTimer?.invalidate()
     if let observer = activeObserver {
       NotificationCenter.default.removeObserver(observer)
     }

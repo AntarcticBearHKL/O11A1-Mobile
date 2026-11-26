@@ -765,8 +765,16 @@ final class BiliExtras {
             Map<String, String> headers = new HashMap<>();
             headers.put("Referer", "https://live.bilibili.com/" + roomId);
             headers.put("Origin", "https://live.bilibili.com");
+            Map<String, String> params = new HashMap<>();
+            params.put("id", String.valueOf(roomId));
+            params.put("type", "0");
+            params.put("web_location", "444.8");
+            String key = wbiKey();
+            String query = key.isEmpty()
+                ? "id=" + roomId + "&type=0&web_location=444.8"
+                : wbiSign(params, key);
             JSONObject json = new JSONObject(cookies.request(
-                "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=" + roomId + "&type=0",
+                "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?" + query,
                 headers, null));
             int code = json.optInt("code", -1);
             if (code != 0) return apiFailure(code, json.optString("message", "直播弹幕信息不可用"));
@@ -836,8 +844,8 @@ final class BiliExtras {
             out.put("ok", true);
             out.put("roomId", roomId);
             out.put("liveStatus", data.optInt("live_status", 0));
-            out.put("url", !hls.isEmpty() ? hls : flv);
-            out.put("format", !hls.isEmpty() ? "hls" : "flv");
+            out.put("url", !flv.isEmpty() ? flv : hls);
+            out.put("format", !flv.isEmpty() ? "flv" : "hls");
             out.put("title", strip(data.optString("title", "")));
             out.put("owner", strip(data.optString("uname", "")));
         } catch (Throwable error) {

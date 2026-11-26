@@ -51,7 +51,8 @@ final class PlayerOverlay extends FrameLayout {
     private final ExecutorService pool = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable longPressRunnable;
-    private final Runnable liveChatPoll = this::pollLiveChat;
+    private final java.util.List<String[]> liveMessages = new java.util.ArrayList<>();
+    private LiveChatClient liveChatClient;
     private final int statusInset;
     private final long createdAt = System.currentTimeMillis();
     private int qualityQn;
@@ -441,36 +442,44 @@ final class PlayerOverlay extends FrameLayout {
     }
 
     private void startLiveChat() {
-        main.removeCallbacks(liveChatPoll);
-        main.post(liveChatPoll);
-    }
-
-    private void pollLiveChat() {
-        if (destroyed || closing || item.roomId <= 0) return;
+        if (liveChatClient != null || item.roomId <= 0) return;
+        liveChatClient = new LiveChatClient();
         pool.execute(() -> {
-            JSONObject result = extras.liveHistory(item.roomId);
+            JSONObject info = extras.liveDanmuInfo(item.roomId);
+            final String token = info == null ? "" : info.optString("token", "");
+            final String host = info == null ? "" : info.optString("host", "");
+            final int port = info == null ? 443 : info.optInt("wssPort", 443);
+            android.util.Log.i("O11A1LiveChat", "info token=" + token.length()
+                + " host=" + host + " port=" + port + " ok=" + (info != null && info.optBoolean("ok")));
             main.post(() -> {
-                if (destroyed || closing) return;
-                renderLiveChat(result == null ? null : result.optJSONArray("items"));
-                main.removeCallbacks(liveChatPoll);
-                main.postDelayed(liveChatPoll, 6000);
+                if (destroyed || closing || token.isEmpty() || host.isEmpty()) return;
+                LiveChatClient client = liveChatClient;
+                if (client == null) return;
+                client.connect(item.roomId, token, host, port, new LiveChatClient.Listener() {
+                    @Override public void onMessage(String user, String text) {
+                        appendLiveChat(user, text);
+                    }
+
+                    @Override public void onClosed() {
+                    }
+                });
             });
         });
     }
 
-    private void renderLiveChat(JSONArray items) {
+    private void appendLiveChat(String user, String text) {
+        if (destroyed || text == null || text.isEmpty()) return;
+        liveMessages.add(new String[]{user == null || user.isEmpty() ? "观众" : user, text});
+        while (liveMessages.size() > 7) liveMessages.remove(0);
+        renderLiveChat();
+    }
+
+    private void renderLiveChat() {
         liveChat.removeAllViews();
-        if (items == null || items.length() == 0) return;
-        int start = Math.max(0, items.length() - 7);
-        for (int i = start; i < items.length(); i += 1) {
-            JSONObject row = items.optJSONObject(i);
-            if (row == null) continue;
-            String user = row.optString("user", "观众");
-            String text = row.optString("text", "");
-            if (text.isEmpty()) continue;
+        for (String[] message : liveMessages) {
             TextView line = new TextView(getContext());
-            String prefix = user + "：";
-            android.text.SpannableString value = new android.text.SpannableString(prefix + text);
+            String prefix = message[0] + "：";
+            android.text.SpannableString value = new android.text.SpannableString(prefix + message[1]);
             value.setSpan(new android.text.style.ForegroundColorSpan(0xFF8FC4FF),
                 0, prefix.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             line.setText(value);
@@ -481,6 +490,14 @@ final class PlayerOverlay extends FrameLayout {
             line.setShadowLayer(2f, 0f, 0f, Color.BLACK);
             liveChat.addView(line);
         }
+    }
+
+    private void stopLiveChat() {
+        LiveChatClient client = liveChatClient;
+        liveChatClient = null;
+        if (client != null) client.close();
+        liveMessages.clear();
+        liveChat.removeAllViews();
     }
 
     private boolean onRootTouch(View view, MotionEvent event) {
@@ -649,7 +666,7 @@ final class PlayerOverlay extends FrameLayout {
     void close() {
         if (closing) return;
         closing = true;
-        main.removeCallbacks(liveChatPoll);
+        stopLiveChat();
         engine.stop();
         onClose.run();
     }
@@ -657,7 +674,7 @@ final class PlayerOverlay extends FrameLayout {
     void destroy() {
         if (destroyed) return;
         destroyed = true;
-        main.removeCallbacks(liveChatPoll);
+        stopLiveChat();
         danmaku.destroy();
         engine.release();
         pool.shutdownNow();

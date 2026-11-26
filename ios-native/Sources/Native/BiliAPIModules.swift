@@ -182,6 +182,25 @@ extension BiliAPI {
     }
   }
 
+  func liveDanmuInfo(roomId: Int64,
+                     completion: @escaping (Result<(String, String, Int), Error>) -> Void) {
+    run({ self.client.liveDanmuInfo(roomId: roomId) }) { result in
+      switch result {
+      case .failure(let error):
+        completion(.failure(error))
+      case .success(let json):
+        let token = o11a1String(json["token"])
+        let host = o11a1String(json["host"])
+        let port = o11a1Int(json["wssPort"])
+        if token.isEmpty || host.isEmpty {
+          completion(.failure(NativeError.message("直播弹幕信息为空")))
+        } else {
+          completion(.success((token, host, port <= 0 ? 443 : port)))
+        }
+      }
+    }
+  }
+
   func danmaku(cid: Int64, completion: @escaping (Result<[DanmakuItem], Error>) -> Void) {
     run({ self.client.danmaku(cid: cid) }) { result in
       switch result {
