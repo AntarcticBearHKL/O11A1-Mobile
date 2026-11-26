@@ -11,6 +11,7 @@ final class RootViewController: UIViewController {
   private var following: VideoListViewController?
   private var dynamic: VideoListViewController?
   private var fish: AIViewController?
+  private var sidebar: SidebarView?
   private var testFlowTriggered = false
 
   override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -18,6 +19,26 @@ final class RootViewController: UIViewController {
   }
 
   override var prefersHomeIndicatorAutoHidden: Bool { true }
+
+  override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+    return player == nil ? .portrait : .landscape
+  }
+
+  override var prefersStatusBarHidden: Bool {
+    return player != nil
+  }
+
+  private func setPlayerOrientation(_ landscape: Bool) {
+    if #available(iOS 16.0, *) {
+      setNeedsUpdateOfSupportedInterfaceOrientations()
+      if let scene = view.window?.windowScene {
+        scene.requestGeometryUpdate(
+          .iOS(interfaceOrientations: landscape ? .landscapeRight : .portrait))
+      }
+    } else {
+      UIViewController.attemptRotationToDeviceOrientation()
+    }
+  }
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -83,6 +104,11 @@ final class RootViewController: UIViewController {
       myButton.heightAnchor.constraint(equalToConstant: 40),
     ])
 
+    // The original home has no top buttons; My and settings live in the
+    // left navigation drawer. Keep these views for compatibility only.
+    settingsButton.isHidden = true
+    myButton.isHidden = true
+
     selectTab(0, force: true)
   }
 
@@ -140,6 +166,9 @@ final class RootViewController: UIViewController {
     controller.onSearchOpen = { [weak self] item in
       self?.openPlayer(item, from: nil)
     }
+    controller.onSidebar = { [weak self] in
+      self?.openSidebar()
+    }
     controller.onToolbar = { [weak self] hidden in
       guard let self = self else { return }
       self.tabBar.setHidden(hidden, animated: true)
@@ -154,7 +183,6 @@ final class RootViewController: UIViewController {
 
   private func selectTab(_ index: Int, force: Bool = false) {
     tabBar.select(index: index, notify: false)
-    myButton.isHidden = index != 0
     let controller: UIViewController
     switch index {
     case 0:
@@ -218,6 +246,8 @@ final class RootViewController: UIViewController {
     settingsButton.isHidden = true
     myButton.isHidden = true
     controller.start()
+    setPlayerOrientation(true)
+    setNeedsStatusBarAppearanceUpdate()
   }
 
   private func closePlayer() {
@@ -227,8 +257,8 @@ final class RootViewController: UIViewController {
     controller.removeFromParent()
     player = nil
     tabBar.isHidden = false
-    settingsButton.isHidden = false
-    myButton.isHidden = tabBar.selectedIndex != 0
+    setPlayerOrientation(false)
+    setNeedsStatusBarAppearanceUpdate()
     feed?.resumePreview()
   }
 
@@ -249,9 +279,32 @@ final class RootViewController: UIViewController {
     present(nav, animated: true)
   }
 
+  private func openSidebar() {
+    if sidebar == nil {
+      let view = SidebarView()
+      view.onHome = { [weak self] in
+        self?.selectTab(0)
+      }
+      view.onModule = { [weak self] mode, title in
+        guard let self = self else { return }
+        self.presentModule(from: self, mode: mode, target: 0, title: title)
+      }
+      view.onMy = { [weak self] in
+        self?.openMy()
+      }
+      view.onSearch = { [weak self] in
+        guard let self = self else { return }
+        self.selectTab(0)
+        self.feed?.openSearchFromHost()
+      }
+      sidebar = view
+    }
+    sidebar?.present(in: view)
+  }
+
   @objc private func openMy() {
     let my = MyViewController()
-    my.modalPresentationStyle = .fullScreen
+    my.modalPresentationStyle = .overFullScreen
     my.onFish = { [weak self, weak my] in
       my?.dismiss(animated: false) { self?.selectTab(3) }
     }
@@ -262,7 +315,11 @@ final class RootViewController: UIViewController {
       guard let self = self, let host = my else { return }
       self.presentModule(from: host, mode: mode, target: target, title: title)
     }
-    present(my, animated: true)
+    present(my, animated: false)
+    my.view.transform = CGAffineTransform(translationX: -view.bounds.width, y: 0)
+    UIView.animate(withDuration: 0.24, delay: 0, options: [.curveEaseOut]) {
+      my.view.transform = .identity
+    }
   }
 
   private func presentModule(from host: UIViewController,

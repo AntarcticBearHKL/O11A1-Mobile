@@ -50,7 +50,10 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
     table.delegate = self
     table.keyboardDismissMode = .onDrag
     table.register(SearchResultCell.self, forCellReuseIdentifier: SearchResultCell.reuseID)
+    table.register(HomeCardCell.self, forCellReuseIdentifier: HomeCardCell.reuseID)
     table.register(UITableViewCell.self, forCellReuseIdentifier: "SuggestionCell")
+    table.rowHeight = UITableView.automaticDimension
+    table.estimatedRowHeight = 360
     view.addSubview(table)
     table.translatesAutoresizingMaskIntoConstraints = false
 
@@ -186,8 +189,11 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     if mode == .results {
-      let cell = tableView.dequeueReusableCell(withIdentifier: SearchResultCell.reuseID, for: indexPath) as! SearchResultCell
-      cell.configure(items[indexPath.row])
+      let cell = tableView.dequeueReusableCell(withIdentifier: HomeCardCell.reuseID, for: indexPath) as! HomeCardCell
+      let item = items[indexPath.row]
+      cell.configure(item)
+      cell.onOpen = { [weak self] in self?.onOpenVideo?(item) }
+      cell.onAvatar = nil
       return cell
     }
     let cell = tableView.dequeueReusableCell(withIdentifier: "SuggestionCell", for: indexPath)

@@ -1,26 +1,25 @@
 import UIKit
 
 final class FeedViewController: UIViewController,
-  UICollectionViewDataSource,
-  UICollectionViewDelegateFlowLayout,
-  UIScrollViewDelegate,
+  UITableViewDataSource,
+  UITableViewDelegate,
   UIGestureRecognizerDelegate {
 
-  var onOpen: ((VideoItem, VideoCardCell) -> Void)?
+  var onOpen: ((VideoItem, HomeCardCell) -> Void)?
   var onProfile: ((Int64) -> Void)?
   var onToolbar: ((Bool) -> Void)?
   var onSearchOpen: ((VideoItem) -> Void)?
+  var onSidebar: (() -> Void)?
 
   private(set) var items: [VideoItem] = []
-  private let collectionView: UICollectionView
-  private let layout = UICollectionViewFlowLayout()
+  private let table = UITableView(frame: .zero, style: .plain)
+  private let statusLabel = UILabel()
+  private let topFade = UIView()
   private let previewEngine = VideoEngine()
   private lazy var previewView = PlayerLayerView(playerLayer: previewEngine.playerLayer)
-  private var previewCell: VideoCardCell?
+  private var previewCell: HomeCardCell?
   private var previewIndex = -1
   private var previewToken = 0
-  private var previewLoading = false
-  private var focusedIndex = 0
   private var nextPage = 1
   private var fresh = 1
   private var loading = false
@@ -28,47 +27,49 @@ final class FeedViewController: UIViewController,
   private var lastOffset: CGFloat = 0
   private var toolbarHidden = false
   private var toolbarWasHidden = false
-  private let statusLabel = UILabel()
   private var searchController: SearchViewController?
   private var searchPan: UIPanGestureRecognizer?
   private var searchOpen = false
-
-  init() {
-    let flow = UICollectionViewFlowLayout()
-    flow.scrollDirection = .vertical
-    flow.minimumLineSpacing = 0
-    flow.minimumInteritemSpacing = 0
-    flow.sectionInset = .zero
-    layout.scrollDirection = .vertical
-    layout.minimumLineSpacing = 0
-    layout.minimumInteritemSpacing = 0
-    collectionView = UICollectionView(frame: .zero, collectionViewLayout: flow)
-    super.init(nibName: nil, bundle: nil)
-  }
-
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) has not been implemented")
-  }
+  private var dragDirection = 0
 
   override func viewDidLoad() {
     super.viewDidLoad()
     view.backgroundColor = NativeTheme.background
 
-    collectionView.backgroundColor = .clear
-    collectionView.isPagingEnabled = true
-    collectionView.showsVerticalScrollIndicator = false
-    collectionView.contentInsetAdjustmentBehavior = .never
-    collectionView.dataSource = self
-    collectionView.delegate = self
-    collectionView.register(VideoCardCell.self, forCellWithReuseIdentifier: VideoCardCell.reuseID)
-    view.addSubview(collectionView)
-    collectionView.translatesAutoresizingMaskIntoConstraints = false
+    table.backgroundColor = .clear
+    table.separatorStyle = .none
+    table.dataSource = self
+    table.delegate = self
+    table.register(HomeCardCell.self, forCellReuseIdentifier: HomeCardCell.reuseID)
+    table.rowHeight = UITableView.automaticDimension
+    table.estimatedRowHeight = 360
+    table.contentInset = UIEdgeInsets(top: 12, left: 0, bottom: 108, right: 0)
+    table.contentInsetAdjustmentBehavior = .never
+    table.showsVerticalScrollIndicator = false
+    view.addSubview(table)
+    table.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-      collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      collectionView.topAnchor.constraint(equalTo: view.topAnchor),
-      collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+      table.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      table.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      table.topAnchor.constraint(equalTo: view.topAnchor),
+      table.bottomAnchor.constraint(equalTo: view.bottomAnchor),
     ])
+
+    topFade.isUserInteractionEnabled = false
+    view.addSubview(topFade)
+    topFade.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      topFade.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      topFade.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      topFade.topAnchor.constraint(equalTo: view.topAnchor),
+      topFade.heightAnchor.constraint(equalToConstant: 42),
+    ])
+    let gradient = CAGradientLayer()
+    gradient.colors = [NativeTheme.background.cgColor,
+                       NativeTheme.background.withAlphaComponent(0).cgColor]
+    gradient.locations = [0, 1]
+    topFade.layer.addSublayer(gradient)
+    topFade.layer.name = "feedTopFade"
 
     statusLabel.font = NativeTheme.bodyFont(14)
     statusLabel.textColor = NativeTheme.secondary
@@ -102,14 +103,15 @@ final class FeedViewController: UIViewController,
       self?.onSearchOpen?(item)
     }
     addChild(search)
-    search.view.frame = CGRect(x: view.bounds.width, y: 0, width: view.bounds.width, height: view.bounds.height)
+    search.view.frame = CGRect(x: view.bounds.width, y: 0,
+                               width: view.bounds.width, height: view.bounds.height)
     search.view.autoresizingMask = [.flexibleHeight]
     view.addSubview(search.view)
     search.didMove(toParent: self)
     search.view.isHidden = true
     searchController = search
 
-    let pan = UIPanGestureRecognizer(target: self, action: #selector(handleSearchPan(_:)))
+    let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
     pan.delegate = self
     view.addGestureRecognizer(pan)
     searchPan = pan
@@ -119,16 +121,15 @@ final class FeedViewController: UIViewController,
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    let size = view.bounds.size
-    if layout.itemSize != size {
-      layout.itemSize = size
-      layout.invalidateLayout()
+    if let gradient = topFade.layer.sublayers?.first as? CAGradientLayer {
+      gradient.frame = topFade.bounds
     }
     if let search = searchController {
       if searchOpen {
         search.view.frame = view.bounds
       } else {
-        search.view.frame = CGRect(x: view.bounds.width, y: 0, width: view.bounds.width, height: view.bounds.height)
+        search.view.frame = CGRect(x: view.bounds.width, y: 0,
+                                   width: view.bounds.width, height: view.bounds.height)
       }
     }
   }
@@ -186,8 +187,8 @@ final class FeedViewController: UIViewController,
           self.statusLabel.text = "暂时没有推荐\n轻触屏幕重试"
           self.statusLabel.isHidden = false
         }
-        self.collectionView.reloadData()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        self.table.reloadData()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
           self.startPreviewIfNeeded()
         }
       }
@@ -200,57 +201,35 @@ final class FeedViewController: UIViewController,
     load(reset: true)
   }
 
-  // MARK: - collection
+  // MARK: - table
 
-  func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
     return items.count
   }
 
-  func collectionView(
-    _ collectionView: UICollectionView,
-    cellForItemAt indexPath: IndexPath
-  ) -> UICollectionViewCell {
-    let cell = collectionView.dequeueReusableCell(
-      withReuseIdentifier: VideoCardCell.reuseID,
-      for: indexPath
-    ) as! VideoCardCell
-    let item = items[indexPath.item]
+  func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    let cell = tableView.dequeueReusableCell(
+      withIdentifier: HomeCardCell.reuseID, for: indexPath) as! HomeCardCell
+    let item = items[indexPath.row]
     cell.configure(item)
-    cell.onAvatar = { [weak self] item in
+    cell.onOpen = { [weak self, weak cell] in
+      self?.open(item, cell: cell)
+    }
+    cell.onAvatar = { [weak self] in
       self?.onProfile?(item.mid)
     }
-    cell.onOpen = { [weak self, weak cell] item in
-      guard let self = self, let cell = cell else { return }
-      self.onOpen?(item, cell)
-    }
-    if indexPath.item == focusedIndex, previewCell === cell {
-      cell.attachPreview(previewView)
+    if indexPath.row == previewIndex, previewCell === cell {
+      attachPreview(cell)
     }
     return cell
   }
 
-  func collectionView(
-    _ collectionView: UICollectionView,
-    layout collectionViewLayout: UICollectionViewLayout,
-    sizeForItemAt indexPath: IndexPath
-  ) -> CGSize {
-    return collectionView.bounds.size
+  private func open(_ item: VideoItem, cell: HomeCardCell?) {
+    guard let cell = cell else { return }
+    onOpen?(item, cell)
   }
 
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
-    let height = max(1, scrollView.bounds.height)
-    let index = max(0, min(items.count - 1, Int(round(scrollView.contentOffset.y / height))))
-    if index != focusedIndex {
-      focusedIndex = index
-      previewEngine.pause()
-      previewView.alpha = 0
-      previewLoading = false
-      previewToken += 1
-      if toolbarHidden == false && scrollView.contentOffset.y > 10 {
-        // keep the toolbar state stable while the page settles
-      }
-    }
-
     let delta = scrollView.contentOffset.y - lastOffset
     if abs(delta) > 8 && !searchOpen {
       if delta > 0 && !toolbarHidden && scrollView.contentOffset.y > 24 {
@@ -262,8 +241,7 @@ final class FeedViewController: UIViewController,
       }
     }
     lastOffset = scrollView.contentOffset.y
-
-    if scrollView.contentOffset.y > scrollView.contentSize.height - height * 2.2 {
+    if scrollView.contentOffset.y > scrollView.contentSize.height - scrollView.bounds.height * 2.2 {
       load(reset: false)
     }
   }
@@ -271,7 +249,6 @@ final class FeedViewController: UIViewController,
   func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
     previewEngine.pause()
     previewView.alpha = 0
-    previewLoading = false
   }
 
   func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
@@ -292,35 +269,40 @@ final class FeedViewController: UIViewController,
 
   private func startPreviewIfNeeded() {
     guard !searchOpen, !items.isEmpty else { return }
-    let index = max(0, min(items.count - 1, Int(round(collectionView.contentOffset.y / max(1, collectionView.bounds.height)))))
-    focusedIndex = index
-    if previewIndex == index && previewEngine.player.currentItem != nil {
-      if let cell = collectionView.cellForItem(at: IndexPath(item: index, section: 0)) as? VideoCardCell,
-         previewView.superview !== cell.mediaHost {
-        cell.attachPreview(previewView)
+    let center = table.contentOffset.y + table.bounds.height / 2
+    var bestRow = 0
+    var bestDistance = CGFloat.greatestFiniteMagnitude
+    for indexPath in table.indexPathsForVisibleRows ?? [] {
+      let rect = table.rectForRow(at: indexPath)
+      let distance = abs(rect.midY - center)
+      if distance < bestDistance {
+        bestDistance = distance
+        bestRow = indexPath.row
       }
+    }
+    guard let cell = table.cellForRow(at: IndexPath(row: bestRow, section: 0)) as? HomeCardCell else {
+      return
+    }
+    previewIndex = bestRow
+    previewCell = cell
+    if previewEngine.player.currentItem != nil, previewView.superview === cell.mediaHost {
       previewView.alpha = 1
       previewEngine.play()
       return
     }
-    guard let cell = collectionView.cellForItem(at: IndexPath(item: index, section: 0)) as? VideoCardCell else {
-      return
-    }
-    let item = items[index]
-    previewIndex = index
-    previewCell = cell
+    attachPreview(cell)
     previewView.alpha = 0
-    previewLoading = true
     previewToken += 1
     let token = previewToken
-    cell.attachPreview(previewView)
+    let item = items[bestRow]
     previewEngine.stop()
     BiliAPI.shared.playLow(item) { [weak self] result in
       guard let self = self, token == self.previewToken else { return }
-      self.previewLoading = false
       guard case .success(let source) = result else { return }
-      guard let current = self.collectionView.cellForItem(at: IndexPath(item: index, section: 0)) as? VideoCardCell else { return }
-      current.attachPreview(self.previewView)
+      guard let current = self.table.cellForRow(at: IndexPath(row: bestRow, section: 0)) as? HomeCardCell else {
+        return
+      }
+      self.attachPreview(current)
       self.previewEngine.load(
         url: source.url,
         backup: source.backup,
@@ -330,6 +312,14 @@ final class FeedViewController: UIViewController,
         loop: true
       )
     }
+  }
+
+  private func attachPreview(_ cell: HomeCardCell) {
+    guard previewView.superview !== cell.mediaHost else { return }
+    previewView.removeFromSuperview()
+    previewView.frame = cell.mediaHost.bounds
+    previewView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    cell.mediaHost.addSubview(previewView)
   }
 
   func suspendPreview() {
@@ -349,17 +339,18 @@ final class FeedViewController: UIViewController,
       }
       return
     }
-    let index = min(focusedIndex, items.count - 1)
-    guard let cell = collectionView.cellForItem(at: IndexPath(item: index, section: 0)) as? VideoCardCell else {
+    table.scrollToRow(at: IndexPath(row: 0, section: 0), at: .top, animated: false)
+    table.layoutIfNeeded()
+    guard let cell = table.cellForRow(at: IndexPath(row: 0, section: 0)) as? HomeCardCell else {
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
         self?.openFirstForTest()
       }
       return
     }
-    onOpen?(items[index], cell)
+    onOpen?(items[0], cell)
   }
 
-  // MARK: - search drag
+  // MARK: - gestures
 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     guard let pan = gestureRecognizer as? UIPanGestureRecognizer, pan === searchPan else {
@@ -367,25 +358,33 @@ final class FeedViewController: UIViewController,
     }
     guard !searchOpen else { return false }
     let velocity = pan.velocity(in: view)
-    return velocity.x < -120 && abs(velocity.x) > abs(velocity.y)
+    guard abs(velocity.x) > abs(velocity.y) else { return false }
+    dragDirection = velocity.x > 0 ? 1 : -1
+    return abs(velocity.x) > 80
   }
 
-  @objc private func handleSearchPan(_ gesture: UIPanGestureRecognizer) {
+  @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
     guard let search = searchController else { return }
     let width = max(1, view.bounds.width)
     let translation = max(0, -gesture.translation(in: view).x)
     switch gesture.state {
     case .began:
       suspendPreview()
+      if dragDirection > 0 {
+        onSidebar?()
+        return
+      }
       toolbarWasHidden = toolbarHidden
       onToolbar?(true)
       search.view.isHidden = false
       view.bringSubviewToFront(search.view)
     case .changed:
+      guard dragDirection < 0 else { return }
       let x = max(0, width - translation)
       search.view.frame = CGRect(x: x, y: 0, width: width, height: view.bounds.height)
-      collectionView.transform = CGAffineTransform(translationX: -translation * 0.18, y: 0)
+      table.transform = CGAffineTransform(translationX: -translation * 0.18, y: 0)
     case .ended, .cancelled:
+      guard dragDirection < 0 else { return }
       let velocity = -gesture.velocity(in: view).x
       let progress = translation / width
       if progress > 0.26 || velocity > 350 {
@@ -406,7 +405,7 @@ final class FeedViewController: UIViewController,
     let width = max(1, view.bounds.width)
     let changes = {
       search.view.frame = CGRect(x: 0, y: 0, width: width, height: self.view.bounds.height)
-      self.collectionView.transform = CGAffineTransform(translationX: -width * 0.18, y: 0)
+      self.table.transform = CGAffineTransform(translationX: -width * 0.18, y: 0)
     }
     if animated {
       UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseOut], animations: changes) { _ in
@@ -425,12 +424,12 @@ final class FeedViewController: UIViewController,
     let width = max(1, view.bounds.width)
     let changes = {
       search.view.frame = CGRect(x: width, y: 0, width: width, height: self.view.bounds.height)
-      self.collectionView.transform = .identity
+      self.table.transform = .identity
     }
     let finish = { [weak self] in
       guard let self = self else { return }
       search.view.isHidden = true
-      self.collectionView.transform = .identity
+      self.table.transform = .identity
       self.onToolbar?(self.toolbarWasHidden)
       self.startPreviewIfNeeded()
     }
@@ -442,5 +441,17 @@ final class FeedViewController: UIViewController,
       changes()
       finish()
     }
+  }
+
+  func openSearchFromHost() {
+    openSearch(animated: true)
+  }
+
+  func isSearchOpen() -> Bool {
+    return searchOpen
+  }
+
+  func closeSearchFromHost() {
+    closeSearch(animated: true)
   }
 }
