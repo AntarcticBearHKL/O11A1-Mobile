@@ -228,9 +228,9 @@ final class HomeCardCell: UITableViewCell {
     live.isHidden = item.roomId == 0
     ImageLoader.shared.load(item.pic, into: cover)
     ImageLoader.shared.load(item.ownerFace, into: avatar, placeholder: nil)
-    if item.progressSec > 0, item.durationSec > 0 {
+    if item.progress > 0, item.durationSec > 0 {
       progressTrack.isHidden = false
-      let ratio = min(1.0, Double(item.progressSec) / Double(item.durationSec))
+      let ratio = min(1.0, Double(item.progress) / Double(item.durationSec))
       progressWidth?.isActive = false
       progressWidth = progressFill.widthAnchor.constraint(
         equalTo: progressTrack.widthAnchor, multiplier: CGFloat(ratio))
