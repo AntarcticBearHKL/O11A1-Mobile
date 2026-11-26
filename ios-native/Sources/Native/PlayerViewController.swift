@@ -584,6 +584,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     view.bringSubviewToFront(danmakuOverlay)
     if p > 0.01 && relatedPanel == nil && detailPanel == nil {
       view.bringSubviewToFront(comments.view)
+    }
+    if relatedPanel == nil && detailPanel == nil {
       view.bringSubviewToFront(bottomPanel)
       view.bringSubviewToFront(seekBubble)
     }
@@ -874,8 +876,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   @objc private func handleSingleTap() {
-    NSLog("[O11A1] single tap alpha=%.2f hidden=%d visible=%d",
-          bottomPanel.alpha, bottomPanel.isHidden ? 1 : 0, controlsVisible ? 1 : 0)
     let visible = bottomPanel.alpha > 0.5 && !bottomPanel.isHidden
     if visible {
       hideControls()
@@ -932,12 +932,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     switch gesture.state {
     case .began:
       guard engine.isPlaying else { return }
-      NSLog("[O11A1] long press began")
       engine.setRate(2.0)
       speedFeedback.impactOccurred(intensity: 1.0)
       speedFeedback.prepare()
     case .ended, .cancelled, .failed:
-      NSLog("[O11A1] long press ended")
       engine.setRate(1.0)
     default:
       break
