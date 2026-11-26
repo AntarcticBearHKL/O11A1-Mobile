@@ -394,7 +394,6 @@ final class O11A1BiliClient {
 
   func play(bvid: String, cid: Int64, qns: [Int]) -> Data {
     guard !bvid.isEmpty else { return o11a1Error("bvid missing") }
-    guard port > 0 else { return o11a1Error("server not ready") }
     ensureBuvid()
     var resolvedCid = cid
     if resolvedCid <= 0 { resolvedCid = firstCid(bvid) }
@@ -1837,7 +1836,6 @@ final class O11A1BiliClient {
 
   func dash(bvid: String, cid: Int64, qn: Int) -> Data {
     guard !bvid.isEmpty else { return o11a1Error("bvid missing") }
-    guard port > 0 else { return o11a1Error("server not ready") }
     ensureBuvid()
     var resolvedCid = cid
     if resolvedCid <= 0 { resolvedCid = firstCid(bvid) }
