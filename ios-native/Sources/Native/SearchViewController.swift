@@ -1,6 +1,8 @@
 import UIKit
 
-final class SearchViewController: UIViewController, UISearchBarDelegate, UITableViewDataSource, UITableViewDelegate {
+final class SearchViewController: UIViewController, UITextFieldDelegate,
+  UITableViewDataSource, UITableViewDelegate, UIGestureRecognizerDelegate {
+
   var onClose: (() -> Void)?
   var onOpenVideo: ((VideoItem) -> Void)?
 
@@ -10,9 +12,11 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
     case results
   }
 
-  private let searchBar = UISearchBar()
+  private let head = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+  private let headGradient = CAGradientLayer()
+  private let fieldWrap = UIView()
+  private let field = UITextField()
   private let table = UITableView(frame: .zero, style: .plain)
-  private let backButton = UIButton(type: .system)
   private let statusLabel = UILabel()
   private var items: [VideoItem] = []
   private var hot: [String] = []
@@ -20,29 +24,56 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
   private var mode: Mode = .hot
   private var workItem: DispatchWorkItem?
   private var loading = false
+  private var dismissPan: UIPanGestureRecognizer?
+  private var startOffset: CGFloat = 0
 
   override func viewDidLoad() {
     super.viewDidLoad()
     view.backgroundColor = NativeTheme.background
 
-    backButton.setImage(UIImage(systemName: "chevron.left"), for: .normal)
-    backButton.tintColor = NativeTheme.foreground
-    backButton.addTarget(self, action: #selector(close), for: .touchUpInside)
-    view.addSubview(backButton)
-    backButton.translatesAutoresizingMaskIntoConstraints = false
+    let blur = head
+    blur.clipsToBounds = true
+    view.addSubview(blur)
+    blur.translatesAutoresizingMaskIntoConstraints = false
+    headGradient.colors = [NativeTheme.searchHeadTop.cgColor,
+                           NativeTheme.searchHeadBottom.cgColor]
+    headGradient.startPoint = CGPoint(x: 0.5, y: 0)
+    headGradient.endPoint = CGPoint(x: 0.5, y: 1)
+    blur.contentView.layer.addSublayer(headGradient)
 
-    searchBar.placeholder = "搜索视频、UP 主"
-    searchBar.searchBarStyle = .minimal
-    searchBar.delegate = self
-    searchBar.tintColor = NativeTheme.accent
-    if let field = searchBar.value(forKey: "searchField") as? UITextField {
-      field.textColor = NativeTheme.foreground
-      field.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.06)
-      field.layer.cornerRadius = 12
-      field.clipsToBounds = true
-    }
-    view.addSubview(searchBar)
-    searchBar.translatesAutoresizingMaskIntoConstraints = false
+    fieldWrap.backgroundColor = NativeTheme.background
+    fieldWrap.layer.cornerRadius = 16
+    fieldWrap.layer.cornerCurve = .continuous
+    fieldWrap.layer.borderWidth = 1
+    fieldWrap.layer.borderColor = NativeTheme.hairline.cgColor
+    blur.contentView.addSubview(fieldWrap)
+    fieldWrap.translatesAutoresizingMaskIntoConstraints = false
+
+    let iconWrap = UIView(frame: CGRect(x: 0, y: 0, width: 38, height: 24))
+    let icon = UIImageView(image: UIImage(
+      systemName: "magnifyingglass",
+      withConfiguration: UIImage.SymbolConfiguration(pointSize: 20, weight: .regular)))
+    icon.tintColor = NativeTheme.tertiary
+    icon.contentMode = .scaleAspectFit
+    icon.frame = CGRect(x: 4, y: 1, width: 22, height: 22)
+    iconWrap.addSubview(icon)
+
+    field.leftView = iconWrap
+    field.leftViewMode = .always
+    field.font = NativeTheme.bodyFont(13)
+    field.textColor = NativeTheme.foreground
+    field.tintColor = NativeTheme.navBlue
+    field.attributedPlaceholder = NSAttributedString(
+      string: "搜索视频 / UP / 番剧",
+      attributes: [.foregroundColor: NativeTheme.tertiary,
+                   .font: NativeTheme.bodyFont(13)])
+    field.returnKeyType = .search
+    field.clearButtonMode = .whileEditing
+    field.autocorrectionType = .no
+    field.delegate = self
+    field.addTarget(self, action: #selector(textChanged), for: .editingChanged)
+    fieldWrap.addSubview(field)
+    field.translatesAutoresizingMaskIntoConstraints = false
 
     table.backgroundColor = .clear
     table.separatorStyle = .none
@@ -51,9 +82,12 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
     table.keyboardDismissMode = .onDrag
     table.register(SearchResultCell.self, forCellReuseIdentifier: SearchResultCell.reuseID)
     table.register(HomeCardCell.self, forCellReuseIdentifier: HomeCardCell.reuseID)
-    table.register(UITableViewCell.self, forCellReuseIdentifier: "SuggestionCell")
+    table.register(HotWordCell.self, forCellReuseIdentifier: HotWordCell.reuseID)
+    table.register(SuggestionCell.self, forCellReuseIdentifier: SuggestionCell.reuseID)
     table.rowHeight = UITableView.automaticDimension
-    table.estimatedRowHeight = 360
+    table.estimatedRowHeight = 300
+    table.contentInsetAdjustmentBehavior = .never
+    table.showsVerticalScrollIndicator = false
     view.addSubview(table)
     table.translatesAutoresizingMaskIntoConstraints = false
 
@@ -66,18 +100,24 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
     statusLabel.translatesAutoresizingMaskIntoConstraints = false
 
     NSLayoutConstraint.activate([
-      backButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
-      backButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 4),
-      backButton.widthAnchor.constraint(equalToConstant: 40),
-      backButton.heightAnchor.constraint(equalToConstant: 44),
+      blur.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      blur.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      blur.topAnchor.constraint(equalTo: view.topAnchor),
+      blur.bottomAnchor.constraint(equalTo: fieldWrap.bottomAnchor, constant: 12),
 
-      searchBar.leadingAnchor.constraint(equalTo: backButton.trailingAnchor, constant: 0),
-      searchBar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
-      searchBar.centerYAnchor.constraint(equalTo: backButton.centerYAnchor),
+      fieldWrap.leadingAnchor.constraint(equalTo: blur.contentView.leadingAnchor, constant: 18),
+      fieldWrap.trailingAnchor.constraint(equalTo: blur.contentView.trailingAnchor, constant: -18),
+      fieldWrap.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
+      fieldWrap.heightAnchor.constraint(equalToConstant: 48),
+
+      field.leadingAnchor.constraint(equalTo: fieldWrap.leadingAnchor, constant: 4),
+      field.trailingAnchor.constraint(equalTo: fieldWrap.trailingAnchor, constant: -10),
+      field.topAnchor.constraint(equalTo: fieldWrap.topAnchor),
+      field.bottomAnchor.constraint(equalTo: fieldWrap.bottomAnchor),
 
       table.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       table.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      table.topAnchor.constraint(equalTo: searchBar.bottomAnchor, constant: 4),
+      table.topAnchor.constraint(equalTo: blur.bottomAnchor),
       table.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
       statusLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
@@ -86,7 +126,34 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
       statusLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -32),
     ])
 
+    let pan = UIPanGestureRecognizer(target: self, action: #selector(handleDismissPan(_:)))
+    pan.delegate = self
+    table.panGestureRecognizer.require(toFail: pan)
+    view.addGestureRecognizer(pan)
+    dismissPan = pan
+
     loadHot()
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    headGradient.frame = head.bounds
+    CATransaction.commit()
+    table.contentInset = UIEdgeInsets(top: mode == .hot ? 8 : 0, left: 0,
+                                      bottom: 24 + view.safeAreaInsets.bottom, right: 0)
+    fieldWrap.layer.borderColor = fieldWrap.layer.borderWidth > 1
+      ? NativeTheme.navBlue.withAlphaComponent(0.5).cgColor
+      : NativeTheme.hairline.cgColor
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    headGradient.colors = [NativeTheme.searchHeadTop.cgColor,
+                           NativeTheme.searchHeadBottom.cgColor]
+    fieldWrap.layer.borderColor = NativeTheme.hairline.cgColor
+    fieldWrap.backgroundColor = NativeTheme.background
   }
 
   private func loadHot() {
@@ -96,35 +163,33 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
       self.hot = values
       if self.mode == .hot {
         self.table.reloadData()
+        self.emptyState()
       }
     }
   }
 
   func focus() {
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-      self.searchBar.becomeFirstResponder()
+      self.field.becomeFirstResponder()
     }
   }
 
-  @objc private func close() {
-    searchBar.resignFirstResponder()
-    onClose?()
-  }
-
-  func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+  @objc private func textChanged() {
     workItem?.cancel()
-    let term = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let term = (field.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     guard !term.isEmpty else {
       mode = .hot
       items = []
       suggestions = []
       table.reloadData()
       statusLabel.isHidden = true
+      table.contentInset.top = 8
       return
     }
     mode = .suggest
     table.reloadData()
     statusLabel.isHidden = true
+    table.contentInset.top = 0
     let task = DispatchWorkItem { [weak self] in
       self?.loadSuggestions(term)
     }
@@ -135,18 +200,34 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
   private func loadSuggestions(_ term: String) {
     BiliAPI.shared.suggest(term) { [weak self] values in
       guard let self = self, self.mode == .suggest else { return }
-      let current = (self.searchBar.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      let current = (self.field.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
       guard current == term else { return }
       self.suggestions = values
       self.table.reloadData()
     }
   }
 
-  func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-    searchBar.resignFirstResponder()
-    let term = (searchBar.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !term.isEmpty else { return }
+  func textFieldDidBeginEditing(_ textField: UITextField) {
+    fieldWrap.layer.borderWidth = 1.5
+    fieldWrap.layer.borderColor = NativeTheme.navBlue.withAlphaComponent(0.5).cgColor
+    fieldWrap.layer.shadowColor = NativeTheme.navBlue.cgColor
+    fieldWrap.layer.shadowOpacity = 0.12
+    fieldWrap.layer.shadowRadius = 3
+    fieldWrap.layer.shadowOffset = .zero
+  }
+
+  func textFieldDidEndEditing(_ textField: UITextField) {
+    fieldWrap.layer.borderWidth = 1
+    fieldWrap.layer.borderColor = NativeTheme.hairline.cgColor
+    fieldWrap.layer.shadowOpacity = 0
+  }
+
+  func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+    textField.resignFirstResponder()
+    let term = (textField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !term.isEmpty else { return false }
     performSearch(term)
+    return true
   }
 
   private func performSearch(_ term: String) {
@@ -158,6 +239,7 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
     loading = true
     statusLabel.text = "搜索中…"
     statusLabel.isHidden = false
+    table.contentInset.top = 0
     BiliAPI.shared.search(term, page: 1) { [weak self] result in
       guard let self = self else { return }
       self.loading = false
@@ -167,11 +249,60 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
         self.statusLabel.isHidden = false
       case .success(let items):
         self.items = items
-        self.statusLabel.text = items.isEmpty ? "没有找到相关视频" : nil
-        self.statusLabel.isHidden = !items.isEmpty
         self.table.reloadData()
+        if items.isEmpty {
+          self.statusLabel.text = "没有找到视频 · 换个关键词试试"
+          self.statusLabel.isHidden = false
+        } else {
+          self.statusLabel.isHidden = true
+        }
       }
     }
+  }
+
+  private func emptyState() {
+    if mode == .hot {
+      statusLabel.text = hot.isEmpty ? "暂无热搜" : nil
+      statusLabel.isHidden = !hot.isEmpty
+    }
+  }
+
+  @objc private func handleDismissPan(_ gesture: UIPanGestureRecognizer) {
+    let translation = max(0, gesture.translation(in: view).x)
+    let width = max(1, view.bounds.width)
+    switch gesture.state {
+    case .began:
+      startOffset = 0
+    case .changed:
+      view.transform = CGAffineTransform(translationX: translation, y: 0)
+    case .ended, .cancelled:
+      let velocity = gesture.velocity(in: view).x
+      let shouldClose = translation > width * 0.24 || velocity > 350
+      if shouldClose {
+        view.endEditing(true)
+        onClose?()
+      }
+      UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseOut]) {
+        self.view.transform = .identity
+      }
+    default:
+      break
+    }
+  }
+
+  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    guard let pan = gestureRecognizer as? UIPanGestureRecognizer, pan === dismissPan else {
+      return true
+    }
+    let velocity = pan.velocity(in: view)
+    return abs(velocity.x) > abs(velocity.y)
+  }
+
+  func gestureRecognizer(
+    _ gestureRecognizer: UIGestureRecognizer,
+    shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+  ) -> Bool {
+    return gestureRecognizer === dismissPan || other === dismissPan
   }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -182,42 +313,147 @@ final class SearchViewController: UIViewController, UISearchBarDelegate, UITable
     }
   }
 
-  func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-    if mode == .hot && !hot.isEmpty { return "热搜" }
-    return nil
+  func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+    if mode == .results { return UITableView.automaticDimension }
+    return 58
   }
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     if mode == .results {
-      let cell = tableView.dequeueReusableCell(withIdentifier: HomeCardCell.reuseID, for: indexPath) as! HomeCardCell
+      let cell = tableView.dequeueReusableCell(
+        withIdentifier: HomeCardCell.reuseID, for: indexPath) as! HomeCardCell
       let item = items[indexPath.row]
       cell.configure(item)
       cell.onOpen = { [weak self] in self?.onOpenVideo?(item) }
       cell.onAvatar = nil
       return cell
     }
-    let cell = tableView.dequeueReusableCell(withIdentifier: "SuggestionCell", for: indexPath)
-    let isHot = mode == .hot
-    cell.textLabel?.text = isHot ? hot[indexPath.row] : suggestions[indexPath.row]
-    cell.textLabel?.font = NativeTheme.bodyFont(15)
-    cell.textLabel?.textColor = NativeTheme.foreground
-    cell.imageView?.image = UIImage(systemName: isHot ? "flame.fill" : "magnifyingglass")
-    cell.imageView?.tintColor = isHot ? NativeTheme.accent : NativeTheme.secondary
-    cell.backgroundColor = .clear
+    if mode == .hot {
+      let cell = tableView.dequeueReusableCell(
+        withIdentifier: HotWordCell.reuseID, for: indexPath) as! HotWordCell
+      cell.configure(hot[indexPath.row], rank: indexPath.row + 1)
+      return cell
+    }
+    let cell = tableView.dequeueReusableCell(
+      withIdentifier: SuggestionCell.reuseID, for: indexPath) as! SuggestionCell
+    cell.configure(suggestions[indexPath.row])
     return cell
   }
 
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     tableView.deselectRow(at: indexPath, animated: true)
     if mode == .results {
-      searchBar.resignFirstResponder()
-      onOpenVideo?(items[indexPath.row])
       return
     }
     let term = mode == .hot ? hot[indexPath.row] : suggestions[indexPath.row]
-    searchBar.text = term
-    searchBar.resignFirstResponder()
+    field.text = term
+    field.resignFirstResponder()
     performSearch(term)
+  }
+}
+
+private final class HotWordCell: UITableViewCell {
+  static let reuseID = "HotWordCell"
+  private let rank = UILabel()
+  private let word = UILabel()
+  private let separator = UIView()
+
+  override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+    super.init(style: style, reuseIdentifier: reuseIdentifier)
+    backgroundColor = .clear
+    selectionStyle = .none
+    contentView.backgroundColor = .clear
+
+    rank.font = UIFont.monospacedDigitSystemFont(ofSize: 14, weight: .heavy)
+    rank.textColor = NativeTheme.tertiary
+    rank.textAlignment = .center
+    contentView.addSubview(rank)
+
+    word.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
+    word.textColor = NativeTheme.foreground
+    word.numberOfLines = 1
+    contentView.addSubview(word)
+
+    separator.backgroundColor = NativeTheme.hairline
+    contentView.addSubview(separator)
+
+    [rank, word, separator].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
+    NSLayoutConstraint.activate([
+      rank.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      rank.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+      rank.widthAnchor.constraint(equalToConstant: 22),
+      word.leadingAnchor.constraint(equalTo: rank.trailingAnchor, constant: 12),
+      word.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+      word.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+      separator.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 18),
+      separator.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -18),
+      separator.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+      separator.heightAnchor.constraint(equalToConstant: 0.5),
+    ])
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  func configure(_ text: String, rank index: Int) {
+    rank.text = "\(index)"
+    rank.textColor = index <= 3 ? NativeTheme.navBlue : NativeTheme.tertiary
+    word.text = text
+    separator.backgroundColor = NativeTheme.hairline
+  }
+}
+
+private final class SuggestionCell: UITableViewCell {
+  static let reuseID = "SuggestionCell"
+  private let icon = UIImageView()
+  private let word = UILabel()
+  private let separator = UIView()
+
+  override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+    super.init(style: style, reuseIdentifier: reuseIdentifier)
+    backgroundColor = .clear
+    selectionStyle = .none
+    contentView.backgroundColor = .clear
+
+    icon.image = UIImage(
+      systemName: "magnifyingglass",
+      withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .regular))
+    icon.tintColor = NativeTheme.tertiary
+    icon.contentMode = .scaleAspectFit
+    contentView.addSubview(icon)
+
+    word.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
+    word.textColor = NativeTheme.foreground
+    word.numberOfLines = 1
+    contentView.addSubview(word)
+
+    separator.backgroundColor = NativeTheme.hairline
+    contentView.addSubview(separator)
+
+    [icon, word, separator].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
+    NSLayoutConstraint.activate([
+      icon.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      icon.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+      icon.widthAnchor.constraint(equalToConstant: 18),
+      icon.heightAnchor.constraint(equalToConstant: 18),
+      word.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 12),
+      word.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+      word.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+      separator.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 18),
+      separator.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -18),
+      separator.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+      separator.heightAnchor.constraint(equalToConstant: 0.5),
+    ])
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  func configure(_ text: String) {
+    word.text = text
+    separator.backgroundColor = NativeTheme.hairline
   }
 }
 

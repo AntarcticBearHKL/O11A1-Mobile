@@ -183,6 +183,23 @@ final class BiliAPI {
     }
   }
 
+  func dynamicTimeline(
+    page: Int,
+    filter: String,
+    completion: @escaping (Result<([DynamicItem], Bool), Error>) -> Void
+  ) {
+    run({ self.client.dynamicFeed(page: page, filter: filter) }) { result in
+      switch result {
+      case .failure(let error):
+        completion(.failure(error))
+      case .success(let json):
+        let rows = (json["items"] as? [[String: Any]]) ?? []
+        let hasMore = (json["hasMore"] as? Bool) ?? (rows.count >= 20)
+        completion(.success((rows.map { DynamicItem(json: $0) }, hasMore)))
+      }
+    }
+  }
+
   func favorites(page: Int, completion: @escaping (Result<[VideoItem], Error>) -> Void) {
     run({ self.client.favorites(page: page) }) { result in
       switch result {

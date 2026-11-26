@@ -1,18 +1,19 @@
 import UIKit
 
+/// Precision ruler from the original player. The red needle stays in the
+/// centre while the tick strip moves under it.
 final class ProgressWheel: UIControl {
   var progress: Double = 0 {
     didSet { setNeedsDisplay() }
   }
-  var currentText: String = "00:00" {
+  var durationSeconds: Double = 0 {
     didSet { setNeedsDisplay() }
   }
-  var durationText: String = "00:00" {
-    didSet { setNeedsDisplay() }
-  }
+  var currentText: String = "00:00"
+  var durationText: String = "00:00"
   var onScrub: ((Double, Bool) -> Void)?
 
-  private var dragging = false
+  private var lastX: CGFloat = 0
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -28,79 +29,140 @@ final class ProgressWheel: UIControl {
   }
 
   override var intrinsicContentSize: CGSize {
-    return CGSize(width: UIView.noIntrinsicMetric, height: 48)
+    return CGSize(width: UIView.noIntrinsicMetric, height: 50)
+  }
+
+  private var pxPerSecond: CGFloat {
+    return max(4.5, min(11, bounds.width / 72))
+  }
+
+  private var minorStep: Double {
+    let steps: [Double] = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600]
+    for step in steps where CGFloat(step) * pxPerSecond >= 11 {
+      return step
+    }
+    return 600
   }
 
   override func draw(_ rect: CGRect) {
-    guard let context = UIGraphicsGetCurrentContext() else { return }
-    let tickTop: CGFloat = 7
-    let tickBottom: CGFloat = 28
-    let left: CGFloat = 2
-    let right = bounds.width - 2
-    let usable = max(1, right - left)
+    guard let context = UIGraphicsGetCurrentContext(), bounds.width > 0 else { return }
+    let light = traitCollection.userInterfaceStyle == .light
+    let centerX = bounds.width / 2
+    let total = max(0, durationSeconds)
+    let center = max(0, min(total, progress * total))
 
-    context.setLineCap(.round)
-    let count = 48
-    for index in 0...count {
-      let ratio = CGFloat(index) / CGFloat(count)
-      let x = left + usable * ratio
-      let major = index % 6 == 0
-      let height: CGFloat = major ? 11 : 6
-      let color = UIColor.white.withAlphaComponent(major ? 0.58 : 0.26)
-      context.setStrokeColor(color.cgColor)
-      context.setLineWidth(major ? 1.2 : 0.8)
-      context.move(to: CGPoint(x: x, y: tickBottom - height))
-      context.addLine(to: CGPoint(x: x, y: tickBottom))
-      context.strokePath()
+    // centre band
+    let band = CGRect(x: centerX - 26, y: 0, width: 52, height: bounds.height)
+    (light ? UIColor(red: 47.0 / 255.0, green: 124.0 / 255.0, blue: 246.0 / 255.0, alpha: 0.1)
+          : UIColor(red: 110.0 / 255.0, green: 168.0 / 255.0, blue: 1.0, alpha: 0.1)).setFill()
+    UIBezierPath(roundedRect: band, cornerRadius: 10).fill()
+
+    if total > 0 {
+      let step = minorStep
+      let px = pxPerSecond
+      let halfSpan = Double(bounds.width / 2) / Double(px)
+      let start = max(0, center - halfSpan)
+      let end = min(total, center + halfSpan)
+      let first = Int(ceil(start / step))
+      let last = Int(floor(end / step))
+
+      let minorColor = light
+        ? UIColor(red: 26.0 / 255.0, green: 26.0 / 255.0, blue: 26.0 / 255.0, alpha: 0.18)
+        : UIColor(white: 1, alpha: 0.22)
+      let midColor = light
+        ? UIColor(red: 26.0 / 255.0, green: 26.0 / 255.0, blue: 26.0 / 255.0, alpha: 0.30)
+        : UIColor(white: 1, alpha: 0.34)
+      let majorColor = light
+        ? UIColor(red: 26.0 / 255.0, green: 26.0 / 255.0, blue: 26.0 / 255.0, alpha: 0.42)
+        : UIColor(white: 1, alpha: 0.42)
+      let pastColor = light
+        ? UIColor(red: 47.0 / 255.0, green: 124.0 / 255.0, blue: 246.0 / 255.0, alpha: 1)
+        : UIColor(red: 110.0 / 255.0, green: 168.0 / 255.0, blue: 1.0, alpha: 1)
+      let labelColor = light
+        ? UIColor(red: 26.0 / 255.0, green: 26.0 / 255.0, blue: 26.0 / 255.0, alpha: 0.44)
+        : UIColor(white: 1, alpha: 0.44)
+      let pastLabelColor = light
+        ? UIColor(red: 47.0 / 255.0, green: 124.0 / 255.0, blue: 246.0 / 255.0, alpha: 1)
+        : UIColor(red: 140.0 / 255.0, green: 188.0 / 255.0, blue: 1.0, alpha: 0.78)
+
+      let labelFont = UIFont.monospacedDigitSystemFont(ofSize: 7, weight: .medium)
+      let labelAttributes: [NSAttributedString.Key: Any] = [
+        .font: labelFont,
+      ]
+
+      if first <= last {
+        for index in first...last {
+          let seconds = Double(index) * step
+          let x = centerX + CGFloat(seconds - center) * px
+          let major = index % 5 == 0
+          let mid = index % 2 == 0
+          let past = seconds <= center
+          let tickColor = past ? pastColor : (major ? majorColor : (mid ? midColor : minorColor))
+          let width: CGFloat = major ? 1.6 : 1
+          let height: CGFloat
+          if major {
+            height = bounds.height - 19
+          } else if mid {
+            height = 20
+          } else {
+            height = 11
+          }
+          tickColor.setFill()
+          let tick = CGRect(x: x - width / 2, y: bounds.height - 5 - height,
+                            width: width, height: height)
+          UIBezierPath(roundedRect: tick, cornerRadius: 1).fill()
+
+          if major && x > 22 && x < bounds.width - 22 {
+            let text = Self.timeText(seconds) as NSString
+            var attributes = labelAttributes
+            attributes[.foregroundColor] = past ? pastLabelColor : labelColor
+            let size = text.size(withAttributes: attributes)
+            text.draw(at: CGPoint(x: x - size.width / 2, y: 2.5),
+                      withAttributes: attributes)
+          }
+        }
+      }
     }
 
-    let needleX = left + usable * CGFloat(max(0, min(1, progress)))
-    context.setStrokeColor(NativeTheme.accent.cgColor)
-    context.setLineWidth(2)
-    context.move(to: CGPoint(x: needleX, y: tickTop - 2))
-    context.addLine(to: CGPoint(x: needleX, y: tickBottom + 3))
-    context.strokePath()
+    // centre needle
+    let needleColor = light
+      ? UIColor(red: 211.0 / 255.0, green: 69.0 / 255.0, blue: 61.0 / 255.0, alpha: 1)
+      : UIColor(red: 1.0, green: 90.0 / 255.0, blue: 95.0 / 255.0, alpha: 1)
+    needleColor.setFill()
+    UIBezierPath(roundedRect: CGRect(x: centerX - 1, y: 0, width: 2, height: bounds.height),
+                 cornerRadius: 1).fill()
+  }
 
-    let labelFont = NativeTheme.numberFont(9)
-    let attributes: [NSAttributedString.Key: Any] = [
-      .font: labelFont,
-      .foregroundColor: UIColor.white.withAlphaComponent(0.62),
-    ]
-    let current = currentText as NSString
-    let duration = durationText as NSString
-    let labelY = tickBottom + 8
-    current.draw(at: CGPoint(x: left, y: labelY), withAttributes: attributes)
-    let size = duration.size(withAttributes: attributes)
-    duration.draw(at: CGPoint(x: right - size.width, y: labelY), withAttributes: attributes)
+  private static func timeText(_ seconds: Double) -> String {
+    let value = max(0, Int(seconds.rounded()))
+    return String(format: "%02d:%02d", value / 60, value % 60)
   }
 
   override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
-    dragging = true
-    update(touch)
+    lastX = touch.location(in: self).x
     return true
   }
 
   override func continueTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
-    update(touch)
+    let x = touch.location(in: self).x
+    let delta = x - lastX
+    lastX = x
+    if durationSeconds > 0 {
+      progress = max(0, min(1, progress + Double(delta) / (durationSeconds * Double(pxPerSecond))))
+    } else {
+      progress = max(0, min(1, Double(x / max(1, bounds.width))))
+    }
+    onScrub?(progress, false)
+    sendActions(for: .valueChanged)
     return true
   }
 
   override func endTracking(_ touch: UITouch?, with event: UIEvent?) {
-    dragging = false
     onScrub?(progress, true)
   }
 
   override func cancelTracking(with event: UIEvent?) {
-    dragging = false
     onScrub?(progress, true)
-  }
-
-  private func update(_ touch: UITouch) {
-    let x = touch.location(in: self).x
-    let ratio = Double(max(0, min(1, (x - 2) / max(1, bounds.width - 4))))
-    progress = ratio
-    onScrub?(ratio, false)
-    sendActions(for: .valueChanged)
   }
 
   override func accessibilityIncrement() {

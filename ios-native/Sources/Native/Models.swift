@@ -26,6 +26,7 @@ struct VideoItem: Equatable {
   var meta = ""
   var badge = ""
   var progress: Int64 = 0
+  var unread = false
 
   init() {}
 
@@ -55,6 +56,11 @@ struct VideoItem: Equatable {
     meta = o11a1String(json["meta"])
     badge = o11a1String(json["badge"])
     progress = o11a1Int64(json["progress"])
+    if let value = json["unread"] as? Bool {
+      unread = value
+    } else if let value = json["unread"] as? NSNumber {
+      unread = value.boolValue
+    }
     if title.isEmpty { title = "视频" }
     if owner.isEmpty { owner = "UP 主" }
     if duration.isEmpty { duration = "00:00" }
@@ -67,6 +73,43 @@ struct FeedResult {
   var page = 1
   var fresh = 1
   var error: String?
+}
+
+struct DynamicItem {
+  var id = ""
+  var kind = ""
+  var author = "用户"
+  var avatar = ""
+  var mid: Int64 = 0
+  var time: Int64 = 0
+  var text = ""
+  var images: [String] = []
+  var likes = 0
+  var comments = 0
+  var video: VideoItem?
+
+  init() {}
+
+  init(json: [String: Any]) {
+    id = o11a1String(json["id"])
+    kind = o11a1String(json["kind"])
+    author = o11a1String(json["author"])
+    avatar = o11a1HTTPS(o11a1String(json["avatar"]))
+    mid = o11a1Int64(json["mid"])
+    time = o11a1Int64(json["time"])
+    text = o11a1String(json["text"])
+    likes = o11a1Int(json["likes"])
+    comments = o11a1Int(json["comments"])
+    if let rows = json["images"] as? [String] {
+      images = rows.filter { !$0.isEmpty }
+    } else if let rows = json["images"] as? [Any] {
+      images = rows.compactMap { o11a1String($0) }.filter { !$0.isEmpty }
+    }
+    if let payload = json["video"] as? [String: Any] {
+      video = VideoItem(json: payload)
+    }
+    if author.isEmpty { author = "用户" }
+  }
 }
 
 struct PlaySource {

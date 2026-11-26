@@ -47,6 +47,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var started = false
   private var speedIndex = 0
   private var commentsSwipe = false
+  private var controlsVisible = true
+  private var controlsTimer: Timer?
 
   init(item: VideoItem, sourceView: UIView?) {
     self.item = item
@@ -119,13 +121,18 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     playButton.addTarget(self, action: #selector(togglePlay), for: .touchUpInside)
     view.addSubview(playButton)
 
-    bottomPanel.layer.cornerRadius = 18
+    bottomPanel.layer.cornerRadius = 22
     bottomPanel.layer.cornerCurve = .continuous
     bottomPanel.clipsToBounds = true
+    bottomPanel.backgroundColor = UIColor(red: 29.0 / 255.0, green: 35.0 / 255.0,
+                                          blue: 47.0 / 255.0, alpha: 0.84)
+    bottomPanel.layer.borderWidth = 1
+    bottomPanel.layer.borderColor = UIColor(white: 1, alpha: 0.14).cgColor
     view.addSubview(bottomPanel)
 
     bottomBlur.translatesAutoresizingMaskIntoConstraints = false
     bottomBlur.isUserInteractionEnabled = false
+    bottomBlur.alpha = 0.55
     bottomPanel.addSubview(bottomBlur)
     NSLayoutConstraint.activate([
       bottomBlur.leadingAnchor.constraint(equalTo: bottomPanel.leadingAnchor),
@@ -148,7 +155,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     content.addSubview(ownerButton)
 
     wheel.onScrub = { [weak self] ratio, finished in
-      self?.scrub(ratio: ratio, finished: finished)
+      guard let self = self else { return }
+      self.showControls()
+      self.scrub(ratio: ratio, finished: finished)
+      if finished { self.scheduleControlsHide() }
     }
     content.addSubview(wheel)
 
@@ -264,15 +274,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       ownerButton.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
       ownerButton.centerYAnchor.constraint(equalTo: ownerLabel.centerYAnchor),
 
-      wheel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
-      wheel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
-      wheel.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -10),
-      wheel.heightAnchor.constraint(equalToConstant: 48),
+      wheel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 8),
+      wheel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -8),
+      wheel.topAnchor.constraint(equalTo: content.topAnchor, constant: 38),
+      wheel.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -4),
 
       grid.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
       grid.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
-      grid.bottomAnchor.constraint(equalTo: wheel.topAnchor, constant: -8),
-      grid.heightAnchor.constraint(equalToConstant: 6),
+      grid.topAnchor.constraint(equalTo: content.topAnchor, constant: 5),
+      grid.heightAnchor.constraint(equalToConstant: 14),
 
       qualityLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
       qualityLabel.topAnchor.constraint(equalTo: wheel.bottomAnchor, constant: 2),
@@ -308,7 +318,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       errorLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: 80),
     ])
 
-    let tap = UITapGestureRecognizer(target: self, action: #selector(togglePlay))
+    let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap))
+    doubleTap.numberOfTapsRequired = 2
+    doubleTap.delegate = self
+    videoContainer.addGestureRecognizer(doubleTap)
+
+    let tap = UITapGestureRecognizer(target: self, action: #selector(handleSingleTap))
+    tap.require(toFail: doubleTap)
     tap.delegate = self
     videoContainer.addGestureRecognizer(tap)
 
@@ -325,6 +341,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       guard let self = self, !self.isScrubbing else { return }
       self.danmakuOverlay.setTime(seconds)
       let safeDuration = duration > 0 ? duration : 1
+      self.wheel.durationSeconds = duration
       self.wheel.progress = max(0, min(1, seconds / safeDuration))
       self.grid.progress = max(0, min(1, seconds / safeDuration))
       self.wheel.currentText = self.format(seconds)
@@ -333,8 +350,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     engine.onPlaying = { [weak self] playing in
       guard let self = self else { return }
       self.playButton.setImage(UIImage(systemName: playing ? "pause.fill" : "play.fill"), for: .normal)
-      self.playButton.alpha = playing ? 0.0 : 1.0
       self.videoContainer.backgroundColor = playing ? .black : NativeTheme.pipRose
+      if playing {
+        if self.controlsVisible { self.scheduleControlsHide() }
+      } else {
+        self.showControls()
+      }
     }
     engine.onReady = { [weak self] in
       guard let self = self else { return }
@@ -364,7 +385,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
 
     topBar.isHidden = true
-    bottomBlur.isHidden = true
+    playButton.isHidden = true
+    dim.isHidden = true
     [ownerLabel, ownerButton, qualityLabel, speedLabel, commentsButton,
      likeButton, coinButton, favButton].forEach { $0.removeFromSuperview() }
     loadQuality(ThemeManager.shared.quality)
@@ -407,11 +429,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     poster.frame = videoContainer.bounds
     danmakuOverlay.frame = videoContainer.bounds
     playButton.center = CGPoint(x: videoContainer.center.x, y: videoContainer.center.y)
-    let panelHeight: CGFloat = 80
+    let panelHeight: CGFloat = 92
+    let panelWidth = min(560, full.width - 32)
     bottomPanel.frame = CGRect(
-      x: 12,
-      y: full.height - view.safeAreaInsets.bottom - panelHeight - 10,
-      width: full.width - 24,
+      x: (full.width - panelWidth) / 2,
+      y: full.height - view.safeAreaInsets.bottom - panelHeight - 2,
+      width: panelWidth,
       height: panelHeight
     )
   }
@@ -573,8 +596,53 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   @objc private func togglePlay() {
     engine.toggle()
-    playButton.alpha = engine.isPlaying ? 0.0 : 1.0
     videoContainer.backgroundColor = engine.isPlaying ? .black : NativeTheme.pipRose
+  }
+
+  @objc private func handleSingleTap() {
+    if controlsVisible {
+      hideControls()
+    } else {
+      showControls()
+    }
+  }
+
+  @objc private func handleDoubleTap() {
+    let wasHidden = !controlsVisible
+    togglePlay()
+    if wasHidden || engine.isPlaying {
+      showControls()
+    } else {
+      controlsTimer?.invalidate()
+    }
+  }
+
+  private func showControls() {
+    controlsTimer?.invalidate()
+    controlsVisible = true
+    UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseOut]) {
+      self.bottomPanel.alpha = 1
+      self.bottomPanel.transform = .identity
+    }
+    scheduleControlsHide()
+  }
+
+  private func hideControls() {
+    controlsTimer?.invalidate()
+    controlsVisible = false
+    UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseIn]) {
+      self.bottomPanel.alpha = 0
+      self.bottomPanel.transform = CGAffineTransform(translationX: 0, y: 16)
+    }
+  }
+
+  private func scheduleControlsHide() {
+    controlsTimer?.invalidate()
+    guard engine.isPlaying else { return }
+    controlsTimer = Timer.scheduledTimer(withTimeInterval: 3.2, repeats: false) { [weak self] _ in
+      guard let self = self, self.engine.isPlaying, !self.isScrubbing else { return }
+      self.hideControls()
+    }
   }
 
   @objc private func longPress(_ gesture: UILongPressGestureRecognizer) {

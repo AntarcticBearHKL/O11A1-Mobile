@@ -2,6 +2,7 @@ import UIKit
 
 final class GlassTabBar: UIView {
   var onSelect: ((Int) -> Void)?
+  var onReselect: (() -> Void)?
 
   private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let tint = UIView()
@@ -117,7 +118,10 @@ final class GlassTabBar: UIView {
   }
 
   @objc private func tap(_ sender: UIButton) {
-    guard sender.tag != selectedIndex else { return }
+    guard sender.tag != selectedIndex else {
+      onReselect?()
+      return
+    }
     select(index: sender.tag, notify: true)
   }
 

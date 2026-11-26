@@ -9,7 +9,8 @@ final class RootViewController: UIViewController {
   private var player: PlayerViewController?
   private var feed: FeedViewController?
   private var following: VideoListViewController?
-  private var dynamic: VideoListViewController?
+  private var dynamic: DynamicViewController?
+  private var messages: MessagesViewController?
   private var fish: AIViewController?
   private var sidebar: SidebarView?
   private var testFlowTriggered = false
@@ -58,6 +59,9 @@ final class RootViewController: UIViewController {
 
     tabBar.onSelect = { [weak self] index in
       self?.selectTab(index)
+    }
+    tabBar.onReselect = { [weak self] in
+      self?.closeMessages()
     }
     view.addSubview(tabBar)
     tabBar.translatesAutoresizingMaskIntoConstraints = false
@@ -182,6 +186,7 @@ final class RootViewController: UIViewController {
   }
 
   private func selectTab(_ index: Int, force: Bool = false) {
+    closeMessages()
     tabBar.select(index: index, notify: false)
     let controller: UIViewController
     switch index {
@@ -196,8 +201,15 @@ final class RootViewController: UIViewController {
       controller = following!
     case 2:
       if dynamic == nil {
-        let list = VideoListViewController(mode: .dynamic, title: "动态")
-        list.onOpen = { [weak self] item, cell in self?.openPlayer(item, from: cell) }
+        let list = DynamicViewController()
+        list.onOpenVideo = { [weak self] item in self?.openPlayer(item, from: nil) }
+        list.onLogin = { [weak self, weak list] in
+          guard let self = self else { return }
+          let login = LoginViewController()
+          login.modalPresentationStyle = .formSheet
+          login.onLogin = { [weak list] in list?.reload() }
+          self.present(login, animated: true)
+        }
         dynamic = list
       }
       controller = dynamic!
@@ -287,7 +299,11 @@ final class RootViewController: UIViewController {
       }
       view.onModule = { [weak self] mode, title in
         guard let self = self else { return }
-        self.presentModule(from: self, mode: mode, target: 0, title: title)
+        if mode == .messages {
+          self.openMessages()
+        } else {
+          self.presentModule(from: self, mode: mode, target: 0, title: title)
+        }
       }
       view.onMy = { [weak self] in
         self?.openMy()
@@ -300,6 +316,36 @@ final class RootViewController: UIViewController {
       sidebar = view
     }
     sidebar?.present(in: view)
+  }
+
+  private func openMessages() {
+    guard messages == nil else { return }
+    let controller = MessagesViewController()
+    controller.onLogin = { [weak self, weak controller] in
+      guard let self = self else { return }
+      let login = LoginViewController()
+      login.modalPresentationStyle = .formSheet
+      login.onLogin = { [weak controller] in controller?.reload() }
+      self.present(login, animated: true)
+    }
+    controller.onClose = { [weak self] in self?.closeMessages() }
+    addChild(controller)
+    controller.view.frame = contentView.bounds
+    controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    contentView.addSubview(controller.view)
+    controller.didMove(toParent: self)
+    messages = controller
+    view.bringSubviewToFront(tabBar)
+    view.bringSubviewToFront(settingsButton)
+    view.bringSubviewToFront(myButton)
+  }
+
+  private func closeMessages() {
+    guard let controller = messages else { return }
+    controller.willMove(toParent: nil)
+    controller.view.removeFromSuperview()
+    controller.removeFromParent()
+    messages = nil
   }
 
   @objc private func openMy() {

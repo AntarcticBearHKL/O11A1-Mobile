@@ -78,6 +78,22 @@ enum NativeTheme {
     }
   }
 
+  static var searchHeadTop: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(white: 0, alpha: 0.94)
+        : UIColor(white: 1, alpha: 0.94)
+    }
+  }
+
+  static var searchHeadBottom: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(white: 0, alpha: 0.78)
+        : UIColor(white: 1, alpha: 0.78)
+    }
+  }
+
   static var sidebarTop: UIColor {
     UIColor { trait in
       trait.userInterfaceStyle == .dark
@@ -169,6 +185,20 @@ enum NativeTheme {
     if age < day * 90 { return "\(age / (30 * day))个月前" }
     if age < day * 365 { return "\(age / (90 * day))季度前" }
     return "\(age / (365 * day))年前"
+  }
+
+  static func timeAgo(_ raw: Int64) -> String {
+    guard raw > 0 else { return "" }
+    let seconds = raw > 100_000_000_000 ? raw / 1000 : raw
+    let delta = max(0, Int64(Date().timeIntervalSince1970) - seconds)
+    if delta < 60 { return "刚刚" }
+    if delta < 3600 { return "\(delta / 60) 分钟前" }
+    if delta < 86400 { return "\(delta / 3600) 小时前" }
+    if delta < 86400 * 30 { return "\(delta / 86400) 天前" }
+    let date = Date(timeIntervalSince1970: TimeInterval(seconds))
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd"
+    return formatter.string(from: date)
   }
 
   static func freshnessColor(_ raw: Int64) -> UIColor {

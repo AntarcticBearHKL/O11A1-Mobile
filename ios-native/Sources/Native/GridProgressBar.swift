@@ -7,10 +7,11 @@ final class GridProgressBar: UIView {
   }
 
   override var intrinsicContentSize: CGSize {
-    return CGSize(width: UIView.noIntrinsicMetric, height: 6)
+    return CGSize(width: UIView.noIntrinsicMetric, height: 14)
   }
 
   override func draw(_ rect: CGRect) {
+    let light = traitCollection.userInterfaceStyle == .light
     let blocks = 36
     let gap: CGFloat = 2
     let width = (bounds.width - gap * CGFloat(blocks - 1)) / CGFloat(blocks)
@@ -18,11 +19,18 @@ final class GridProgressBar: UIView {
     for index in 0..<blocks {
       let x = CGFloat(index) * (width + gap)
       let block = CGRect(x: x, y: 0, width: width, height: bounds.height)
-      let color = index < played
-        ? NativeTheme.navBlue
-        : UIColor.white.withAlphaComponent(0.24)
+      let color: UIColor
+      if index < played {
+        color = light
+          ? UIColor(red: 47.0 / 255.0, green: 124.0 / 255.0, blue: 246.0 / 255.0, alpha: 1)
+          : UIColor(red: 84.0 / 255.0, green: 167.0 / 255.0, blue: 1.0, alpha: 1)
+      } else {
+        color = light
+          ? UIColor(white: 0, alpha: 0.12)
+          : UIColor(white: 1, alpha: 0.14)
+      }
       color.setFill()
-      UIBezierPath(roundedRect: block, cornerRadius: 1.5).fill()
+      UIBezierPath(roundedRect: block, cornerRadius: 2).fill()
     }
   }
 }
