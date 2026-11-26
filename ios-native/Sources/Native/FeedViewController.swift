@@ -45,7 +45,7 @@ final class FeedViewController: UIViewController,
     table.register(HomeCardCell.self, forCellReuseIdentifier: HomeCardCell.reuseID)
     table.rowHeight = UITableView.automaticDimension
     table.estimatedRowHeight = 360
-    table.contentInset = UIEdgeInsets(top: 12, left: 0, bottom: 108, right: 0)
+    table.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 138, right: 0)
     table.contentInsetAdjustmentBehavior = .never
     table.showsVerticalScrollIndicator = false
     view.addSubview(table)
@@ -131,6 +131,9 @@ final class FeedViewController: UIViewController,
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
+    table.contentInset = UIEdgeInsets(top: view.safeAreaInsets.top, left: 0,
+                                      bottom: 104 + view.safeAreaInsets.bottom, right: 0)
+    table.verticalScrollIndicatorInsets.top = view.safeAreaInsets.top
     topFadeHeight?.constant = view.safeAreaInsets.top + 18
     if let gradient = topFade.layer.sublayers?.first as? CAGradientLayer {
       gradient.frame = topFade.bounds

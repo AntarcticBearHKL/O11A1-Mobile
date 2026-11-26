@@ -15,6 +15,7 @@ final class HomeCardCell: UITableViewCell {
   private let progressTrack = UIView()
   private let progressFill = UIView()
   private var progressWidth: NSLayoutConstraint?
+  private let copyGradient = CAGradientLayer()
   private let avatar = UIImageView()
   private let avatarButton = UIButton(type: .custom)
   private let title = UILabel()
@@ -32,13 +33,21 @@ final class HomeCardCell: UITableViewCell {
 
     let media = UIView()
     media.clipsToBounds = true
-    media.backgroundColor = UIColor(white: 0.9, alpha: 1)
+    media.backgroundColor = UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(red: 26.0 / 255.0, green: 32.0 / 255.0, blue: 42.0 / 255.0, alpha: 1)
+        : UIColor(red: 228.0 / 255.0, green: 231.0 / 255.0, blue: 236.0 / 255.0, alpha: 1)
+    }
     contentView.addSubview(media)
     media.translatesAutoresizingMaskIntoConstraints = false
 
     cover.contentMode = .scaleAspectFill
     cover.clipsToBounds = true
-    cover.backgroundColor = UIColor(white: 0.12, alpha: 1)
+    cover.backgroundColor = UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(red: 26.0 / 255.0, green: 32.0 / 255.0, blue: 42.0 / 255.0, alpha: 1)
+        : UIColor(red: 228.0 / 255.0, green: 231.0 / 255.0, blue: 236.0 / 255.0, alpha: 1)
+    }
     media.addSubview(cover)
     cover.translatesAutoresizingMaskIntoConstraints = false
 
@@ -69,27 +78,23 @@ final class HomeCardCell: UITableViewCell {
     progressTrack.backgroundColor = UIColor.white.withAlphaComponent(0.28)
     media.addSubview(progressTrack)
     progressTrack.translatesAutoresizingMaskIntoConstraints = false
-    progressFill.backgroundColor = UIColor(red: 1, green: 0.18, blue: 0.18, alpha: 1)
+    progressFill.backgroundColor = UIColor(red: 1, green: 45.0 / 255.0, blue: 45.0 / 255.0, alpha: 1)
     progressTrack.addSubview(progressFill)
     progressFill.translatesAutoresizingMaskIntoConstraints = false
 
-    copyView.backgroundColor = UIColor { trait in
-      trait.userInterfaceStyle == .dark
-        ? UIColor(red: 0.11, green: 0.12, blue: 0.15, alpha: 0.96)
-        : UIColor(red: 1, green: 1, blue: 1, alpha: 0.94)
-    }
+    copyView.backgroundColor = .clear
     copyView.layer.cornerRadius = 14
     copyView.layer.cornerCurve = .continuous
     copyView.layer.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+    copyView.layer.insertSublayer(copyGradient, at: 0)
+    copyGradient.colors = [NativeTheme.homeRowTop.cgColor,
+                           NativeTheme.homeRowBottom.cgColor]
+    copyGradient.locations = [0, 1]
     contentView.addSubview(copyView)
     copyView.translatesAutoresizingMaskIntoConstraints = false
 
     let topLine = UIView()
-    topLine.backgroundColor = UIColor { trait in
-      trait.userInterfaceStyle == .dark
-        ? UIColor.white.withAlphaComponent(0.06)
-        : UIColor.black.withAlphaComponent(0.06)
-    }
+    topLine.backgroundColor = NativeTheme.homeRowLine
     copyView.addSubview(topLine)
     topLine.translatesAutoresizingMaskIntoConstraints = false
 
@@ -105,21 +110,21 @@ final class HomeCardCell: UITableViewCell {
     copyView.addSubview(avatarButton)
     avatarButton.translatesAutoresizingMaskIntoConstraints = false
 
-    title.font = NativeTheme.titleFont(16)
+    title.font = UIFont.systemFont(ofSize: 16, weight: .bold)
     title.textColor = NativeTheme.foreground
     title.numberOfLines = 2
     title.lineBreakMode = .byTruncatingTail
     copyView.addSubview(title)
     title.translatesAutoresizingMaskIntoConstraints = false
 
-    owner.font = NativeTheme.bodyFont(11.5)
+    owner.font = UIFont.systemFont(ofSize: 12, weight: .medium)
     owner.textColor = NativeTheme.secondary
     owner.numberOfLines = 1
     owner.lineBreakMode = .byTruncatingTail
-    play.font = NativeTheme.numberFont(11.5)
+    play.font = UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
     play.textAlignment = .center
     play.numberOfLines = 1
-    time.font = NativeTheme.numberFont(11.5)
+    time.font = UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
     time.textColor = NativeTheme.tertiary
     time.textAlignment = .right
     time.numberOfLines = 1
@@ -177,7 +182,7 @@ final class HomeCardCell: UITableViewCell {
       topLine.heightAnchor.constraint(equalToConstant: 0.5),
 
       avatar.leadingAnchor.constraint(equalTo: copyView.leadingAnchor, constant: 16),
-      avatar.topAnchor.constraint(equalTo: copyView.topAnchor, constant: 13),
+      avatar.centerYAnchor.constraint(equalTo: copyView.centerYAnchor),
       avatar.widthAnchor.constraint(equalToConstant: 50),
       avatar.heightAnchor.constraint(equalToConstant: 50),
 
@@ -192,7 +197,7 @@ final class HomeCardCell: UITableViewCell {
 
       meta.leadingAnchor.constraint(equalTo: title.leadingAnchor),
       meta.trailingAnchor.constraint(equalTo: title.trailingAnchor),
-      meta.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 7),
+      meta.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 5),
       meta.bottomAnchor.constraint(equalTo: copyView.bottomAnchor, constant: -16),
     ])
     progressWidth = progressFill.widthAnchor.constraint(equalToConstant: 0)
@@ -203,6 +208,20 @@ final class HomeCardCell: UITableViewCell {
 
   required init?(coder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    copyGradient.frame = copyView.bounds
+    CATransaction.commit()
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    copyGradient.colors = [NativeTheme.homeRowTop.cgColor,
+                           NativeTheme.homeRowBottom.cgColor]
   }
 
   override func prepareForReuse() {
@@ -219,7 +238,7 @@ final class HomeCardCell: UITableViewCell {
     self.item = item
     title.text = item.title
     owner.text = item.owner
-    play.text = item.playText.isEmpty ? "" : item.playText + " 播放"
+    play.text = item.playText.isEmpty ? "" : item.playText + "播放"
     play.textColor = NativeTheme.playCountColor(item.play)
     time.text = NativeTheme.freshness(item.pubdate)
     time.textColor = NativeTheme.freshnessColor(item.pubdate)

@@ -8,6 +8,8 @@ final class SidebarView: UIView {
 
   private let panel = UIView()
   private let backdrop = UIView()
+  private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+  private let gradient = CAGradientLayer()
   private var panelWidth: CGFloat = 200
 
   override init(frame: CGRect) {
@@ -37,18 +39,20 @@ final class SidebarView: UIView {
     ])
 
     let bg = UIView()
-    bg.backgroundColor = UIColor { trait in
-      trait.userInterfaceStyle == .dark
-        ? UIColor(white: 0.06, alpha: 0.97)
-        : UIColor(white: 0.99, alpha: 0.97)
-    }
     bg.layer.cornerRadius = 26
     bg.layer.cornerCurve = .continuous
     bg.layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
+    bg.layer.borderWidth = 1
+    bg.layer.borderColor = UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(white: 1, alpha: 0.08)
+        : UIColor(white: 1, alpha: 0.58)
+    }.cgColor
     bg.layer.shadowColor = UIColor.black.cgColor
     bg.layer.shadowOpacity = 0.18
     bg.layer.shadowRadius = 22
     bg.layer.shadowOffset = CGSize(width: 12, height: 0)
+    bg.clipsToBounds = false
     panel.addSubview(bg)
     bg.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
@@ -57,6 +61,24 @@ final class SidebarView: UIView {
       bg.topAnchor.constraint(equalTo: panel.topAnchor),
       bg.bottomAnchor.constraint(equalTo: panel.bottomAnchor),
     ])
+
+    blur.layer.cornerRadius = 26
+    blur.layer.cornerCurve = .continuous
+    blur.layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
+    blur.clipsToBounds = true
+    bg.addSubview(blur)
+    blur.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      blur.leadingAnchor.constraint(equalTo: bg.leadingAnchor),
+      blur.trailingAnchor.constraint(equalTo: bg.trailingAnchor),
+      blur.topAnchor.constraint(equalTo: bg.topAnchor),
+      blur.bottomAnchor.constraint(equalTo: bg.bottomAnchor),
+    ])
+
+    gradient.colors = [NativeTheme.sidebarTop.cgColor, NativeTheme.sidebarBottom.cgColor]
+    gradient.startPoint = CGPoint(x: 0.5, y: 0)
+    gradient.endPoint = CGPoint(x: 0.5, y: 1)
+    bg.layer.addSublayer(gradient)
 
     let stack = UIStackView()
     stack.axis = .vertical
@@ -70,21 +92,14 @@ final class SidebarView: UIView {
       stack.centerYAnchor.constraint(equalTo: panel.centerYAnchor),
     ])
 
-    addRow(stack, "首页", "house", { [weak self] in self?.onHome?() })
-    addRow(stack, "收藏", "star", { [weak self] in self?.onModule?(.favorites, "收藏") })
-    addRow(stack, "直播", "dot.radiowaves.left.and.right",
+    addRow(stack, "直播", "play.rectangle",
            { [weak self] in self?.onModule?(.live, "直播") })
-    addRow(stack, "番剧", "play.rectangle",
+    addRow(stack, "番剧", "rectangle.split.3x1",
            { [weak self] in self?.onModule?(.bangumi, "番剧") })
-    addRow(stack, "关注", "person.badge.plus",
-           { [weak self] in self?.onModule?(.following, "关注") })
-    addRow(stack, "动态", "waveform",
-           { [weak self] in self?.onModule?(.dynamic, "动态") })
-    addRow(stack, "消息", "envelope",
+    addRow(stack, "消息", "text.bubble",
            { [weak self] in self?.onModule?(.messages, "消息") })
     addRow(stack, "历史", "clock.arrow.circlepath",
            { [weak self] in self?.onModule?(.history, "历史") })
-    addRow(stack, "搜索", "magnifyingglass", { [weak self] in self?.onSearch?() })
 
     let footerLine = UIView()
     footerLine.backgroundColor = NativeTheme.hairline
@@ -102,27 +117,46 @@ final class SidebarView: UIView {
       footer.bottomAnchor.constraint(equalTo: panel.safeAreaLayoutGuide.bottomAnchor, constant: -8),
       footerLine.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 26),
       footerLine.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
-      footerLine.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -2),
+      footerLine.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -10),
       footerLine.heightAnchor.constraint(equalToConstant: 0.5),
     ])
-    addRow(footer, "我的", "person", { [weak self] in self?.onMy?() })
+    addRow(footer, "用户", "person", { [weak self] in self?.onMy?() })
   }
 
   required init?(coder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
   }
 
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    gradient.frame = panel.bounds
+    CATransaction.commit()
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    gradient.colors = [NativeTheme.sidebarTop.cgColor, NativeTheme.sidebarBottom.cgColor]
+    panel.subviews.first?.layer.borderColor = UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(white: 1, alpha: 0.08)
+        : UIColor(white: 1, alpha: 0.58)
+    }.cgColor
+  }
+
   private func addRow(_ stack: UIStackView, _ label: String, _ symbol: String,
                       _ action: (() -> Void)?) {
     let row = UIButton(type: .custom)
-    row.tag = 0
     row.addAction(UIAction { [weak self] _ in
       self?.close()
       action?()
     }, for: .touchUpInside)
-    row.heightAnchor.constraint(equalToConstant: 54).isActive = true
+    row.heightAnchor.constraint(equalToConstant: 56).isActive = true
 
-    let icon = UIImageView(image: UIImage(systemName: symbol))
+    let icon = UIImageView(image: UIImage(
+      systemName: symbol,
+      withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .regular)))
     icon.tintColor = NativeTheme.secondary
     icon.contentMode = .scaleAspectFit
     icon.widthAnchor.constraint(equalToConstant: 19).isActive = true
@@ -154,9 +188,11 @@ final class SidebarView: UIView {
     host.addSubview(self)
     isHidden = false
     layoutIfNeeded()
-    panel.transform = CGAffineTransform(translationX: -panel.bounds.width, y: 0)
+    panel.transform = CGAffineTransform(translationX: -panel.bounds.width - 24, y: 0)
     backdrop.alpha = 0
-    UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseOut]) {
+    UIView.animate(withDuration: 0.36, delay: 0,
+                   usingSpringWithDamping: 1, initialSpringVelocity: 0,
+                   options: [.curveEaseOut]) {
       self.panel.transform = .identity
       self.backdrop.alpha = 1
     }
@@ -164,8 +200,9 @@ final class SidebarView: UIView {
 
   @objc func close() {
     guard superview != nil else { return }
-    UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseIn], animations: {
-      self.panel.transform = CGAffineTransform(translationX: -self.panel.bounds.width, y: 0)
+    UIView.animate(withDuration: 0.26, delay: 0, options: [.curveEaseIn], animations: {
+      self.panel.transform = CGAffineTransform(
+        translationX: -self.panel.bounds.width - 24, y: 0)
       self.backdrop.alpha = 0
     }) { _ in
       self.removeFromSuperview()

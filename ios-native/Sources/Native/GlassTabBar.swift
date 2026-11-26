@@ -4,24 +4,28 @@ final class GlassTabBar: UIView {
   var onSelect: ((Int) -> Void)?
 
   private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+  private let tint = UIView()
+  private let pill = UIView()
   private let stack = UIStackView()
   private var buttons: [UIButton] = []
   private let titles = ["推荐", "关注", "动态", "养鱼"]
-  private let symbols = ["house", "person.2", "waveform", "fish"]
+  private let symbols = ["house", "person.badge.plus", "waveform", "fish"]
   private(set) var selectedIndex = 0
   private(set) var barHidden = false
 
   override init(frame: CGRect) {
     super.init(frame: frame)
     backgroundColor = .clear
-    layer.cornerRadius = 26
+    layer.cornerRadius = 29
     layer.cornerCurve = .continuous
+    layer.borderWidth = 1
+    layer.borderColor = NativeTheme.barBorder.cgColor
     layer.shadowColor = UIColor.black.cgColor
     layer.shadowOpacity = 0.12
     layer.shadowRadius = 18
     layer.shadowOffset = CGSize(width: 0, height: 8)
 
-    blur.layer.cornerRadius = 26
+    blur.layer.cornerRadius = 29
     blur.layer.cornerCurve = .continuous
     blur.clipsToBounds = true
     addSubview(blur)
@@ -33,9 +37,26 @@ final class GlassTabBar: UIView {
       blur.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
 
+    tint.backgroundColor = NativeTheme.barGlass
+    tint.isUserInteractionEnabled = false
+    addSubview(tint)
+    tint.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      tint.leadingAnchor.constraint(equalTo: leadingAnchor),
+      tint.trailingAnchor.constraint(equalTo: trailingAnchor),
+      tint.topAnchor.constraint(equalTo: topAnchor),
+      tint.bottomAnchor.constraint(equalTo: bottomAnchor),
+    ])
+
+    pill.backgroundColor = NativeTheme.navPill
+    pill.layer.cornerRadius = 24
+    pill.layer.cornerCurve = .continuous
+    pill.isUserInteractionEnabled = false
+    addSubview(pill)
+
     stack.axis = .horizontal
     stack.distribution = .fillEqually
-    stack.alignment = .center
+    stack.alignment = .fill
     stack.spacing = 0
     addSubview(stack)
     stack.translatesAutoresizingMaskIntoConstraints = false
@@ -49,12 +70,13 @@ final class GlassTabBar: UIView {
     for index in 0..<titles.count {
       let button = UIButton(type: .custom)
       button.tag = index
-      button.titleLabel?.font = UIFont.systemFont(ofSize: 10, weight: .medium)
-      button.setTitleColor(NativeTheme.secondary, for: .normal)
-      button.setImage(UIImage(systemName: symbols[index]), for: .normal)
-      button.tintColor = NativeTheme.secondary
+      button.titleLabel?.font = UIFont.systemFont(ofSize: 9.5, weight: .medium)
+      button.setTitleColor(NativeTheme.tertiary, for: .normal)
+      let config = UIImage.SymbolConfiguration(pointSize: 18, weight: .regular)
+      button.setImage(UIImage(systemName: symbols[index], withConfiguration: config), for: .normal)
+      button.tintColor = NativeTheme.tertiary
       button.setTitle(titles[index], for: .normal)
-      button.alignImageAndTitleVertically(gap: 3)
+      button.alignImageAndTitleVertically(gap: 2)
       button.addTarget(self, action: #selector(tap(_:)), for: .touchUpInside)
       buttons.append(button)
       stack.addArrangedSubview(button)
@@ -66,6 +88,34 @@ final class GlassTabBar: UIView {
     fatalError("init(coder:) has not been implemented")
   }
 
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    layoutPill(animated: false)
+  }
+
+  private func layoutPill(animated: Bool) {
+    guard selectedIndex >= 0 && selectedIndex < buttons.count else { return }
+    let button = buttons[selectedIndex]
+    let target = button.convert(button.bounds, to: self).insetBy(dx: 4, dy: 4)
+    if animated {
+      UIView.animate(withDuration: 0.3, delay: 0,
+                     usingSpringWithDamping: 0.92, initialSpringVelocity: 0.2,
+                     options: [.allowUserInteraction, .beginFromCurrentState]) {
+        self.pill.frame = target
+      }
+    } else {
+      pill.frame = target
+    }
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    layer.borderColor = NativeTheme.barBorder.cgColor
+    tint.backgroundColor = NativeTheme.barGlass
+    pill.backgroundColor = NativeTheme.navPill
+    updateColors()
+  }
+
   @objc private func tap(_ sender: UIButton) {
     guard sender.tag != selectedIndex else { return }
     select(index: sender.tag, notify: true)
@@ -74,15 +124,20 @@ final class GlassTabBar: UIView {
   func select(index: Int, notify: Bool) {
     guard index >= 0 && index < buttons.count else { return }
     selectedIndex = index
-    for (i, button) in buttons.enumerated() {
-      let active = i == index
-      button.tintColor = active ? NativeTheme.navBlue : NativeTheme.secondary
-      button.setTitleColor(active ? NativeTheme.navBlue : NativeTheme.secondary, for: .normal)
-      button.backgroundColor = active ? NativeTheme.navSoft : .clear
-      button.layer.cornerRadius = 22
-      button.layer.cornerCurve = .continuous
-    }
+    updateColors()
+    layoutPill(animated: self.superview != nil)
     if notify { onSelect?(index) }
+  }
+
+  private func updateColors() {
+    for (i, button) in buttons.enumerated() {
+      let active = i == selectedIndex
+      let color = active ? NativeTheme.navBlue : NativeTheme.tertiary
+      button.tintColor = color
+      button.setTitleColor(color, for: .normal)
+      button.titleLabel?.font = UIFont.systemFont(ofSize: 9.5, weight: active ? .bold : .medium)
+      button.backgroundColor = .clear
+    }
   }
 
   func setHidden(_ shouldHide: Bool, animated: Bool) {
@@ -113,7 +168,7 @@ private extension UIButton {
   func alignImageAndTitleVertically(gap: CGFloat) {
     guard let image = imageView?.image, let title = titleLabel?.text else { return }
     let imageSize = image.size
-    let titleSize = (title as NSString).size(withAttributes: [.font: titleLabel?.font ?? UIFont.systemFont(ofSize: 10)])
+    let titleSize = (title as NSString).size(withAttributes: [.font: titleLabel?.font ?? UIFont.systemFont(ofSize: 9.5)])
     let totalHeight = imageSize.height + gap + titleSize.height
     imageEdgeInsets = UIEdgeInsets(
       top: -(totalHeight - imageSize.height),

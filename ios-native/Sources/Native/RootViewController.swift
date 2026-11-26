@@ -64,7 +64,7 @@ final class RootViewController: UIViewController {
     NSLayoutConstraint.activate([
       tabBar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
       tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
-      tabBar.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -NativeTheme.toolbarInset),
+      tabBar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -10),
       tabBar.heightAnchor.constraint(equalToConstant: 58),
     ])
 

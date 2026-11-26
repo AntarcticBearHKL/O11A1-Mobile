@@ -32,7 +32,7 @@ final class MyViewController: UIViewController {
     header.addArrangedSubview(back)
     let title = UILabel()
     title.text = "用户"
-    title.font = NativeTheme.titleFont(20)
+    title.font = UIFont.systemFont(ofSize: 19, weight: .bold)
     title.textColor = NativeTheme.foreground
     header.addArrangedSubview(title)
     header.addArrangedSubview(UIView())
@@ -41,7 +41,7 @@ final class MyViewController: UIViewController {
     NSLayoutConstraint.activate([
       header.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
       header.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-      header.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+      header.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
     ])
 
     let accountCard = UIView()
@@ -114,23 +114,23 @@ final class MyViewController: UIViewController {
       scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor),
       scroll.topAnchor.constraint(equalTo: header.bottomAnchor),
       scroll.bottomAnchor.constraint(equalTo: accountCard.topAnchor),
-      list.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor),
-      list.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor),
+      list.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 18),
+      list.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -18),
       list.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),
       list.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor),
-      list.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor),
+      list.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -36),
     ])
 
     addRow("主页模块", "自定义首页内容", #selector(showHomeModules))
-    addRow("内容模块", "热门 / 排行 / 番剧 / 直播…", #selector(showContentModules))
-    addRow("播放", "画质 / 默认清晰度", #selector(openSettings))
+    addRow("播放", "画质 / 硬解 / 默认", #selector(openSettings))
     addRow("弹幕", "显示 / 字号 / 速度 / 屏蔽", #selector(showDanmaku))
     addRow("外观", "主题 / 透明度 / 模糊", #selector(openSettings))
     addRow("屏蔽", "关键词 / 正则 / 用户", #selector(showBlock))
     addRow("智能云屏蔽", "等级 / 同步", #selector(showCloud))
     addRow("优化", "预加载 / 性能", #selector(showOptimize))
-    addRow("会员中心", "任务 / 经验 / 大会员", #selector(openMember))
-    addRow("养鱼", "AI 看片 / 试验台", #selector(openFish))
+    if let last = list.arrangedSubviews.last {
+      last.removeFromSuperview()
+    }
 
     loadAccount()
   }
@@ -138,7 +138,7 @@ final class MyViewController: UIViewController {
   private func addRow(_ label: String, _ detail: String, _ action: Selector) {
     let row = UIButton(type: .custom)
     row.addTarget(self, action: action, for: .touchUpInside)
-    row.heightAnchor.constraint(equalToConstant: 56).isActive = true
+    row.heightAnchor.constraint(equalToConstant: 58).isActive = true
 
     let title = UILabel()
     title.text = label
@@ -150,26 +150,17 @@ final class MyViewController: UIViewController {
     let hint = UILabel()
     hint.text = detail
     hint.font = NativeTheme.bodyFont(11)
-    hint.textColor = NativeTheme.secondary
+    hint.textColor = NativeTheme.tertiary
     hint.textAlignment = .right
     row.addSubview(hint)
     hint.translatesAutoresizingMaskIntoConstraints = false
 
-    let chevron = UILabel()
-    chevron.text = "›"
-    chevron.font = NativeTheme.bodyFont(20)
-    chevron.textColor = NativeTheme.tertiary
-    row.addSubview(chevron)
-    chevron.translatesAutoresizingMaskIntoConstraints = false
-
     NSLayoutConstraint.activate([
-      title.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 18),
+      title.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 2),
       title.centerYAnchor.constraint(equalTo: row.centerYAnchor),
-      hint.trailingAnchor.constraint(equalTo: chevron.leadingAnchor, constant: -8),
+      hint.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -2),
       hint.centerYAnchor.constraint(equalTo: row.centerYAnchor),
       hint.leadingAnchor.constraint(greaterThanOrEqualTo: title.trailingAnchor, constant: 8),
-      chevron.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -16),
-      chevron.centerYAnchor.constraint(equalTo: row.centerYAnchor),
     ])
     list.addArrangedSubview(row)
 
@@ -179,7 +170,7 @@ final class MyViewController: UIViewController {
     lineWrap.addSubview(line)
     line.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      line.leadingAnchor.constraint(equalTo: lineWrap.leadingAnchor, constant: 18),
+      line.leadingAnchor.constraint(equalTo: lineWrap.leadingAnchor),
       line.trailingAnchor.constraint(equalTo: lineWrap.trailingAnchor),
       line.topAnchor.constraint(equalTo: lineWrap.topAnchor),
       line.bottomAnchor.constraint(equalTo: lineWrap.bottomAnchor),

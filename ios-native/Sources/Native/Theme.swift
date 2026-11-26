@@ -12,23 +12,23 @@ enum NativeTheme {
   static var secondary: UIColor {
     UIColor { trait in
       trait.userInterfaceStyle == .dark
-        ? UIColor(white: 0.62, alpha: 1)
-        : UIColor(white: 0.38, alpha: 1)
+        ? UIColor(red: 0.651, green: 0.651, blue: 0.671, alpha: 1)
+        : UIColor(red: 0.431, green: 0.431, blue: 0.451, alpha: 1)
     }
   }
 
   static var tertiary: UIColor {
     UIColor { trait in
       trait.userInterfaceStyle == .dark
-        ? UIColor(white: 0.40, alpha: 1)
-        : UIColor(white: 0.62, alpha: 1)
+        ? UIColor(red: 0.424, green: 0.424, blue: 0.447, alpha: 1)
+        : UIColor(red: 0.631, green: 0.631, blue: 0.651, alpha: 1)
     }
   }
 
   static var hairline: UIColor {
     UIColor { trait in
       trait.userInterfaceStyle == .dark
-        ? UIColor(white: 1, alpha: 0.10)
+        ? UIColor(white: 1, alpha: 0.12)
         : UIColor(white: 0, alpha: 0.08)
     }
   }
@@ -46,18 +46,78 @@ enum NativeTheme {
   static var navBlue: UIColor {
     UIColor { trait in
       trait.userInterfaceStyle == .dark
-        ? UIColor(red: 0.50, green: 0.71, blue: 1.0, alpha: 1)
-        : UIColor(red: 0.0, green: 0.37, blue: 0.72, alpha: 1)
+        ? UIColor(red: 84.0 / 255.0, green: 167.0 / 255.0, blue: 1.0, alpha: 1)
+        : UIColor(red: 0.0, green: 95.0 / 255.0, blue: 184.0 / 255.0, alpha: 1)
     }
   }
 
   static var navSoft: UIColor {
     UIColor { trait in
       trait.userInterfaceStyle == .dark
-        ? UIColor(red: 0.18, green: 0.49, blue: 0.96, alpha: 0.20)
-        : UIColor(red: 0.86, green: 0.93, blue: 1.0, alpha: 1)
+        ? UIColor(red: 18.0 / 255.0, green: 37.0 / 255.0, blue: 63.0 / 255.0, alpha: 1)
+        : UIColor(red: 220.0 / 255.0, green: 238.0 / 255.0, blue: 1.0, alpha: 1)
     }
   }
+
+  static var navPill: UIColor {
+    UIColor(red: 47.0 / 255.0, green: 124.0 / 255.0, blue: 246.0 / 255.0, alpha: 0.10)
+  }
+  static var barGlass: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(red: 10.0 / 255.0, green: 10.0 / 255.0, blue: 12.0 / 255.0, alpha: 0.84)
+        : UIColor(white: 1.0, alpha: 0.72)
+    }
+  }
+
+  static var barBorder: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(white: 1.0, alpha: 0.10)
+        : UIColor(white: 1.0, alpha: 0.80)
+    }
+  }
+
+  static var sidebarTop: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(red: 18.0 / 255.0, green: 23.0 / 255.0, blue: 32.0 / 255.0, alpha: 0.74)
+        : UIColor(red: 250.0 / 255.0, green: 250.0 / 255.0, blue: 252.0 / 255.0, alpha: 0.74)
+    }
+  }
+
+  static var sidebarBottom: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(red: 10.0 / 255.0, green: 13.0 / 255.0, blue: 19.0 / 255.0, alpha: 0.88)
+        : UIColor(red: 244.0 / 255.0, green: 245.0 / 255.0, blue: 249.0 / 255.0, alpha: 0.88)
+    }
+  }
+
+  static var homeRowTop: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(red: 28.0 / 255.0, green: 30.0 / 255.0, blue: 37.0 / 255.0, alpha: 0.86)
+        : UIColor(white: 1.0, alpha: 0.80)
+    }
+  }
+
+  static var homeRowBottom: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(red: 17.0 / 255.0, green: 18.0 / 255.0, blue: 23.0 / 255.0, alpha: 0.76)
+        : UIColor(white: 1.0, alpha: 0.58)
+    }
+  }
+
+  static var homeRowLine: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(white: 1.0, alpha: 0.07)
+        : UIColor(white: 1.0, alpha: 0.46)
+    }
+  }
+
   static let pipRose = UIColor(red: 1.0, green: 0.85, blue: 0.87, alpha: 1)
   static let likeBlue = UIColor(red: 0.30, green: 0.60, blue: 1.0, alpha: 1)
   static let warmOrange = UIColor(red: 1.0, green: 0.62, blue: 0.26, alpha: 1)
@@ -68,11 +128,32 @@ enum NativeTheme {
   static let avatarSize: CGFloat = 50
 
   static func playCountColor(_ count: Int64) -> UIColor {
-    if count >= 10_000_000 { return UIColor(red: 0.83, green: 0.27, blue: 0.24, alpha: 1) }
-    if count >= 1_000_000 { return UIColor(red: 0.78, green: 0.47, blue: 0.0, alpha: 1) }
-    if count >= 100_000 { return UIColor(red: 0.18, green: 0.49, blue: 0.96, alpha: 1) }
-    if count >= 10_000 { return UIColor(red: 0.18, green: 0.54, blue: 0.35, alpha: 1) }
-    return UIColor(red: 0.54, green: 0.56, blue: 0.61, alpha: 1)
+    UIColor { trait in
+      let dark = trait.userInterfaceStyle == .dark
+      if count >= 10_000_000 {
+        return dark
+          ? UIColor(red: 1.0, green: 133.0 / 255.0, blue: 120.0 / 255.0, alpha: 1)
+          : UIColor(red: 211.0 / 255.0, green: 69.0 / 255.0, blue: 61.0 / 255.0, alpha: 1)
+      }
+      if count >= 1_000_000 {
+        return dark
+          ? UIColor(red: 1.0, green: 179.0 / 255.0, blue: 92.0 / 255.0, alpha: 1)
+          : UIColor(red: 199.0 / 255.0, green: 119.0 / 255.0, blue: 0.0, alpha: 1)
+      }
+      if count >= 100_000 {
+        return dark
+          ? UIColor(red: 127.0 / 255.0, green: 182.0 / 255.0, blue: 1.0, alpha: 1)
+          : UIColor(red: 47.0 / 255.0, green: 124.0 / 255.0, blue: 246.0 / 255.0, alpha: 1)
+      }
+      if count >= 10_000 {
+        return dark
+          ? UIColor(red: 106.0 / 255.0, green: 211.0 / 255.0, blue: 162.0 / 255.0, alpha: 1)
+          : UIColor(red: 47.0 / 255.0, green: 138.0 / 255.0, blue: 90.0 / 255.0, alpha: 1)
+      }
+      return dark
+        ? UIColor(red: 0.651, green: 0.651, blue: 0.671, alpha: 1)
+        : UIColor(red: 0.431, green: 0.431, blue: 0.451, alpha: 1)
+    }
   }
 
   static func freshness(_ raw: Int64) -> String {
