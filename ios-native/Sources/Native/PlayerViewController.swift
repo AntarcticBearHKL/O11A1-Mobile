@@ -917,13 +917,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   private func closeRelatedPanel() {
     guard let panel = relatedPanel else { return }
-    relatedPanel = nil
     panel.willMove(toParent: nil)
     UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseIn]) {
       panel.view.transform = CGAffineTransform(translationX: self.view.bounds.width, y: 0)
-    } completion: { _ in
+    } completion: { [weak self] _ in
       panel.view.removeFromSuperview()
       panel.removeFromParent()
+      if self?.relatedPanel === panel {
+        self?.relatedPanel = nil
+      }
     }
   }
 
@@ -1011,13 +1013,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   private func closeDetailPanel() {
     guard let detail = detailPanel else { return }
-    detailPanel = nil
     detail.willMove(toParent: nil)
     UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseIn]) {
       detail.view.transform = CGAffineTransform(translationX: -self.view.bounds.width, y: 0)
-    } completion: { _ in
+    } completion: { [weak self] _ in
       detail.view.removeFromSuperview()
       detail.removeFromParent()
+      if self?.detailPanel === detail {
+        self?.detailPanel = nil
+      }
     }
   }
 
