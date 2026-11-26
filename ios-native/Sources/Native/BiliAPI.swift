@@ -236,8 +236,9 @@ final class BiliAPI {
     }
   }
 
-  func comments(aid: Int64, page: Int, completion: @escaping (Result<[CommentItem], Error>) -> Void) {
-    run({ self.client.comments(aid: aid, page: page) }) { result in
+  func comments(aid: Int64, page: Int, sort: Int = 2,
+                completion: @escaping (Result<[CommentItem], Error>) -> Void) {
+    run({ self.client.comments(aid: aid, page: page, sort: sort) }) { result in
       switch result {
       case .failure(let error): completion(.failure(error))
       case .success(let json): completion(.success(self.commentItems(json)))

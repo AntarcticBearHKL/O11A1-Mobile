@@ -282,7 +282,7 @@ private final class CommentCell: UITableViewCell {
   }
 }
 
-private final class CommentRepliesViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
+final class CommentRepliesViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
   private let aid: Int64
   private let root: Int64
   private let table = UITableView(frame: .zero, style: .plain)

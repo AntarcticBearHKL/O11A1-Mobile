@@ -744,11 +744,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func openCommentsPanel() {
-    let comments = CommentsViewController(aid: item.aid)
-    comments.modalPresentationStyle = .overFullScreen
+    let comments = CommentsPanelViewController(aid: item.aid)
     present(comments, animated: false)
-    comments.view.transform = CGAffineTransform(translationX: -view.bounds.width, y: 0)
-    UIView.animate(withDuration: 0.24, delay: 0, options: [.curveEaseOut]) {
+    comments.view.transform = CGAffineTransform(translationX: view.bounds.width, y: 0)
+    UIView.animate(withDuration: 0.34, delay: 0, options: [.curveEaseOut]) {
       comments.view.transform = .identity
     }
   }
@@ -878,7 +877,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     if let pan = gestureRecognizer as? UIPanGestureRecognizer {
       let velocity = pan.velocity(in: videoContainer)
       if abs(velocity.x) > abs(velocity.y) {
-        return velocity.x < -60
+        return abs(velocity.x) > 60
       }
       if velocity.y < -80 { return false }
       return true
