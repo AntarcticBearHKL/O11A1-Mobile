@@ -201,8 +201,8 @@ final class HomeCardCell: UITableViewCell {
       progressFill.topAnchor.constraint(equalTo: progressTrack.topAnchor),
       progressFill.bottomAnchor.constraint(equalTo: progressTrack.bottomAnchor),
 
-      previewBar.leadingAnchor.constraint(equalTo: media.leadingAnchor),
-      previewBar.trailingAnchor.constraint(equalTo: media.trailingAnchor),
+      previewBar.leadingAnchor.constraint(equalTo: media.leadingAnchor, constant: 14),
+      previewBar.trailingAnchor.constraint(equalTo: media.trailingAnchor, constant: -14),
       previewBar.bottomAnchor.constraint(equalTo: media.bottomAnchor),
       previewBar.heightAnchor.constraint(equalToConstant: 4),
 

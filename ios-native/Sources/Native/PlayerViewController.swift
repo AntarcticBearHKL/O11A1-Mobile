@@ -402,12 +402,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap))
     doubleTap.numberOfTapsRequired = 2
     doubleTap.delegate = self
-    view.addGestureRecognizer(doubleTap)
+    videoContainer.addGestureRecognizer(doubleTap)
 
     let tap = UITapGestureRecognizer(target: self, action: #selector(handleSingleTap))
-    tap.require(toFail: doubleTap)
     tap.delegate = self
-    view.addGestureRecognizer(tap)
+    videoContainer.addGestureRecognizer(tap)
 
     let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
     pan.delegate = self
