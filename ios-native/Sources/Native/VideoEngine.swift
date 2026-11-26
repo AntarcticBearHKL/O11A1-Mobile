@@ -102,11 +102,11 @@ final class VideoEngine: NSObject {
       NotificationCenter.default.removeObserver(observer)
       endObserver = nil
     }
-    let asset = O11A1MediaLoader.shared.asset(
-      for: mediaURL,
-      headers: headers,
-      contentType: "video/mp4"
-    )
+    let asset = AVURLAsset(url: mediaURL, options: [
+      "AVURLAssetHTTPHeaderFieldsKey": headers,
+      "AVURLAssetAllowsExpensiveNetworkAccess": true,
+      "AVURLAssetAllowsConstrainedNetworkAccess": true,
+    ])
     NSLog("[O11A1] media install %@", mediaURL.host ?? "?")
     let item = AVPlayerItem(asset: asset)
     item.preferredForwardBufferDuration = 8
