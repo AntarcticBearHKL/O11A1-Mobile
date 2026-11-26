@@ -12,6 +12,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   private let table = UITableView(frame: .zero, style: .plain)
   private let statusLabel = UILabel()
   private let backButton = UIButton(type: .system)
+  private let headerTitle = UILabel()
   private let bottomCard = UIView()
   private let cardBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let avatar = UIImageView()
@@ -83,6 +84,13 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     backButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
     view.addSubview(backButton)
     backButton.translatesAutoresizingMaskIntoConstraints = false
+
+    headerTitle.text = "UP 主页"
+    headerTitle.font = UIFont.systemFont(ofSize: 17, weight: .bold)
+    headerTitle.textColor = NativeTheme.foreground
+    headerTitle.numberOfLines = 1
+    view.addSubview(headerTitle)
+    headerTitle.translatesAutoresizingMaskIntoConstraints = false
 
     bottomCard.backgroundColor = .clear
     bottomCard.layer.cornerRadius = 24
@@ -181,7 +189,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
 
     table.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
     table.trailingAnchor.constraint(equalTo: view.trailingAnchor).isActive = true
-    table.topAnchor.constraint(equalTo: view.topAnchor).isActive = true
+    table.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 8).isActive = true
     table.bottomAnchor.constraint(equalTo: sortDock.topAnchor, constant: -8).isActive = true
 
     statusLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
@@ -195,6 +203,10 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
       backButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
       backButton.widthAnchor.constraint(equalToConstant: 40),
       backButton.heightAnchor.constraint(equalToConstant: 40),
+
+      headerTitle.leadingAnchor.constraint(equalTo: backButton.trailingAnchor, constant: 12),
+      headerTitle.centerYAnchor.constraint(equalTo: backButton.centerYAnchor),
+      headerTitle.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -16),
     ])
 
     bottomCard.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
@@ -260,19 +272,6 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   }
 
   private func updateInsets() {
-    let target = CGRect(x: 0, y: 0, width: max(1, view.bounds.width),
-                        height: view.safeAreaInsets.top + 52)
-    if let header = table.tableHeaderView {
-      if header.frame != target {
-        header.frame = target
-        table.tableHeaderView = header
-      }
-    } else {
-      let header = UIView()
-      header.backgroundColor = .clear
-      header.frame = target
-      table.tableHeaderView = header
-    }
     table.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 8, right: 0)
     table.verticalScrollIndicatorInsets = .zero
   }
