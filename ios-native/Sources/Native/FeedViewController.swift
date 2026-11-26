@@ -30,6 +30,7 @@ final class FeedViewController: UIViewController,
   private var toolbarWasHidden = false
   private var searchController: SearchViewController?
   private var searchPan: UIPanGestureRecognizer?
+  private var sidebarEdge: UIScreenEdgePanGestureRecognizer?
   private var searchOpen = false
   private var dragDirection = 0
 
@@ -118,6 +119,12 @@ final class FeedViewController: UIViewController,
     view.addGestureRecognizer(pan)
     searchPan = pan
     table.panGestureRecognizer.require(toFail: pan)
+
+    let edge = UIScreenEdgePanGestureRecognizer(
+      target: self, action: #selector(handleSidebarEdge(_:)))
+    edge.edges = .left
+    view.addGestureRecognizer(edge)
+    sidebarEdge = edge
 
     load(reset: true)
   }
@@ -365,6 +372,20 @@ final class FeedViewController: UIViewController,
     guard abs(velocity.x) > abs(velocity.y) else { return false }
     dragDirection = velocity.x > 0 ? 1 : -1
     return abs(velocity.x) > 80
+  }
+
+  @objc private func handleSidebarEdge(_ gesture: UIScreenEdgePanGestureRecognizer) {
+    guard !searchOpen else { return }
+    switch gesture.state {
+    case .began:
+      suspendPreview()
+    case .ended, .cancelled:
+      if gesture.translation(in: view).x > 48 {
+        onSidebar?()
+      }
+    default:
+      break
+    }
   }
 
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {

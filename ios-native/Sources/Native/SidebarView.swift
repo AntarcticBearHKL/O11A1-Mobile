@@ -70,7 +70,7 @@ final class SidebarView: UIView {
       stack.centerYAnchor.constraint(equalTo: panel.centerYAnchor),
     ])
 
-    addRow(stack, "首页", "house", onHome)
+    addRow(stack, "首页", "house", { [weak self] in self?.onHome?() })
     addRow(stack, "收藏", "star", { [weak self] in self?.onModule?(.favorites, "收藏") })
     addRow(stack, "直播", "dot.radiowaves.left.and.right",
            { [weak self] in self?.onModule?(.live, "直播") })
@@ -84,7 +84,7 @@ final class SidebarView: UIView {
            { [weak self] in self?.onModule?(.messages, "消息") })
     addRow(stack, "历史", "clock.arrow.circlepath",
            { [weak self] in self?.onModule?(.history, "历史") })
-    addRow(stack, "搜索", "magnifyingglass", onSearch)
+    addRow(stack, "搜索", "magnifyingglass", { [weak self] in self?.onSearch?() })
 
     let footerLine = UIView()
     footerLine.backgroundColor = NativeTheme.hairline
@@ -105,7 +105,7 @@ final class SidebarView: UIView {
       footerLine.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -2),
       footerLine.heightAnchor.constraint(equalToConstant: 0.5),
     ])
-    addRow(footer, "我的", "person", onMy)
+    addRow(footer, "我的", "person", { [weak self] in self?.onMy?() })
   }
 
   required init?(coder: NSCoder) {
@@ -125,23 +125,24 @@ final class SidebarView: UIView {
     let icon = UIImageView(image: UIImage(systemName: symbol))
     icon.tintColor = NativeTheme.secondary
     icon.contentMode = .scaleAspectFit
-    row.addSubview(icon)
-    icon.translatesAutoresizingMaskIntoConstraints = false
+    icon.widthAnchor.constraint(equalToConstant: 19).isActive = true
+    icon.heightAnchor.constraint(equalToConstant: 19).isActive = true
 
     let text = UILabel()
     text.text = label
     text.font = NativeTheme.titleFont(14)
     text.textColor = NativeTheme.foreground
-    row.addSubview(text)
-    text.translatesAutoresizingMaskIntoConstraints = false
 
+    let content = UIStackView(arrangedSubviews: [icon, text])
+    content.axis = .horizontal
+    content.alignment = .center
+    content.spacing = 10
+    content.isUserInteractionEnabled = false
+    row.addSubview(content)
+    content.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      icon.widthAnchor.constraint(equalToConstant: 19),
-      icon.heightAnchor.constraint(equalToConstant: 19),
-      icon.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 26),
-      icon.centerYAnchor.constraint(equalTo: row.centerYAnchor),
-      text.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 10),
-      text.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+      content.centerXAnchor.constraint(equalTo: row.centerXAnchor),
+      content.centerYAnchor.constraint(equalTo: row.centerYAnchor),
     ])
     stack.addArrangedSubview(row)
   }
