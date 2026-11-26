@@ -39,6 +39,9 @@ final class GlassTabBar: UIView {
     ])
 
     tint.backgroundColor = NativeTheme.barGlass
+    tint.layer.cornerRadius = 29
+    tint.layer.cornerCurve = .continuous
+    tint.clipsToBounds = true
     tint.isUserInteractionEnabled = false
     addSubview(tint)
     tint.translatesAutoresizingMaskIntoConstraints = false

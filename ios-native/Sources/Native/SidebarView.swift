@@ -81,7 +81,7 @@ final class SidebarView: UIView {
     gradient.colors = [NativeTheme.sidebarTop.cgColor, NativeTheme.sidebarBottom.cgColor]
     gradient.startPoint = CGPoint(x: 0.5, y: 0)
     gradient.endPoint = CGPoint(x: 0.5, y: 1)
-    bg.layer.addSublayer(gradient)
+    blur.contentView.layer.addSublayer(gradient)
 
     let stack = UIStackView()
     stack.axis = .vertical
