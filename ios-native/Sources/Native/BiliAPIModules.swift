@@ -1,7 +1,7 @@
 import Foundation
 
 extension BiliAPI {
-  func popular(page: Int, completion: @escaping (Result<[VideoItem], Error>) -> Void) {
+  func popularItems(page: Int, completion: @escaping (Result<[VideoItem], Error>) -> Void) {
     run({ self.client.popular(page: page, ps: 20) }) { result in
       switch result {
       case .failure(let error): completion(.failure(error))
@@ -10,14 +10,6 @@ extension BiliAPI {
     }
   }
 
-  func ranking(page: Int, completion: @escaping (Result<[VideoItem], Error>) -> Void) {
-    run({ self.client.ranking(page: page) }) { result in
-      switch result {
-      case .failure(let error): completion(.failure(error))
-      case .success(let json): completion(.success(nativeItems(json)))
-      }
-    }
-  }
 
   func bangumi(page: Int, seasonType: Int, completion: @escaping (Result<[VideoItem], Error>) -> Void) {
     run({ self.client.bangumi(page: page, seasonType: seasonType) }) { result in

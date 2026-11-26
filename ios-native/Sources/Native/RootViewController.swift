@@ -127,6 +127,7 @@ final class RootViewController: UIViewController {
 
   private func selectTab(_ index: Int, force: Bool = false) {
     tabBar.select(index: index, notify: false)
+    myButton.isHidden = index != 0
     let controller: UIViewController
     switch index {
     case 0:
@@ -200,7 +201,7 @@ final class RootViewController: UIViewController {
     player = nil
     tabBar.isHidden = false
     settingsButton.isHidden = false
-    myButton.isHidden = false
+    myButton.isHidden = tabBar.selectedIndex != 0
     feed?.resumePreview()
   }
 

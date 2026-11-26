@@ -220,7 +220,7 @@ final class ModuleListViewController: UIViewController, UITableViewDataSource, U
     }
     switch mode {
     case .hot:
-      BiliAPI.shared.popular(page: pageValue, completion: done)
+      BiliAPI.shared.popularItems(page: pageValue, completion: done)
     case .rank:
       BiliAPI.shared.ranking(page: pageValue, completion: done)
     case .bangumi:
