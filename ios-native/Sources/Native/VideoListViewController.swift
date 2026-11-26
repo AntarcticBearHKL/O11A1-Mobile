@@ -228,4 +228,11 @@ final class VideoRowCell: UITableViewCell {
     duration.text = item.duration
     ImageLoader.shared.load(item.pic, into: cover)
   }
+
+  func configureUp(_ item: VideoItem) {
+    title.text = item.title
+    meta.text = "\(item.playText) 播放 · \(NativeTheme.freshness(item.pubdate))"
+    duration.text = item.duration
+    ImageLoader.shared.load(item.pic, into: cover)
+  }
 }

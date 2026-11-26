@@ -8,6 +8,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   private let myButton = UIButton(type: .system)
   private var currentChild: UIViewController?
   private var player: PlayerViewController?
+  private var upProfile: UpProfileViewController?
+  private var profileCoveredByPlayer = false
   private var feed: FeedViewController?
   private var following: VideoListViewController?
   private var dynamic: DynamicViewController?
@@ -36,11 +38,13 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   }
 
   override var childForStatusBarStyle: UIViewController? {
-    return player
+    if profileCoveredByPlayer, let player = player { return player }
+    return upProfile ?? player
   }
 
   override var childForStatusBarHidden: UIViewController? {
-    return player
+    if profileCoveredByPlayer, let player = player { return player }
+    return upProfile ?? player
   }
 
   private func setPlayerOrientation(_ landscape: Bool) {
@@ -306,6 +310,15 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   }
 
   private func openPlayer(_ item: VideoItem, from source: UIView?) {
+    if let existing = player {
+      existing.play(item)
+      view.bringSubviewToFront(existing.view)
+      if upProfile != nil {
+        profileCoveredByPlayer = true
+        setNeedsStatusBarAppearanceUpdate()
+      }
+      return
+    }
     guard player == nil else { return }
     feed?.suspendPreview()
     let controller = PlayerViewController(item: item, sourceView: source)
@@ -324,6 +337,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     tabBar.isHidden = true
     settingsButton.isHidden = true
     myButton.isHidden = true
+    if upProfile != nil {
+      profileCoveredByPlayer = true
+    }
     controller.start()
     if #available(iOS 16.0, *) {
       setNeedsUpdateOfSupportedInterfaceOrientations()
@@ -353,6 +369,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     controller.view.removeFromSuperview()
     controller.removeFromParent()
     player = nil
+    profileCoveredByPlayer = false
     endOrientationTracking()
     tabBar.isHidden = false
     setPlayerOrientation(false)
@@ -401,20 +418,41 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   }
 
   private func openProfile(_ mid: Int64) {
-    guard mid > 0 else { return }
-    let list = VideoListViewController(mode: .space(mid: mid), title: "UP 主页")
-    let nav = UINavigationController(rootViewController: list)
-    nav.navigationBar.prefersLargeTitles = false
-    nav.navigationBar.tintColor = NativeTheme.accent
-    list.onOpen = { [weak nav] item, cell in
-      guard let nav = nav else { return }
-      let player = PlayerViewController(item: item, sourceView: cell)
-      player.onClose = { [weak player] in
-        player?.dismiss(animated: false)
-      }
-      nav.present(player, animated: false)
+    guard mid > 0, upProfile == nil else { return }
+    let page = UpProfileViewController(mid: mid)
+    page.onClose = { [weak self] in self?.closeProfile() }
+    page.onOpenVideo = { [weak self] item, source in
+      self?.openPlayer(item, from: source)
     }
-    present(nav, animated: true)
+    addChild(page)
+    page.view.frame = view.bounds
+    page.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    view.addSubview(page.view)
+    page.didMove(toParent: self)
+    upProfile = page
+    profileCoveredByPlayer = false
+    page.view.transform = CGAffineTransform(translationX: view.bounds.width, y: 0)
+    UIView.animate(withDuration: 0.38, delay: 0,
+                   usingSpringWithDamping: 0.94, initialSpringVelocity: 0.2,
+                   options: [.curveEaseOut]) {
+      page.view.transform = .identity
+    }
+    setNeedsStatusBarAppearanceUpdate()
+  }
+
+  private func closeProfile() {
+    guard let page = upProfile else { return }
+    upProfile = nil
+    profileCoveredByPlayer = false
+    setNeedsStatusBarAppearanceUpdate()
+    page.willMove(toParent: nil)
+    UIView.animate(withDuration: 0.30, delay: 0,
+                   options: [.curveEaseIn, .beginFromCurrentState]) {
+      page.view.transform = CGAffineTransform(translationX: self.view.bounds.width, y: 0)
+    } completion: { _ in
+      page.view.removeFromSuperview()
+      page.removeFromParent()
+    }
   }
 
   @discardableResult

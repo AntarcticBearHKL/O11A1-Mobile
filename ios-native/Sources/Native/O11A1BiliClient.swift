@@ -1108,6 +1108,7 @@ final class O11A1BiliClient {
       output["face"] = o11a1HTTPS(o11a1String(card["face"]))
       output["sign"] = o11a1StripHTML(o11a1String(card["sign"]))
       output["follower"] = o11a1Int64(card["fans"])
+      output["followed"] = o11a1Bool(card["attention"])
     }
     if let relationPayload = json(
       base: Self.apiBase,

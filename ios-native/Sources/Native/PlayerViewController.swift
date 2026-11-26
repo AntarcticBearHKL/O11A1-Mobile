@@ -1183,6 +1183,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
   }
 
+  func play(_ value: VideoItem) {
+    replace(with: value)
+  }
+
   private func replace(with value: VideoItem) {
     guard value.bvid != item.bvid || value.roomId != item.roomId else {
       closeRelatedPanel()

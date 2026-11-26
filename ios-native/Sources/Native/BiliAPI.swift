@@ -236,6 +236,40 @@ final class BiliAPI {
     }
   }
 
+  struct UpProfilePage {
+    var items: [VideoItem] = []
+    var name = ""
+    var face = ""
+    var sign = ""
+    var follower: Int64 = 0
+    var followed = false
+    var hasMore = false
+    var page = 1
+  }
+
+  func upPage(mid: Int64, page: Int, order: String,
+              completion: @escaping (Result<UpProfilePage, Error>) -> Void) {
+    run({ self.client.space(mid: mid, page: page, order: order) }) { result in
+      switch result {
+      case .failure(let error):
+        completion(.failure(error))
+      case .success(let json):
+        var up = UpProfilePage()
+        up.items = nativeItems(json)
+        up.name = o11a1String(json["name"])
+        up.face = o11a1HTTPS(o11a1String(json["face"]))
+        up.sign = o11a1String(json["sign"])
+        up.follower = o11a1Int64(json["follower"])
+        up.followed = (json["followed"] as? Bool)
+          ?? ((json["followed"] as? NSNumber)?.boolValue ?? false)
+        up.hasMore = (json["hasMore"] as? Bool)
+          ?? ((json["hasMore"] as? NSNumber)?.boolValue ?? false)
+        up.page = o11a1Int(json["page"])
+        completion(.success(up))
+      }
+    }
+  }
+
   func comments(aid: Int64, page: Int, sort: Int = 2,
                 completion: @escaping (Result<[CommentItem], Error>) -> Void) {
     run({ self.client.comments(aid: aid, page: page, sort: sort) }) { result in
