@@ -138,7 +138,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     let closePan = UIPanGestureRecognizer(
       target: self, action: #selector(handleSidebarCloseDrag(_:)))
     closePan.delegate = self
-    closePan.cancelsTouchesInView = false
+    closePan.cancelsTouchesInView = true
     view.addGestureRecognizer(closePan)
     sidebarClosePan = closePan
 
