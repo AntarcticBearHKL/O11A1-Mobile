@@ -162,6 +162,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     content.addSubview(wheel)
 
+    grid.backgroundColor = UIColor.red.withAlphaComponent(0.35)
+    grid.isHidden = false
+    grid.layer.zPosition = 10
     content.addSubview(grid)
 
     qualityLabel.font = NativeTheme.numberFont(10)
@@ -437,6 +440,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       width: panelWidth,
       height: panelHeight
     )
+    bottomPanel.layoutIfNeeded()
+    grid.setNeedsDisplay()
   }
 
   private func loadQuality(_ qn: Int) {
