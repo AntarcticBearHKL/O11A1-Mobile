@@ -217,6 +217,10 @@ final class FeedViewController: UIViewController,
     cell.onAvatar = { [weak self] item in
       self?.onProfile?(item.mid)
     }
+    cell.onOpen = { [weak self, weak cell] item in
+      guard let self = self, let cell = cell else { return }
+      self.onOpen?(item, cell)
+    }
     if indexPath.item == focusedIndex, previewCell === cell {
       cell.attachPreview(previewView)
     }

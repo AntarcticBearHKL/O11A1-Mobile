@@ -124,7 +124,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     ownerLabel.numberOfLines = 1
     content.addSubview(ownerLabel)
 
-    ownerButton.setTitle("UP 涓婚〉", for: .normal)
+    ownerButton.setTitle("UP 主页", for: .normal)
     ownerButton.setTitleColor(UIColor.white.withAlphaComponent(0.66), for: .normal)
     ownerButton.titleLabel?.font = NativeTheme.bodyFont(11)
     ownerButton.addTarget(self, action: #selector(openProfile), for: .touchUpInside)
@@ -184,7 +184,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     content.addSubview(favButton)
 
     danmakuOverlay.backgroundColor = .clear
-    view.insertSubview(danmakuOverlay, aboveSubview: videoContainer)
+    danmakuOverlay.isUserInteractionEnabled = false
+    videoContainer.addSubview(danmakuOverlay)
 
     errorLabel.font = NativeTheme.bodyFont(13)
     errorLabel.textColor = NativeTheme.pipRose
@@ -357,7 +358,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     topBar.frame = CGRect(x: 0, y: view.safeAreaInsets.top, width: full.width, height: 52)
     playerView.frame = videoContainer.bounds
     poster.frame = videoContainer.bounds
-    danmakuOverlay.frame = videoContainer.frame
+    danmakuOverlay.frame = videoContainer.bounds
     playButton.center = CGPoint(x: videoContainer.center.x, y: videoContainer.center.y)
     let panelHeight: CGFloat = 150
     bottomPanel.frame = CGRect(

@@ -18,6 +18,7 @@ final class VideoCardCell: UICollectionViewCell {
   private var item: VideoItem?
 
   var onAvatar: ((VideoItem) -> Void)?
+  var onOpen: ((VideoItem) -> Void)?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -145,6 +146,8 @@ final class VideoCardCell: UICollectionViewCell {
     ownerLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     playLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
     timeLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+    contentView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapCard(_:))))
   }
 
   required init?(coder: NSCoder) {
@@ -169,6 +172,7 @@ final class VideoCardCell: UICollectionViewCell {
     mediaHost.subviews.forEach { $0.removeFromSuperview() }
     mediaHost.isHidden = false
     onAvatar = nil
+    onOpen = nil
   }
 
   func configure(_ item: VideoItem) {
@@ -196,5 +200,12 @@ final class VideoCardCell: UICollectionViewCell {
   @objc private func tapAvatar() {
     guard let item = item else { return }
     onAvatar?(item)
+  }
+
+  @objc private func tapCard(_ gesture: UITapGestureRecognizer) {
+    guard let item = item else { return }
+    let point = gesture.location(in: contentView)
+    if avatarButton.frame.insetBy(dx: -6, dy: -6).contains(point) { return }
+    onOpen?(item)
   }
 }
