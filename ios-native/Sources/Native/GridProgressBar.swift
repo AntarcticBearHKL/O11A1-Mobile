@@ -6,6 +6,20 @@ final class GridProgressBar: UIView {
     didSet { setNeedsDisplay() }
   }
 
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    backgroundColor = .clear
+    isOpaque = false
+    contentMode = .redraw
+  }
+
+  required init?(coder: NSCoder) {
+    super.init(coder: coder)
+    backgroundColor = .clear
+    isOpaque = false
+    contentMode = .redraw
+  }
+
   override var intrinsicContentSize: CGSize {
     return CGSize(width: UIView.noIntrinsicMetric, height: 14)
   }
