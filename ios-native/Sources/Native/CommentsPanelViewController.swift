@@ -17,6 +17,9 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   private var sort = 2
   private var loading = false
   private var dismissPan: UIPanGestureRecognizer?
+  private var repliesCache: [Int64: [CommentItem]] = [:]
+  private var expandedRoots: Set<Int64> = []
+  private var loadingReplies: Set<Int64> = []
 
   init(aid: Int64) {
     self.aid = aid
@@ -243,14 +246,47 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     let cell = tableView.dequeueReusableCell(
       withIdentifier: PanelCommentCell.reuseID, for: indexPath) as! PanelCommentCell
     let item = items[indexPath.row]
-    cell.configure(item)
+    let expanded = expandedRoots.contains(item.rpid)
+    cell.configure(item,
+                   replies: repliesCache[item.rpid] ?? [],
+                   expanded: expanded,
+                   loading: loadingReplies.contains(item.rpid))
     cell.onReplies = { [weak self] in
-      guard let self = self, item.rpid > 0 else { return }
-      let replies = CommentRepliesViewController(aid: self.aid, root: item.rpid)
-      replies.modalPresentationStyle = .pageSheet
-      self.present(replies, animated: true)
+      self?.toggleReplies(item)
     }
     return cell
+  }
+
+  private func toggleReplies(_ item: CommentItem) {
+    let root = item.rpid
+    guard root > 0 else { return }
+    if expandedRoots.contains(root) {
+      expandedRoots.remove(root)
+      reloadComment(root)
+      return
+    }
+    expandedRoots.insert(root)
+    if repliesCache[root] != nil {
+      reloadComment(root)
+      return
+    }
+    loadingReplies.insert(root)
+    reloadComment(root)
+    BiliAPI.shared.commentReplies(aid: aid, root: root, page: 1) { [weak self] result in
+      guard let self = self else { return }
+      self.loadingReplies.remove(root)
+      if case .success(let values) = result {
+        self.repliesCache[root] = values
+      }
+      self.reloadComment(root)
+    }
+  }
+
+  private func reloadComment(_ root: Int64) {
+    guard let index = items.firstIndex(where: { $0.rpid == root }) else { return }
+    UIView.performWithoutAnimation {
+      self.table.reloadRows(at: [IndexPath(row: index, section: 0)], with: .none)
+    }
   }
 
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -298,8 +334,8 @@ private final class PanelCommentCell: UITableViewCell {
   private let message = UILabel()
   private let likes = UILabel()
   private let replies = UIButton(type: .system)
+  private let repliesStack = UIStackView()
   private let separator = UIView()
-  private var repliesHeight: NSLayoutConstraint?
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
     super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -311,24 +347,26 @@ private final class PanelCommentCell: UITableViewCell {
     avatar.clipsToBounds = true
     avatar.layer.cornerRadius = 17
     avatar.backgroundColor = NativeTheme.tertiary.withAlphaComponent(0.2)
-    contentView.addSubview(avatar)
+    avatar.widthAnchor.constraint(equalToConstant: 34).isActive = true
+    avatar.heightAnchor.constraint(equalToConstant: 34).isActive = true
 
     name.font = UIFont.systemFont(ofSize: 12, weight: .bold)
     name.textColor = NativeTheme.foreground
-    contentView.addSubview(name)
 
     time.font = NativeTheme.bodyFont(10)
     time.textColor = NativeTheme.tertiary
-    contentView.addSubview(time)
+
+    let meta = UIStackView(arrangedSubviews: [name, time])
+    meta.axis = .horizontal
+    meta.alignment = .firstBaseline
+    meta.spacing = 7
 
     message.font = NativeTheme.bodyFont(13.5)
     message.textColor = NativeTheme.foreground
     message.numberOfLines = 0
-    contentView.addSubview(message)
 
     likes.font = NativeTheme.bodyFont(10.5)
     likes.textColor = NativeTheme.tertiary
-    contentView.addSubview(likes)
 
     replies.titleLabel?.font = UIFont.systemFont(ofSize: 10.5, weight: .bold)
     replies.setTitleColor(NativeTheme.secondary, for: .normal)
@@ -336,44 +374,43 @@ private final class PanelCommentCell: UITableViewCell {
     replies.contentEdgeInsets = UIEdgeInsets(top: 2, left: 0, bottom: 2, right: 0)
     replies.isHidden = true
     replies.addTarget(self, action: #selector(tapReplies), for: .touchUpInside)
-    contentView.addSubview(replies)
+
+    let actions = UIStackView(arrangedSubviews: [likes, replies])
+    actions.axis = .horizontal
+    actions.alignment = .center
+    actions.spacing = 16
+
+    repliesStack.axis = .vertical
+    repliesStack.spacing = 8
+    repliesStack.isHidden = true
+
+    let copy = UIStackView(arrangedSubviews: [meta, message, actions, repliesStack])
+    copy.axis = .vertical
+    copy.alignment = .fill
+    copy.spacing = 4
+    copy.setCustomSpacing(7, after: message)
+
+    let header = UIStackView(arrangedSubviews: [avatar, copy])
+    header.axis = .horizontal
+    header.alignment = .top
+    header.spacing = 11
+    contentView.addSubview(header)
+    header.translatesAutoresizingMaskIntoConstraints = false
 
     separator.backgroundColor = NativeTheme.hairline
     contentView.addSubview(separator)
+    separator.translatesAutoresizingMaskIntoConstraints = false
 
-    [avatar, name, time, message, likes, replies, separator].forEach {
-      $0.translatesAutoresizingMaskIntoConstraints = false
-    }
-    repliesHeight = replies.heightAnchor.constraint(equalToConstant: 0)
-    repliesHeight?.isActive = true
     NSLayoutConstraint.activate([
-      avatar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-      avatar.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16),
-      avatar.widthAnchor.constraint(equalToConstant: 34),
-      avatar.heightAnchor.constraint(equalToConstant: 34),
-
-      name.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 11),
-      name.topAnchor.constraint(equalTo: avatar.topAnchor),
-      time.leadingAnchor.constraint(equalTo: name.trailingAnchor, constant: 7),
-      time.centerYAnchor.constraint(equalTo: name.centerYAnchor),
-      time.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -20),
-
-      message.leadingAnchor.constraint(equalTo: name.leadingAnchor),
-      message.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-      message.topAnchor.constraint(equalTo: name.bottomAnchor, constant: 4),
-
-      likes.leadingAnchor.constraint(equalTo: name.leadingAnchor),
-      likes.topAnchor.constraint(equalTo: message.bottomAnchor, constant: 7),
-
-      replies.leadingAnchor.constraint(equalTo: likes.trailingAnchor, constant: 16),
-      replies.centerYAnchor.constraint(equalTo: likes.centerYAnchor),
-      replies.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -20),
+      header.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      header.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+      header.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16),
+      header.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -16),
 
       separator.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
       separator.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
       separator.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
       separator.heightAnchor.constraint(equalToConstant: 0.5),
-      likes.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -16),
     ])
   }
 
@@ -381,18 +418,78 @@ private final class PanelCommentCell: UITableViewCell {
     fatalError("init(coder:) has not been implemented")
   }
 
-  func configure(_ item: CommentItem) {
+  override func prepareForReuse() {
+    super.prepareForReuse()
+    onReplies = nil
+    avatar.image = nil
+    repliesStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+  }
+
+  func configure(_ item: CommentItem, replies items: [CommentItem],
+                 expanded: Bool, loading: Bool) {
     name.text = item.name.isEmpty ? "用户" : item.name
-    let timeText = NativeTheme.timeAgo(Int64(item.time))
-    time.text = timeText
+    time.text = NativeTheme.timeAgo(Int64(item.time))
     message.text = item.message
     likes.text = "赞 \(item.likes)"
-    let hasReplies = item.replies > 0
-    replies.setTitle(hasReplies ? "\(item.replies) 条回复" : "", for: .normal)
+    let hasReplies = item.replies > 0 || !items.isEmpty
     replies.isHidden = !hasReplies
-    repliesHeight?.constant = hasReplies ? 18 : 0
+    replies.setTitle(expanded ? "收起回复" : "\(max(item.replies, items.count)) 条回复",
+                     for: .normal)
     separator.backgroundColor = NativeTheme.hairline
     ImageLoader.shared.load(item.face, into: avatar)
+
+    repliesStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+    repliesStack.isHidden = !expanded
+    guard expanded else { return }
+    if loading && items.isEmpty {
+      let loadingLabel = UILabel()
+      loadingLabel.text = "正在加载回复…"
+      loadingLabel.font = NativeTheme.bodyFont(11)
+      loadingLabel.textColor = NativeTheme.tertiary
+      repliesStack.addArrangedSubview(loadingLabel)
+      return
+    }
+    for reply in items.prefix(3) {
+      repliesStack.addArrangedSubview(makeReplyRow(reply))
+    }
+    if items.count > 3 {
+      let more = UILabel()
+      more.text = "共 \(items.count) 条回复"
+      more.font = NativeTheme.bodyFont(10)
+      more.textColor = NativeTheme.tertiary
+      repliesStack.addArrangedSubview(more)
+    }
+  }
+
+  private func makeReplyRow(_ item: CommentItem) -> UIView {
+    let replyAvatar = UIImageView()
+    replyAvatar.contentMode = .scaleAspectFill
+    replyAvatar.clipsToBounds = true
+    replyAvatar.layer.cornerRadius = 12
+    replyAvatar.backgroundColor = NativeTheme.tertiary.withAlphaComponent(0.2)
+    replyAvatar.widthAnchor.constraint(equalToConstant: 24).isActive = true
+    replyAvatar.heightAnchor.constraint(equalToConstant: 24).isActive = true
+    ImageLoader.shared.load(item.face, into: replyAvatar)
+
+    let replyName = UILabel()
+    replyName.text = item.name.isEmpty ? "用户" : item.name
+    replyName.font = UIFont.systemFont(ofSize: 10.5, weight: .bold)
+    replyName.textColor = NativeTheme.foreground
+    let replyMessage = UILabel()
+    replyMessage.text = item.message
+    replyMessage.font = NativeTheme.bodyFont(12.5)
+    replyMessage.textColor = NativeTheme.foreground
+    replyMessage.numberOfLines = 0
+
+    let copy = UIStackView(arrangedSubviews: [replyName, replyMessage])
+    copy.axis = .vertical
+    copy.spacing = 2
+
+    let row = UIStackView(arrangedSubviews: [replyAvatar, copy])
+    row.axis = .horizontal
+    row.alignment = .top
+    row.spacing = 10
+    return row
   }
 
   @objc private func tapReplies() {
