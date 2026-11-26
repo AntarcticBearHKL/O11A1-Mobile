@@ -3,11 +3,7 @@
 local.properties
 **/build/
 *.iml
-expo-ui/node_modules/
-expo-ui/.expo/
-expo-ui/web-build/
 
-ios-native/Web/
 ios-native/O11A1.xcodeproj/
 ios-native/build-*/
 ios-native/artifacts/
