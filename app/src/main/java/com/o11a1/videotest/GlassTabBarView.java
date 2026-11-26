@@ -35,7 +35,6 @@ final class GlassTabBarView extends FrameLayout {
     private int selected = 0;
     private boolean hidden = false;
     private float pillLeft = -1;
-    private float pillWidth = 0;
     private ValueAnimator pillAnimator;
 
     GlassTabBarView(Context context) {
@@ -145,25 +144,21 @@ final class GlassTabBarView extends FrameLayout {
         return pillAnimator != null && pillAnimator.isRunning();
     }
 
-    private float[] pillTarget() {
-        View item = items[selected];
-        float inset = NativeTheme.dp(getContext(), 4);
-        return new float[]{row.getLeft() + item.getLeft() + inset,
-            Math.max(0, item.getWidth() - inset * 2)};
-    }
-
     private void positionPill() {
         if (items[selected].getWidth() <= 0) return;
-        float[] target = pillTarget();
-        pillLeft = target[0];
-        pillWidth = target[1];
+        int inset = NativeTheme.dp(getContext(), 4);
+        int width = Math.max(0, items[selected].getWidth() - inset * 2);
+        int height = Math.max(0, getHeight() - inset * 2);
         LayoutParams params = (LayoutParams) pill.getLayoutParams();
-        params.width = Math.round(pillWidth);
-        params.height = Math.max(0, getHeight() - NativeTheme.dp(getContext(), 8));
-        params.leftMargin = Math.round(pillLeft);
-        params.topMargin = NativeTheme.dp(getContext(), 4);
-        pill.setLayoutParams(params);
-        pill.setAlpha(1f);
+        if (params.width != width || params.height != height) {
+            params.width = width;
+            params.height = height;
+            params.leftMargin = 0;
+            params.topMargin = inset;
+            pill.setLayoutParams(params);
+        }
+        pillLeft = row.getLeft() + items[selected].getLeft() + inset;
+        pill.setTranslationX(pillLeft);
     }
 
     private void animatePillToSelected() {
@@ -171,25 +166,21 @@ final class GlassTabBarView extends FrameLayout {
             positionPill();
             return;
         }
-        float[] target = pillTarget();
         if (pillLeft < 0) {
             positionPill();
             return;
         }
+        float target = row.getLeft() + items[selected].getLeft()
+            + NativeTheme.dp(getContext(), 4);
         if (pillAnimator != null) pillAnimator.cancel();
-        float startLeft = pillLeft;
-        float startWidth = pillWidth;
+        float startLeft = pill.getTranslationX();
         pillAnimator = ValueAnimator.ofFloat(0f, 1f);
         pillAnimator.setDuration(420);
         pillAnimator.setInterpolator(new OvershootInterpolator(0.9f));
         pillAnimator.addUpdateListener(animation -> {
             float f = (float) animation.getAnimatedValue();
-            pillLeft = startLeft + (target[0] - startLeft) * f;
-            pillWidth = startWidth + (target[1] - startWidth) * f;
-            LayoutParams params = (LayoutParams) pill.getLayoutParams();
-            params.width = Math.max(0, Math.round(pillWidth));
-            params.leftMargin = Math.round(pillLeft);
-            pill.setLayoutParams(params);
+            pillLeft = startLeft + (target - startLeft) * f;
+            pill.setTranslationX(pillLeft);
         });
         pillAnimator.start();
     }
