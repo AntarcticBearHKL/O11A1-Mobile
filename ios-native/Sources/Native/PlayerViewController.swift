@@ -574,7 +574,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     let panelHeight: CGFloat = 108
     let panelWidth = max(1, full.width - 24)
-    let centerPanelY = full.height - panelHeight - 8
+    let centerPanelY = full.height - view.safeAreaInsets.bottom - panelHeight - 8
     let topPanelY = max(0, videoRect.maxY - panelHeight - 8)
     bottomPanel.frame = CGRect(
       x: 12,
