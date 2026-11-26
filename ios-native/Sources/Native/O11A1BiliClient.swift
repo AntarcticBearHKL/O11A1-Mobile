@@ -367,8 +367,6 @@ final class O11A1BiliClient {
       "play": plays,
       "playText": playText,
       "desc": description,
-      "pubdate": o11a1Int64(item["pubdate"]) != 0
-        ? o11a1Int64(item["pubdate"]) : o11a1Int64(item["ctime"]),
       "meta": "\(owner) · \(playText) 播放"
     ]
   }
