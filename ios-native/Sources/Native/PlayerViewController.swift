@@ -417,7 +417,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let longPress = UILongPressGestureRecognizer(target: self, action: #selector(longPress(_:)))
     longPress.minimumPressDuration = 0.18
     longPress.delegate = self
-    longPress.require(toFail: pan)
     videoContainer.addGestureRecognizer(longPress)
 
     engine.onTime = { [weak self] seconds, duration in
