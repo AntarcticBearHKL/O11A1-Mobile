@@ -77,6 +77,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var loopOn = false
   private var controlsVisible = true
   private var controlsTimer: Timer?
+  private var hasStartedPlayback = false
+  private var lastPlayingState = false
 
   init(item: VideoItem, sourceView: UIView?) {
     self.item = item
@@ -411,7 +413,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
     pan.delegate = self
-    videoContainer.addGestureRecognizer(pan)
+    view.addGestureRecognizer(pan)
 
     let longPress = UILongPressGestureRecognizer(target: self, action: #selector(longPress(_:)))
     longPress.minimumPressDuration = 0.18
@@ -434,9 +436,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self.playButton.setImage(UIImage(systemName: playing ? "pause.fill" : "play.fill"), for: .normal)
       self.pausedVeil.isHidden = playing
       self.videoContainer.backgroundColor = playing ? .black : NativeTheme.pipRose
+      let changed = playing != self.lastPlayingState
+      self.lastPlayingState = playing
       if playing {
-        if self.controlsVisible { self.scheduleControlsHide() }
-      } else {
+        self.hasStartedPlayback = true
+        if changed && self.controlsVisible { self.scheduleControlsHide() }
+      } else if self.hasStartedPlayback && changed {
         self.showControls()
       }
     }
@@ -1451,6 +1456,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     if touch.view is UIControl { return false }
     if touch.view?.isDescendant(of: bottomPanel) == true { return false }
     if touch.view?.isDescendant(of: topBar) == true { return false }
+    if let comments = portraitComments, !comments.view.isHidden,
+       touch.view?.isDescendant(of: comments.view) == true { return false }
+    if let related = relatedPanel,
+       touch.view?.isDescendant(of: related.view) == true { return false }
+    if let detail = detailPanel,
+       touch.view?.isDescendant(of: detail.view) == true { return false }
     return true
   }
 }

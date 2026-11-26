@@ -62,11 +62,11 @@ public final class MainActivity extends Activity implements FeedView.Host, MyVie
         tabBar = new GlassTabBarView(this);
         tabBar.setOnSelect(index -> showTab(index));
         FrameLayout.LayoutParams tabParams = new FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, NativeTheme.dp(this, 66));
+            ViewGroup.LayoutParams.MATCH_PARENT, NativeTheme.dp(this, 72));
         tabParams.gravity = Gravity.BOTTOM;
         tabParams.leftMargin = NativeTheme.dp(this, 12);
         tabParams.rightMargin = NativeTheme.dp(this, 12);
-        tabParams.bottomMargin = NativeTheme.dp(this, 10) + bottomInset();
+        tabParams.bottomMargin = NativeTheme.dp(this, 4) + bottomInset();
         root.addView(tabBar, tabParams);
 
         settingsButton = new ImageButton(this);
