@@ -80,6 +80,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var controlsVisible = true
   private var controlsTimer: Timer?
   private var lastPlayingState = false
+  private let panelSlideDistance: CGFloat = 28
+  private let panelShowDuration: TimeInterval = 0.26
+  private let panelHideDuration: TimeInterval = 0.28
 
   init(item: VideoItem, sourceView: UIView?) {
     self.item = item
@@ -479,7 +482,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     dim.isHidden = true
     controlsVisible = false
     bottomPanel.alpha = 0
-    bottomPanel.transform = CGAffineTransform(translationX: 0, y: 16)
+    bottomPanel.transform = CGAffineTransform(translationX: 0, y: panelSlideDistance)
     bottomPanel.isUserInteractionEnabled = false
     [ownerLabel, ownerButton, qualityLabel, speedLabel, commentsButton,
      likeButton, coinButton, favButton].forEach { $0.removeFromSuperview() }
@@ -576,13 +579,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let panelWidth = max(1, full.width - 24)
     let centerPanelY = full.height - view.safeAreaInsets.bottom - panelHeight - 8
     let topPanelY = max(0, videoRect.maxY - panelHeight - 8)
-    bottomPanel.frame = CGRect(
-      x: 12,
-      y: centerPanelY + (topPanelY - centerPanelY) * p,
-      width: panelWidth,
-      height: panelHeight
-    )
-    seekBubble.frame = CGRect(x: full.midX - 40, y: bottomPanel.frame.minY - 27,
+    let panelY = centerPanelY + (topPanelY - centerPanelY) * p
+    bottomPanel.bounds = CGRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
+    bottomPanel.center = CGPoint(x: full.midX, y: panelY + panelHeight / 2)
+    seekBubble.frame = CGRect(x: full.midX - 40, y: panelY - 27,
                               width: 80, height: 21)
 
     let comments = ensurePortraitComments()
@@ -699,13 +699,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       danmakuOverlay.frame = full
       let panelHeight: CGFloat = 104
       let panelWidth = min(560, full.width - 32)
-      bottomPanel.frame = CGRect(
-        x: (full.width - panelWidth) / 2,
-        y: full.height - view.safeAreaInsets.bottom - panelHeight - 6,
-        width: panelWidth,
-        height: panelHeight
-      )
-      seekBubble.frame = CGRect(x: full.midX - 40, y: bottomPanel.frame.minY - 27,
+      let panelY = full.height - view.safeAreaInsets.bottom - panelHeight - 6
+      bottomPanel.bounds = CGRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
+      bottomPanel.center = CGPoint(x: full.midX, y: panelY + panelHeight / 2)
+      seekBubble.frame = CGRect(x: full.midX - 40, y: panelY - 27,
                                 width: 80, height: 21)
     } else {
       if !portraitDragActive && !portraitSettling {
@@ -910,7 +907,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     controlsTimer?.invalidate()
     controlsVisible = true
     bottomPanel.isUserInteractionEnabled = true
-    UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseOut]) {
+    UIView.animate(withDuration: panelShowDuration, delay: 0,
+                   options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]) {
       self.bottomPanel.alpha = 1
       self.bottomPanel.transform = .identity
     }
@@ -921,9 +919,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     controlsTimer?.invalidate()
     controlsVisible = false
     seekBubble.isHidden = true
-    UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseIn]) {
+    UIView.animate(withDuration: panelHideDuration, delay: 0,
+                   options: [.curveEaseInOut, .beginFromCurrentState, .allowUserInteraction]) {
       self.bottomPanel.alpha = 0
-      self.bottomPanel.transform = CGAffineTransform(translationX: 0, y: 16)
+      self.bottomPanel.transform = CGAffineTransform(
+        translationX: 0, y: self.panelSlideDistance)
     } completion: { _ in
       if !self.controlsVisible {
         self.bottomPanel.isUserInteractionEnabled = false
@@ -1200,7 +1200,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     controlsTimer?.invalidate()
     controlsVisible = false
     bottomPanel.alpha = 0
-    bottomPanel.transform = CGAffineTransform(translationX: 0, y: 16)
+    bottomPanel.transform = CGAffineTransform(translationX: 0, y: panelSlideDistance)
     bottomPanel.isUserInteractionEnabled = false
     if let comments = portraitComments {
       comments.willMove(toParent: nil)
