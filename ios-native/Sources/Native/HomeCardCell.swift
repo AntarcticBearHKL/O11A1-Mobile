@@ -16,7 +16,7 @@ final class HomeCardCell: UITableViewCell {
   private let progressFill = UIView()
   private var progressWidth: NSLayoutConstraint?
   private let previewBar = PreviewProgressBar()
-  private let copyGradient = CAGradientLayer()
+  private let copyGlass = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let avatar = UIImageView()
   private let avatarInitial = UILabel()
   private let avatarButton = UIButton(type: .custom)
@@ -24,6 +24,7 @@ final class HomeCardCell: UITableViewCell {
   private let owner = UILabel()
   private let play = UILabel()
   private let time = UILabel()
+  private let dot = UILabel()
   private let metaStack = UIStackView()
   private let copyView = UIView()
   private var item: VideoItem?
@@ -99,12 +100,12 @@ final class HomeCardCell: UITableViewCell {
     copyView.layer.cornerCurve = .continuous
     copyView.layer.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
     copyView.clipsToBounds = true
-    copyView.layer.insertSublayer(copyGradient, at: 0)
-    copyGradient.colors = [NativeTheme.homeRowTop.cgColor,
-                           NativeTheme.homeRowBottom.cgColor]
-    copyGradient.locations = [0, 1]
     contentView.addSubview(copyView)
     copyView.translatesAutoresizingMaskIntoConstraints = false
+
+    copyGlass.isUserInteractionEnabled = false
+    copyView.addSubview(copyGlass)
+    copyGlass.translatesAutoresizingMaskIntoConstraints = false
 
     let topLine = UIView()
     topLine.backgroundColor = NativeTheme.homeRowLine
@@ -113,7 +114,7 @@ final class HomeCardCell: UITableViewCell {
 
     avatar.contentMode = .scaleAspectFill
     avatar.clipsToBounds = true
-    avatar.layer.cornerRadius = 25
+    avatar.layer.cornerRadius = 28
     avatar.backgroundColor = UIColor { trait in
       trait.userInterfaceStyle == .dark
         ? UIColor(red: 20.0 / 255.0, green: 20.0 / 255.0, blue: 22.0 / 255.0, alpha: 1)
@@ -138,7 +139,7 @@ final class HomeCardCell: UITableViewCell {
     copyView.addSubview(avatarButton)
     avatarButton.translatesAutoresizingMaskIntoConstraints = false
 
-    title.font = UIFont.systemFont(ofSize: 16, weight: .bold)
+    title.font = UIFont.systemFont(ofSize: 17, weight: .bold)
     title.textColor = NativeTheme.foreground
     title.numberOfLines = 2
     title.lineBreakMode = .byTruncatingTail
@@ -149,20 +150,34 @@ final class HomeCardCell: UITableViewCell {
     owner.textColor = NativeTheme.secondary
     owner.numberOfLines = 1
     owner.lineBreakMode = .byTruncatingTail
+    owner.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     play.font = UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-    play.textAlignment = .center
+    play.textAlignment = .right
     play.numberOfLines = 1
+    play.setContentHuggingPriority(.required, for: .horizontal)
+    play.setContentCompressionResistancePriority(.required, for: .horizontal)
     time.font = UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
     time.textColor = NativeTheme.tertiary
     time.textAlignment = .right
     time.numberOfLines = 1
+    time.setContentHuggingPriority(.required, for: .horizontal)
+    time.setContentCompressionResistancePriority(.required, for: .horizontal)
+    dot.text = "·"
+    dot.font = UIFont.systemFont(ofSize: 12, weight: .medium)
+    dot.textColor = NativeTheme.tertiary
+    dot.setContentHuggingPriority(.required, for: .horizontal)
+    dot.setContentCompressionResistancePriority(.required, for: .horizontal)
 
     metaStack.axis = .horizontal
-    metaStack.distribution = .fillEqually
+    metaStack.distribution = .fill
     metaStack.alignment = .center
-    metaStack.spacing = 0
+    metaStack.spacing = 6
+    let metaSpacer = UIView()
+    metaSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
     metaStack.addArrangedSubview(owner)
+    metaStack.addArrangedSubview(metaSpacer)
     metaStack.addArrangedSubview(play)
+    metaStack.addArrangedSubview(dot)
     metaStack.addArrangedSubview(time)
     copyView.addSubview(metaStack)
     metaStack.translatesAutoresizingMaskIntoConstraints = false
@@ -209,7 +224,13 @@ final class HomeCardCell: UITableViewCell {
       copyView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
       copyView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
       copyView.topAnchor.constraint(equalTo: media.bottomAnchor),
+      copyView.heightAnchor.constraint(equalToConstant: 122),
       copyView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -14),
+
+      copyGlass.leadingAnchor.constraint(equalTo: copyView.leadingAnchor),
+      copyGlass.trailingAnchor.constraint(equalTo: copyView.trailingAnchor),
+      copyGlass.topAnchor.constraint(equalTo: copyView.topAnchor),
+      copyGlass.bottomAnchor.constraint(equalTo: copyView.bottomAnchor),
 
       topLine.leadingAnchor.constraint(equalTo: copyView.leadingAnchor),
       topLine.trailingAnchor.constraint(equalTo: copyView.trailingAnchor),
@@ -217,22 +238,21 @@ final class HomeCardCell: UITableViewCell {
       topLine.heightAnchor.constraint(equalToConstant: 0.5),
 
       avatar.leadingAnchor.constraint(equalTo: copyView.leadingAnchor, constant: 16),
-      avatar.centerYAnchor.constraint(equalTo: copyView.centerYAnchor),
-      avatar.widthAnchor.constraint(equalToConstant: 50),
-      avatar.heightAnchor.constraint(equalToConstant: 50),
+      avatar.topAnchor.constraint(equalTo: copyView.topAnchor, constant: 16),
+      avatar.widthAnchor.constraint(equalToConstant: 56),
+      avatar.heightAnchor.constraint(equalToConstant: 56),
 
       avatarButton.leadingAnchor.constraint(equalTo: avatar.leadingAnchor),
       avatarButton.trailingAnchor.constraint(equalTo: avatar.trailingAnchor),
       avatarButton.topAnchor.constraint(equalTo: avatar.topAnchor),
       avatarButton.bottomAnchor.constraint(equalTo: avatar.bottomAnchor),
 
-      title.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 12),
+      title.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 14),
       title.trailingAnchor.constraint(equalTo: copyView.trailingAnchor, constant: -16),
-      title.topAnchor.constraint(equalTo: copyView.topAnchor, constant: 13),
+      title.topAnchor.constraint(equalTo: copyView.topAnchor, constant: 16),
 
-      metaStack.leadingAnchor.constraint(equalTo: title.leadingAnchor),
-      metaStack.trailingAnchor.constraint(equalTo: title.trailingAnchor),
-      metaStack.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 5),
+      metaStack.leadingAnchor.constraint(equalTo: copyView.leadingAnchor, constant: 16),
+      metaStack.trailingAnchor.constraint(equalTo: copyView.trailingAnchor, constant: -16),
       metaStack.bottomAnchor.constraint(equalTo: copyView.bottomAnchor, constant: -16),
     ])
     progressWidth = progressFill.widthAnchor.constraint(equalToConstant: 0)
@@ -249,7 +269,6 @@ final class HomeCardCell: UITableViewCell {
     super.layoutSubviews()
     CATransaction.begin()
     CATransaction.setDisableActions(true)
-    copyGradient.frame = copyView.bounds
     let shadowRect = contentView.bounds
     contentView.layer.shadowPath = UIBezierPath(
       roundedRect: shadowRect,
@@ -262,8 +281,6 @@ final class HomeCardCell: UITableViewCell {
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
-    copyGradient.colors = [NativeTheme.homeRowTop.cgColor,
-                           NativeTheme.homeRowBottom.cgColor]
     contentView.layer.shadowOpacity =
       traitCollection.userInterfaceStyle == .dark ? 0.38 : 0.10
   }
@@ -281,13 +298,13 @@ final class HomeCardCell: UITableViewCell {
   func configure(_ item: VideoItem) {
     self.item = item
     let paragraph = NSMutableParagraphStyle()
-    paragraph.minimumLineHeight = 21.1
-    paragraph.maximumLineHeight = 21.1
+    paragraph.minimumLineHeight = 23.5
+    paragraph.maximumLineHeight = 23.5
     paragraph.lineBreakMode = .byTruncatingTail
     title.attributedText = NSAttributedString(
       string: item.title,
       attributes: [
-        .font: UIFont.systemFont(ofSize: 16, weight: .bold),
+        .font: UIFont.systemFont(ofSize: 17, weight: .bold),
         .foregroundColor: NativeTheme.foreground,
         .paragraphStyle: paragraph,
       ])
@@ -296,7 +313,7 @@ final class HomeCardCell: UITableViewCell {
     owner.text = season && !item.meta.isEmpty ? item.meta : item.owner
     play.isHidden = season || live
     time.isHidden = season
-    metaStack.distribution = season ? .fill : .fillEqually
+    dot.isHidden = play.isHidden || time.isHidden
     play.text = item.playText.isEmpty ? "" : item.playText + "播放"
     play.textColor = NativeTheme.playCountColor(item.play)
     if live {
