@@ -52,6 +52,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var relatedSwipe = false
   private var detailSwipe = false
   private var portraitDismissDrag = false
+  private var panDirectionDecided = false
   private var detailPanel: VideoDetailViewController?
   private var relatedPanel: RelatedViewController?
   private var settingsPanel: PlayerSettingsViewController?
@@ -798,30 +799,43 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let translation = gesture.translation(in: reference)
     switch gesture.state {
     case .began:
-      let velocity = gesture.velocity(in: videoContainer)
-      if abs(velocity.x) > abs(velocity.y) {
-        if velocity.x < 0 {
-          relatedSwipe = true
-          return
-        }
-        detailSwipe = true
-        return
-      }
       relatedSwipe = false
       detailSwipe = false
       portraitDismissDrag = false
-      if !isLandscapePlayer {
-        if velocity.y > 0 {
-          portraitDismissDrag = true
-          view.transform = .identity
-        }
-        panStartFrame = videoContainer.frame
-        panProgress = 0
-        return
-      }
+      panDirectionDecided = false
       panStartFrame = videoContainer.frame
       panProgress = 0
+      let velocity = gesture.velocity(in: videoContainer)
+      if abs(velocity.x) > abs(velocity.y) && abs(velocity.x) > 80 {
+        panDirectionDecided = true
+        if velocity.x < 0 {
+          relatedSwipe = true
+        } else {
+          detailSwipe = true
+        }
+      }
     case .changed:
+      if !panDirectionDecided {
+        let threshold: CGFloat = 12
+        if abs(translation.x) > threshold || abs(translation.y) > threshold {
+          if abs(translation.x) > abs(translation.y) * 1.15 {
+            panDirectionDecided = true
+            if translation.x < 0 {
+              relatedSwipe = true
+            } else {
+              detailSwipe = true
+            }
+          } else if !isLandscapePlayer {
+            panDirectionDecided = true
+            if translation.y > 0 {
+              portraitDismissDrag = true
+              view.transform = .identity
+            }
+          } else {
+            panDirectionDecided = true
+          }
+        }
+      }
       guard !relatedSwipe && !detailSwipe else { return }
       if portraitDismissDrag {
         let down = max(0, translation.y)
@@ -854,22 +868,26 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       playButton.alpha = 0
       dim.alpha = 1 - p * 0.5
     case .ended, .cancelled:
+      let endVelocity = gesture.velocity(in: view).x
       if relatedSwipe {
         relatedSwipe = false
-        if translation.x < -60 {
+        panDirectionDecided = false
+        if translation.x < -50 || endVelocity < -420 {
           openRelatedPanel()
         }
         return
       }
       if detailSwipe {
         detailSwipe = false
-        if translation.x > 60 {
+        panDirectionDecided = false
+        if translation.x > 50 || endVelocity > 420 {
           openDetailPanel()
         }
         return
       }
       if portraitDismissDrag {
         portraitDismissDrag = false
+        panDirectionDecided = false
         let velocity = gesture.velocity(in: view).y
         if translation.y > 120 || velocity > 700 {
           closePlayer(animated: true)
@@ -881,6 +899,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         }
         return
       }
+      panDirectionDecided = false
       guard isLandscapePlayer else { return }
       let velocity = gesture.velocity(in: view).y
       if panProgress > 0.28 || velocity > 780 {

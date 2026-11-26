@@ -162,6 +162,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
       let swipe = UIPanGestureRecognizer(target: self, action: #selector(handleEmbeddedSwipe(_:)))
       swipe.delegate = self
       view.addGestureRecognizer(swipe)
+      table.panGestureRecognizer.require(toFail: swipe)
       embeddedSwipePan = swipe
     }
 
