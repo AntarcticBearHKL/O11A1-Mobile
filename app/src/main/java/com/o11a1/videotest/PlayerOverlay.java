@@ -41,6 +41,7 @@ final class PlayerOverlay extends FrameLayout {
     private final TextView owner;
     private final TextView quality;
     private final ProgressWheelView wheel;
+    private final GridProgressView grid;
     private final DanmakuView danmaku;
     private final ImageButton playButton;
     private final TextView error;
@@ -61,6 +62,7 @@ final class PlayerOverlay extends FrameLayout {
     private boolean wasPlayingBeforeScrub = false;
     private boolean longPressed = false;
     private boolean pulling = false;
+    private boolean swipeComments = false;
     private boolean closing = false;
     private boolean started = false;
     private boolean destroyed = false;
@@ -164,6 +166,7 @@ final class PlayerOverlay extends FrameLayout {
         }));
         topBar.addView(followButton, new LinearLayout.LayoutParams(
             LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
+        topBar.setVisibility(GONE);
 
         playButton = new ImageButton(context);
         playButton.setImageResource(android.R.drawable.ic_media_pause);
@@ -178,15 +181,13 @@ final class PlayerOverlay extends FrameLayout {
 
         bottomPanel = new LinearLayout(context);
         bottomPanel.setOrientation(LinearLayout.VERTICAL);
-        bottomPanel.setBackground(NativeTheme.rounded(0xB3000000, NativeTheme.dp(context, 18)));
-        bottomPanel.setPadding(NativeTheme.dp(context, 16), NativeTheme.dp(context, 12),
-            NativeTheme.dp(context, 16), NativeTheme.dp(context, 10));
+        bottomPanel.setBackgroundColor(Color.TRANSPARENT);
+        bottomPanel.setPadding(NativeTheme.dp(context, 14), 0,
+            NativeTheme.dp(context, 14), 0);
         LayoutParams panelParams = new LayoutParams(
             LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
         panelParams.gravity = Gravity.BOTTOM;
-        panelParams.leftMargin = NativeTheme.dp(context, 12);
-        panelParams.rightMargin = NativeTheme.dp(context, 12);
-        panelParams.bottomMargin = NativeTheme.dp(context, 12);
+        panelParams.bottomMargin = NativeTheme.dp(context, 10);
         addView(bottomPanel, panelParams);
 
         owner = new TextView(context);
@@ -198,11 +199,18 @@ final class PlayerOverlay extends FrameLayout {
         });
         bottomPanel.addView(owner, new LinearLayout.LayoutParams(
             LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+        owner.setVisibility(GONE);
+
+        grid = new GridProgressView(context);
+        LinearLayout.LayoutParams gridParams = new LinearLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        gridParams.topMargin = NativeTheme.dp(context, 8);
+        bottomPanel.addView(grid, gridParams);
 
         wheel = new ProgressWheelView(context);
         LinearLayout.LayoutParams wheelParams = new LinearLayout.LayoutParams(
             LayoutParams.MATCH_PARENT, NativeTheme.dp(context, 48));
-        wheelParams.topMargin = NativeTheme.dp(context, 6);
+        wheelParams.topMargin = NativeTheme.dp(context, 2);
         bottomPanel.addView(wheel, wheelParams);
         wheel.setOnScrub(this::scrub);
 
@@ -213,6 +221,7 @@ final class PlayerOverlay extends FrameLayout {
             LayoutParams.MATCH_PARENT, NativeTheme.dp(context, 38));
         actionParams.topMargin = NativeTheme.dp(context, 2);
         bottomPanel.addView(actions, actionParams);
+        actions.setVisibility(GONE);
 
         ImageButton comments = iconButton(context, android.R.drawable.ic_menu_info_details);
         comments.setOnClickListener(v -> CommentsView.show(getContext(), api, extras, item.aid));
@@ -304,7 +313,10 @@ final class PlayerOverlay extends FrameLayout {
 
         engine.setListener(new VideoEngine.Listener() {
             @Override public void onProgress(long positionMs, long durationMs, boolean playing) {
-                if (!scrubbing) wheel.setProgress(positionMs, durationMs);
+                if (!scrubbing) {
+                    wheel.setProgress(positionMs, durationMs);
+                    grid.setProgress(positionMs, durationMs);
+                }
                 danmaku.setPosition(positionMs);
                 updatePlayIcon(playing);
             }
@@ -391,6 +403,8 @@ final class PlayerOverlay extends FrameLayout {
         final boolean live = item.roomId > 0;
         if (live) {
             wheel.setVisibility(GONE);
+            grid.setVisibility(GONE);
+            bottomPanel.setVisibility(GONE);
             quality.setText("LIVE");
             speed.setVisibility(GONE);
             dmToggle.setVisibility(GONE);
@@ -507,6 +521,7 @@ final class PlayerOverlay extends FrameLayout {
                 touchStartX = event.getX();
                 touchStartAt = System.currentTimeMillis();
                 pulling = false;
+                swipeComments = false;
                 longPressed = false;
                 pullProgress = 0;
                 main.postDelayed(longPressRunnable, 180);
@@ -514,7 +529,11 @@ final class PlayerOverlay extends FrameLayout {
             case MotionEvent.ACTION_MOVE:
                 float dy = event.getY() - touchStartY;
                 float dx = event.getX() - touchStartX;
-                if (Math.abs(dy) > 20 && Math.abs(dy) > Math.abs(dx)) {
+                if (dx < -NativeTheme.dp(getContext(), 60)
+                    && Math.abs(dx) > Math.abs(dy) * 1.3f) {
+                    main.removeCallbacks(longPressRunnable);
+                    swipeComments = true;
+                } else if (Math.abs(dy) > 20 && Math.abs(dy) > Math.abs(dx)) {
                     main.removeCallbacks(longPressRunnable);
                     if (dy > 0) {
                         pulling = true;
@@ -525,6 +544,11 @@ final class PlayerOverlay extends FrameLayout {
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
                 main.removeCallbacks(longPressRunnable);
+                if (swipeComments) {
+                    swipeComments = false;
+                    CommentsView.show(getContext(), api, extras, item.aid);
+                    return true;
+                }
                 if (longPressed) {
                     longPressed = false;
                     engine.setSpeed(1f);

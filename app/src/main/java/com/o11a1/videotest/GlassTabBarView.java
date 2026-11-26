@@ -33,7 +33,12 @@ final class GlassTabBarView extends LinearLayout {
         super(context);
         setOrientation(HORIZONTAL);
         setGravity(Gravity.CENTER);
-        setBackground(NativeTheme.glassPanel(context, NativeTheme.dp(context, 26)));
+        android.graphics.drawable.GradientDrawable bar =
+            NativeTheme.rounded(NativeTheme.isDark(context) ? 0xF7141414 : 0xF7FFFFFF,
+                NativeTheme.dp(context, 26));
+        bar.setStroke(Math.max(1, NativeTheme.dp(context, 0.5f)),
+            NativeTheme.isDark(context) ? 0x1AFFFFFF : 0x0F000000);
+        setBackground(bar);
         setElevation(NativeTheme.dp(context, 12));
         setPadding(NativeTheme.dp(context, 6), 0, NativeTheme.dp(context, 6), 0);
         for (int i = 0; i < titles.length; i++) {

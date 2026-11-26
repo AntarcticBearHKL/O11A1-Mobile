@@ -66,7 +66,7 @@ public final class MainActivity extends Activity implements FeedView.Host, MyVie
         tabParams.gravity = Gravity.BOTTOM;
         tabParams.leftMargin = NativeTheme.dp(this, 12);
         tabParams.rightMargin = NativeTheme.dp(this, 12);
-        tabParams.bottomMargin = NativeTheme.dp(this, 12);
+        tabParams.bottomMargin = NativeTheme.dp(this, 12) + bottomInset();
         root.addView(tabBar, tabParams);
 
         settingsButton = new ImageButton(this);
@@ -108,6 +108,11 @@ public final class MainActivity extends Activity implements FeedView.Host, MyVie
     private int statusBar() {
         int id = getResources().getIdentifier("status_bar_height", "dimen", "android");
         return id > 0 ? getResources().getDimensionPixelSize(id) : NativeTheme.dp(this, 24);
+    }
+
+    private int bottomInset() {
+        int id = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+        return id > 0 ? getResources().getDimensionPixelSize(id) : 0;
     }
 
     private void showTab(int index) {

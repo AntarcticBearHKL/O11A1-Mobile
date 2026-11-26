@@ -20,6 +20,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let ownerLabel = UILabel()
   private let ownerButton = UIButton(type: .system)
   private let wheel = ProgressWheel()
+  private let grid = GridProgressBar()
   private let qualityLabel = UILabel()
   private let speedLabel = UILabel()
   private let commentsButton = UIButton(type: .system)
@@ -45,6 +46,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var loadToken = 0
   private var started = false
   private var speedIndex = 0
+  private var commentsSwipe = false
 
   init(item: VideoItem, sourceView: UIView?) {
     self.item = item
@@ -149,6 +151,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self?.scrub(ratio: ratio, finished: finished)
     }
     content.addSubview(wheel)
+
+    content.addSubview(grid)
 
     qualityLabel.font = NativeTheme.numberFont(10)
     qualityLabel.textColor = UIColor.white.withAlphaComponent(0.70)
@@ -260,10 +264,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       ownerButton.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
       ownerButton.centerYAnchor.constraint(equalTo: ownerLabel.centerYAnchor),
 
-      wheel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
-      wheel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
-      wheel.topAnchor.constraint(equalTo: ownerLabel.bottomAnchor, constant: 6),
+      wheel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
+      wheel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
+      wheel.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -10),
       wheel.heightAnchor.constraint(equalToConstant: 48),
+
+      grid.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
+      grid.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
+      grid.bottomAnchor.constraint(equalTo: wheel.topAnchor, constant: -8),
+      grid.heightAnchor.constraint(equalToConstant: 6),
 
       qualityLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
       qualityLabel.topAnchor.constraint(equalTo: wheel.bottomAnchor, constant: 2),
@@ -317,6 +326,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self.danmakuOverlay.setTime(seconds)
       let safeDuration = duration > 0 ? duration : 1
       self.wheel.progress = max(0, min(1, seconds / safeDuration))
+      self.grid.progress = max(0, min(1, seconds / safeDuration))
       self.wheel.currentText = self.format(seconds)
       self.wheel.durationText = self.format(duration)
     }
@@ -353,7 +363,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self.engine.stopPipForRestore()
     }
 
-    loadQuality(80)
+    topBar.isHidden = true
+    bottomBlur.isHidden = true
+    [ownerLabel, ownerButton, qualityLabel, speedLabel, commentsButton,
+     likeButton, coinButton, favButton].forEach { $0.removeFromSuperview() }
+    loadQuality(ThemeManager.shared.quality)
     if item.roomId == 0, item.cid > 0 {
       danmakuOverlay.load(cid: item.cid)
     } else {
@@ -393,7 +407,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     poster.frame = videoContainer.bounds
     danmakuOverlay.frame = videoContainer.bounds
     playButton.center = CGPoint(x: videoContainer.center.x, y: videoContainer.center.y)
-    let panelHeight: CGFloat = 150
+    let panelHeight: CGFloat = 80
     bottomPanel.frame = CGRect(
       x: 12,
       y: full.height - view.safeAreaInsets.bottom - panelHeight - 10,
@@ -409,6 +423,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     if item.roomId > 0 {
       qualityLabel.text = "LIVE"
       wheel.isHidden = true
+      grid.isHidden = true
+      bottomPanel.isHidden = true
       speedLabel.isHidden = true
       danmakuToggle.isHidden = true
       danmakuSend.isHidden = true
@@ -578,9 +594,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let translation = gesture.translation(in: view)
     switch gesture.state {
     case .began:
+      let velocity = gesture.velocity(in: videoContainer)
+      if abs(velocity.x) > abs(velocity.y) && velocity.x < 0 {
+        commentsSwipe = true
+        return
+      }
+      commentsSwipe = false
       panStartFrame = videoContainer.frame
       panProgress = 0
     case .changed:
+      guard !commentsSwipe else { return }
       let down = max(0, translation.y)
       let maxDistance = max(120, view.bounds.height * 0.52)
       panProgress = min(1, down / maxDistance)
@@ -606,6 +629,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       playButton.alpha = 0
       dim.alpha = 1 - p * 0.5
     case .ended, .cancelled:
+      if commentsSwipe {
+        commentsSwipe = false
+        if translation.x < -60 {
+          openCommentsPanel()
+        }
+        return
+      }
       let velocity = gesture.velocity(in: view).y
       if panProgress > 0.28 || velocity > 780 {
         closePlayer(animated: true)
@@ -621,6 +651,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       }
     default:
       break
+    }
+  }
+
+  private func openCommentsPanel() {
+    let comments = CommentsViewController(aid: item.aid)
+    comments.modalPresentationStyle = .overFullScreen
+    present(comments, animated: false)
+    comments.view.transform = CGAffineTransform(translationX: -view.bounds.width, y: 0)
+    UIView.animate(withDuration: 0.24, delay: 0, options: [.curveEaseOut]) {
+      comments.view.transform = .identity
     }
   }
 
@@ -718,7 +758,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     if let pan = gestureRecognizer as? UIPanGestureRecognizer {
       let velocity = pan.velocity(in: videoContainer)
-      if abs(velocity.y) <= abs(velocity.x) { return false }
+      if abs(velocity.x) > abs(velocity.y) {
+        return velocity.x < -60
+      }
       if velocity.y < -80 { return false }
       return true
     }

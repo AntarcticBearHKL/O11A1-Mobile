@@ -227,21 +227,27 @@ final class FeedView extends FrameLayout {
                 @Override public void onProgress(long positionMs, long durationMs, boolean playing) {}
                 @Override public void onReady() {}
                 @Override public void onFirstFrame() {
-                    if (previewEngine != null) previewEngine.view().setAlpha(1f);
+                    if (previewEngine != null) {
+                        previewEngine.view().setAlpha(1f);
+                        previewEngine.view().setVisibility(View.VISIBLE);
+                    }
                 }
                 @Override public void onError(String message) {
-                    if (previewEngine != null) previewEngine.view().setAlpha(0f);
+                    if (previewEngine != null) {
+                        previewEngine.view().setAlpha(0f);
+                        previewEngine.view().setVisibility(View.INVISIBLE);
+                    }
                 }
             });
         }
-        previewHidden(false);
+        previewHidden(true);
         if (previewEngine.view().getParent() instanceof ViewGroup) {
             ((ViewGroup) previewEngine.view().getParent()).removeView(previewEngine.view());
         }
         card.mediaHost().addView(previewEngine.view(), new LayoutParams(
             LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         previewEngine.view().setAlpha(0f);
-        previewEngine.view().setVisibility(View.VISIBLE);
+        previewEngine.view().setVisibility(View.INVISIBLE);
         pool.execute(() -> {
             JSONObject result = api.playLow(item.bvid, item.cid);
             final JSONObject value = result;
@@ -252,7 +258,6 @@ final class FeedView extends FrameLayout {
                 String url = value.optString("url", value.optString("remote", ""));
                 String backup = value.optString("backup", value.optString("backupRemote", ""));
                 if (url.isEmpty()) return;
-                previewEngine.view().setVisibility(View.VISIBLE);
                 previewEngine.load(url, backup, true, true, true, 0);
             });
         });

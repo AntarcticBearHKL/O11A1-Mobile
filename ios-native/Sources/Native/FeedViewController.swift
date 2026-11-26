@@ -15,6 +15,7 @@ final class FeedViewController: UIViewController,
   private let table = UITableView(frame: .zero, style: .plain)
   private let statusLabel = UILabel()
   private let topFade = UIView()
+  private var topFadeHeight: NSLayoutConstraint?
   private let previewEngine = VideoEngine()
   private lazy var previewView = PlayerLayerView(playerLayer: previewEngine.playerLayer)
   private var previewCell: HomeCardCell?
@@ -58,11 +59,12 @@ final class FeedViewController: UIViewController,
     topFade.isUserInteractionEnabled = false
     view.addSubview(topFade)
     topFade.translatesAutoresizingMaskIntoConstraints = false
+    topFadeHeight = topFade.heightAnchor.constraint(equalToConstant: 42)
     NSLayoutConstraint.activate([
       topFade.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       topFade.trailingAnchor.constraint(equalTo: view.trailingAnchor),
       topFade.topAnchor.constraint(equalTo: view.topAnchor),
-      topFade.heightAnchor.constraint(equalToConstant: 42),
+      topFadeHeight!,
     ])
     let gradient = CAGradientLayer()
     gradient.colors = [NativeTheme.background.cgColor,
@@ -121,6 +123,7 @@ final class FeedViewController: UIViewController,
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
+    topFadeHeight?.constant = view.safeAreaInsets.top + 18
     if let gradient = topFade.layer.sublayers?.first as? CAGradientLayer {
       gradient.frame = topFade.bounds
     }
