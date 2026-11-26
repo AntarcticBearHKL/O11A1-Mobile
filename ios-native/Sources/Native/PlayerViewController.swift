@@ -77,7 +77,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var loopOn = false
   private var controlsVisible = true
   private var controlsTimer: Timer?
-  private var hasStartedPlayback = false
   private var lastPlayingState = false
 
   init(item: VideoItem, sourceView: UIView?) {
@@ -125,7 +124,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     backdropBlur.isUserInteractionEnabled = false
     view.addSubview(backdropBlur)
 
-    backdropDim.backgroundColor = UIColor.black.withAlphaComponent(0.28)
+    backdropDim.backgroundColor = UIColor.black.withAlphaComponent(0.42)
     backdropDim.isUserInteractionEnabled = false
     view.addSubview(backdropDim)
 
@@ -438,11 +437,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self.videoContainer.backgroundColor = playing ? .black : NativeTheme.pipRose
       let changed = playing != self.lastPlayingState
       self.lastPlayingState = playing
-      if playing {
-        self.hasStartedPlayback = true
-        if changed && self.controlsVisible { self.scheduleControlsHide() }
-      } else if self.hasStartedPlayback && changed {
-        self.showControls()
+      if playing && changed && self.controlsVisible {
+        self.scheduleControlsHide()
       }
     }
     engine.onReady = { [weak self] in
@@ -1180,6 +1176,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     closeRelatedPanel()
     stopLiveChat()
     engine.stop()
+    controlsTimer?.invalidate()
+    controlsVisible = false
+    bottomPanel.alpha = 0
+    bottomPanel.transform = CGAffineTransform(translationX: 0, y: 16)
+    bottomPanel.isUserInteractionEnabled = false
     if let comments = portraitComments {
       comments.willMove(toParent: nil)
       comments.view.removeFromSuperview()

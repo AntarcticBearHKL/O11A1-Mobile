@@ -26,11 +26,12 @@ Bottom bar, left to right:
 3. 动态 (`Dynamic`)
 4. 养鱼 (`Fish`)
 
-The bar is glass, nearly full width, 66 dp/pt tall with an 18 dp/pt corner
-radius. The selected tab sits on a 14 dp/pt-radius pill that springs between
-tabs, bounces its icon and crossfades the label; only one tab is selected at a
-time and the initial highlight is visible on first layout. The bar hides/shows
-with a 0.75 s animation while scrolling.
+The bar is glass, nearly full width, 72 dp/pt tall with an 18 dp/pt corner
+radius. It sits 4 dp/pt above the safe-area bottom and gives its buttons 8 dp/pt
+of horizontal breathing room. The selected tab sits on a 14 dp/pt-radius pill
+that springs between tabs, bounces its icon and crossfades the label; only one
+tab is selected at a time and the initial highlight is visible on first layout.
+The bar hides/shows with a 0.75 s animation while scrolling.
 
 ### Sidebar
 
@@ -77,12 +78,22 @@ with a 0.75 s animation while scrolling.
 
 ### Player
 
-- Opens in portrait. The 16:9 video is pinned to the top edge and the comment
-  stream (same comment UI as the web app) fills the space below it.
+- Opens in portrait and plays immediately. The progress panel is hidden on
+  entry; tap the video to show it.
+- Portrait centre stage: the 16:9 video is centred on a full-screen, blurred,
+  enlarged copy of the same video, with the status bar visible over the blur.
+- Swipe up on the video (or its blurred stage) to push the video to the top.
+  The video then starts below the visible status bar and the comment stream
+  fills the space below it.
+- Swipe down on the top video to return to the centre stage. Scrolling the
+  comments back to the top and pulling down continues into the same spring
+  transition back to the centre stage.
+- Swipe down on the centre video to shrink and close the player. Closing
+  restores portrait.
 - The phone only enters landscape when it is physically rotated; the layout
-  animates between portrait and landscape. Closing restores portrait.
-- Landscape is the full-screen player: video edge-to-edge, top bar and the
-  precision wheel docked at the bottom.
+  animates between portrait and landscape.
+- Landscape is the full-screen player: video edge-to-edge, precision wheel
+  docked at the bottom.
 - Tap the video to toggle the floating control panel; it auto-hides after
   3.2 s of playback.
 - Left swipe on the video (or portrait comments) slides in a related-video feed
@@ -91,8 +102,6 @@ with a 0.75 s animation while scrolling.
 - Right swipe on the video (or portrait comments) slides in the video details
   panel. The panel bottom holds 画质 (inline quality chips), 弹幕设置 (on/off)
   and 循环模式 (loop/single). There is no separate upward settings menu.
-- Down swipe on the portrait video closes the player; in landscape the same
-  drag shrinks the video into a window before closing.
 - Long-press anywhere on the video: 2x speed + light haptic. Release restores
   1x. No HUD.
 - Progress wheel: 48 dp/pt tall, proportional ticks, labels and needle. The

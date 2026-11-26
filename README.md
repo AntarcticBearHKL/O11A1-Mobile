@@ -21,13 +21,18 @@ WebView, HTML, CSS, JavaScript, local web server, or bundled web UI**.
 
 - Native vertical video feed with muted 360P previews, home card layout,
   magnitude-coloured play counts and 50pt avatar.
-- Interactive toolbar: 66pt glass bar with an 18pt radius, a single 14pt-radius
-  selection pill that springs between tabs with an icon bounce and haptic.
+- Interactive toolbar: 72pt glass bar with an 18pt radius, mounted 4pt above
+  the safe-area bottom, a single 14pt-radius selection pill that springs between
+  tabs with an icon bounce and haptic.
 - Interactive navigation: finger-following left drawer (right drag opens,
   left drag closes, feed recedes live) and finger-following search open/close.
-- Portrait player: 16:9 video pinned at the top with the native comment stream
-  below; rotates to the full-screen landscape player only when the phone is
-  physically rotated and returns to portrait on close.
+- Portrait player: the video opens centred and playing over a full-screen
+  blurred, enlarged copy of the same video, with the status bar visible and no
+  progress panel; swipe up to pin the video below the status bar and reveal the
+  native comments, pull the comments down from the top to return to the centre
+  stage, and swipe down on the centre stage to shrink and close.
+- Rotates to the full-screen landscape player only when the phone is physically
+  rotated and returns to portrait on close.
 - Related-video panel on left swipe, using the home card feed; selecting a card
   replaces the current playback with no navigation stack.
 - Video-details panel on right swipe, with 画质, 弹幕设置 and 循环模式 at the
