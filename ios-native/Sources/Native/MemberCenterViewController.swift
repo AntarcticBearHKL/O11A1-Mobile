@@ -65,7 +65,7 @@ final class MemberCenterViewController: UIViewController {
     status.textColor = NativeTheme.secondary
     status.textAlignment = .center
     status.numberOfLines = 0
-    status.text = "正在加载会员信息�?
+    status.text = "正在加载会员信息…"
     status.isHidden = false
 
     load()
@@ -76,7 +76,7 @@ final class MemberCenterViewController: UIViewController {
   }
 
   private func load() {
-    status.text = "正在加载会员信息�?
+    status.text = "正在加载会员信息…"
     status.isHidden = false
     BiliAPI.shared.memberCenter { [weak self] result in
       guard let self = self else { return }
@@ -131,17 +131,17 @@ final class MemberCenterViewController: UIViewController {
     ])
 
     let vipTitle = UILabel()
-    vipTitle.text = info.vip ? "大会�? : "普通用�?
+    vipTitle.text = info.vip ? "大会员" : "普通用户"
     vipTitle.font = NativeTheme.titleFont(22)
     vipTitle.textColor = info.vip ? NativeTheme.warmOrange : NativeTheme.foreground
     cardStack.addArrangedSubview(vipTitle)
 
     let vipMeta = UILabel()
     if info.vip {
-      let type = info.vipType == 2 ? "年度大会�? : (info.vipType == 1 ? "月度大会�? : "大会�?)
+      let type = info.vipType == 2 ? "年度大会员" : (info.vipType == 1 ? "月度大会员" : "大会员")
       vipMeta.text = type + " · 有效期至 " + formatDate(info.vipDue)
     } else {
-      vipMeta.text = "完成每日任务可积累经验，开通大会员享高清画质�?
+      vipMeta.text = "完成每日任务可积累经验，开通大会员享高清画质。"
     }
     vipMeta.font = NativeTheme.bodyFont(12)
     vipMeta.textColor = NativeTheme.secondary
@@ -178,7 +178,7 @@ final class MemberCenterViewController: UIViewController {
     }
 
     if !info.log.isEmpty {
-      root.addArrangedSubview(sectionTitle("最近经�?))
+      root.addArrangedSubview(sectionTitle("最近经验"))
       let logCard = cardView(info.log.map { entry in
         let row = UIStackView()
         row.axis = .horizontal
@@ -236,7 +236,7 @@ final class MemberCenterViewController: UIViewController {
   }
 
   private func formatDate(_ raw: Int64) -> String {
-    guard raw > 0 else { return "�? }
+    guard raw > 0 else { return "—" }
     let seconds = raw > 20_000_000_000 ? raw / 1000 : raw
     let date = Date(timeIntervalSince1970: TimeInterval(seconds))
     let formatter = DateFormatter()

@@ -9,7 +9,7 @@ final class GlassTabBar: UIView {
   private let pill = UIView()
   private let stack = UIStackView()
   private var buttons: [UIButton] = []
-  private let titles = ["推荐", "关注", "动�?, "养鱼"]
+  private let titles = ["推荐", "关注", "动态", "养鱼"]
   private let symbols = ["house", "person.badge.plus", "waveform", "fish"]
   private(set) var selectedIndex = 0
   private(set) var barHidden = false
