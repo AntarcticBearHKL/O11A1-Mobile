@@ -74,7 +74,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     fatalError("init(coder:) has not been implemented")
   }
 
-  override var prefersStatusBarHidden: Bool { false }
+  override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+    return .allButUpsideDown
+  }
+
+  override var prefersStatusBarHidden: Bool { true }
   override var preferredStatusBarStyle: UIStatusBarStyle {
     return traitCollection.userInterfaceStyle == .dark ? .lightContent : .darkContent
   }
@@ -1096,6 +1100,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private func closePlayer(animated: Bool) {
     guard !closing else { return }
     closing = true
+    if #available(iOS 16.0, *) {
+      view.window?.windowScene?.requestGeometryUpdate(
+        .iOS(interfaceOrientations: .portrait))
+    }
     stopLiveChat()
     engine.stop()
     engine.stopPip()
