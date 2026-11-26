@@ -15,7 +15,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let backButton = UIButton(type: .system)
   private let titleLabel = UILabel()
   private let playButton = UIButton(type: .system)
-  private let bottomPanel = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
+  private let bottomPanel = UIView()
+  private let bottomBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
   private let ownerLabel = UILabel()
   private let ownerButton = UIButton(type: .system)
   private let wheel = ProgressWheel()
@@ -121,7 +122,17 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     bottomPanel.clipsToBounds = true
     view.addSubview(bottomPanel)
 
-    let content = bottomPanel.contentView
+    bottomBlur.translatesAutoresizingMaskIntoConstraints = false
+    bottomBlur.isUserInteractionEnabled = false
+    bottomPanel.addSubview(bottomBlur)
+    NSLayoutConstraint.activate([
+      bottomBlur.leadingAnchor.constraint(equalTo: bottomPanel.leadingAnchor),
+      bottomBlur.trailingAnchor.constraint(equalTo: bottomPanel.trailingAnchor),
+      bottomBlur.topAnchor.constraint(equalTo: bottomPanel.topAnchor),
+      bottomBlur.bottomAnchor.constraint(equalTo: bottomPanel.bottomAnchor),
+    ])
+
+    let content = bottomPanel
     ownerLabel.text = item.owner
     ownerLabel.font = NativeTheme.bodyFont(13)
     ownerLabel.textColor = .white
@@ -207,7 +218,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     errorLabel.isHidden = true
     view.addSubview(errorLabel)
 
-    [backButton, titleLabel, playButton, bottomPanel, ownerLabel, ownerButton, wheel,
+    [backButton, titleLabel, playButton, ownerLabel, ownerButton, wheel,
      qualityLabel, speedLabel, commentsButton, likeButton, coinButton, favButton,
      followButton, danmakuToggle, danmakuSend, errorLabel].forEach {
       $0.translatesAutoresizingMaskIntoConstraints = false

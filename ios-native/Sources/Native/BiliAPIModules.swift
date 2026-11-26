@@ -79,9 +79,10 @@ extension BiliAPI {
         season.cover = o11a1HTTPS(o11a1String(json["cover"]))
         season.evaluate = o11a1String(json["evaluate"])
         let rows = (json["episodes"] as? [[String: Any]]) ?? []
-        season.episodes = rows.map { row -> VideoItem in
+        season.episodes = rows.enumerated().map { index, row -> VideoItem in
           var item = VideoItem(json: row)
           item.duration = moduleEpisodeDuration(item.duration)
+          item.meta = "第 \(index + 1) 话"
           return item
         }
         completion(.success(season))

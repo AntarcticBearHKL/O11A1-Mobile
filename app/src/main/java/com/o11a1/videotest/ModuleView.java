@@ -263,7 +263,11 @@ final class ModuleView extends FrameLayout {
             if (episodes != null) {
                 for (int i = 0; i < episodes.length(); i++) {
                     JSONObject row = episodes.optJSONObject(i);
-                    if (row != null) rows.add(ModuleItem.fromEpisode(row));
+                    if (row != null) {
+                        ModuleItem episode = ModuleItem.fromEpisode(row);
+                        episode.meta = "第 " + (i + 1) + " 话";
+                        rows.add(episode);
+                    }
                 }
             }
             hasMore = false;
