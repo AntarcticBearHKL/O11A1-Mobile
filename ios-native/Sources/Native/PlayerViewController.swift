@@ -27,6 +27,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let backButton = UIButton(type: .system)
   private let titleLabel = UILabel()
   private let playButton = UIButton(type: .system)
+  private let longPressHost = UIView()
   private let bottomPanel = UIView()
   private let bottomBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
   private let ownerLabel = UILabel()
@@ -403,10 +404,21 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     pan.delegate = self
     view.addGestureRecognizer(pan)
 
+    longPressHost.backgroundColor = .clear
+    view.insertSubview(longPressHost, belowSubview: bottomPanel)
+    longPressHost.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      longPressHost.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      longPressHost.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      longPressHost.topAnchor.constraint(equalTo: view.topAnchor),
+      longPressHost.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
+
     let longPress = UILongPressGestureRecognizer(target: self, action: #selector(longPress(_:)))
     longPress.minimumPressDuration = 0.18
     longPress.delegate = self
-    videoContainer.addGestureRecognizer(longPress)
+    longPress.cancelsTouchesInView = false
+    longPressHost.addGestureRecognizer(longPress)
 
     let tap = UITapGestureRecognizer(target: self, action: #selector(handleSingleTap))
     tap.delegate = self
