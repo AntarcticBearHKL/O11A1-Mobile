@@ -1258,6 +1258,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       UserDefaults.standard.set(on, forKey: "danmaku_enabled")
       self?.danmakuToggle.alpha = on ? 1 : 0.45
     }
+    detail.onDanmakuSettingsChanged = { [weak self] in
+      guard let self = self else { return }
+      self.danmakuOverlay.applyStoredSettings()
+      self.danmakuToggle.alpha = self.danmakuOverlay.enabled ? 1 : 0.45
+    }
     detail.onLoop = { [weak self] on in
       guard let self = self else { return }
       self.loopOn = on

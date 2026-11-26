@@ -5,6 +5,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   var onProfile: ((Int64) -> Void)?
   var onQuality: ((Int) -> Void)?
   var onDanmaku: ((Bool) -> Void)?
+  var onDanmakuSettingsChanged: (() -> Void)?
   var onLoop: ((Bool) -> Void)?
   var initialQuality = 80
   var initialDanmakuOn = true
@@ -37,6 +38,15 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private var qualityValue = 80
   private var danmakuOn = true
   private var loopOn = false
+  private let danmakuPanel = UIStackView()
+  private var danmakuValueLabels: [UILabel] = []
+  private var danmakuSliders: [UISlider] = []
+  private var danmakuAreaButtons: [UIButton] = []
+  private var danmakuArea = "全屏"
+  private var danmakuOpacity: Float = 88
+  private var danmakuSize: Float = 100
+  private var danmakuSpeed: Float = 100
+  private var danmakuDensity = true
   private var descExpanded = false
   private var detailMid: Int64 = 0
   private var dismissPan: UIPanGestureRecognizer?
@@ -248,6 +258,16 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     qualityValue = initialQuality
     danmakuOn = initialDanmakuOn
     loopOn = initialLoopOn
+    let defaults = UserDefaults.standard
+    danmakuOpacity = defaults.object(forKey: "danmaku_opacity") == nil
+      ? 88 : defaults.float(forKey: "danmaku_opacity")
+    danmakuSize = defaults.object(forKey: "danmaku_size") == nil
+      ? 100 : defaults.float(forKey: "danmaku_size")
+    danmakuSpeed = defaults.object(forKey: "danmaku_speed") == nil
+      ? 100 : defaults.float(forKey: "danmaku_speed")
+    danmakuArea = defaults.string(forKey: "danmaku_area") ?? "全屏"
+    danmakuDensity = defaults.object(forKey: "danmaku_density") == nil
+      ? true : defaults.bool(forKey: "danmaku_density")
 
     let settingsTitle = UILabel()
     settingsTitle.text = "播放设置"
@@ -290,8 +310,9 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     settingsStack.addArrangedSubview(settingsSeparator())
     settingsStack.addArrangedSubview(makeQualityChips())
     settingsStack.addArrangedSubview(makeSettingsRow(
-      title: "弹幕设置", value: danmakuSetting, chevron: false,
+      title: "弹幕设置", value: danmakuSetting, chevron: true,
       action: #selector(toggleDanmakuSetting)))
+    settingsStack.addArrangedSubview(makeDanmakuPanel())
     settingsStack.addArrangedSubview(settingsSeparator())
     settingsStack.addArrangedSubview(makeSettingsRow(
       title: "循环模式", value: loopSetting, chevron: false,
@@ -353,6 +374,205 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     return line
   }
 
+  private func makeDanmakuPanel() -> UIView {
+    danmakuPanel.axis = .vertical
+    danmakuPanel.alignment = .fill
+    danmakuPanel.spacing = 0
+    danmakuPanel.isHidden = true
+    danmakuPanel.addArrangedSubview(settingsSeparator())
+    danmakuPanel.addArrangedSubview(makeDanmakuSwitchRow("弹幕显示", isOn: danmakuOn, tag: 0))
+    danmakuPanel.addArrangedSubview(settingsSeparator())
+    danmakuPanel.addArrangedSubview(makeDanmakuSliderRow(
+      "不透明度", min: 0, max: 100, value: danmakuOpacity, tag: 0))
+    danmakuPanel.addArrangedSubview(settingsSeparator())
+    danmakuPanel.addArrangedSubview(makeDanmakuSliderRow(
+      "字号", min: 50, max: 150, value: danmakuSize, tag: 1))
+    danmakuPanel.addArrangedSubview(settingsSeparator())
+    danmakuPanel.addArrangedSubview(makeDanmakuSliderRow(
+      "速度", min: 50, max: 200, value: danmakuSpeed, tag: 2))
+    danmakuPanel.addArrangedSubview(settingsSeparator())
+    danmakuPanel.addArrangedSubview(makeDanmakuAreaRow())
+    danmakuPanel.addArrangedSubview(settingsSeparator())
+    danmakuPanel.addArrangedSubview(makeDanmakuSwitchRow("分布密度", isOn: danmakuDensity, tag: 1))
+    let bottom = UIView()
+    bottom.heightAnchor.constraint(equalToConstant: 6).isActive = true
+    danmakuPanel.addArrangedSubview(bottom)
+    return danmakuPanel
+  }
+
+  private func makeDanmakuSwitchRow(_ title: String, isOn: Bool, tag: Int) -> UIView {
+    let row = UIView()
+    row.heightAnchor.constraint(equalToConstant: 48).isActive = true
+    let label = UILabel()
+    label.text = title
+    label.font = UIFont.systemFont(ofSize: 12.5, weight: .medium)
+    label.textColor = NativeTheme.foreground
+    row.addSubview(label)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    let toggle = UISwitch()
+    toggle.isOn = isOn
+    toggle.onTintColor = NativeTheme.navBlue
+    toggle.tag = tag
+    toggle.addTarget(self, action: #selector(danmakuSwitchChanged(_:)), for: .valueChanged)
+    row.addSubview(toggle)
+    toggle.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      label.leadingAnchor.constraint(equalTo: row.leadingAnchor),
+      label.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+      toggle.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+      toggle.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+    ])
+    return row
+  }
+
+  private func makeDanmakuSliderRow(_ title: String, min: Float, max: Float,
+                                     value: Float, tag: Int) -> UIView {
+    let row = UIView()
+    row.heightAnchor.constraint(equalToConstant: 64).isActive = true
+    let label = UILabel()
+    label.text = title
+    label.font = UIFont.systemFont(ofSize: 12.5, weight: .medium)
+    label.textColor = NativeTheme.foreground
+    row.addSubview(label)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    let valueLabel = UILabel()
+    valueLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .medium)
+    valueLabel.textColor = NativeTheme.secondary
+    valueLabel.textAlignment = .right
+    row.addSubview(valueLabel)
+    valueLabel.translatesAutoresizingMaskIntoConstraints = false
+    let slider = UISlider()
+    slider.minimumValue = min
+    slider.maximumValue = max
+    slider.value = value
+    slider.tag = tag
+    slider.minimumTrackTintColor = NativeTheme.navBlue
+    slider.maximumTrackTintColor = NativeTheme.hairline
+    slider.addTarget(self, action: #selector(danmakuSliderChanged(_:)), for: .valueChanged)
+    row.addSubview(slider)
+    slider.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      label.leadingAnchor.constraint(equalTo: row.leadingAnchor),
+      label.topAnchor.constraint(equalTo: row.topAnchor, constant: 8),
+      valueLabel.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+      valueLabel.centerYAnchor.constraint(equalTo: label.centerYAnchor),
+      slider.leadingAnchor.constraint(equalTo: row.leadingAnchor),
+      slider.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+      slider.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 2),
+      slider.bottomAnchor.constraint(equalTo: row.bottomAnchor, constant: -4),
+    ])
+    danmakuValueLabels.append(valueLabel)
+    danmakuSliders.append(slider)
+    updateDanmakuSliderLabel(tag: tag, value: value)
+    return row
+  }
+
+  private func makeDanmakuAreaRow() -> UIView {
+    let row = UIView()
+    row.heightAnchor.constraint(equalToConstant: 52).isActive = true
+    let label = UILabel()
+    label.text = "显示区域"
+    label.font = UIFont.systemFont(ofSize: 12.5, weight: .medium)
+    label.textColor = NativeTheme.foreground
+    row.addSubview(label)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    let chips = UIStackView()
+    chips.axis = .horizontal
+    chips.alignment = .center
+    chips.spacing = 6
+    row.addSubview(chips)
+    chips.translatesAutoresizingMaskIntoConstraints = false
+    for (index, title) in ["全屏", "1/2 屏", "1/3 屏"].enumerated() {
+      let button = UIButton(type: .custom)
+      button.tag = index
+      button.setTitle(title, for: .normal)
+      button.titleLabel?.font = UIFont.systemFont(ofSize: 10, weight: .bold)
+      button.layer.cornerRadius = NativeTheme.cornerRadius
+      button.layer.cornerCurve = .continuous
+      button.layer.borderWidth = 1
+      button.contentEdgeInsets = UIEdgeInsets(top: 5, left: 9, bottom: 5, right: 9)
+      button.heightAnchor.constraint(equalToConstant: 26).isActive = true
+      button.addTarget(self, action: #selector(danmakuAreaTapped(_:)), for: .touchUpInside)
+      danmakuAreaButtons.append(button)
+      chips.addArrangedSubview(button)
+    }
+    NSLayoutConstraint.activate([
+      label.leadingAnchor.constraint(equalTo: row.leadingAnchor),
+      label.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+      chips.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+      chips.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+      chips.leadingAnchor.constraint(greaterThanOrEqualTo: label.trailingAnchor, constant: 8),
+    ])
+    updateDanmakuArea()
+    return row
+  }
+
+  private func updateDanmakuSliderLabel(tag: Int, value: Float) {
+    guard tag < danmakuValueLabels.count else { return }
+    switch tag {
+    case 0, 1:
+      danmakuValueLabels[tag].text = "\(Int(value))%"
+    default:
+      danmakuValueLabels[tag].text = String(format: "%.1f×", Double(value) / 100.0)
+    }
+  }
+
+  private func updateDanmakuArea() {
+    let titles = ["全屏", "1/2 屏", "1/3 屏"]
+    for (index, button) in danmakuAreaButtons.enumerated() {
+      let on = titles[index] == danmakuArea
+      button.backgroundColor = on ? NativeTheme.navSoft : .clear
+      button.setTitleColor(on ? NativeTheme.navBlue : NativeTheme.secondary,
+                           for: .normal)
+      button.layer.borderColor = on
+        ? NativeTheme.navBlue.withAlphaComponent(0.4).cgColor
+        : NativeTheme.hairline.cgColor
+    }
+  }
+
+  @objc private func danmakuSwitchChanged(_ sender: UISwitch) {
+    if sender.tag == 0 {
+      danmakuOn = sender.isOn
+      UserDefaults.standard.set(danmakuOn, forKey: "danmaku_enabled")
+      updateSettingsLabels()
+      onDanmaku?(danmakuOn)
+    } else {
+      danmakuDensity = sender.isOn
+      UserDefaults.standard.set(danmakuDensity, forKey: "danmaku_density")
+    }
+    onDanmakuSettingsChanged?()
+  }
+
+  @objc private func danmakuSliderChanged(_ sender: UISlider) {
+    if sender.tag == 2 {
+      sender.value = (sender.value / 10).rounded() * 10
+    }
+    let value = sender.value
+    let defaults = UserDefaults.standard
+    switch sender.tag {
+    case 0:
+      danmakuOpacity = value
+      defaults.set(value, forKey: "danmaku_opacity")
+    case 1:
+      danmakuSize = value
+      defaults.set(value, forKey: "danmaku_size")
+    default:
+      danmakuSpeed = value
+      defaults.set(value, forKey: "danmaku_speed")
+    }
+    updateDanmakuSliderLabel(tag: sender.tag, value: value)
+    onDanmakuSettingsChanged?()
+  }
+
+  @objc private func danmakuAreaTapped(_ sender: UIButton) {
+    let titles = ["全屏", "1/2 屏", "1/3 屏"]
+    guard sender.tag < titles.count else { return }
+    danmakuArea = titles[sender.tag]
+    UserDefaults.standard.set(danmakuArea, forKey: "danmaku_area")
+    updateDanmakuArea()
+    onDanmakuSettingsChanged?()
+  }
+
   private func makeQualityChips() -> UIView {
     qualityChips.axis = .horizontal
     qualityChips.spacing = 6
@@ -409,9 +629,14 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   }
 
   @objc private func toggleDanmakuSetting() {
-    danmakuOn.toggle()
-    updateSettingsLabels()
-    onDanmaku?(danmakuOn)
+    danmakuPanel.isHidden.toggle()
+    UIView.animate(withDuration: 0.22, animations: {
+      self.view.layoutIfNeeded()
+    }) { _ in
+      guard !self.danmakuPanel.isHidden else { return }
+      let rect = self.danmakuPanel.convert(self.danmakuPanel.bounds, to: self.scroll)
+      self.scroll.scrollRectToVisible(rect.insetBy(dx: 0, dy: -16), animated: true)
+    }
   }
 
   @objc private func toggleLoopSetting() {

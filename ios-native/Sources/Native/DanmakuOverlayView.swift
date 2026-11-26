@@ -60,6 +60,26 @@ final class DanmakuOverlayView: UIView {
     }
   }
 
+  func applyStoredSettings() {
+    let defaults = UserDefaults.standard
+    let isOn = defaults.object(forKey: "danmaku_enabled") == nil
+      ? true : defaults.bool(forKey: "danmaku_enabled")
+    setEnabled(isOn)
+    guard isOn else { return }
+    let sizePercent = defaults.object(forKey: "danmaku_size") == nil
+      ? 100.0 : Double(defaults.float(forKey: "danmaku_size"))
+    let opacityPercent = defaults.object(forKey: "danmaku_opacity") == nil
+      ? 88.0 : Double(defaults.float(forKey: "danmaku_opacity"))
+    let font = UIFont.systemFont(
+      ofSize: max(8, 13 * CGFloat(sizePercent / 100)), weight: .medium)
+    let alpha = CGFloat(max(0.1, min(1, opacityPercent / 100)))
+    for case let label as UILabel in subviews {
+      label.font = font
+      label.alpha = alpha
+      label.sizeToFit()
+    }
+  }
+
   private func spawn(_ item: DanmakuItem) {
     if subviews.count > 42, let first = subviews.first {
       first.removeFromSuperview()
