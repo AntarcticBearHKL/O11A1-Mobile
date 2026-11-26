@@ -21,6 +21,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let ownerButton = UIButton(type: .system)
   private let wheel = ProgressWheel()
   private let grid = GridProgressBar()
+  private let seekBubble = UILabel()
   private let qualityLabel = UILabel()
   private let speedLabel = UILabel()
   private let commentsButton = UIButton(type: .system)
@@ -131,6 +132,19 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     bottomPanel.clipsToBounds = true
     bottomPanel.layer.borderWidth = 1
     view.addSubview(bottomPanel)
+
+    seekBubble.textAlignment = .center
+    seekBubble.font = NativeTheme.numberFont(9)
+    seekBubble.textColor = .white
+    seekBubble.backgroundColor = UIColor(red: 10.0 / 255.0, green: 13.0 / 255.0,
+                                         blue: 19.0 / 255.0, alpha: 0.94)
+    seekBubble.layer.cornerRadius = 7
+    seekBubble.layer.cornerCurve = .continuous
+    seekBubble.layer.borderWidth = 1
+    seekBubble.layer.borderColor = UIColor(white: 1, alpha: 0.13).cgColor
+    seekBubble.clipsToBounds = true
+    seekBubble.isHidden = true
+    view.addSubview(seekBubble)
 
     bottomBlur.translatesAutoresizingMaskIntoConstraints = false
     bottomBlur.isUserInteractionEnabled = false
@@ -459,6 +473,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     )
     bottomPanel.layoutIfNeeded()
     grid.setNeedsDisplay()
+    seekBubble.frame = CGRect(x: full.midX - 40, y: bottomPanel.frame.minY - 27,
+                              width: 80, height: 21)
   }
 
   private func loadQuality(_ qn: Int) {
@@ -653,6 +669,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private func hideControls() {
     controlsTimer?.invalidate()
     controlsVisible = false
+    seekBubble.isHidden = true
     UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseIn]) {
       self.bottomPanel.alpha = 0
       self.bottomPanel.transform = CGAffineTransform(translationX: 0, y: 16)
@@ -908,8 +925,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       }
       let duration = engine.duration
       wheel.currentText = format(duration * ratio)
+      seekBubble.text = formatMs(duration * ratio)
+      seekBubble.isHidden = false
       return
     }
+    seekBubble.isHidden = true
     let duration = engine.duration
     engine.seek(to: duration * ratio, resume: wasPlayingBeforeScrub)
     isScrubbing = false
@@ -928,6 +948,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       return String(format: "%d:%02d:%02d", hours, minutes, secs)
     }
     return String(format: "%02d:%02d", minutes, secs)
+  }
+
+  private func formatMs(_ seconds: Double) -> String {
+    guard seconds.isFinite, seconds >= 0 else { return "00:00.000" }
+    let total = Int(seconds)
+    let minutes = total / 60
+    let secs = total % 60
+    let millis = Int((seconds - floor(seconds)) * 1000)
+    return String(format: "%02d:%02d.%03d", minutes, secs, millis)
   }
 
   @objc private func openProfile() {

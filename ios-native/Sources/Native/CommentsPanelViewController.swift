@@ -99,7 +99,11 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     sortDock.layer.cornerRadius = 26
     sortDock.layer.cornerCurve = .continuous
     sortDock.layer.borderWidth = 1
-    sortDock.clipsToBounds = true
+    sortDock.layer.shadowColor = UIColor.black.cgColor
+    sortDock.layer.shadowOpacity = 0.18
+    sortDock.layer.shadowRadius = 17
+    sortDock.layer.shadowOffset = CGSize(width: 0, height: 7)
+    sortDock.clipsToBounds = false
     card.addSubview(sortDock)
     sortDock.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
@@ -108,6 +112,9 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
       sortDock.heightAnchor.constraint(equalToConstant: 52),
     ])
     sortBlur.isUserInteractionEnabled = false
+    sortBlur.layer.cornerRadius = 26
+    sortBlur.layer.cornerCurve = .continuous
+    sortBlur.clipsToBounds = true
     sortDock.addSubview(sortBlur)
     sortBlur.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
@@ -174,8 +181,8 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
       ? UIColor(white: 1, alpha: 0.62).cgColor
       : UIColor(white: 1, alpha: 0.10).cgColor
     sortDock.backgroundColor = light
-      ? UIColor(white: 1, alpha: 0.72)
-      : UIColor(red: 20.0 / 255.0, green: 24.0 / 255.0, blue: 32.0 / 255.0, alpha: 0.72)
+      ? UIColor(white: 1, alpha: 0.86)
+      : UIColor(red: 20.0 / 255.0, green: 24.0 / 255.0, blue: 32.0 / 255.0, alpha: 0.86)
     sortBlur.alpha = light ? 0.7 : 0.5
   }
 
