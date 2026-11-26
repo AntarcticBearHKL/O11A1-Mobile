@@ -47,6 +47,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var started = false
   private var speedIndex = 0
   private var commentsSwipe = false
+  private var detailSwipe = false
+  private var detailPanel: VideoDetailViewController?
   private var controlsVisible = true
   private var controlsTimer: Timer?
 
@@ -670,15 +672,20 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     switch gesture.state {
     case .began:
       let velocity = gesture.velocity(in: videoContainer)
-      if abs(velocity.x) > abs(velocity.y) && velocity.x < 0 {
-        commentsSwipe = true
+      if abs(velocity.x) > abs(velocity.y) {
+        if velocity.x < 0 {
+          commentsSwipe = true
+          return
+        }
+        detailSwipe = true
         return
       }
       commentsSwipe = false
+      detailSwipe = false
       panStartFrame = videoContainer.frame
       panProgress = 0
     case .changed:
-      guard !commentsSwipe else { return }
+      guard !commentsSwipe && !detailSwipe else { return }
       let down = max(0, translation.y)
       let maxDistance = max(120, view.bounds.height * 0.52)
       panProgress = min(1, down / maxDistance)
@@ -711,6 +718,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         }
         return
       }
+      if detailSwipe {
+        detailSwipe = false
+        if translation.x > 60 {
+          openDetailPanel()
+        }
+        return
+      }
       let velocity = gesture.velocity(in: view).y
       if panProgress > 0.28 || velocity > 780 {
         closePlayer(animated: true)
@@ -736,6 +750,36 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     comments.view.transform = CGAffineTransform(translationX: -view.bounds.width, y: 0)
     UIView.animate(withDuration: 0.24, delay: 0, options: [.curveEaseOut]) {
       comments.view.transform = .identity
+    }
+  }
+
+  private func openDetailPanel() {
+    guard detailPanel == nil else { return }
+    hideControls()
+    let detail = VideoDetailViewController(item: item)
+    detail.onProfile = { [weak self] mid in self?.onProfile?(mid) }
+    detail.onClose = { [weak self] in self?.closeDetailPanel() }
+    addChild(detail)
+    detail.view.frame = view.bounds
+    detail.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    view.addSubview(detail.view)
+    detail.didMove(toParent: self)
+    detailPanel = detail
+    detail.view.transform = CGAffineTransform(translationX: -view.bounds.width, y: 0)
+    UIView.animate(withDuration: 0.34, delay: 0, options: [.curveEaseOut]) {
+      detail.view.transform = .identity
+    }
+  }
+
+  private func closeDetailPanel() {
+    guard let detail = detailPanel else { return }
+    detailPanel = nil
+    detail.willMove(toParent: nil)
+    UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseIn]) {
+      detail.view.transform = CGAffineTransform(translationX: -self.view.bounds.width, y: 0)
+    } completion: { _ in
+      detail.view.removeFromSuperview()
+      detail.removeFromParent()
     }
   }
 
