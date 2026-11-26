@@ -19,7 +19,7 @@ final class SidebarView: UIView {
     isHidden = true
 
     backdrop.backgroundColor = UIColor { trait in
-      UIColor.black.withAlphaComponent(trait.userInterfaceStyle == .dark ? 0.55 : 0.28)
+      UIColor.black.withAlphaComponent(trait.userInterfaceStyle == .dark ? 0.34 : 0.16)
     }
     backdrop.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(close)))
     addSubview(backdrop)

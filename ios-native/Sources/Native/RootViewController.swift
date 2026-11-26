@@ -460,9 +460,11 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     let progress = max(0, min(1, p))
     mainHost.layer.masksToBounds = progress > 0
     mainHost.layer.cornerRadius = 24 * progress
-    mainHost.transform = CGAffineTransform(
-      translationX: view.bounds.width * 0.10 * progress, y: 0
-    ).scaledBy(x: 1 - 0.10 * progress, y: 1 - 0.10 * progress)
+    let scale = 1 - 0.10 * progress
+    let dx = view.bounds.width * 0.10 * progress
+    let dy = -view.bounds.height * 0.5 * (1 - scale)
+    mainHost.transform = CGAffineTransform(translationX: dx, y: dy)
+      .scaledBy(x: scale, y: scale)
   }
 
   private func animateRecede(to p: CGFloat) {

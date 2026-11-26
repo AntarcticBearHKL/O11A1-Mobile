@@ -163,7 +163,7 @@ final class FeedViewController: UIViewController,
     table.contentInset = UIEdgeInsets(top: insets.top, left: 0,
                                       bottom: 112 + insets.bottom, right: 0)
     table.verticalScrollIndicatorInsets.top = insets.top
-    topFadeHeight?.constant = insets.top + 18
+    topFadeHeight?.constant = (insets.top + 18) * 2.0 / 3.0
   }
 
   override func viewDidLayoutSubviews() {
