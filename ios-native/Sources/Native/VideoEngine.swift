@@ -256,8 +256,17 @@ final class VideoEngine: NSObject {
     }
     let restoring = restoringFromPip
     restoringFromPip = false
-    if !restoring {
-      onPipClose?()
+    if restoring {
+      onPipRestore?()
+      return
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+      guard let self = self else { return }
+      if UIApplication.shared.applicationState == .background {
+        self.onPipClose?()
+      } else {
+        self.onPipRestore?()
+      }
     }
   }
 
