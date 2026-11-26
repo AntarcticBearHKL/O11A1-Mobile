@@ -344,7 +344,12 @@ final class FeedViewController: UIViewController,
       return
     }
     let index = min(focusedIndex, items.count - 1)
-    let cell = collectionView.cellForItem(at: IndexPath(item: index, section: 0)) as? VideoCardCell
+    guard let cell = collectionView.cellForItem(at: IndexPath(item: index, section: 0)) as? VideoCardCell else {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+        self?.openFirstForTest()
+      }
+      return
+    }
     onOpen?(items[index], cell)
   }
 

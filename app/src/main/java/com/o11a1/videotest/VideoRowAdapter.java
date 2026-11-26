@@ -90,6 +90,7 @@ final class VideoRowAdapter extends RecyclerView.Adapter<VideoRowAdapter.Holder>
             setBackgroundColor(Color.TRANSPARENT);
 
             FrameLayout thumb = new FrameLayout(context);
+            cover.setBackgroundColor(0xFF141414);
             cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
             thumb.addView(cover, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));

@@ -76,7 +76,7 @@ final class FeedView extends FrameLayout {
             @Override public void onPageSelected(int position) {
                 if (position > focused) {
                     host.onToolbarHidden(true);
-                } else if (position == 0) {
+                } else if (position < focused || position == 0) {
                     host.onToolbarHidden(false);
                 }
                 focused = position;
@@ -347,6 +347,14 @@ final class FeedView extends FrameLayout {
         if (searchView != null) {
             searchView.destroy();
         }
+    }
+
+    boolean isSearchOpen() {
+        return searchOpen;
+    }
+
+    void closeSearchFromHost() {
+        closeSearch(true);
     }
 
     private final class PageAdapter extends RecyclerView.Adapter<PageHolder> {

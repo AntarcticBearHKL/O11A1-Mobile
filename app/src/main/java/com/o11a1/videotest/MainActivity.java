@@ -292,6 +292,10 @@ public final class MainActivity extends Activity implements FeedView.Host {
     }
 
     @Override public void onBackPressed() {
+        if (feed != null && feed.isSearchOpen()) {
+            feed.closeSearchFromHost();
+            return;
+        }
         if (overlay != null) {
             overlay.close();
             return;
