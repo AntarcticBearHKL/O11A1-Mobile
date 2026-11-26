@@ -282,7 +282,10 @@ final class CommentsView {
 
         @androidx.annotation.NonNull
         @Override public CommentHolder onCreateViewHolder(@androidx.annotation.NonNull ViewGroup parent, int viewType) {
-            return new CommentHolder(new CommentRow(context));
+            CommentRow row = new CommentRow(context);
+            row.setLayoutParams(new RecyclerView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            return new CommentHolder(row);
         }
 
         @Override public void onBindViewHolder(@androidx.annotation.NonNull CommentHolder holder, int position) {

@@ -131,6 +131,7 @@ public final class MainActivity extends Activity implements FeedView.Host, MyVie
         content.addView(currentView, new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         tabBar.select(index, false);
+        myButton.setVisibility(index == 0 ? View.VISIBLE : View.GONE);
         root.bringChildToFront(tabBar);
         root.bringChildToFront(settingsButton);
         root.bringChildToFront(myButton);

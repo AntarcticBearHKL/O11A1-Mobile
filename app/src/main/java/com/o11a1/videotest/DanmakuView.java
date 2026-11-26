@@ -168,9 +168,9 @@ final class DanmakuView extends FrameLayout {
         int maxWidth = Math.max(NativeTheme.dp(context, 120), getWidth() - NativeTheme.dp(context, 32));
         view.setMaxWidth(maxWidth);
         addView(view, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
-        float laneHeight = NativeTheme.dp(context, 26);
-        int lanes = Math.max(1, (int) ((getHeight() * 0.55f) / laneHeight));
-        float y = NativeTheme.dp(context, 54) + (lane % lanes) * laneHeight;
+        float laneHeight = NativeTheme.dp(context, 24);
+        int lanes = Math.max(1, (int) ((getHeight() * 0.45f) / laneHeight));
+        float y = NativeTheme.dp(context, 100) + (lane % lanes) * laneHeight;
         lane += 1;
         view.setY(y);
         view.measure(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),

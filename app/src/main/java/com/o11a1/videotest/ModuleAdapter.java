@@ -64,8 +64,16 @@ final class ModuleAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> 
 
     @NonNull
     @Override public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        if (viewType == TYPE_MESSAGE) return new MessageHolder(new MessageRow(context));
-        return new MediaHolder(new MediaRow(context));
+        if (viewType == TYPE_MESSAGE) {
+            MessageRow row = new MessageRow(context);
+            row.setLayoutParams(new RecyclerView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            return new MessageHolder(row);
+        }
+        MediaRow row = new MediaRow(context);
+        row.setLayoutParams(new RecyclerView.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return new MediaHolder(row);
     }
 
     @Override public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
