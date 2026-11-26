@@ -29,7 +29,13 @@ final class HomeCardCell: UITableViewCell {
     super.init(style: style, reuseIdentifier: reuseIdentifier)
     backgroundColor = .clear
     contentView.backgroundColor = .clear
+    contentView.clipsToBounds = false
+    clipsToBounds = false
     selectionStyle = .none
+    contentView.layer.shadowColor = UIColor.black.cgColor
+    contentView.layer.shadowOpacity = 0.10
+    contentView.layer.shadowRadius = 15
+    contentView.layer.shadowOffset = CGSize(width: 0, height: 12)
 
     let media = UIView()
     media.clipsToBounds = true
@@ -215,6 +221,13 @@ final class HomeCardCell: UITableViewCell {
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     copyGradient.frame = copyView.bounds
+    let shadowRect = contentView.bounds
+    contentView.layer.shadowPath = UIBezierPath(
+      roundedRect: shadowRect,
+      byRoundingCorners: [.bottomLeft, .bottomRight],
+      cornerRadii: CGSize(width: 14, height: 14)).cgPath
+    contentView.layer.shadowOpacity =
+      traitCollection.userInterfaceStyle == .dark ? 0.38 : 0.10
     CATransaction.commit()
   }
 
@@ -222,6 +235,8 @@ final class HomeCardCell: UITableViewCell {
     super.traitCollectionDidChange(previousTraitCollection)
     copyGradient.colors = [NativeTheme.homeRowTop.cgColor,
                            NativeTheme.homeRowBottom.cgColor]
+    contentView.layer.shadowOpacity =
+      traitCollection.userInterfaceStyle == .dark ? 0.38 : 0.10
   }
 
   override func prepareForReuse() {

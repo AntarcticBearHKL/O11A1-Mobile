@@ -200,6 +200,10 @@ final class VideoEngine: NSObject {
     }
   }
 
+  func setLoop(_ value: Bool) {
+    loop = value
+  }
+
   func setMuted(_ muted: Bool) {
     player.isMuted = muted
   }

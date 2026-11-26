@@ -48,7 +48,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var speedIndex = 0
   private var commentsSwipe = false
   private var detailSwipe = false
+  private var settingsSwipe = false
   private var detailPanel: VideoDetailViewController?
+  private var settingsPanel: PlayerSettingsViewController?
+  private var loopOn = false
   private var controlsVisible = true
   private var controlsTimer: Timer?
 
@@ -680,12 +683,17 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         detailSwipe = true
         return
       }
+      if velocity.y < -80 {
+        settingsSwipe = true
+        return
+      }
       commentsSwipe = false
       detailSwipe = false
+      settingsSwipe = false
       panStartFrame = videoContainer.frame
       panProgress = 0
     case .changed:
-      guard !commentsSwipe && !detailSwipe else { return }
+      guard !commentsSwipe && !detailSwipe && !settingsSwipe else { return }
       let down = max(0, translation.y)
       let maxDistance = max(120, view.bounds.height * 0.52)
       panProgress = min(1, down / maxDistance)
@@ -722,6 +730,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         detailSwipe = false
         if translation.x > 60 {
           openDetailPanel()
+        }
+        return
+      }
+      if settingsSwipe {
+        settingsSwipe = false
+        if translation.y < -40 {
+          openSettingsPanel()
         }
         return
       }
@@ -779,6 +794,53 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     } completion: { _ in
       detail.view.removeFromSuperview()
       detail.removeFromParent()
+    }
+  }
+
+  private func openSettingsPanel() {
+    guard settingsPanel == nil else { return }
+    hideControls()
+    let panel = PlayerSettingsViewController(
+      quality: currentQuality,
+      danmaku: danmakuOverlay.enabled,
+      loop: loopOn)
+    panel.onQuality = { [weak self] qn in
+      guard let self = self else { return }
+      self.currentQuality = qn
+      ThemeManager.shared.quality = qn
+      self.loadQuality(qn)
+    }
+    panel.onDanmaku = { [weak self] on in
+      self?.danmakuOverlay.setEnabled(on)
+      self?.danmakuToggle.alpha = on ? 1 : 0.45
+    }
+    panel.onLoop = { [weak self] on in
+      guard let self = self else { return }
+      self.loopOn = on
+      self.engine.setLoop(on)
+    }
+    panel.onClose = { [weak self] in self?.closeSettingsPanel() }
+    addChild(panel)
+    panel.view.frame = view.bounds
+    panel.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    view.addSubview(panel.view)
+    panel.didMove(toParent: self)
+    settingsPanel = panel
+    panel.view.alpha = 0
+    UIView.animate(withDuration: 0.3) {
+      panel.view.alpha = 1
+    }
+  }
+
+  private func closeSettingsPanel() {
+    guard let panel = settingsPanel else { return }
+    settingsPanel = nil
+    panel.willMove(toParent: nil)
+    UIView.animate(withDuration: 0.24) {
+      panel.view.alpha = 0
+    } completion: { _ in
+      panel.view.removeFromSuperview()
+      panel.removeFromParent()
     }
   }
 
@@ -879,8 +941,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       if abs(velocity.x) > abs(velocity.y) {
         return abs(velocity.x) > 60
       }
-      if velocity.y < -80 { return false }
-      return true
+      return abs(velocity.y) > 60
     }
     return true
   }
