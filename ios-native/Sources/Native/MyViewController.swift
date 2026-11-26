@@ -173,12 +173,19 @@ final class MyViewController: UIViewController {
     ])
     list.addArrangedSubview(row)
 
+    let lineWrap = UIView()
     let line = UIView()
     line.backgroundColor = NativeTheme.hairline
-    line.heightAnchor.constraint(equalToConstant: 0.5).isActive = true
-    line.widthAnchor.constraint(equalTo: list.widthAnchor, constant: -18).isActive = true
-    line.leadingAnchor.constraint(equalTo: list.leadingAnchor, constant: 18).isActive = true
-    list.addArrangedSubview(line)
+    lineWrap.addSubview(line)
+    line.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      line.leadingAnchor.constraint(equalTo: lineWrap.leadingAnchor, constant: 18),
+      line.trailingAnchor.constraint(equalTo: lineWrap.trailingAnchor),
+      line.topAnchor.constraint(equalTo: lineWrap.topAnchor),
+      line.bottomAnchor.constraint(equalTo: lineWrap.bottomAnchor),
+      line.heightAnchor.constraint(equalToConstant: 0.5),
+    ])
+    list.addArrangedSubview(lineWrap)
   }
 
   @objc private func close() {
