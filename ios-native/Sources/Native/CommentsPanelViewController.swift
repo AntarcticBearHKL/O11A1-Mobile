@@ -5,6 +5,8 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   var embedded = false
   var onSwipeLeft: (() -> Void)?
   var onSwipeRight: (() -> Void)?
+  var onPullDown: ((CGFloat) -> Void)?
+  var onPullDownEnded: ((Bool) -> Void)?
   private let aid: Int64
   private let card = UIView()
   private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
@@ -21,6 +23,8 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   private var loading = false
   private var dismissPan: UIPanGestureRecognizer?
   private var embeddedSwipePan: UIPanGestureRecognizer?
+  private var pullDownPan: UIPanGestureRecognizer?
+  private var pullDownArmed = false
   private var repliesCache: [Int64: [CommentItem]] = [:]
   private var expandedRoots: Set<Int64> = []
   private var loadingReplies: Set<Int64> = []
@@ -164,6 +168,12 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
       view.addGestureRecognizer(swipe)
       table.panGestureRecognizer.require(toFail: swipe)
       embeddedSwipePan = swipe
+
+      let pull = UIPanGestureRecognizer(target: self, action: #selector(handlePullDown(_:)))
+      pull.delegate = self
+      view.addGestureRecognizer(pull)
+      table.panGestureRecognizer.require(toFail: pull)
+      pullDownPan = pull
     }
 
     load(reset: true)
@@ -348,8 +358,38 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     }
   }
 
+  @objc private func handlePullDown(_ gesture: UIPanGestureRecognizer) {
+    let reference = view.superview ?? view
+    let translation = max(0, gesture.translation(in: reference).y)
+    let progress = min(1, translation / 150)
+    switch gesture.state {
+    case .changed:
+      onPullDown?(progress)
+    case .ended, .cancelled:
+      let velocity = gesture.velocity(in: reference).y
+      onPullDownEnded?(progress > 0.35 || velocity > 450)
+    default:
+      break
+    }
+  }
+
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldReceive touch: UITouch) -> Bool {
+    if gestureRecognizer === pullDownPan {
+      pullDownArmed = table.contentOffset.y <= 1
+    }
+    return true
+  }
+
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+    if pan === pullDownPan {
+      guard embedded, pullDownArmed else { return false }
+      let velocity = pan.velocity(in: view)
+      let translation = pan.translation(in: view)
+      return (translation.y > 2 && abs(translation.y) > abs(translation.x) * 1.1)
+        || (velocity.y > 60 && abs(velocity.y) > abs(velocity.x) * 1.1)
+    }
     if pan === embeddedSwipePan {
       let velocity = pan.velocity(in: view)
       let translation = pan.translation(in: view)

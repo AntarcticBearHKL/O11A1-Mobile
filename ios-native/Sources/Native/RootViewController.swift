@@ -31,7 +31,15 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   }
 
   override var prefersStatusBarHidden: Bool {
-    return player != nil
+    return false
+  }
+
+  override var childForStatusBarStyle: UIViewController? {
+    return player
+  }
+
+  override var childForStatusBarHidden: UIViewController? {
+    return player
   }
 
   private func setPlayerOrientation(_ landscape: Bool) {
@@ -83,8 +91,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     NSLayoutConstraint.activate([
       tabBar.leadingAnchor.constraint(equalTo: mainHost.leadingAnchor, constant: 12),
       tabBar.trailingAnchor.constraint(equalTo: mainHost.trailingAnchor, constant: -12),
-      tabBar.bottomAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.bottomAnchor, constant: -10),
-      tabBar.heightAnchor.constraint(equalToConstant: 66),
+      tabBar.bottomAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.bottomAnchor, constant: -4),
+      tabBar.heightAnchor.constraint(equalToConstant: 72),
     ])
 
     settingsButton.setImage(UIImage(systemName: "gearshape.fill"), for: .normal)

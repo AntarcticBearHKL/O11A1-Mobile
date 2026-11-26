@@ -68,8 +68,8 @@ final class GlassTabBar: UIView {
     addSubview(stack)
     stack.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
-      stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+      stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+      stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
       stack.topAnchor.constraint(equalTo: topAnchor),
       stack.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
@@ -107,7 +107,7 @@ final class GlassTabBar: UIView {
   private func layoutPill(animated: Bool) {
     guard selectedIndex >= 0 && selectedIndex < buttons.count else { return }
     let button = buttons[selectedIndex]
-    let target = button.convert(button.bounds, to: self).insetBy(dx: 4, dy: 4)
+    let target = button.convert(button.bounds, to: self).insetBy(dx: 5, dy: 5)
     if animated {
       pillAnimating = true
       pill.layer.removeAllAnimations()
