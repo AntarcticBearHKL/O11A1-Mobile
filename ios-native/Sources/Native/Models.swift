@@ -14,6 +14,17 @@ struct VideoItem: Equatable {
   var play: Int64 = 0
   var playText = "0"
   var desc = ""
+  var kind = "video"
+  var seasonId: Int64 = 0
+  var roomId: Int64 = 0
+  var epId: Int64 = 0
+  var user = ""
+  var avatar = ""
+  var text = ""
+  var time: Int64 = 0
+  var meta = ""
+  var badge = ""
+  var progress: Int64 = 0
 
   init() {}
 
@@ -31,6 +42,17 @@ struct VideoItem: Equatable {
     play = o11a1Int64(json["play"])
     playText = o11a1String(json["playText"])
     desc = o11a1String(json["desc"])
+    kind = o11a1String(json["kind"]).isEmpty ? "video" : o11a1String(json["kind"])
+    seasonId = o11a1Int64(json["seasonId"])
+    roomId = o11a1Int64(json["roomId"])
+    epId = o11a1Int64(json["epId"])
+    user = o11a1String(json["user"])
+    avatar = o11a1HTTPS(o11a1String(json["avatar"]))
+    text = o11a1String(json["text"])
+    time = o11a1Int64(json["time"])
+    meta = o11a1String(json["meta"])
+    badge = o11a1String(json["badge"])
+    progress = o11a1Int64(json["progress"])
     if title.isEmpty { title = "视频" }
     if owner.isEmpty { owner = "UP 主" }
     if duration.isEmpty { duration = "00:00" }
@@ -71,6 +93,27 @@ struct CommentItem {
   var likes = 0
   var time = 0
   var replies = 0
+}
+
+struct LiveSource {
+  var url = ""
+  var title = ""
+  var owner = ""
+  var format = ""
+}
+
+struct DanmakuItem {
+  var time: Double = 0
+  var text = ""
+  var color: UInt32 = 0xFFFFFF
+  var mode = 1
+}
+
+struct SeasonResult {
+  var title = ""
+  var cover = ""
+  var evaluate = ""
+  var episodes: [VideoItem] = []
 }
 
 enum NativeError: LocalizedError {

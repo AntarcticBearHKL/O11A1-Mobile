@@ -3,13 +3,13 @@ import Foundation
 final class BiliAPI {
   static let shared = BiliAPI()
 
-  private let client = O11A1BiliClient()
+  let client = O11A1BiliClient()
   private let queue = DispatchQueue(label: "o11a1.api", qos: .userInitiated, attributes: .concurrent)
 
   var isLoggedIn: Bool { client.hasSession() }
   var mediaHeaders: [String: String] { client.mediaHeaders() }
 
-  private func run(
+  func run(
     _ work: @escaping () -> Data,
     _ completion: @escaping (Result<[String: Any], Error>) -> Void
   ) {
@@ -17,7 +17,7 @@ final class BiliAPI {
       let data = work()
       guard let json = nativeJSON(data) else {
         DispatchQueue.main.async {
-          completion(.failure(NativeError.message("接口返回异常")))
+          completion(.failure(NativeError.message("鎺ュ彛杩斿洖寮傚父")))
         }
         return
       }
@@ -25,7 +25,7 @@ final class BiliAPI {
       if !ok {
         let message = o11a1String(json["error"])
         DispatchQueue.main.async {
-          completion(.failure(NativeError.message(message.isEmpty ? "请求失败" : message)))
+          completion(.failure(NativeError.message(message.isEmpty ? "璇锋眰澶辫触" : message)))
         }
         return
       }
@@ -93,7 +93,7 @@ final class BiliAPI {
     }
   }
 
-  private func finishPlay(
+  func finishPlay(
     _ result: Result<[String: Any], Error>,
     _ completion: @escaping (Result<PlaySource, Error>) -> Void
   ) {
@@ -108,7 +108,7 @@ final class BiliAPI {
       source.qualityLabel = o11a1String(json["qualityLabel"])
       source.cid = o11a1Int64(json["cid"])
       if source.url.isEmpty {
-        completion(.failure(NativeError.message("没有可播放地址")))
+        completion(.failure(NativeError.message("娌℃湁鍙挱鏀惧湴鍧€")))
       } else {
         completion(.success(source))
       }
@@ -124,7 +124,7 @@ final class BiliAPI {
         let url = o11a1String(json["url"])
         let key = o11a1String(json["key"])
         if url.isEmpty || key.isEmpty {
-          completion(.failure(NativeError.message("二维码生成失败")))
+          completion(.failure(NativeError.message("浜岀淮鐮佺敓鎴愬け璐?)))
         } else {
           completion(.success((url, key)))
         }

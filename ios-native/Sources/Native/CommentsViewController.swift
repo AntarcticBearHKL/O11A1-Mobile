@@ -6,6 +6,8 @@ final class CommentsViewController: UIViewController, UITableViewDataSource, UIT
   private let titleLabel = UILabel()
   private let closeButton = UIButton(type: .system)
   private let status = UILabel()
+  private let input = UITextField()
+  private let sendButton = UIButton(type: .system)
   private var items: [CommentItem] = []
   private var page = 1
   private var loading = false
@@ -56,7 +58,27 @@ final class CommentsViewController: UIViewController, UITableViewDataSource, UIT
     status.isHidden = true
     view.addSubview(status)
 
-    [titleLabel, closeButton, table, status].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
+    input.placeholder = "发一条友善的评论"
+    input.font = NativeTheme.bodyFont(13)
+    input.textColor = NativeTheme.foreground
+    input.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.06)
+    input.layer.cornerRadius = 18
+    input.layer.cornerCurve = .continuous
+    input.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 12, height: 1))
+    input.leftViewMode = .always
+    input.returnKeyType = .send
+    input.delegate = self
+    view.addSubview(input)
+
+    sendButton.setTitle("发送", for: .normal)
+    sendButton.setTitleColor(NativeTheme.accent, for: .normal)
+    sendButton.titleLabel?.font = NativeTheme.titleFont(13)
+    sendButton.addTarget(self, action: #selector(sendTapped), for: .touchUpInside)
+    view.addSubview(sendButton)
+
+    [titleLabel, closeButton, table, status, input, sendButton].forEach {
+      $0.translatesAutoresizingMaskIntoConstraints = false
+    }
     NSLayoutConstraint.activate([
       titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
       titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 14),
@@ -69,18 +91,45 @@ final class CommentsViewController: UIViewController, UITableViewDataSource, UIT
       table.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       table.trailingAnchor.constraint(equalTo: view.trailingAnchor),
       table.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 12),
-      table.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+      table.bottomAnchor.constraint(equalTo: input.topAnchor, constant: -8),
 
       status.centerXAnchor.constraint(equalTo: view.centerXAnchor),
       status.centerYAnchor.constraint(equalTo: view.centerYAnchor),
       status.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
       status.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24),
+
+      input.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+      input.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
+      input.heightAnchor.constraint(equalToConstant: 38),
+      input.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -8),
+
+      sendButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+      sendButton.centerYAnchor.constraint(equalTo: input.centerYAnchor),
+      sendButton.widthAnchor.constraint(equalToConstant: 52),
     ])
     load()
   }
 
   @objc private func close() {
     dismiss(animated: true)
+  }
+
+  @objc private func sendTapped() {
+    let text = input.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    guard !text.isEmpty else { return }
+    input.text = ""
+    BiliAPI.shared.sendComment(aid: aid, message: text) { [weak self] ok in
+      guard let self = self else { return }
+      if ok {
+        self.items = []
+        self.page = 1
+        self.table.reloadData()
+        self.load()
+      } else {
+        self.status.text = "发送失败，请先登录"
+        self.status.isHidden = false
+      }
+    }
   }
 
   private func load() {
@@ -121,6 +170,14 @@ final class CommentsViewController: UIViewController, UITableViewDataSource, UIT
     if scrollView.contentOffset.y > scrollView.contentSize.height - scrollView.bounds.height * 2 {
       load()
     }
+  }
+}
+
+extension CommentsViewController: UITextFieldDelegate {
+  func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+    sendTapped()
+    textField.resignFirstResponder()
+    return true
   }
 }
 

@@ -1,4 +1,4 @@
-﻿import AVKit
+import AVKit
 import UIKit
 
 final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
@@ -20,10 +20,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let ownerButton = UIButton(type: .system)
   private let wheel = ProgressWheel()
   private let qualityLabel = UILabel()
+  private let speedLabel = UILabel()
   private let commentsButton = UIButton(type: .system)
   private let likeButton = UIButton(type: .system)
   private let coinButton = UIButton(type: .system)
   private let favButton = UIButton(type: .system)
+  private let followButton = UIButton(type: .system)
+  private let danmakuToggle = UIButton(type: .system)
+  private let danmakuSend = UIButton(type: .system)
+  private let danmakuOverlay = DanmakuOverlayView()
   private let errorLabel = UILabel()
   private var sourceFrame: CGRect = .zero
   private var panStartFrame: CGRect = .zero
@@ -34,6 +39,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var currentQuality = 80
   private var loadToken = 0
   private var started = false
+  private var speedIndex = 0
 
   init(item: VideoItem, sourceView: UIView?) {
     self.item = item
@@ -90,6 +96,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     titleLabel.lineBreakMode = .byTruncatingTail
     topBar.addSubview(titleLabel)
 
+    followButton.setTitle("关注", for: .normal)
+    followButton.setTitleColor(.white, for: .normal)
+    followButton.titleLabel?.font = NativeTheme.bodyFont(12)
+    followButton.backgroundColor = UIColor.white.withAlphaComponent(0.18)
+    followButton.layer.cornerRadius = 12
+    followButton.layer.cornerCurve = .continuous
+    followButton.addTarget(self, action: #selector(followTapped), for: .touchUpInside)
+    topBar.addSubview(followButton)
+
     playButton.setImage(UIImage(systemName: "play.fill"), for: .normal)
     playButton.tintColor = .white
     playButton.backgroundColor = UIColor.black.withAlphaComponent(0.30)
@@ -124,7 +139,29 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     qualityLabel.textColor = UIColor.white.withAlphaComponent(0.70)
     qualityLabel.textAlignment = .right
     qualityLabel.text = "720P"
+    qualityLabel.isUserInteractionEnabled = true
+    qualityLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(cycleQuality)))
     content.addSubview(qualityLabel)
+
+    speedLabel.font = NativeTheme.numberFont(10)
+    speedLabel.textColor = UIColor.white.withAlphaComponent(0.70)
+    speedLabel.textAlignment = .right
+    speedLabel.text = "1.0x"
+    speedLabel.isUserInteractionEnabled = true
+    speedLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(cycleSpeed)))
+    content.addSubview(speedLabel)
+
+    danmakuToggle.setTitle("弹", for: .normal)
+    danmakuToggle.setTitleColor(.white, for: .normal)
+    danmakuToggle.titleLabel?.font = NativeTheme.numberFont(11)
+    danmakuToggle.addTarget(self, action: #selector(toggleDanmaku), for: .touchUpInside)
+    topBar.addSubview(danmakuToggle)
+
+    danmakuSend.setTitle("＋弹", for: .normal)
+    danmakuSend.setTitleColor(.white, for: .normal)
+    danmakuSend.titleLabel?.font = NativeTheme.numberFont(10)
+    danmakuSend.addTarget(self, action: #selector(sendDanmakuTapped), for: .touchUpInside)
+    topBar.addSubview(danmakuSend)
 
     commentsButton.setImage(UIImage(systemName: "text.bubble"), for: .normal)
     commentsButton.tintColor = .white
@@ -146,6 +183,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     favButton.addTarget(self, action: #selector(favorite), for: .touchUpInside)
     content.addSubview(favButton)
 
+    danmakuOverlay.backgroundColor = .clear
+    view.insertSubview(danmakuOverlay, aboveSubview: videoContainer)
+
     errorLabel.font = NativeTheme.bodyFont(13)
     errorLabel.textColor = NativeTheme.pipRose
     errorLabel.numberOfLines = 0
@@ -154,7 +194,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     view.addSubview(errorLabel)
 
     [backButton, titleLabel, playButton, bottomPanel, ownerLabel, ownerButton, wheel,
-     qualityLabel, commentsButton, likeButton, coinButton, favButton, errorLabel].forEach {
+     qualityLabel, speedLabel, commentsButton, likeButton, coinButton, favButton,
+     followButton, danmakuToggle, danmakuSend, errorLabel].forEach {
       $0.translatesAutoresizingMaskIntoConstraints = false
     }
 
@@ -165,8 +206,23 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       backButton.heightAnchor.constraint(equalToConstant: 44),
 
       titleLabel.leadingAnchor.constraint(equalTo: backButton.trailingAnchor, constant: 4),
-      titleLabel.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -16),
+      titleLabel.trailingAnchor.constraint(equalTo: danmakuSend.leadingAnchor, constant: -4),
       titleLabel.centerYAnchor.constraint(equalTo: backButton.centerYAnchor),
+
+      followButton.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -12),
+      followButton.centerYAnchor.constraint(equalTo: backButton.centerYAnchor),
+      followButton.widthAnchor.constraint(equalToConstant: 54),
+      followButton.heightAnchor.constraint(equalToConstant: 30),
+
+      danmakuToggle.trailingAnchor.constraint(equalTo: followButton.leadingAnchor, constant: -8),
+      danmakuToggle.centerYAnchor.constraint(equalTo: backButton.centerYAnchor),
+      danmakuToggle.widthAnchor.constraint(equalToConstant: 28),
+      danmakuToggle.heightAnchor.constraint(equalToConstant: 30),
+
+      danmakuSend.trailingAnchor.constraint(equalTo: danmakuToggle.leadingAnchor, constant: -2),
+      danmakuSend.centerYAnchor.constraint(equalTo: backButton.centerYAnchor),
+      danmakuSend.widthAnchor.constraint(equalToConstant: 34),
+      danmakuSend.heightAnchor.constraint(equalToConstant: 30),
 
       playButton.widthAnchor.constraint(equalToConstant: 64),
       playButton.heightAnchor.constraint(equalToConstant: 64),
@@ -186,6 +242,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       qualityLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
       qualityLabel.topAnchor.constraint(equalTo: wheel.bottomAnchor, constant: 2),
       qualityLabel.widthAnchor.constraint(equalToConstant: 56),
+
+      speedLabel.trailingAnchor.constraint(equalTo: qualityLabel.leadingAnchor, constant: -8),
+      speedLabel.topAnchor.constraint(equalTo: wheel.bottomAnchor, constant: 2),
+      speedLabel.widthAnchor.constraint(equalToConstant: 40),
 
       commentsButton.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 18),
       commentsButton.topAnchor.constraint(equalTo: wheel.bottomAnchor, constant: 4),
@@ -228,6 +288,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     engine.onTime = { [weak self] seconds, duration in
       guard let self = self, !self.isScrubbing else { return }
+      self.danmakuOverlay.setTime(seconds)
       let safeDuration = duration > 0 ? duration : 1
       self.wheel.progress = max(0, min(1, seconds / safeDuration))
       self.wheel.currentText = self.format(seconds)
@@ -259,6 +320,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
 
     loadQuality(80)
+    if item.roomId == 0, item.cid > 0 {
+      danmakuOverlay.load(cid: item.cid)
+    } else {
+      danmakuOverlay.isHidden = true
+    }
   }
 
   override func viewDidAppear(_ animated: Bool) {
@@ -291,6 +357,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     topBar.frame = CGRect(x: 0, y: view.safeAreaInsets.top, width: full.width, height: 52)
     playerView.frame = videoContainer.bounds
     poster.frame = videoContainer.bounds
+    danmakuOverlay.frame = videoContainer.frame
     playButton.center = CGPoint(x: videoContainer.center.x, y: videoContainer.center.y)
     let panelHeight: CGFloat = 150
     bottomPanel.frame = CGRect(
@@ -305,7 +372,32 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     currentQuality = qn
     loadToken += 1
     let token = loadToken
-    BiliAPI.shared.playQuality(item, qn: qn) { [weak self] result in
+    if item.roomId > 0 {
+      qualityLabel.text = "LIVE"
+      wheel.isHidden = true
+      speedLabel.isHidden = true
+      danmakuOverlay.isHidden = true
+      BiliAPI.shared.liveRoom(roomId: item.roomId) { [weak self] result in
+        guard let self = self, token == self.loadToken else { return }
+        switch result {
+        case .success(let source):
+          if !source.title.isEmpty { self.titleLabel.text = source.title }
+          if !source.owner.isEmpty { self.ownerLabel.text = source.owner }
+          self.engine.load(
+            url: source.url,
+            headers: BiliAPI.shared.mediaHeaders,
+            autoplay: true,
+            muted: false,
+            loop: false
+          )
+        case .failure(let error):
+          self.errorLabel.text = error.localizedDescription
+          self.errorLabel.isHidden = false
+        }
+      }
+      return
+    }
+    let completion: (Result<PlaySource, Error>) -> Void = { [weak self] result in
       guard let self = self, token == self.loadToken else { return }
       switch result {
       case .success(let source):
@@ -324,11 +416,61 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         } else if qn > 32 {
           self.loadQuality(32)
         } else {
-          self.errorLabel.text = "鏃犳硶鑾峰彇鎾斁鍦板潃"
+          self.errorLabel.text = "无法获取播放地址"
           self.errorLabel.isHidden = false
         }
       }
     }
+    if item.epId > 0 {
+      BiliAPI.shared.playPgc(epId: item.epId, bvid: item.bvid, cid: item.cid, qn: qn, completion: completion)
+    } else {
+      BiliAPI.shared.playQuality(item, qn: qn, completion: completion)
+    }
+  }
+
+  @objc private func cycleQuality() {
+    if currentQuality > 64 { loadQuality(64) }
+    else if currentQuality > 32 { loadQuality(32) }
+    else { loadQuality(80) }
+  }
+
+  @objc private func cycleSpeed() {
+    let values: [Float] = [1, 1.25, 1.5, 2]
+    speedIndex = (speedIndex + 1) % values.count
+    let value = values[speedIndex]
+    engine.setRate(value)
+    speedLabel.text = value == 1 ? "1.0x" : "\(value)x"
+  }
+
+  @objc private func followTapped() {
+    guard item.mid > 0 else { return }
+    BiliAPI.shared.follow(mid: item.mid, on: true) { [weak self] ok in
+      self?.followButton.setTitle(ok ? "已关注" : "关注失败", for: .normal)
+      self?.followButton.alpha = ok ? 0.6 : 1
+    }
+  }
+
+  @objc private func toggleDanmaku() {
+    danmakuOverlay.setEnabled(!danmakuOverlay.enabled)
+    danmakuToggle.alpha = danmakuOverlay.enabled ? 1 : 0.45
+  }
+
+  @objc private func sendDanmakuTapped() {
+    guard item.cid > 0 else { return }
+    let alert = UIAlertController(title: "发弹幕", message: nil, preferredStyle: .alert)
+    alert.addTextField { field in
+      field.placeholder = "发一条弹幕"
+      field.clearButtonMode = .whileEditing
+    }
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    alert.addAction(UIAlertAction(title: "发送", style: .default) { [weak self, weak alert] _ in
+      guard let self = self else { return }
+      let text = alert?.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      guard !text.isEmpty else { return }
+      let progress = Int64(max(0, self.engine.currentTime) * 1000)
+      BiliAPI.shared.sendDanmaku(cid: self.item.cid, message: text, progressMs: progress)
+    })
+    present(alert, animated: true)
   }
 
   @objc private func togglePlay() {

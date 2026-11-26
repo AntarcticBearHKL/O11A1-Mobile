@@ -16,6 +16,9 @@ final class VideoItem {
     long play = 0;
     String playText = "0";
     String desc = "";
+    long roomId = 0;
+    long epId = 0;
+    boolean live = false;
 
     static VideoItem from(JSONObject json) {
         VideoItem item = new VideoItem();

@@ -40,12 +40,14 @@ final class PlayerOverlay extends FrameLayout {
     private final TextView owner;
     private final TextView quality;
     private final ProgressWheelView wheel;
+    private final DanmakuView danmaku;
     private final ImageButton playButton;
     private final TextView error;
     private final ExecutorService pool = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable longPressRunnable;
     private final int statusInset;
+    private final long createdAt = System.currentTimeMillis();
     private int qualityQn;
     private int loadToken = 0;
     private boolean scrubbing = false;
@@ -90,6 +92,9 @@ final class PlayerOverlay extends FrameLayout {
         engine.view().setFocusable(false);
         videoHost.addView(engine.view(), new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
 
+        danmaku = new DanmakuView(context, api, extras);
+        addView(danmaku, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+
         dim = new View(context);
         dim.setBackgroundColor(0x33000000);
         dim.setClickable(false);
@@ -122,6 +127,25 @@ final class PlayerOverlay extends FrameLayout {
         titleParams.leftMargin = NativeTheme.dp(context, 4);
         topBar.addView(title, titleParams);
 
+        TextView followButton = new TextView(context);
+        followButton.setText("关注");
+        followButton.setTextColor(0xFFFFFFFF);
+        followButton.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        followButton.setGravity(android.view.Gravity.CENTER);
+        followButton.setPadding(NativeTheme.dp(context, 10), NativeTheme.dp(context, 4),
+            NativeTheme.dp(context, 10), NativeTheme.dp(context, 4));
+        followButton.setBackground(NativeTheme.rounded(0x33FFFFFF, NativeTheme.dp(context, 12)));
+        followButton.setOnClickListener(v -> pool.execute(() -> {
+            JSONObject result = extras.follow(item.mid, true);
+            final boolean ok = result != null && result.optBoolean("ok", false);
+            main.post(() -> {
+                followButton.setText(ok ? "已关注" : "关注失败");
+                followButton.setAlpha(ok ? 0.6f : 1f);
+            });
+        }));
+        topBar.addView(followButton, new LinearLayout.LayoutParams(
+            LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
+
         playButton = new ImageButton(context);
         playButton.setImageResource(android.R.drawable.ic_media_pause);
         playButton.setBackgroundColor(0x4D000000);
@@ -147,7 +171,7 @@ final class PlayerOverlay extends FrameLayout {
         addView(bottomPanel, panelParams);
 
         owner = new TextView(context);
-        owner.setText(item.owner + " 路 UP 涓婚〉");
+        owner.setText(item.owner + " · UP 主页");
         owner.setTextColor(Color.WHITE);
         owner.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         owner.setOnClickListener(v -> {
@@ -172,7 +196,7 @@ final class PlayerOverlay extends FrameLayout {
         bottomPanel.addView(actions, actionParams);
 
         ImageButton comments = iconButton(context, android.R.drawable.ic_menu_info_details);
-        comments.setOnClickListener(v -> showText("评论功能正在迁移到原生"));
+        comments.setOnClickListener(v -> CommentsView.show(getContext(), api, extras, item.aid));
         actions.addView(comments, new LinearLayout.LayoutParams(
             NativeTheme.dp(context, 38), NativeTheme.dp(context, 38)));
 
@@ -191,6 +215,28 @@ final class PlayerOverlay extends FrameLayout {
         actions.addView(fav, new LinearLayout.LayoutParams(
             NativeTheme.dp(context, 38), NativeTheme.dp(context, 38)));
 
+        TextView dmToggle = new TextView(context);
+        dmToggle.setText("弹");
+        dmToggle.setTextColor(0xCCFFFFFF);
+        dmToggle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        dmToggle.setGravity(android.view.Gravity.CENTER);
+        dmToggle.setOnClickListener(v -> {
+            boolean next = !danmaku.isDanmakuEnabled();
+            danmaku.setDanmakuEnabled(next);
+            dmToggle.setTextColor(next ? 0xFFFFFFFF : 0x66FFFFFF);
+        });
+        actions.addView(dmToggle, new LinearLayout.LayoutParams(
+            NativeTheme.dp(context, 32), NativeTheme.dp(context, 34)));
+
+        TextView dmSend = new TextView(context);
+        dmSend.setText("＋弹");
+        dmSend.setTextColor(0xCCFFFFFF);
+        dmSend.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        dmSend.setGravity(android.view.Gravity.CENTER);
+        dmSend.setOnClickListener(v -> showDanmakuInput());
+        actions.addView(dmSend, new LinearLayout.LayoutParams(
+            NativeTheme.dp(context, 38), NativeTheme.dp(context, 34)));
+
         View spacer = new View(context);
         actions.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1f));
 
@@ -201,6 +247,23 @@ final class PlayerOverlay extends FrameLayout {
         quality.setText("720P");
         quality.setOnClickListener(v -> cycleQuality());
         actions.addView(quality, new LinearLayout.LayoutParams(
+            LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
+
+        TextView speed = new TextView(context);
+        speed.setTextColor(0xB3FFFFFF);
+        speed.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        speed.setTypeface(NativeTheme.numberTypeface());
+        speed.setText("1.0x");
+        speed.setPadding(NativeTheme.dp(context, 6), 0, 0, 0);
+        final float[] speeds = {1f, 1.25f, 1.5f, 2f};
+        final int[] speedIndex = {0};
+        speed.setOnClickListener(v -> {
+            speedIndex[0] = (speedIndex[0] + 1) % speeds.length;
+            float value = speeds[speedIndex[0]];
+            engine.setSpeed(value);
+            speed.setText(value == 1f ? "1.0x" : value + "x");
+        });
+        actions.addView(speed, new LinearLayout.LayoutParams(
             LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
 
         error = new TextView(context);
@@ -223,6 +286,7 @@ final class PlayerOverlay extends FrameLayout {
         engine.setListener(new VideoEngine.Listener() {
             @Override public void onProgress(long positionMs, long durationMs, boolean playing) {
                 if (!scrubbing) wheel.setProgress(positionMs, durationMs);
+                danmaku.setPosition(positionMs);
                 updatePlayIcon(playing);
             }
 
@@ -245,6 +309,7 @@ final class PlayerOverlay extends FrameLayout {
         setOnTouchListener(this::onRootTouch);
         qualityQn = NativeTheme.quality(context);
         loadQuality(qualityQn);
+        if (!item.live && item.cid > 0) danmaku.load(item.cid);
 
         if (sourceView != null) {
             videoHost.post(() -> animateOpen(sourceView));
@@ -304,23 +369,40 @@ final class PlayerOverlay extends FrameLayout {
         loadToken += 1;
         final int token = loadToken;
         final int requestQn = qualityQn;
+        final boolean live = item.roomId > 0;
+        if (live) {
+            wheel.setVisibility(GONE);
+            quality.setText("LIVE");
+        }
         pool.execute(() -> {
-            JSONObject result = api.playQuality(item.bvid, item.cid, requestQn);
+            JSONObject result;
+            if (live) {
+                result = extras.liveRoom(item.roomId);
+            } else if (item.epId > 0) {
+                result = extras.playPgc(item.epId, item.bvid, item.cid, requestQn);
+            } else {
+                result = api.playQuality(item.bvid, item.cid, requestQn);
+            }
+            final JSONObject value = result;
             main.post(() -> {
                 if (token != loadToken) return;
-                if (result == null || !result.optBoolean("ok", false)) {
-                    if (qualityQn > 64) loadQuality(64);
-                    else if (qualityQn > 32) loadQuality(32);
+                if (value == null || !value.optBoolean("ok", false)) {
+                    if (!live && qualityQn > 64) loadQuality(64);
+                    else if (!live && qualityQn > 32) loadQuality(32);
                     else {
-                        error.setText("鏃犳硶鑾峰彇鎾斁鍦板潃");
+                        error.setText(live ? "无法获取直播地址" : "无法获取播放地址");
                         error.setVisibility(View.VISIBLE);
                     }
                     return;
                 }
-                String url = result.optString("url", result.optString("remote", ""));
-                String backup = result.optString("backup", result.optString("backupRemote", ""));
-                String label = result.optString("qualityLabel", "");
-                quality.setText(label.isEmpty() ? requestQn + "P" : label);
+                String url = value.optString("url", value.optString("remote", ""));
+                String backup = value.optString("backup", value.optString("backupRemote", ""));
+                String label = value.optString("qualityLabel", "");
+                if (!live) quality.setText(label.isEmpty() ? requestQn + "P" : label);
+                if (!value.optString("title", "").isEmpty()) title.setText(value.optString("title"));
+                if (!value.optString("owner", "").isEmpty()) {
+                    owner.setText(value.optString("owner") + " · UP 主页");
+                }
                 if (url.isEmpty()) return;
                 engine.load(url, backup, true, false, false, 0);
             });
@@ -371,7 +453,8 @@ final class PlayerOverlay extends FrameLayout {
                 }
                 if (System.currentTimeMillis() - touchStartAt < 240
                     && Math.abs(event.getX() - touchStartX) < 14
-                    && Math.abs(event.getY() - touchStartY) < 14) {
+                    && Math.abs(event.getY() - touchStartY) < 14
+                    && System.currentTimeMillis() - createdAt > 420) {
                     togglePlay();
                 }
                 return true;
@@ -480,6 +563,7 @@ final class PlayerOverlay extends FrameLayout {
             bottomPanel.setVisibility(View.GONE);
             playButton.setVisibility(View.GONE);
             poster.setVisibility(View.GONE);
+            danmaku.setVisibility(View.GONE);
             dim.setVisibility(View.GONE);
             setBackgroundColor(Color.BLACK);
         } else {
@@ -487,6 +571,7 @@ final class PlayerOverlay extends FrameLayout {
             bottomPanel.setVisibility(View.VISIBLE);
             playButton.setVisibility(View.VISIBLE);
             dim.setVisibility(View.VISIBLE);
+            danmaku.setVisibility(danmaku.isDanmakuEnabled() ? View.VISIBLE : View.GONE);
             setBackgroundColor(Color.TRANSPARENT);
         }
     }
@@ -501,7 +586,29 @@ final class PlayerOverlay extends FrameLayout {
     void destroy() {
         if (destroyed) return;
         destroyed = true;
+        danmaku.destroy();
         engine.release();
         pool.shutdownNow();
+    }
+
+    private void showDanmakuInput() {
+        final android.widget.EditText input = new android.widget.EditText(getContext());
+        input.setHint("发一条弹幕");
+        input.setSingleLine(true);
+        input.setTextColor(NativeTheme.foreground(getContext()));
+        input.setHintTextColor(NativeTheme.tertiary(getContext()));
+        int pad = NativeTheme.dp(getContext(), 12);
+        input.setPadding(pad, pad / 2, pad, pad / 2);
+        new android.app.AlertDialog.Builder(getContext())
+            .setTitle("发弹幕")
+            .setView(input)
+            .setPositiveButton("发送", (dialog, which) -> {
+                String text = input.getText().toString().trim();
+                if (text.isEmpty()) return;
+                long position = engine.player().getCurrentPosition();
+                danmaku.send(text, position);
+            })
+            .setNegativeButton("取消", null)
+            .show();
     }
 }

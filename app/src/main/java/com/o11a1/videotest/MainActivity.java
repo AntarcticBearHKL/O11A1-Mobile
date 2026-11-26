@@ -16,7 +16,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
-public final class MainActivity extends Activity implements FeedView.Host {
+public final class MainActivity extends Activity implements FeedView.Host, MyView.Host {
     private CookieStore cookies;
     private BiliApi api;
     private BiliExtras extras;
@@ -24,10 +24,13 @@ public final class MainActivity extends Activity implements FeedView.Host {
     private FrameLayout content;
     private GlassTabBarView tabBar;
     private ImageButton settingsButton;
+    private ImageButton myButton;
     private FeedView feed;
     private VideoListView following;
     private VideoListView dynamic;
     private FishView fish;
+    private MyView myView;
+    private ModuleView moduleView;
     private View currentView;
     private PlayerOverlay overlay;
     private boolean toolbarHidden;
@@ -77,6 +80,20 @@ public final class MainActivity extends Activity implements FeedView.Host {
         settingsParams.topMargin = statusBar() + NativeTheme.dp(this, 6);
         root.addView(settingsButton, settingsParams);
 
+        myButton = new ImageButton(this);
+        myButton.setImageResource(android.R.drawable.ic_menu_myplaces);
+        myButton.setColorFilter(NativeTheme.foreground(this));
+        myButton.setBackground(NativeTheme.rounded(NativeTheme.glass(this), NativeTheme.dp(this, 20)));
+        myButton.setPadding(NativeTheme.dp(this, 9), NativeTheme.dp(this, 9),
+            NativeTheme.dp(this, 9), NativeTheme.dp(this, 9));
+        myButton.setOnClickListener(v -> openMyView());
+        FrameLayout.LayoutParams myParams = new FrameLayout.LayoutParams(
+            NativeTheme.dp(this, 40), NativeTheme.dp(this, 40));
+        myParams.gravity = Gravity.TOP | Gravity.START;
+        myParams.leftMargin = NativeTheme.dp(this, 16);
+        myParams.topMargin = statusBar() + NativeTheme.dp(this, 6);
+        root.addView(myButton, myParams);
+
         showTab(0);
     }
 
@@ -107,7 +124,7 @@ public final class MainActivity extends Activity implements FeedView.Host {
                 currentView = dynamic;
                 break;
             default:
-                if (fish == null) fish = new FishView(this);
+                if (fish == null) fish = new FishView(this, extras);
                 currentView = fish;
                 break;
         }
@@ -116,6 +133,7 @@ public final class MainActivity extends Activity implements FeedView.Host {
         tabBar.select(index, false);
         root.bringChildToFront(tabBar);
         root.bringChildToFront(settingsButton);
+        root.bringChildToFront(myButton);
     }
 
     @Override public void onOpenPlayer(VideoItem item, View source) {
@@ -131,12 +149,14 @@ public final class MainActivity extends Activity implements FeedView.Host {
         if (searchVisible) return;
         tabBar.setHidden(hidden, true);
         settingsButton.animate().alpha(hidden ? 0 : 1).setDuration(350).start();
+        myButton.animate().alpha(hidden ? 0 : 1).setDuration(350).start();
     }
 
     @Override public void onSearchVisibility(boolean visible) {
         searchVisible = visible;
         tabBar.setHidden(visible || toolbarHidden, true);
         settingsButton.animate().alpha(visible || toolbarHidden ? 0 : 1).setDuration(250).start();
+        myButton.animate().alpha(visible || toolbarHidden ? 0 : 1).setDuration(250).start();
     }
 
     private void openPlayer(VideoItem item, View source) {
@@ -144,6 +164,7 @@ public final class MainActivity extends Activity implements FeedView.Host {
         if (feed != null) feed.onPauseFeed();
         tabBar.setHidden(true, true);
         settingsButton.animate().alpha(0).setDuration(250).start();
+        myButton.animate().alpha(0).setDuration(250).start();
         PlayerOverlay view = new PlayerOverlay(this, api, cookies, item, source,
             () -> closeOverlay(), this::openProfile);
         overlay = view;
@@ -158,8 +179,15 @@ public final class MainActivity extends Activity implements FeedView.Host {
         overlay = null;
         root.removeView(view);
         view.destroy();
-        tabBar.setHidden(toolbarHidden, false);
-        settingsButton.animate().alpha(toolbarHidden ? 0 : 1).setDuration(250).start();
+        if (moduleView != null) {
+            tabBar.setHidden(true, false);
+            settingsButton.animate().alpha(0).setDuration(250).start();
+            myButton.animate().alpha(0).setDuration(250).start();
+        } else {
+            tabBar.setHidden(toolbarHidden, false);
+            settingsButton.animate().alpha(toolbarHidden ? 0 : 1).setDuration(250).start();
+            myButton.animate().alpha(toolbarHidden ? 0 : 1).setDuration(250).start();
+        }
         if (feed != null) feed.onResumeFeed();
     }
 
@@ -181,6 +209,98 @@ public final class MainActivity extends Activity implements FeedView.Host {
             if (view != null) view.destroy();
         });
         dialog.show();
+    }
+
+    @Override public void openModule(ModuleView.Type type, long targetId, String title) {
+        openModuleView(type, targetId, title);
+    }
+
+    @Override public void openFish() {
+        closeMyView();
+        showTab(3);
+    }
+
+    @Override public void openSettings() {
+        closeMyView();
+        showSettings();
+    }
+
+    @Override public void closeMy() {
+        closeMyView();
+    }
+
+    private void openMyView() {
+        if (myView != null) return;
+        MyView view = new MyView(this, api, extras, cookies, this);
+        myView = view;
+        root.addView(view, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        tabBar.setHidden(true, true);
+        settingsButton.animate().alpha(0).setDuration(200).start();
+        myButton.animate().alpha(0).setDuration(200).start();
+        if (feed != null) feed.onPauseFeed();
+    }
+
+    private void closeMyView() {
+        if (myView == null) return;
+        MyView view = myView;
+        myView = null;
+        root.removeView(view);
+        view.destroy();
+        if (moduleView == null) {
+            tabBar.setHidden(toolbarHidden, false);
+            settingsButton.animate().alpha(toolbarHidden ? 0 : 1).setDuration(200).start();
+            myButton.animate().alpha(toolbarHidden ? 0 : 1).setDuration(200).start();
+        }
+        if (feed != null) feed.onResumeFeed();
+    }
+
+    private void openModuleView(ModuleView.Type type, long targetId, String title) {
+        if (moduleView != null) {
+            root.removeView(moduleView);
+            moduleView.destroy();
+            moduleView = null;
+        }
+        ModuleView view = new ModuleView(this, api, extras, type, targetId, title,
+            new ModuleView.Listener() {
+                @Override public void onItem(ModuleItem item) {
+                    if (item == null || item.kind == ModuleItem.Kind.MESSAGE) return;
+                    if (item.kind == ModuleItem.Kind.SEASON) {
+                        openModuleView(ModuleView.Type.SEASON, item.seasonId, item.title);
+                    } else {
+                        openPlayer(item.toVideo(), null);
+                    }
+                }
+
+                @Override public void onLogin() {
+                    showLogin();
+                }
+
+                @Override public void onClose() {
+                    closeModuleView();
+                }
+            });
+        moduleView = view;
+        root.addView(view, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        tabBar.setHidden(true, true);
+        settingsButton.animate().alpha(0).setDuration(200).start();
+        myButton.animate().alpha(0).setDuration(200).start();
+        if (feed != null) feed.onPauseFeed();
+    }
+
+    private void closeModuleView() {
+        if (moduleView == null) return;
+        ModuleView view = moduleView;
+        moduleView = null;
+        root.removeView(view);
+        view.destroy();
+        if (myView == null) {
+            tabBar.setHidden(toolbarHidden, false);
+            settingsButton.animate().alpha(toolbarHidden ? 0 : 1).setDuration(200).start();
+            myButton.animate().alpha(toolbarHidden ? 0 : 1).setDuration(200).start();
+        }
+        if (feed != null) feed.onResumeFeed();
     }
 
     private void showSettings() {
@@ -220,6 +340,8 @@ public final class MainActivity extends Activity implements FeedView.Host {
             Toast.makeText(this, "登录成功", Toast.LENGTH_SHORT).show();
             if (following != null) following.reload();
             if (dynamic != null) dynamic.reload();
+            if (moduleView != null) moduleView.reload();
+            if (myView != null) myView.reload();
             if (feed != null) feed.onResumeFeed();
         });
     }
@@ -255,7 +377,6 @@ public final class MainActivity extends Activity implements FeedView.Host {
             })
             .show();
     }
-
     private static String qualityLabel(int qn) {
         if (qn >= 80) return "1080P";
         if (qn >= 64) return "720P";
@@ -278,6 +399,7 @@ public final class MainActivity extends Activity implements FeedView.Host {
         content.setVisibility(inPip ? View.GONE : View.VISIBLE);
         tabBar.setVisibility(inPip ? View.GONE : View.VISIBLE);
         settingsButton.setVisibility(inPip ? View.GONE : View.VISIBLE);
+        myButton.setVisibility(inPip ? View.GONE : View.VISIBLE);
         root.setBackgroundColor(inPip ? Color.BLACK : NativeTheme.background(this));
         if (!inPip && isFinishing() && overlay != null) overlay.close();
     }
@@ -300,6 +422,14 @@ public final class MainActivity extends Activity implements FeedView.Host {
     }
 
     @Override public void onBackPressed() {
+        if (myView != null) {
+            closeMyView();
+            return;
+        }
+        if (moduleView != null) {
+            closeModuleView();
+            return;
+        }
         if (feed != null && feed.isSearchOpen()) {
             feed.closeSearchFromHost();
             return;
@@ -313,6 +443,15 @@ public final class MainActivity extends Activity implements FeedView.Host {
 
     @Override protected void onDestroy() {
         if (feed != null) feed.destroy();
+        if (fish != null) fish.destroy();
+        if (myView != null) {
+            myView.destroy();
+            myView = null;
+        }
+        if (moduleView != null) {
+            moduleView.destroy();
+            moduleView = null;
+        }
         if (overlay != null) {
             overlay.destroy();
             overlay = null;

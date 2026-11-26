@@ -173,7 +173,7 @@ final class SearchView extends FrameLayout {
             main.post(() -> {
                 if (current != token) return;
                 adapter.setItems(rows);
-                status.setText(rows.isEmpty() ? "娌℃湁鎵惧埌鐩稿叧瑙嗛" : "");
+                status.setText(rows.isEmpty() ? "没有找到相关视频" : "");
                 status.setVisibility(rows.isEmpty() ? View.VISIBLE : View.GONE);
             });
         });

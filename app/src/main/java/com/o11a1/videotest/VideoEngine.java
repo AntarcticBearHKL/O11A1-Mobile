@@ -13,6 +13,7 @@ import androidx.media3.common.Player;
 import androidx.media3.datasource.okhttp.OkHttpDataSource;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.hls.HlsMediaSource;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.ui.AspectRatioFrameLayout;
@@ -168,8 +169,14 @@ final class VideoEngine {
         if (cookie != null && !cookie.isEmpty()) headers.put("Cookie", cookie);
         OkHttpDataSource.Factory factory = new OkHttpDataSource.Factory(http)
             .setDefaultRequestProperties(headers);
-        MediaSource source = new ProgressiveMediaSource.Factory(factory)
-            .createMediaSource(MediaItem.fromUri(url));
+        MediaSource source;
+        if (url.contains(".m3u8")) {
+            source = new HlsMediaSource.Factory(factory)
+                .createMediaSource(MediaItem.fromUri(url));
+        } else {
+            source = new ProgressiveMediaSource.Factory(factory)
+                .createMediaSource(MediaItem.fromUri(url));
+        }
         player.setMediaSource(source);
         player.prepare();
         player.setPlayWhenReady(autoplay);

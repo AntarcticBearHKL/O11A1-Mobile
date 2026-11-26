@@ -4,12 +4,13 @@ final class RootViewController: UIViewController {
   private let contentView = UIView()
   private let tabBar = GlassTabBar()
   private let settingsButton = UIButton(type: .system)
+  private let myButton = UIButton(type: .system)
   private var currentChild: UIViewController?
   private var player: PlayerViewController?
   private var feed: FeedViewController?
   private var following: VideoListViewController?
   private var dynamic: VideoListViewController?
-  private var fish: FishViewController?
+  private var fish: AIViewController?
 
   override var preferredStatusBarStyle: UIStatusBarStyle {
     return traitCollection.userInterfaceStyle == .dark ? .lightContent : .darkContent
@@ -63,6 +64,24 @@ final class RootViewController: UIViewController {
       settingsButton.heightAnchor.constraint(equalToConstant: 40),
     ])
 
+    myButton.setImage(UIImage(systemName: "person.crop.circle"), for: .normal)
+    myButton.tintColor = NativeTheme.foreground
+    myButton.backgroundColor = NativeTheme.glass
+    myButton.layer.cornerRadius = 20
+    myButton.layer.shadowColor = UIColor.black.cgColor
+    myButton.layer.shadowOpacity = 0.16
+    myButton.layer.shadowRadius = 12
+    myButton.layer.shadowOffset = CGSize(width: 0, height: 4)
+    myButton.addTarget(self, action: #selector(openMy), for: .touchUpInside)
+    view.addSubview(myButton)
+    myButton.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      myButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+      myButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 6),
+      myButton.widthAnchor.constraint(equalToConstant: 40),
+      myButton.heightAnchor.constraint(equalToConstant: 40),
+    ])
+
     selectTab(0, force: true)
   }
 
@@ -99,6 +118,7 @@ final class RootViewController: UIViewController {
       self.tabBar.setHidden(hidden, animated: true)
       UIView.animate(withDuration: 0.35) {
         self.settingsButton.alpha = hidden ? 0 : 1
+        self.myButton.alpha = hidden ? 0 : 1
       }
     }
     feed = controller
@@ -126,7 +146,7 @@ final class RootViewController: UIViewController {
       }
       controller = dynamic!
     default:
-      if fish == nil { fish = FishViewController() }
+      if fish == nil { fish = AIViewController() }
       controller = fish!
     }
     showChild(controller)
@@ -147,6 +167,7 @@ final class RootViewController: UIViewController {
     currentChild = controller
     view.bringSubviewToFront(tabBar)
     view.bringSubviewToFront(settingsButton)
+    view.bringSubviewToFront(myButton)
   }
 
   private func openPlayer(_ item: VideoItem, from source: UIView?) {
@@ -167,6 +188,7 @@ final class RootViewController: UIViewController {
     player = controller
     tabBar.isHidden = true
     settingsButton.isHidden = true
+    myButton.isHidden = true
     controller.start()
   }
 
@@ -178,6 +200,7 @@ final class RootViewController: UIViewController {
     player = nil
     tabBar.isHidden = false
     settingsButton.isHidden = false
+    myButton.isHidden = false
     feed?.resumePreview()
   }
 
@@ -196,6 +219,51 @@ final class RootViewController: UIViewController {
       nav.present(player, animated: false)
     }
     present(nav, animated: true)
+  }
+
+  @objc private func openMy() {
+    let my = MyViewController()
+    my.modalPresentationStyle = .fullScreen
+    my.onFish = { [weak self, weak my] in
+      my?.dismiss(animated: false) { self?.selectTab(3) }
+    }
+    my.onSettings = { [weak self, weak my] in
+      my?.dismiss(animated: false) { self?.openSettings() }
+    }
+    my.onOpenModule = { [weak self, weak my] mode, target, title in
+      guard let self = self, let host = my else { return }
+      self.presentModule(from: host, mode: mode, target: target, title: title)
+    }
+    present(my, animated: true)
+  }
+
+  private func presentModule(from host: UIViewController,
+                             mode: ModuleListViewController.Mode,
+                             target: Int64,
+                             title: String) {
+    let module = ModuleListViewController(mode: mode, targetId: target, title: title)
+    module.modalPresentationStyle = .fullScreen
+    module.onClose = { [weak module] in
+      module?.dismiss(animated: true)
+    }
+    module.onLogin = { [weak module] in
+      let login = LoginViewController()
+      login.modalPresentationStyle = .formSheet
+      login.onLogin = { [weak module] in module?.reload() }
+      module?.present(login, animated: true)
+    }
+    module.onSelect = { [weak self, weak module] item in
+      guard let self = self, let module = module else { return }
+      if item.kind == "season", item.seasonId > 0 {
+        self.presentModule(from: module, mode: .season, target: item.seasonId, title: item.title)
+        return
+      }
+      let player = PlayerViewController(item: item, sourceView: nil)
+      player.modalPresentationStyle = .overFullScreen
+      player.onClose = { [weak player] in player?.dismiss(animated: false) }
+      module.present(player, animated: false)
+    }
+    host.present(module, animated: true)
   }
 
   @objc private func openSettings() {
