@@ -17,22 +17,27 @@ WebView, HTML, CSS, JavaScript, local web server, or bundled web UI**.
 | `NATIVE_SPEC.md` | Shared product/design/behaviour contract |
 | `ARCHITECTURE.md` | Native architecture and data flow |
 
-## What is implemented
+## Implemented features
 
-- Native vertical video feed with muted 360P previews, glass information panel,
-  three-column footer, magnitude-coloured play counts, and a 50pt avatar.
-- Native full-screen player: progressive Bilibili MP4, speed control, 2x
-  long-press with light haptic, 48pt progress wheel, pull-down-to-window, and
-  pause/play state.
+- Native vertical video feed with muted 360P previews, dark glass information
+  panel, three-column footer, magnitude-coloured play counts, 50pt avatar.
+- Native player: UGC progressive/DASH-capable source, PGC episodes, live HLS,
+  quality/speed cycling, follow, 2x long-press, 48pt progress wheel,
+  pull-down-to-window, comments, danmaku overlay and danmaku input.
 - System PiP:
-  - iOS: AVKit inline PiP; starts when the app is backgrounded while playing.
-  - Android: `onUserLeaveHint` enters PiP only while the main player is playing.
+  - iOS AVKit inline PiP.
+  - Android `onUserLeaveHint`.
   - Pulling the player closed never enters PiP.
 - Native QR login (Bilibili passport), no web login page.
-- Native search with left-swipe-to-open drag tracking, suggestions/results.
+- Native search with left-swipe drag tracking.
 - 推荐 / 关注 / 动态 / 养鱼 tabs.
-- Native comments list, settings, theme (system/light/dark), quality selection.
-- Light theme is pure `#FFFFFF`; dark theme is pure `#000000`.
+- 我的 hub with account and modules: 热门, 排行, 番剧, 影视, 直播, 分区,
+  收藏, 历史, 关注, 动态, 消息, 养鱼, 设置, 我的主页.
+- Native module lists and pagination; UP space; season episode lists.
+- Comments with native input; danmaku load/send/toggle.
+- AI 养鱼 screen using an OpenAI-compatible endpoint, native fields and output.
+- Settings: theme system/light/dark, default quality, account, about.
+- Light theme pure `#FFFFFF`; dark theme pure `#000000`.
 
 ## Build
 
@@ -59,10 +64,3 @@ xcodebuild -project O11A1.xcodeproj -scheme O11A1 \
 
 For device installation, sign the app with your own team or use Sideloadly.
 See [SIGNING.md](SIGNING.md).
-
-## Current scope
-
-The first native pass covers feed, playback, PiP, search, QR login, following
-and dynamic lists, comments and settings. Live, bangumi, ranking, favourites,
-history, danmaku and the 养鱼 mini-feature are on the phase-2 list in
-[NATIVE_SPEC.md](NATIVE_SPEC.md). No phase may reintroduce a WebView.

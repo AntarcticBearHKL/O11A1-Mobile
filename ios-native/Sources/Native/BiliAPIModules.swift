@@ -79,7 +79,11 @@ extension BiliAPI {
         season.cover = o11a1HTTPS(o11a1String(json["cover"]))
         season.evaluate = o11a1String(json["evaluate"])
         let rows = (json["episodes"] as? [[String: Any]]) ?? []
-        season.episodes = rows.map { VideoItem(json: $0) }
+        season.episodes = rows.map { row -> VideoItem in
+          var item = VideoItem(json: row)
+          item.duration = moduleEpisodeDuration(item.duration)
+          return item
+        }
         completion(.success(season))
       }
     }
@@ -147,4 +151,16 @@ extension BiliAPI {
       }
     }
   }
+}
+
+private func moduleEpisodeDuration(_ raw: String) -> String {
+  guard let value = Int64(raw), value > 10_000 else { return raw }
+  let total = value / 1000
+  let hours = total / 3600
+  let minutes = (total % 3600) / 60
+  let seconds = total % 60
+  if hours > 0 {
+    return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+  }
+  return String(format: "%02d:%02d", minutes, seconds)
 }

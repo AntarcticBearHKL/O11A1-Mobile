@@ -62,7 +62,7 @@ final class DanmakuOverlayView: UIView {
     }
     let label = UILabel()
     label.text = item.text
-    label.font = UIFont.systemFont(ofSize: 15, weight: .medium)
+    label.font = UIFont.systemFont(ofSize: 13, weight: .medium)
     label.textColor = item.color == 0 ? .white : UIColor(
       red: CGFloat((item.color >> 16) & 0xFF) / 255,
       green: CGFloat((item.color >> 8) & 0xFF) / 255,
@@ -74,9 +74,9 @@ final class DanmakuOverlayView: UIView {
     label.layer.shadowRadius = 2
     label.layer.shadowOffset = CGSize(width: 1, height: 1)
     label.sizeToFit()
-    let laneHeight: CGFloat = 26
-    let lanes = max(1, Int((bounds.height * 0.55) / laneHeight))
-    let y = 54 + CGFloat(lane % lanes) * laneHeight
+    let laneHeight: CGFloat = 24
+    let lanes = max(1, Int((bounds.height * 0.45) / laneHeight))
+    let y = 120 + CGFloat(lane % lanes) * laneHeight
     lane += 1
     label.frame.origin = CGPoint(x: bounds.width + 8, y: y)
     addSubview(label)

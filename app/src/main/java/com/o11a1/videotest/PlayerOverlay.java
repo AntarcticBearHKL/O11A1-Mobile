@@ -404,12 +404,14 @@ final class PlayerOverlay extends FrameLayout {
                     owner.setText(value.optString("owner") + " · UP 主页");
                 }
                 if (url.isEmpty()) return;
-                engine.load(url, backup, true, false, false, 0);
+                engine.load(url, backup, true, false, false,
+                    live ? 0L : Math.max(0, item.progressSec) * 1000L);
             });
         });
     }
 
     private void cycleQuality() {
+        if (item.roomId > 0) return;
         if (qualityQn > 64) loadQuality(64);
         else if (qualityQn > 32) loadQuality(32);
         else loadQuality(80);

@@ -119,8 +119,27 @@ final class ModuleItem {
         item.aid = json.optLong("aid", 0);
         item.title = json.optString("title", "选集");
         item.pic = json.optString("pic", "");
-        item.duration = json.optString("duration", "");
+        item.duration = formatEpisodeDuration(json.optString("duration", ""));
         return item;
+    }
+
+    private static String formatEpisodeDuration(String raw) {
+        if (raw == null || raw.isEmpty()) return "";
+        try {
+            long value = Long.parseLong(raw);
+            if (value > 10000) {
+                long total = value / 1000;
+                long hours = total / 3600;
+                long minutes = (total % 3600) / 60;
+                long seconds = total % 60;
+                if (hours > 0) {
+                    return String.format(java.util.Locale.CHINA, "%d:%02d:%02d", hours, minutes, seconds);
+                }
+                return String.format(java.util.Locale.CHINA, "%02d:%02d", minutes, seconds);
+            }
+        } catch (Throwable ignored) {
+        }
+        return raw;
     }
 
     VideoItem toVideo() {
@@ -138,6 +157,7 @@ final class ModuleItem {
         video.roomId = roomId;
         video.epId = epId;
         video.live = kind == Kind.LIVE;
+        video.progressSec = progressSec;
         return video;
     }
 

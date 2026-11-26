@@ -19,6 +19,7 @@ final class VideoItem {
     long roomId = 0;
     long epId = 0;
     boolean live = false;
+    int progressSec = 0;
 
     static VideoItem from(JSONObject json) {
         VideoItem item = new VideoItem();
@@ -36,6 +37,7 @@ final class VideoItem {
         item.play = json.optLong("play", 0);
         item.playText = json.optString("playText", String.valueOf(item.play));
         item.desc = json.optString("desc", "");
+        item.progressSec = json.optInt("progress", 0);
         if (item.title.isEmpty()) item.title = "视频";
         if (item.owner.isEmpty()) item.owner = "UP 主";
         if (item.duration.isEmpty()) item.duration = "00:00";

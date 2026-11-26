@@ -408,7 +408,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
           headers: BiliAPI.shared.mediaHeaders,
           autoplay: true,
           muted: false,
-          loop: false
+          loop: false,
+          startAt: Double(max(0, self.item.progress))
         )
       case .failure:
         if qn > 64 {
