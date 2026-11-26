@@ -148,6 +148,12 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
       : NativeTheme.hairline.cgColor
   }
 
+  override func viewSafeAreaInsetsDidChange() {
+    super.viewSafeAreaInsetsDidChange()
+    table.contentInset = UIEdgeInsets(top: mode == .hot ? 8 : 0, left: 0,
+                                      bottom: 24 + view.safeAreaInsets.bottom, right: 0)
+  }
+
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
     headGradient.colors = [NativeTheme.searchHeadTop.cgColor,

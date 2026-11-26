@@ -153,6 +153,12 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
                                       bottom: 102 + view.safeAreaInsets.bottom, right: 0)
   }
 
+  override func viewSafeAreaInsetsDidChange() {
+    super.viewSafeAreaInsetsDidChange()
+    table.contentInset = UIEdgeInsets(top: view.safeAreaInsets.top + 16, left: 0,
+                                      bottom: 102 + view.safeAreaInsets.bottom, right: 0)
+  }
+
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
     applyGlass()

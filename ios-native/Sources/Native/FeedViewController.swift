@@ -129,12 +129,22 @@ final class FeedViewController: UIViewController,
     load(reset: true)
   }
 
+  override func viewSafeAreaInsetsDidChange() {
+    super.viewSafeAreaInsetsDidChange()
+    updateInsets()
+  }
+
+  private func updateInsets() {
+    let insets = view.safeAreaInsets
+    table.contentInset = UIEdgeInsets(top: insets.top, left: 0,
+                                      bottom: 104 + insets.bottom, right: 0)
+    table.verticalScrollIndicatorInsets.top = insets.top
+    topFadeHeight?.constant = insets.top + 18
+  }
+
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    table.contentInset = UIEdgeInsets(top: view.safeAreaInsets.top, left: 0,
-                                      bottom: 104 + view.safeAreaInsets.bottom, right: 0)
-    table.verticalScrollIndicatorInsets.top = view.safeAreaInsets.top
-    topFadeHeight?.constant = view.safeAreaInsets.top + 18
+    updateInsets()
     if let gradient = topFade.layer.sublayers?.first as? CAGradientLayer {
       gradient.frame = topFade.bounds
     }

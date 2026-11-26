@@ -260,7 +260,17 @@ final class HomeCardCell: UITableViewCell {
 
   func configure(_ item: VideoItem) {
     self.item = item
-    title.text = item.title
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.minimumLineHeight = 21.1
+    paragraph.maximumLineHeight = 21.1
+    paragraph.lineBreakMode = .byTruncatingTail
+    title.attributedText = NSAttributedString(
+      string: item.title,
+      attributes: [
+        .font: UIFont.systemFont(ofSize: 16, weight: .bold),
+        .foregroundColor: NativeTheme.foreground,
+        .paragraphStyle: paragraph,
+      ])
     owner.text = item.owner
     play.text = item.playText.isEmpty ? "" : item.playText + "播放"
     play.textColor = NativeTheme.playCountColor(item.play)

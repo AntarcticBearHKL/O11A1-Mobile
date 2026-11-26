@@ -72,11 +72,11 @@ final class MyViewController: UIViewController {
     accountCard.addSubview(avatar)
     avatar.translatesAutoresizingMaskIntoConstraints = false
 
-    nameLabel.font = NativeTheme.titleFont(16)
+    nameLabel.font = UIFont.systemFont(ofSize: 15.5, weight: .bold)
     nameLabel.textColor = NativeTheme.foreground
     accountCard.addSubview(nameLabel)
     nameLabel.translatesAutoresizingMaskIntoConstraints = false
-    metaLabel.font = NativeTheme.bodyFont(11)
+    metaLabel.font = NativeTheme.bodyFont(10)
     metaLabel.textColor = NativeTheme.secondary
     accountCard.addSubview(metaLabel)
     metaLabel.translatesAutoresizingMaskIntoConstraints = false

@@ -101,6 +101,12 @@ final class DynamicViewController: UIViewController, UITableViewDataSource, UITa
     filterButton.layer.borderColor = NativeTheme.hairline.cgColor
   }
 
+  override func viewSafeAreaInsetsDidChange() {
+    super.viewSafeAreaInsetsDidChange()
+    table.contentInset = UIEdgeInsets(top: 0, left: 0,
+                                      bottom: 104 + view.safeAreaInsets.bottom, right: 0)
+  }
+
   private func buildFilterMenu() {
     let actions = filterValues.enumerated().map { index, value -> UIAction in
       UIAction(title: filterNames[index],
