@@ -228,6 +228,15 @@ final class HomeCardCell: UITableViewCell {
       cornerRadii: CGSize(width: 14, height: 14)).cgPath
     contentView.layer.shadowOpacity =
       traitCollection.userInterfaceStyle == .dark ? 0.38 : 0.10
+    copyView.layer.shadowColor = UIColor.black.cgColor
+    copyView.layer.shadowOpacity =
+      traitCollection.userInterfaceStyle == .dark ? 0.34 : 0.09
+    copyView.layer.shadowRadius = 14
+    copyView.layer.shadowOffset = CGSize(width: 0, height: 10)
+    copyView.layer.shadowPath = UIBezierPath(
+      roundedRect: copyView.bounds,
+      byRoundingCorners: [.bottomLeft, .bottomRight],
+      cornerRadii: CGSize(width: 14, height: 14)).cgPath
     CATransaction.commit()
   }
 

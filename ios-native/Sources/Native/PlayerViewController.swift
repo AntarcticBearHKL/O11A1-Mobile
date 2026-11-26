@@ -129,16 +129,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     bottomPanel.layer.cornerRadius = 22
     bottomPanel.layer.cornerCurve = .continuous
     bottomPanel.clipsToBounds = true
-    bottomPanel.backgroundColor = UIColor(red: 29.0 / 255.0, green: 35.0 / 255.0,
-                                          blue: 47.0 / 255.0, alpha: 0.84)
     bottomPanel.layer.borderWidth = 1
-    bottomPanel.layer.borderColor = UIColor(white: 1, alpha: 0.14).cgColor
     view.addSubview(bottomPanel)
 
     bottomBlur.translatesAutoresizingMaskIntoConstraints = false
     bottomBlur.isUserInteractionEnabled = false
     bottomBlur.alpha = 0.55
     bottomPanel.addSubview(bottomBlur)
+    applyPlayerChrome()
     NSLayoutConstraint.activate([
       bottomBlur.leadingAnchor.constraint(equalTo: bottomPanel.leadingAnchor),
       bottomBlur.trailingAnchor.constraint(equalTo: bottomPanel.trailingAnchor),
@@ -400,6 +398,23 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     } else {
       danmakuOverlay.isHidden = true
     }
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    applyPlayerChrome()
+  }
+
+  private func applyPlayerChrome() {
+    let light = traitCollection.userInterfaceStyle == .light
+    bottomPanel.backgroundColor = light
+      ? UIColor(white: 1, alpha: 0.90)
+      : UIColor(red: 29.0 / 255.0, green: 35.0 / 255.0, blue: 47.0 / 255.0, alpha: 0.84)
+    bottomPanel.layer.borderColor = light
+      ? UIColor(white: 0, alpha: 0.08).cgColor
+      : UIColor(white: 1, alpha: 0.14).cgColor
+    bottomBlur.effect = UIBlurEffect(
+      style: light ? .systemUltraThinMaterialLight : .systemUltraThinMaterialDark)
   }
 
   override func viewDidAppear(_ animated: Bool) {

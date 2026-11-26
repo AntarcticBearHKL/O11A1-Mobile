@@ -52,7 +52,11 @@ final class PlayerSettingsViewController: UIViewController, UIGestureRecognizerD
       scrim.bottomAnchor.constraint(equalTo: view.bottomAnchor),
     ])
 
-    card.backgroundColor = UIColor(red: 14.0 / 255.0, green: 17.0 / 255.0, blue: 23.0 / 255.0, alpha: 1)
+    card.backgroundColor = UIColor { trait in
+      trait.userInterfaceStyle == .light
+        ? UIColor(red: 247.0 / 255.0, green: 248.0 / 255.0, blue: 250.0 / 255.0, alpha: 1)
+        : UIColor(red: 14.0 / 255.0, green: 17.0 / 255.0, blue: 23.0 / 255.0, alpha: 1)
+    }
     card.layer.cornerRadius = 30
     card.layer.cornerCurve = .continuous
     card.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
@@ -69,7 +73,11 @@ final class PlayerSettingsViewController: UIViewController, UIGestureRecognizerD
     let title = UILabel()
     title.text = "设置"
     title.font = UIFont.systemFont(ofSize: 19, weight: .bold)
-    title.textColor = UIColor(white: 0.97, alpha: 0.95)
+    title.textColor = UIColor { trait in
+      trait.userInterfaceStyle == .light
+        ? UIColor(red: 24.0 / 255.0, green: 28.0 / 255.0, blue: 36.0 / 255.0, alpha: 0.94)
+        : UIColor(white: 0.97, alpha: 0.95)
+    }
     card.addSubview(title)
     title.translatesAutoresizingMaskIntoConstraints = false
 
@@ -170,11 +178,19 @@ final class PlayerSettingsViewController: UIViewController, UIGestureRecognizerD
 
   private static func tile() -> UIView {
     let tile = UIView()
-    tile.backgroundColor = UIColor(red: 23.0 / 255.0, green: 28.0 / 255.0, blue: 36.0 / 255.0, alpha: 1)
+    tile.backgroundColor = UIColor { trait in
+      trait.userInterfaceStyle == .light
+        ? .white
+        : UIColor(red: 23.0 / 255.0, green: 28.0 / 255.0, blue: 36.0 / 255.0, alpha: 1)
+    }
     tile.layer.cornerRadius = 16
     tile.layer.cornerCurve = .continuous
     tile.layer.borderWidth = 1
-    tile.layer.borderColor = UIColor(white: 1, alpha: 0.07).cgColor
+    tile.layer.borderColor = UIColor { trait in
+      trait.userInterfaceStyle == .light
+        ? UIColor(red: 18.0 / 255.0, green: 22.0 / 255.0, blue: 30.0 / 255.0, alpha: 0.07)
+        : UIColor(white: 1, alpha: 0.07)
+    }.cgColor
     tile.clipsToBounds = true
     return tile
   }
@@ -186,7 +202,11 @@ final class PlayerSettingsViewController: UIViewController, UIGestureRecognizerD
     let label = UILabel()
     label.text = title
     label.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-    label.textColor = UIColor(white: 0.97, alpha: 0.95)
+    label.textColor = UIColor { trait in
+      trait.userInterfaceStyle == .light
+        ? UIColor(red: 24.0 / 255.0, green: 28.0 / 255.0, blue: 36.0 / 255.0, alpha: 0.94)
+        : UIColor(white: 0.97, alpha: 0.95)
+    }
     label.isUserInteractionEnabled = false
     row.addSubview(label)
     label.translatesAutoresizingMaskIntoConstraints = false
@@ -198,9 +218,17 @@ final class PlayerSettingsViewController: UIViewController, UIGestureRecognizerD
 
   private func configureValue(_ value: UILabel) {
     value.font = UIFont.systemFont(ofSize: 11, weight: .semibold)
-    value.textColor = UIColor(red: 139.0 / 255.0, green: 149.0 / 255.0, blue: 166.0 / 255.0, alpha: 1)
+    value.textColor = UIColor { trait in
+      trait.userInterfaceStyle == .light
+        ? UIColor(red: 114.0 / 255.0, green: 122.0 / 255.0, blue: 136.0 / 255.0, alpha: 1)
+        : UIColor(red: 139.0 / 255.0, green: 149.0 / 255.0, blue: 166.0 / 255.0, alpha: 1)
+    }
     value.textAlignment = .center
-    value.backgroundColor = UIColor(white: 1, alpha: 0.055)
+    value.backgroundColor = UIColor { trait in
+      trait.userInterfaceStyle == .light
+        ? UIColor(red: 20.0 / 255.0, green: 25.0 / 255.0, blue: 35.0 / 255.0, alpha: 0.045)
+        : UIColor(white: 1, alpha: 0.055)
+    }
     value.layer.cornerRadius = 10
     value.layer.cornerCurve = .continuous
     value.clipsToBounds = true
@@ -214,13 +242,23 @@ final class PlayerSettingsViewController: UIViewController, UIGestureRecognizerD
 
   private func updateQuality() {
     qualityValue.text = o11a1QualityLabel(currentQuality)
+    let light = traitCollection.userInterfaceStyle == .light
     for (index, chip) in chips.enumerated() {
       let on = qualities[index].1 == currentQuality
       chip.backgroundColor = on
-        ? UIColor(red: 76.0 / 255.0, green: 141.0 / 255.0, blue: 1.0, alpha: 1)
-        : UIColor(white: 1, alpha: 0.055)
+        ? (light
+            ? UIColor(red: 47.0 / 255.0, green: 124.0 / 255.0, blue: 246.0 / 255.0, alpha: 1)
+            : UIColor(red: 76.0 / 255.0, green: 141.0 / 255.0, blue: 1.0, alpha: 1))
+        : (light
+            ? UIColor(red: 20.0 / 255.0, green: 25.0 / 255.0, blue: 35.0 / 255.0, alpha: 0.045)
+            : UIColor(white: 1, alpha: 0.055))
       chip.setTitleColor(on ? .white : UIColor(white: 0.55, alpha: 1), for: .normal)
     }
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    updateQuality()
   }
 
   private func updateDanmaku() {
