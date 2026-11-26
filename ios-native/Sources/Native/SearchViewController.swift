@@ -297,7 +297,9 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
       return true
     }
     let velocity = pan.velocity(in: view)
-    return abs(velocity.x) > abs(velocity.y)
+    let translation = pan.translation(in: view)
+    return abs(translation.x) > abs(translation.y) * 1.1
+      || abs(velocity.x) > abs(velocity.y) * 1.1
   }
 
   func gestureRecognizer(

@@ -1225,10 +1225,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     if let pan = gestureRecognizer as? UIPanGestureRecognizer {
       let velocity = pan.velocity(in: videoContainer)
-      if abs(velocity.x) > abs(velocity.y) {
-        return abs(velocity.x) > 20
-      }
-      return abs(velocity.y) > 20
+      let translation = pan.translation(in: videoContainer)
+      return abs(velocity.x) > 20 || abs(velocity.y) > 20
+        || abs(translation.x) > 6 || abs(translation.y) > 6
     }
     return true
   }

@@ -474,14 +474,16 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     if gestureRecognizer === sidebarEdgePan {
       guard player == nil, presentedViewController == nil,
-            feed?.isSearchOpen() != true else { return false }
-      let velocity = (gestureRecognizer as? UIPanGestureRecognizer)?.velocity(in: view) ?? .zero
-      return velocity.x > 0 && sidebar?.superview == nil
+            feed?.isSearchOpen() != true, sidebar?.superview == nil else { return false }
+      return true
     }
     if gestureRecognizer === sidebarClosePan {
       guard sidebar?.superview != nil else { return false }
       let velocity = (gestureRecognizer as? UIPanGestureRecognizer)?.velocity(in: view) ?? .zero
-      return velocity.x < 0 && abs(velocity.x) > abs(velocity.y)
+      let translation = (gestureRecognizer as? UIPanGestureRecognizer)?.translation(in: view) ?? .zero
+      let movingLeft = velocity.x < -1 || translation.x < -1
+      return movingLeft && (abs(translation.x) > abs(translation.y) * 1.1
+        || abs(velocity.x) > abs(velocity.y) * 1.1)
     }
     return true
   }

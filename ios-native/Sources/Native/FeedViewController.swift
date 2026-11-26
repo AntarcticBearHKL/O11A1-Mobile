@@ -476,7 +476,11 @@ final class FeedViewController: UIViewController,
     }
     guard !searchOpen else { return false }
     let velocity = pan.velocity(in: view)
-    return velocity.x < 0 && abs(velocity.x) > abs(velocity.y)
+    let translation = pan.translation(in: view)
+    let horizontal = abs(translation.x) > abs(translation.y) * 1.1
+      || abs(velocity.x) > abs(velocity.y) * 1.1
+    let movingLeft = translation.x < -1 || velocity.x < -1
+    return horizontal && movingLeft
   }
 
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
