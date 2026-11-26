@@ -117,6 +117,7 @@ final class FeedViewController: UIViewController,
     pan.delegate = self
     view.addGestureRecognizer(pan)
     searchPan = pan
+    table.panGestureRecognizer.require(toFail: pan)
 
     load(reset: true)
   }
