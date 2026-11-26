@@ -2,6 +2,7 @@ import UIKit
 
 final class LiveChatView: UIView {
   private let stack = UIStackView()
+  private let spacer = UIView()
   private let maxRows = 7
 
   override init(frame: CGRect) {
@@ -9,7 +10,11 @@ final class LiveChatView: UIView {
     isUserInteractionEnabled = false
     stack.axis = .vertical
     stack.alignment = .leading
+    stack.distribution = .fill
     stack.spacing = 3
+    spacer.setContentHuggingPriority(.defaultLow, for: .vertical)
+    spacer.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+    stack.addArrangedSubview(spacer)
     addSubview(stack)
     stack.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
@@ -26,6 +31,7 @@ final class LiveChatView: UIView {
 
   func setMessages(_ messages: [LiveMessage]) {
     stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+    stack.addArrangedSubview(spacer)
     for message in messages.suffix(maxRows) {
       let label = UILabel()
       label.numberOfLines = 1

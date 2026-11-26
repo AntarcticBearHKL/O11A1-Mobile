@@ -98,6 +98,7 @@ final class LiveChatClient {
             @Override public void onFailure(WebSocket webSocket, Throwable t, Response response) {
                 Log.w(TAG, "live chat failed: " + t.getMessage());
                 main.removeCallbacks(heartbeat);
+                attempts += 1;
                 if (!closed && attempts < 4) {
                     main.postDelayed(LiveChatClient.this::open, 2_500);
                 }

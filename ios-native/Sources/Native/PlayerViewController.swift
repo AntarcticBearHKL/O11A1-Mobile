@@ -207,8 +207,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     liveChat.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
       liveChat.leadingAnchor.constraint(equalTo: videoContainer.leadingAnchor, constant: 14),
-      liveChat.trailingAnchor.constraint(lessThanOrEqualTo: videoContainer.trailingAnchor, constant: -14),
+      liveChat.widthAnchor.constraint(equalTo: videoContainer.widthAnchor, multiplier: 0.72),
       liveChat.bottomAnchor.constraint(equalTo: videoContainer.bottomAnchor, constant: -190),
+      liveChat.heightAnchor.constraint(equalToConstant: 150),
     ])
 
     errorLabel.font = NativeTheme.bodyFont(13)
@@ -487,8 +488,19 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self.liveChat.setMessages(self.liveMessages)
     }
     BiliAPI.shared.liveDanmuInfo(roomId: item.roomId) { [weak self] result in
-      guard let self = self, case .success(let info) = result else { return }
-      self.liveSocket.connect(roomId: self.item.roomId, token: info.0, host: info.1, port: info.2)
+      guard let self = self else { return }
+      switch result {
+      case .success(let info):
+        NSLog("[O11A1] live token ok host=%@ port=%d", info.1, info.2)
+        self.liveSocket.connect(roomId: self.item.roomId, token: info.0, host: info.1, port: info.2)
+      case .failure(let error):
+        NSLog("[O11A1] live token failed %@", error.localizedDescription)
+        var message = LiveMessage()
+        message.user = "提示"
+        message.text = "弹幕暂时不可用"
+        self.liveMessages = [message]
+        self.liveChat.setMessages(self.liveMessages)
+      }
     }
   }
 
