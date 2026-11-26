@@ -39,6 +39,15 @@ enum HomeModules {
 
   private static let statesKey = "o11a1.home.modules"
   private static let currentKey = "o11a1.home.moduleId"
+  private static let migratedKey = "o11a1.home.migrated.v2"
+
+  static func migrate() {
+    let defaults = UserDefaults.standard
+    guard !defaults.bool(forKey: migratedKey) else { return }
+    defaults.removeObject(forKey: statesKey)
+    defaults.removeObject(forKey: currentKey)
+    defaults.set(true, forKey: migratedKey)
+  }
 
   static var states: [String: Bool] {
     get {

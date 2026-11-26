@@ -10,6 +10,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private lazy var playerView = PlayerLayerView(playerLayer: engine.playerLayer)
   private let videoContainer = UIView()
   private let poster = UIImageView()
+  private let pausedVeil = UIView()
+  private let pausedGradient = CAGradientLayer()
   private let dim = UIView()
   private let topBar = UIView()
   private let backButton = UIButton(type: .system)
@@ -91,6 +93,20 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     playerView.backgroundColor = .clear
     videoContainer.addSubview(playerView)
+
+    pausedVeil.isUserInteractionEnabled = false
+    pausedVeil.isHidden = true
+    pausedGradient.type = .radial
+    pausedGradient.colors = [
+      UIColor(red: 1, green: 110.0 / 255.0, blue: 110.0 / 255.0, alpha: 0).cgColor,
+      UIColor(red: 1, green: 110.0 / 255.0, blue: 110.0 / 255.0, alpha: 0.045).cgColor,
+      UIColor(red: 1, green: 95.0 / 255.0, blue: 95.0 / 255.0, alpha: 0.10).cgColor,
+    ]
+    pausedGradient.locations = [0.35, 0.78, 1]
+    pausedGradient.startPoint = CGPoint(x: 0.5, y: 0.5)
+    pausedGradient.endPoint = CGPoint(x: 1, y: 1)
+    pausedVeil.layer.addSublayer(pausedGradient)
+    videoContainer.addSubview(pausedVeil)
 
     dim.backgroundColor = UIColor.black.withAlphaComponent(0.18)
     dim.isUserInteractionEnabled = false
@@ -367,6 +383,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     engine.onPlaying = { [weak self] playing in
       guard let self = self else { return }
       self.playButton.setImage(UIImage(systemName: playing ? "pause.fill" : "play.fill"), for: .normal)
+      self.pausedVeil.isHidden = playing
       self.videoContainer.backgroundColor = playing ? .black : NativeTheme.pipRose
       if playing {
         if self.controlsVisible { self.scheduleControlsHide() }
@@ -461,6 +478,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     topBar.frame = CGRect(x: 0, y: view.safeAreaInsets.top, width: full.width, height: 52)
     playerView.frame = videoContainer.bounds
     poster.frame = videoContainer.bounds
+    pausedVeil.frame = videoContainer.bounds
+    pausedGradient.frame = pausedVeil.bounds
     danmakuOverlay.frame = videoContainer.bounds
     playButton.center = CGPoint(x: videoContainer.center.x, y: videoContainer.center.y)
     let panelHeight: CGFloat = 92

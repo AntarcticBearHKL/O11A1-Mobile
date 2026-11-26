@@ -9,6 +9,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    HomeModules.migrate()
     let window = UIWindow(frame: UIScreen.main.bounds)
     window.backgroundColor = NativeTheme.background
     window.rootViewController = RootViewController()
