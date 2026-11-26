@@ -194,23 +194,24 @@ public final class MainActivity extends Activity implements FeedView.Host {
         };
         new AlertDialog.Builder(this)
             .setTitle("设置")
-            .setItems(items, (dialog, which) -> {
-                if (which == 0) chooseTheme();
-                else if (which == 1) chooseQuality();
-                else if (which == 2) {
-                    if (loggedIn) {
-                        cookies.clear();
-                        Toast.makeText(this, "已退出登录", Toast.LENGTH_SHORT).show();
+            .setItems(items, (dialog, which) -> new android.os.Handler(
+                android.os.Looper.getMainLooper()).postDelayed(() -> {
+                    if (which == 0) chooseTheme();
+                    else if (which == 1) chooseQuality();
+                    else if (which == 2) {
+                        if (loggedIn) {
+                            cookies.clear();
+                            Toast.makeText(this, "已退出登录", Toast.LENGTH_SHORT).show();
+                        } else {
+                            showLogin();
+                        }
                     } else {
-                        showLogin();
+                        new AlertDialog.Builder(this)
+                            .setMessage("O11A1 0.5.0 (108)\n纯原生 · 无 WebView")
+                            .setPositiveButton("好", null)
+                            .show();
                     }
-                } else {
-                    new AlertDialog.Builder(this)
-                        .setMessage("O11A1 0.5.0 (108)\n纯原生 · 无 WebView")
-                        .setPositiveButton("好", null)
-                        .show();
-                }
-            })
+                }, 150))
             .show();
     }
 

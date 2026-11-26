@@ -102,16 +102,18 @@ final class VideoEngine: NSObject {
       NotificationCenter.default.removeObserver(observer)
       endObserver = nil
     }
-    let asset = AVURLAsset(url: mediaURL, options: [
-      "AVURLAssetHTTPHeaderFieldsKey": headers,
-      "AVURLAssetAllowsExpensiveNetworkAccess": true,
-      "AVURLAssetAllowsConstrainedNetworkAccess": true,
-    ])
+    let asset = O11A1MediaLoader.shared.asset(
+      for: mediaURL,
+      headers: headers,
+      contentType: "video/mp4"
+    )
+    NSLog("[O11A1] media install %@", mediaURL.host ?? "?")
     let item = AVPlayerItem(asset: asset)
     item.preferredForwardBufferDuration = 8
     statusObservation = item.observe(\.status, options: [.new, .initial]) { [weak self] observed, _ in
       guard let self = self else { return }
       if observed.status == .readyToPlay {
+        NSLog("[O11A1] media ready duration=%.1f", observed.duration.seconds)
         DispatchQueue.main.async {
           self.onReady?()
           if self.startAt > 0 {
@@ -127,6 +129,7 @@ final class VideoEngine: NSObject {
           }
         }
       } else if observed.status == .failed {
+        NSLog("[O11A1] media failed %@", observed.error?.localizedDescription ?? "?")
         DispatchQueue.main.async {
           if !self.didRetryBackup, !self.backupURL.isEmpty, self.backupURL != self.loadedURL {
             self.didRetryBackup = true

@@ -90,7 +90,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     titleLabel.lineBreakMode = .byTruncatingTail
     topBar.addSubview(titleLabel)
 
-    playButton.setImage(UIImage(systemName: "pause.fill"), for: .normal)
+    playButton.setImage(UIImage(systemName: "play.fill"), for: .normal)
     playButton.tintColor = .white
     playButton.backgroundColor = UIColor.black.withAlphaComponent(0.30)
     playButton.layer.cornerRadius = 32
