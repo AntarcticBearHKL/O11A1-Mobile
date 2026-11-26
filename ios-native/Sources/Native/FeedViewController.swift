@@ -27,6 +27,7 @@ final class FeedViewController: UIViewController,
   private var hasMore = true
   private var lastOffset: CGFloat = 0
   private var toolbarHidden = false
+  private var toolbarWasHidden = false
   private let statusLabel = UILabel()
   private var searchController: SearchViewController?
   private var searchPan: UIPanGestureRecognizer?
@@ -376,6 +377,8 @@ final class FeedViewController: UIViewController,
     switch gesture.state {
     case .began:
       suspendPreview()
+      toolbarWasHidden = toolbarHidden
+      onToolbar?(true)
       search.view.isHidden = false
       view.bringSubviewToFront(search.view)
     case .changed:
@@ -428,6 +431,7 @@ final class FeedViewController: UIViewController,
       guard let self = self else { return }
       search.view.isHidden = true
       self.collectionView.transform = .identity
+      self.onToolbar?(self.toolbarWasHidden)
       self.startPreviewIfNeeded()
     }
     if animated {

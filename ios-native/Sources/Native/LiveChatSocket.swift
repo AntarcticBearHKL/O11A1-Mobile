@@ -46,6 +46,7 @@ final class LiveChatSocket {
     request.setValue("https://live.bilibili.com", forHTTPHeaderField: "Origin")
     request.setValue("https://live.bilibili.com/\(roomId)", forHTTPHeaderField: "Referer")
     guard let session = session else { return }
+    NSLog("[O11A1] live chat open %@", url.absoluteString)
     let task = session.webSocketTask(with: request)
     self.task = task
     task.resume()
@@ -149,6 +150,8 @@ final class LiveChatSocket {
         if version == 2 {
           if let inflated = inflate(body) {
             parsePackets(inflated)
+          } else {
+            NSLog("[O11A1] live chat inflate failed")
           }
         } else if version == 0 || version == 1 {
           handleJSON(body)
@@ -195,6 +198,7 @@ final class LiveChatSocket {
     }
     if user.isEmpty { user = "观众" }
     let name = user
+    NSLog("[O11A1] live dm %@: %@", name, text)
     DispatchQueue.main.async { [weak self] in
       guard let self = self, !self.closed else { return }
       self.onMessage?(name, text)

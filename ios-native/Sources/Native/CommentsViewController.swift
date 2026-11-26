@@ -200,6 +200,7 @@ private final class CommentCell: UITableViewCell {
   private let message = UILabel()
   private let meta = UILabel()
   private let replies = UIButton(type: .system)
+  private var repliesHeight: NSLayoutConstraint?
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
     super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -227,9 +228,13 @@ private final class CommentCell: UITableViewCell {
 
     replies.titleLabel?.font = NativeTheme.bodyFont(11)
     replies.setTitleColor(NativeTheme.accent, for: .normal)
+    replies.contentHorizontalAlignment = .left
+    replies.contentEdgeInsets = UIEdgeInsets(top: 4, left: 0, bottom: 4, right: 0)
     replies.isHidden = true
     replies.addTarget(self, action: #selector(tapReplies), for: .touchUpInside)
     contentView.addSubview(replies)
+    repliesHeight = replies.heightAnchor.constraint(equalToConstant: 0)
+    repliesHeight?.isActive = true
 
     [avatar, name, message, meta, replies].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
     NSLayoutConstraint.activate([
@@ -248,12 +253,12 @@ private final class CommentCell: UITableViewCell {
 
       meta.leadingAnchor.constraint(equalTo: name.leadingAnchor),
       meta.topAnchor.constraint(equalTo: message.bottomAnchor, constant: 6),
-      meta.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12),
-      meta.trailingAnchor.constraint(lessThanOrEqualTo: replies.leadingAnchor, constant: -8),
+      meta.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -18),
 
+      replies.leadingAnchor.constraint(equalTo: name.leadingAnchor),
+      replies.topAnchor.constraint(equalTo: meta.bottomAnchor, constant: 2),
       replies.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -18),
-      replies.centerYAnchor.constraint(equalTo: meta.centerYAnchor),
-      replies.heightAnchor.constraint(equalToConstant: 20),
+      replies.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
     ])
   }
 
@@ -265,8 +270,10 @@ private final class CommentCell: UITableViewCell {
     name.text = item.name
     message.text = item.message
     meta.text = "赞 \(item.likes)"
-    replies.setTitle(item.replies > 0 ? "\(item.replies) 条回复" : "", for: .normal)
-    replies.isHidden = item.replies <= 0 || onReplies == nil
+    let hasReplies = item.replies > 0 && onReplies != nil
+    replies.setTitle(hasReplies ? "\(item.replies) 条回复" : "", for: .normal)
+    replies.isHidden = !hasReplies
+    repliesHeight?.constant = hasReplies ? 24 : 0
     ImageLoader.shared.load(item.face, into: avatar)
   }
 

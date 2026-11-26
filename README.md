@@ -36,7 +36,7 @@ WebView, HTML, CSS, JavaScript, local web server, or bundled web UI**.
   收藏, 历史, 关注, 动态, 消息, 会员中心, 养鱼, 设置, 我的主页.
 - Native module lists and pagination; UP space; season episode lists.
 - Member centre with VIP status, daily experience tasks and recent exp log.
-- Live player with polling live chat column (no login required to read).
+- Live player with a native WBI-signed WebSocket danmaku column.
 - Comments with native input and one-tap nested reply lists; danmaku
   load/send/toggle.
 - AI 养鱼 screen using an OpenAI-compatible endpoint, native fields and output.

@@ -14,7 +14,8 @@ final class LiveChatView: UIView {
     stack.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
       stack.leadingAnchor.constraint(equalTo: leadingAnchor),
-      stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
+      stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+      stack.topAnchor.constraint(equalTo: topAnchor),
       stack.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
   }
