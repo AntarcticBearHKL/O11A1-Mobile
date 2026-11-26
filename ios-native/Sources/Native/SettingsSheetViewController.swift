@@ -372,37 +372,50 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
     header.alignment = .center
     wrap.addSubview(header)
 
-    let chips = UIStackView()
-    chips.axis = .horizontal
-    chips.spacing = 6
-    let chipScroll = UIScrollView()
-    chipScroll.showsHorizontalScrollIndicator = false
-    chipScroll.addSubview(chips)
-    wrap.addSubview(chipScroll)
+    let chipRows = UIStackView()
+    chipRows.axis = .vertical
+    chipRows.spacing = 6
+    chipRows.alignment = .fill
+    wrap.addSubview(chipRows)
 
     var buttons: [UIButton] = []
-    for option in options {
-      let button = UIButton(type: .custom)
-      button.setTitle(option, for: .normal)
-      button.titleLabel?.font = UIFont.systemFont(ofSize: 10, weight: .medium)
-      button.layer.cornerRadius = 8
-      button.layer.cornerCurve = .continuous
-      button.layer.borderWidth = 1
-      button.contentEdgeInsets = UIEdgeInsets(top: 5, left: 9, bottom: 5, right: 9)
-      button.addAction(UIAction { _ in
-        for (idx, other) in buttons.enumerated() {
-          let active = idx == (options.firstIndex(of: option) ?? 0)
-          other.backgroundColor = active ? NativeTheme.navSoft : .clear
-          other.setTitleColor(active ? NativeTheme.navBlue : NativeTheme.secondary,
-                              for: .normal)
-          other.layer.borderColor = active
-            ? NativeTheme.navBlue.withAlphaComponent(0.4).cgColor
-            : NativeTheme.hairline.cgColor
-        }
-        onChange(option)
-      }, for: .touchUpInside)
-      buttons.append(button)
-      chips.addArrangedSubview(button)
+    var index = 0
+    while index < options.count {
+      let end = min(index + 4, options.count)
+      let row = UIStackView()
+      row.axis = .horizontal
+      row.spacing = 6
+      row.alignment = .center
+      for option in options[index..<end] {
+        let button = UIButton(type: .custom)
+        button.setTitle(option, for: .normal)
+        button.titleLabel?.font = UIFont.systemFont(ofSize: 10, weight: .medium)
+        button.layer.cornerRadius = 8
+        button.layer.cornerCurve = .continuous
+        button.layer.borderWidth = 1
+        button.contentEdgeInsets = UIEdgeInsets(top: 5, left: 9, bottom: 5, right: 9)
+        button.heightAnchor.constraint(equalToConstant: 26).isActive = true
+        button.addAction(UIAction { _ in
+          for (idx, other) in buttons.enumerated() {
+            let active = idx == (options.firstIndex(of: option) ?? 0)
+            other.backgroundColor = active ? NativeTheme.navSoft : .clear
+            other.setTitleColor(active ? NativeTheme.navBlue : NativeTheme.secondary,
+                                for: .normal)
+            other.layer.borderColor = active
+              ? NativeTheme.navBlue.withAlphaComponent(0.4).cgColor
+              : NativeTheme.hairline.cgColor
+          }
+          onChange(option)
+        }, for: .touchUpInside)
+        buttons.append(button)
+        row.addArrangedSubview(button)
+      }
+      let spacer = UIView()
+      spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+      spacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+      row.addArrangedSubview(spacer)
+      chipRows.addArrangedSubview(row)
+      index = end
     }
     for (idx, button) in buttons.enumerated() {
       let active = options[idx] == selected
@@ -413,21 +426,15 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
         : NativeTheme.hairline.cgColor
     }
 
-    [header, chipScroll, chips].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
+    [header, chipRows].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
     NSLayoutConstraint.activate([
       header.leadingAnchor.constraint(equalTo: wrap.leadingAnchor),
       header.trailingAnchor.constraint(equalTo: wrap.trailingAnchor),
       header.topAnchor.constraint(equalTo: wrap.topAnchor, constant: 10),
-      chipScroll.leadingAnchor.constraint(equalTo: wrap.leadingAnchor),
-      chipScroll.trailingAnchor.constraint(equalTo: wrap.trailingAnchor),
-      chipScroll.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 6),
-      chipScroll.heightAnchor.constraint(equalToConstant: 30),
-      chipScroll.bottomAnchor.constraint(equalTo: wrap.bottomAnchor, constant: -8),
-      chips.leadingAnchor.constraint(equalTo: chipScroll.contentLayoutGuide.leadingAnchor),
-      chips.trailingAnchor.constraint(equalTo: chipScroll.contentLayoutGuide.trailingAnchor),
-      chips.topAnchor.constraint(equalTo: chipScroll.contentLayoutGuide.topAnchor),
-      chips.bottomAnchor.constraint(equalTo: chipScroll.contentLayoutGuide.bottomAnchor),
-      chips.heightAnchor.constraint(equalTo: chipScroll.frameLayoutGuide.heightAnchor),
+      chipRows.leadingAnchor.constraint(equalTo: wrap.leadingAnchor),
+      chipRows.trailingAnchor.constraint(equalTo: wrap.trailingAnchor),
+      chipRows.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 6),
+      chipRows.bottomAnchor.constraint(equalTo: wrap.bottomAnchor, constant: -8),
     ])
     return separator(after: wrap)
   }
