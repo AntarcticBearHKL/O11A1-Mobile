@@ -67,17 +67,14 @@ final class ProgressWheel: UIControl {
       let last = Int(floor(end / step))
 
       let minorColor = light
-        ? UIColor(red: 26.0 / 255.0, green: 26.0 / 255.0, blue: 26.0 / 255.0, alpha: 0.18)
-        : UIColor(white: 1, alpha: 0.22)
+        ? UIColor(red: 111.0 / 255.0, green: 122.0 / 255.0, blue: 140.0 / 255.0, alpha: 0.58)
+        : UIColor(red: 139.0 / 255.0, green: 150.0 / 255.0, blue: 170.0 / 255.0, alpha: 0.66)
       let midColor = light
-        ? UIColor(red: 26.0 / 255.0, green: 26.0 / 255.0, blue: 26.0 / 255.0, alpha: 0.30)
-        : UIColor(white: 1, alpha: 0.34)
+        ? UIColor(red: 168.0 / 255.0, green: 100.0 / 255.0, blue: 63.0 / 255.0, alpha: 0.88)
+        : UIColor(red: 215.0 / 255.0, green: 154.0 / 255.0, blue: 115.0 / 255.0, alpha: 0.92)
       let majorColor = light
-        ? UIColor(red: 26.0 / 255.0, green: 26.0 / 255.0, blue: 26.0 / 255.0, alpha: 0.42)
-        : UIColor(white: 1, alpha: 0.42)
-      let pastColor = light
-        ? UIColor(red: 47.0 / 255.0, green: 124.0 / 255.0, blue: 246.0 / 255.0, alpha: 1)
-        : UIColor(red: 110.0 / 255.0, green: 168.0 / 255.0, blue: 1.0, alpha: 1)
+        ? UIColor(red: 168.0 / 255.0, green: 123.0 / 255.0, blue: 54.0 / 255.0, alpha: 1)
+        : UIColor(red: 233.0 / 255.0, green: 194.0 / 255.0, blue: 122.0 / 255.0, alpha: 1)
       let labelColor = light
         ? UIColor(red: 26.0 / 255.0, green: 26.0 / 255.0, blue: 26.0 / 255.0, alpha: 0.44)
         : UIColor(white: 1, alpha: 0.44)
@@ -97,7 +94,14 @@ final class ProgressWheel: UIControl {
           let major = index % 5 == 0
           let mid = index % 2 == 0
           let past = seconds <= center
-          let tickColor = past ? pastColor : (major ? majorColor : (mid ? midColor : minorColor))
+          let tickColor: UIColor
+          if major {
+            tickColor = majorColor
+          } else if mid {
+            tickColor = midColor
+          } else {
+            tickColor = minorColor
+          }
           let width: CGFloat = major ? 1.6 : 1
           let height: CGFloat
           if major {
