@@ -20,6 +20,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   private var sidebarDragStartProgress: CGFloat = 0
   private var sidebarEdgePan: UIScreenEdgePanGestureRecognizer?
   private var sidebarClosePan: UIPanGestureRecognizer?
+  private var feedScrollingAtEdgeTouch = false
   private var orientationObserver: NSObjectProtocol?
   private var testFlowTriggered = false
 
@@ -587,10 +588,19 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     }
   }
 
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldReceive touch: UITouch) -> Bool {
+    if gestureRecognizer === sidebarEdgePan {
+      feedScrollingAtEdgeTouch = feed?.isFeedScrolling() ?? false
+    }
+    return true
+  }
+
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     if gestureRecognizer === sidebarEdgePan {
       guard player == nil, presentedViewController == nil,
-            feed?.isSearchOpen() != true, sidebar?.superview == nil else { return false }
+            feed?.isSearchOpen() != true, sidebar?.superview == nil,
+            !feedScrollingAtEdgeTouch else { return false }
       return true
     }
     if gestureRecognizer === sidebarClosePan {

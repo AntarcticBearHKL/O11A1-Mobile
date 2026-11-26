@@ -38,6 +38,7 @@ final class FeedViewController: UIViewController,
   private var searchPan: UIPanGestureRecognizer?
   private var sidebarPan: UIPanGestureRecognizer?
   private var searchOpen = false
+  private var feedScrollingAtTouch = false
   private var homeSource = "recommend"
   private var sourceTitle = "推荐"
   private var sourceToken = 0
@@ -499,8 +500,23 @@ final class FeedViewController: UIViewController,
 
   // MARK: - gestures
 
+  func isFeedScrolling() -> Bool {
+    return table.isDragging || table.isDecelerating
+  }
+
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldReceive touch: UITouch) -> Bool {
+    if gestureRecognizer === searchPan || gestureRecognizer === sidebarPan {
+      feedScrollingAtTouch = isFeedScrolling()
+    }
+    return true
+  }
+
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+    if pan === searchPan || pan === sidebarPan {
+      guard !feedScrollingAtTouch, !isFeedScrolling() else { return false }
+    }
     let velocity = pan.velocity(in: view)
     let translation = pan.translation(in: view)
     let horizontal = abs(translation.x) > abs(translation.y) * 1.1
