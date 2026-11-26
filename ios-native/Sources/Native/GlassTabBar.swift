@@ -165,12 +165,12 @@ final class GlassTabBar: UIView {
   private func updateColors() {
     for (i, button) in buttons.enumerated() {
       let active = i == selectedIndex
-      let color = active ? NativeTheme.navBlue : NativeTheme.tertiary
+      let color = active ? NativeTheme.tabActive : NativeTheme.tabInactive
       button.tintColor = color
       button.setTitleColor(color, for: .normal)
       button.titleLabel?.font = UIFont.systemFont(ofSize: 10, weight: active ? .bold : .medium)
       button.backgroundColor = .clear
-      button.alpha = active ? 1 : 0.9
+      button.alpha = 1
     }
   }
 

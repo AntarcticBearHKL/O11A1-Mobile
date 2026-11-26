@@ -51,6 +51,23 @@ enum NativeTheme {
     }
   }
 
+  /// High-contrast palette for the bottom toolbar labels and icons.
+  static var tabActive: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(red: 112.0 / 255.0, green: 193.0 / 255.0, blue: 1.0, alpha: 1)
+        : UIColor(red: 0.0, green: 82.0 / 255.0, blue: 168.0 / 255.0, alpha: 1)
+    }
+  }
+
+  static var tabInactive: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(white: 0.86, alpha: 1)
+        : UIColor(white: 0.24, alpha: 1)
+    }
+  }
+
   static var navSoft: UIColor {
     UIColor { trait in
       trait.userInterfaceStyle == .dark

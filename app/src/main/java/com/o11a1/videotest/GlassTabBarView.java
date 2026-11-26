@@ -109,14 +109,14 @@ final class GlassTabBarView extends FrameLayout {
         for (int i = 0; i < items.length; i++) {
             boolean active = i == index;
             int color = active
-                ? NativeTheme.navBlue(getContext())
-                : NativeTheme.tertiary(getContext());
+                ? NativeTheme.tabActive(getContext())
+                : NativeTheme.tabInactive(getContext());
             images[i].setColorFilter(color);
             labels[i].setTextColor(color);
             labels[i].setTypeface(Typeface.create(
                 Typeface.SANS_SERIF, active ? Typeface.BOLD : Typeface.NORMAL));
             items[i].setBackground(null);
-            items[i].setAlpha(active ? 1f : 0.9f);
+            items[i].setAlpha(1f);
         }
         if (changed) {
             animatePillToSelected();

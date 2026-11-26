@@ -77,6 +77,14 @@ final class NativeTheme {
         return isDark(context) ? 0xFF54A7FF : 0xFF005FB8;
     }
 
+    static int tabActive(Context context) {
+        return isDark(context) ? 0xFF70C1FF : 0xFF0052A8;
+    }
+
+    static int tabInactive(Context context) {
+        return isDark(context) ? 0xFFDBDBDB : 0xFF3D3D3D;
+    }
+
     static int navSoft(Context context) {
         return isDark(context) ? 0xFF12253F : 0xFFDCEEFF;
     }
