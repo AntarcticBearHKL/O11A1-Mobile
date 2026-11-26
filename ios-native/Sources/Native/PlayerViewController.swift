@@ -162,9 +162,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     content.addSubview(wheel)
 
-    grid.backgroundColor = UIColor.red.withAlphaComponent(0.35)
-    grid.isHidden = false
-    grid.layer.zPosition = 10
     content.addSubview(grid)
 
     qualityLabel.font = NativeTheme.numberFont(10)
@@ -236,7 +233,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     errorLabel.isHidden = true
     view.addSubview(errorLabel)
 
-    [backButton, titleLabel, playButton, ownerLabel, ownerButton, wheel,
+    [backButton, titleLabel, playButton, ownerLabel, ownerButton, wheel, grid,
      qualityLabel, speedLabel, commentsButton, likeButton, coinButton, favButton,
      followButton, danmakuToggle, danmakuSend, errorLabel].forEach {
       $0.translatesAutoresizingMaskIntoConstraints = false
