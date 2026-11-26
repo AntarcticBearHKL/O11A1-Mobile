@@ -287,6 +287,13 @@ public final class MainActivity extends Activity implements FeedView.Host {
         if (feed != null && !isInPictureInPictureMode()) feed.onPauseFeed();
     }
 
+    @Override protected void onStop() {
+        super.onStop();
+        if (overlay != null && !isInPictureInPictureMode() && isFinishing()) {
+            overlay.close();
+        }
+    }
+
     @Override protected void onResume() {
         super.onResume();
         if (feed != null && !isInPictureInPictureMode()) feed.onResumeFeed();
