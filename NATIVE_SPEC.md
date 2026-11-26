@@ -26,8 +26,20 @@ Bottom bar, left to right:
 3. 动态 (`Dynamic`)
 4. 养鱼 (`Fish`)
 
-The bar is glass, nearly full width, sits 12 dp/pt above the safe-area bottom,
-and hides/shows with a 0.75 s animation while scrolling.
+The bar is glass, nearly full width, 66 dp/pt tall with an 18 dp/pt corner
+radius. The selected tab sits on a 14 dp/pt-radius pill that springs between
+tabs, bounces its icon and crossfades the label; only one tab is selected at a
+time and the initial highlight is visible on first layout. The bar hides/shows
+with a 0.75 s animation while scrolling.
+
+### Sidebar
+
+- A rightward horizontal drag on the feed opens the left drawer and tracks the
+  finger 1:1; the feed recedes to 10% scale behind it.
+- A leftward drag anywhere over the open drawer closes it with the finger.
+- Rows: 直播, 番剧, 消息, 历史 and 用户 in the footer.
+- Tapping a row closes the drawer before switching content.
+
 
 ### Feed
 
@@ -45,8 +57,9 @@ and hides/shows with a 0.75 s animation while scrolling.
   - `10,000 ..< 100,000`: `#4C9AFF`
   - `100,000 ..< 1,000,000`: `#FF9F43`
   - `>= 1,000,000`: `#FF5C8A`
-- Left-edge horizontal drag opens search and tracks the finger 1:1. Commit at
-  26% width or a fast left flick.
+- Leftward horizontal drag anywhere on the feed opens search and tracks the
+  finger 1:1. Commit at 26% width or a fast left flick. A rightward drag on the
+  search screen closes it with the same 1:1 tracking.
 
 ### Search
 
@@ -64,13 +77,27 @@ and hides/shows with a 0.75 s animation while scrolling.
 
 ### Player
 
-- Opens from the focused card; native AVPlayer / ExoPlayer.
-- Full-screen video; web-style black backdrop is forbidden.
-- Pull down shrinks the player into a window over the still-visible feed.
-  Dragging up restores it. Closing stops playback. Closing must never enter PiP.
+- Opens in portrait. The 16:9 video is pinned to the top edge and the comment
+  stream (same comment UI as the web app) fills the space below it.
+- The phone only enters landscape when it is physically rotated; the layout
+  animates between portrait and landscape. Closing restores portrait.
+- Landscape is the full-screen player: video edge-to-edge, top bar and the
+  precision wheel docked at the bottom.
+- Tap the video to toggle the floating control panel; it auto-hides after
+  3.2 s of playback.
+- Left swipe on the video (or portrait comments) slides in a related-video feed
+  using the home card style. Opening a related video replaces the current item
+  in place; closing the player returns to the feed.
+- Right swipe on the video (or portrait comments) slides in the video details
+  panel. The panel bottom holds 画质 (inline quality chips), 弹幕设置 (on/off)
+  and 循环模式 (loop/single). There is no separate upward settings menu.
+- Down swipe on the portrait video closes the player; in landscape the same
+  drag shrinks the video into a window before closing.
 - Long-press anywhere on the video: 2x speed + light haptic. Release restores
   1x. No HUD.
-- Progress wheel: 48 dp/pt tall, proportional ticks, labels and needle.
+- Progress wheel: 48 dp/pt tall, proportional ticks, labels and needle. The
+  ruler moves under a centred red needle; dragging the ruler left advances and
+  dragging it right rewinds.
 - Paused letterbox edges use pale rose (`#FFD9DE`), not black.
 - PiP starts only when the app is backgrounded while the video is playing.
   Restoring from PiP reopens the player; closing PiP stops playback.
@@ -91,10 +118,13 @@ and hides/shows with a 0.75 s animation while scrolling.
 | --- | --- | --- |
 | Root + tabs | `RootViewController` | `MainActivity` |
 | Feed | `FeedViewController` | `FeedView` |
-| Player | `PlayerViewController` | `PlayerView` overlay |
+| Player | `PlayerViewController` | `PlayerOverlay` |
+| Related feed | `RelatedViewController` | `PlayerOverlay` |
+| Video details | `VideoDetailViewController` | `PlayerOverlay` |
+| Sidebar | `SidebarView` | `SidebarView` |
 | Search | `SearchViewController` | `SearchView` |
 | UP page | `ProfileViewController` | `ProfileView` |
-| Comments | `CommentsViewController` | `CommentsView` |
+| Comments | `CommentsPanelViewController` | `CommentsView` |
 | Settings | `SettingsViewController` | `SettingsView` |
 | Login | `LoginViewController` (native QR) | `LoginActivity` (native QR) |
 
