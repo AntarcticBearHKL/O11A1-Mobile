@@ -399,11 +399,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       errorLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: 80),
     ])
 
-    let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap))
-    doubleTap.numberOfTapsRequired = 2
-    doubleTap.delegate = self
-    videoContainer.addGestureRecognizer(doubleTap)
-
     let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
     pan.delegate = self
     view.addGestureRecognizer(pan)
@@ -411,7 +406,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let longPress = UILongPressGestureRecognizer(target: self, action: #selector(longPress(_:)))
     longPress.minimumPressDuration = 0.18
     longPress.delegate = self
-    view.addGestureRecognizer(longPress)
+    videoContainer.addGestureRecognizer(longPress)
 
     let tap = UITapGestureRecognizer(target: self, action: #selector(handleSingleTap))
     tap.delegate = self
@@ -879,6 +874,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   @objc private func handleSingleTap() {
+    NSLog("[O11A1] single tap alpha=%.2f hidden=%d visible=%d",
+          bottomPanel.alpha, bottomPanel.isHidden ? 1 : 0, controlsVisible ? 1 : 0)
     let visible = bottomPanel.alpha > 0.5 && !bottomPanel.isHidden
     if visible {
       hideControls()
@@ -935,10 +932,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     switch gesture.state {
     case .began:
       guard engine.isPlaying else { return }
+      NSLog("[O11A1] long press began")
       engine.setRate(2.0)
       speedFeedback.impactOccurred(intensity: 1.0)
       speedFeedback.prepare()
     case .ended, .cancelled, .failed:
+      NSLog("[O11A1] long press ended")
       engine.setRate(1.0)
     default:
       break
