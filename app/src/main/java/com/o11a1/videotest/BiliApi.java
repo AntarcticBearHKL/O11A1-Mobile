@@ -651,6 +651,7 @@ final class BiliApi {
             out.put("duration", duration);
             out.put("play", play);
             out.put("playText", count(play));
+            out.put("pubdate", item.optLong("pubdate", item.optLong("ctime", 0)));
             out.put("desc", strip(item.optString("desc", item.optString("description", ""))));
             out.put("meta", owner + " · " + count(play) + " 播放");
         } catch (Throwable ignored) {}

@@ -219,9 +219,10 @@ final class HomeCardCell: UITableViewCell {
     self.item = item
     title.text = item.title
     owner.text = item.owner
-    play.text = item.playText
+    play.text = item.playText.isEmpty ? "" : item.playText + " 播放"
     play.textColor = NativeTheme.playCountColor(item.play)
-    time.text = item.duration
+    time.text = NativeTheme.freshness(item.pubdate)
+    time.textColor = NativeTheme.freshnessColor(item.pubdate)
     duration.text = item.duration
     duration.isHidden = item.roomId > 0
     live.isHidden = item.roomId == 0

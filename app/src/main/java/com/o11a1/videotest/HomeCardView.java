@@ -120,6 +120,7 @@ final class HomeCardView extends LinearLayout {
         copyBg.setStroke(Math.max(1, NativeTheme.dp(context, 0.5f)),
             NativeTheme.isDark(context) ? 0x14FFFFFF : 0x14000000);
         copy.setBackground(copyBg);
+        copy.setElevation(NativeTheme.dp(context, 3));
         addView(copy, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
 
         avatar = new ImageView(context);
@@ -192,9 +193,10 @@ final class HomeCardView extends LinearLayout {
         onOpen = openAction;
         title.setText(value.title);
         owner.setText(value.owner);
-        play.setText(value.playText);
+        play.setText(value.playText.isEmpty() ? "" : value.playText + " 播放");
         play.setTextColor(NativeTheme.playColor(value.play));
-        time.setText(value.duration);
+        time.setText(NativeTheme.freshness(value.pubdate));
+        time.setTextColor(NativeTheme.freshnessColor(value.pubdate));
         duration.setText(value.live ? "" : value.duration);
         duration.setVisibility(value.live ? GONE : VISIBLE);
         live.setVisibility(value.live ? VISIBLE : GONE);

@@ -73,11 +73,45 @@ final class NativeTheme {
         return isDark(context) ? 0xD9141414 : 0xD9FFFFFF;
     }
 
+    static int navBlue(Context context) {
+        return isDark(context) ? 0xFF7FB6FF : 0xFF005FB8;
+    }
+
+    static int navSoft(Context context) {
+        return isDark(context) ? 0x332F7CF6 : 0xFFDCEEFF;
+    }
+
     static int playColor(long count) {
-        if (count >= 1_000_000L) return PINK;
-        if (count >= 100_000L) return ORANGE;
-        if (count >= 10_000L) return BLUE;
-        return 0xFF9E9E9E;
+        if (count >= 10_000_000L) return 0xFFD3453D;
+        if (count >= 1_000_000L) return 0xFFC77700;
+        if (count >= 100_000L) return 0xFF2F7CF6;
+        if (count >= 10_000L) return 0xFF2F8A5A;
+        return 0xFF8A909B;
+    }
+
+    static String freshness(long pubdate) {
+        if (pubdate <= 0) return "";
+        long seconds = pubdate > 100_000_000_000L ? pubdate / 1000 : pubdate;
+        long age = Math.max(0, System.currentTimeMillis() / 1000 - seconds);
+        if (age < 3600) return "刚刚";
+        if (age < 86400) return (age / 3600) + "小时前";
+        if (age < 86400L * 7) return (age / 86400) + "天前";
+        if (age < 86400L * 30) return (age / (7 * 86400)) + "周前";
+        if (age < 86400L * 90) return (age / (30 * 86400)) + "个月前";
+        if (age < 86400L * 365) return (age / (90 * 86400)) + "季度前";
+        return (age / (365 * 86400)) + "年前";
+    }
+
+    static int freshnessColor(long pubdate) {
+        if (pubdate <= 0) return 0xFF8A909B;
+        long seconds = pubdate > 100_000_000_000L ? pubdate / 1000 : pubdate;
+        long age = Math.max(0, System.currentTimeMillis() / 1000 - seconds);
+        if (age < 86400) return 0xFFD97862;
+        if (age < 86400L * 7) return 0xFFC9984F;
+        if (age < 86400L * 30) return 0xFF4F9A83;
+        if (age < 86400L * 90) return 0xFF5C84C6;
+        if (age < 86400L * 365) return 0xFF8A78B8;
+        return 0xFF8A909B;
     }
 
     static int dp(Context context, float value) {

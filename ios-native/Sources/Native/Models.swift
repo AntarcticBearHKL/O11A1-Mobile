@@ -13,6 +13,7 @@ struct VideoItem: Equatable {
   var durationSec = 0
   var play: Int64 = 0
   var playText = "0"
+  var pubdate: Int64 = 0
   var desc = ""
   var kind = "video"
   var seasonId: Int64 = 0
@@ -41,6 +42,7 @@ struct VideoItem: Equatable {
     durationSec = o11a1Int(json["durationSec"])
     play = o11a1Int64(json["play"])
     playText = o11a1String(json["playText"])
+    pubdate = o11a1Int64(json["pubdate"])
     desc = o11a1String(json["desc"])
     kind = o11a1String(json["kind"]).isEmpty ? "video" : o11a1String(json["kind"])
     seasonId = o11a1Int64(json["seasonId"])

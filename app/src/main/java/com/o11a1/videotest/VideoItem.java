@@ -15,6 +15,7 @@ final class VideoItem {
     int durationSec = 0;
     long play = 0;
     String playText = "0";
+    long pubdate = 0;
     String desc = "";
     long roomId = 0;
     long epId = 0;
@@ -36,6 +37,7 @@ final class VideoItem {
         item.durationSec = json.optInt("durationSec", 0);
         item.play = json.optLong("play", 0);
         item.playText = json.optString("playText", String.valueOf(item.play));
+        item.pubdate = json.optLong("pubdate", 0);
         item.desc = json.optString("desc", "");
         item.progressSec = json.optInt("progress", 0);
         if (item.title.isEmpty()) item.title = "视频";

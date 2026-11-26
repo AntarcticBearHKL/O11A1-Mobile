@@ -144,7 +144,7 @@ final class MyView extends FrameLayout {
         metaParams.topMargin = NativeTheme.dp(context, 3);
         names.addView(meta, metaParams);
 
-        accountAction.setTextColor(NativeTheme.ACCENT);
+        accountAction.setTextColor(NativeTheme.navBlue(context));
         accountAction.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         accountAction.setTypeface(NativeTheme.titleTypeface());
         accountAction.setPadding(NativeTheme.dp(context, 10), NativeTheme.dp(context, 6),

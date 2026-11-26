@@ -82,7 +82,7 @@ final class MyViewController: UIViewController {
     metaLabel.translatesAutoresizingMaskIntoConstraints = false
 
     accountButton.titleLabel?.font = NativeTheme.titleFont(13)
-    accountButton.setTitleColor(NativeTheme.accent, for: .normal)
+    accountButton.setTitleColor(NativeTheme.navBlue, for: .normal)
     accountButton.addTarget(self, action: #selector(accountTapped), for: .touchUpInside)
     accountCard.addSubview(accountButton)
     accountButton.translatesAutoresizingMaskIntoConstraints = false
@@ -176,6 +176,7 @@ final class MyViewController: UIViewController {
     let line = UIView()
     line.backgroundColor = NativeTheme.hairline
     line.heightAnchor.constraint(equalToConstant: 0.5).isActive = true
+    line.widthAnchor.constraint(equalTo: list.widthAnchor, constant: -18).isActive = true
     line.leadingAnchor.constraint(equalTo: list.leadingAnchor, constant: 18).isActive = true
     list.addArrangedSubview(line)
   }

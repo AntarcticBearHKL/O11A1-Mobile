@@ -76,8 +76,11 @@ final class GlassTabBar: UIView {
     selectedIndex = index
     for (i, button) in buttons.enumerated() {
       let active = i == index
-      button.tintColor = active ? NativeTheme.accent : NativeTheme.secondary
-      button.setTitleColor(active ? NativeTheme.accent : NativeTheme.secondary, for: .normal)
+      button.tintColor = active ? NativeTheme.navBlue : NativeTheme.secondary
+      button.setTitleColor(active ? NativeTheme.navBlue : NativeTheme.secondary, for: .normal)
+      button.backgroundColor = active ? NativeTheme.navSoft : .clear
+      button.layer.cornerRadius = 22
+      button.layer.cornerCurve = .continuous
     }
     if notify { onSelect?(index) }
   }

@@ -76,9 +76,22 @@ final class GlassTabBarView extends LinearLayout {
         selected = index;
         for (int i = 0; i < items.length; i++) {
             boolean active = i == index;
-            int color = active ? NativeTheme.ACCENT : NativeTheme.secondary(getContext());
+            int color = active
+                ? NativeTheme.navBlue(getContext())
+                : NativeTheme.secondary(getContext());
             images[i].setColorFilter(color);
             labels[i].setTextColor(color);
+            if (active) {
+                android.graphics.drawable.InsetDrawable pill =
+                    new android.graphics.drawable.InsetDrawable(
+                        NativeTheme.rounded(NativeTheme.navSoft(getContext()),
+                            NativeTheme.dp(getContext(), 22)),
+                        NativeTheme.dp(getContext(), 4), NativeTheme.dp(getContext(), 5),
+                        NativeTheme.dp(getContext(), 4), NativeTheme.dp(getContext(), 5));
+                items[i].setBackground(pill);
+            } else {
+                items[i].setBackground(null);
+            }
         }
         if (notify && onSelect != null) onSelect.select(index);
     }
