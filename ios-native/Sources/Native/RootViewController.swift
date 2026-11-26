@@ -207,6 +207,24 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     controller.onSidebar = { [weak self] in
       self?.openSidebar()
     }
+    controller.onSidebarPanBegan = { [weak self] in
+      guard let self = self, self.sidebar?.superview == nil else { return }
+      self.prepareSidebarForDrag()
+    }
+    controller.onSidebarPanChanged = { [weak self] progress in
+      guard let self = self, self.sidebar?.superview != nil else { return }
+      self.setSidebarProgress(progress)
+    }
+    controller.onSidebarPanEnded = { [weak self] translation, velocity in
+      guard let self = self, self.sidebar?.superview != nil else { return }
+      let width = max(1, self.view.bounds.width)
+      if translation > width * 0.22 || velocity > 350 {
+        self.finishSidebarOpen()
+      } else {
+        self.finishSidebarClose()
+      }
+      self.feed?.resumePreview()
+    }
     controller.onToolbar = { [weak self] hidden in
       guard let self = self else { return }
       self.tabBar.setHidden(hidden, animated: true)

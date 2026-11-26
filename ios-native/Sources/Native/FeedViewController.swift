@@ -11,6 +11,9 @@ final class FeedViewController: UIViewController,
   var onSearchOpen: ((VideoItem) -> Void)?
   var onSeason: ((VideoItem) -> Void)?
   var onSidebar: (() -> Void)?
+  var onSidebarPanBegan: (() -> Void)?
+  var onSidebarPanChanged: ((CGFloat) -> Void)?
+  var onSidebarPanEnded: ((CGFloat, CGFloat) -> Void)?
   var initialSource: (source: String, title: String)?
 
   private(set) var items: [VideoItem] = []
@@ -32,6 +35,7 @@ final class FeedViewController: UIViewController,
   private var toolbarWasHidden = false
   private var searchController: SearchViewController?
   private var searchPan: UIPanGestureRecognizer?
+  private var sidebarPan: UIPanGestureRecognizer?
   private var searchOpen = false
   private var homeSource = "recommend"
   private var sourceTitle = "推荐"
@@ -128,6 +132,12 @@ final class FeedViewController: UIViewController,
     view.addGestureRecognizer(pan)
     searchPan = pan
     table.panGestureRecognizer.require(toFail: pan)
+
+    let sidebar = UIPanGestureRecognizer(target: self, action: #selector(handleSidebarPan(_:)))
+    sidebar.delegate = self
+    view.addGestureRecognizer(sidebar)
+    sidebarPan = sidebar
+    table.panGestureRecognizer.require(toFail: sidebar)
 
     if let initial = initialSource {
       homeSource = initial.source
@@ -471,16 +481,39 @@ final class FeedViewController: UIViewController,
   // MARK: - gestures
 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-    guard let pan = gestureRecognizer as? UIPanGestureRecognizer, pan === searchPan else {
-      return true
-    }
-    guard !searchOpen else { return false }
+    guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
     let velocity = pan.velocity(in: view)
     let translation = pan.translation(in: view)
     let horizontal = abs(translation.x) > abs(translation.y) * 1.1
       || abs(velocity.x) > abs(velocity.y) * 1.1
-    let movingLeft = translation.x < -1 || velocity.x < -1
-    return horizontal && movingLeft
+    if pan === searchPan {
+      guard !searchOpen else { return false }
+      let movingLeft = translation.x < -1 || velocity.x < -1
+      return horizontal && movingLeft
+    }
+    if pan === sidebarPan {
+      guard !searchOpen else { return false }
+      let movingRight = translation.x > 1 || velocity.x > 1
+      return horizontal && movingRight
+    }
+    return true
+  }
+
+  @objc private func handleSidebarPan(_ gesture: UIPanGestureRecognizer) {
+    let width = max(1, view.bounds.width)
+    let translation = gesture.translation(in: view).x
+    switch gesture.state {
+    case .began:
+      suspendPreview()
+      onSidebarPanBegan?()
+    case .changed:
+      onSidebarPanChanged?(translation / (width * 0.50))
+    case .ended, .cancelled:
+      let velocity = gesture.velocity(in: view).x
+      onSidebarPanEnded?(translation, velocity)
+    default:
+      break
+    }
   }
 
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
