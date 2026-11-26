@@ -134,7 +134,7 @@ final class RootViewController: UIViewController {
     testFlowTriggered = true
     let flow = ProcessInfo.processInfo.environment["O11A1_TEST_FLOW"] ?? ""
     switch flow {
-    case "player":
+    case "player", "player-detail", "player-comments", "player-settings":
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
         self?.feed?.openFirstForTest()
       }
@@ -271,6 +271,17 @@ final class RootViewController: UIViewController {
     controller.start()
     setPlayerOrientation(true)
     setNeedsStatusBarAppearanceUpdate()
+    let flow = ProcessInfo.processInfo.environment["O11A1_TEST_FLOW"] ?? ""
+    if flow.hasPrefix("player-") {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak controller] in
+        switch flow {
+        case "player-detail": controller?.testOpenDetail()
+        case "player-comments": controller?.testOpenComments()
+        case "player-settings": controller?.testOpenSettings()
+        default: break
+        }
+      }
+    }
   }
 
   private func closePlayer() {

@@ -859,6 +859,18 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
   }
 
+  func testOpenDetail() {
+    openDetailPanel()
+  }
+
+  func testOpenComments() {
+    openCommentsPanel()
+  }
+
+  func testOpenSettings() {
+    openSettingsPanel()
+  }
+
   @objc private func closeTapped() {
     closePlayer(animated: true)
   }
