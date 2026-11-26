@@ -260,9 +260,21 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   }
 
   private func updateInsets() {
-    table.contentInset = UIEdgeInsets(top: view.safeAreaInsets.top + 52, left: 0,
-                                      bottom: 8, right: 0)
-    table.verticalScrollIndicatorInsets.top = view.safeAreaInsets.top + 52
+    let target = CGRect(x: 0, y: 0, width: max(1, view.bounds.width),
+                        height: view.safeAreaInsets.top + 52)
+    if let header = table.tableHeaderView {
+      if header.frame != target {
+        header.frame = target
+        table.tableHeaderView = header
+      }
+    } else {
+      let header = UIView()
+      header.backgroundColor = .clear
+      header.frame = target
+      table.tableHeaderView = header
+    }
+    table.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 8, right: 0)
+    table.verticalScrollIndicatorInsets = .zero
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -279,6 +291,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
       items = []
       hasMore = true
       table.reloadData()
+      table.setContentOffset(.zero, animated: false)
       statusLabel.text = "正在加载 UP 主页…"
       statusLabel.isHidden = false
     }
