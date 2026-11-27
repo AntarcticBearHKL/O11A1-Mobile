@@ -225,7 +225,8 @@ final class DanmakuOverlayView: UIView {
     }
     if count > laneFreeAt.count {
       laneFreeAt.append(
-        contentsOf: repeatElement(0, count: count - laneFreeAt.count))
+        contentsOf: [CFTimeInterval](
+          repeating: 0, count: count - laneFreeAt.count))
     } else if count < laneFreeAt.count {
       let bottom = topInset + CGFloat(count * step) * laneHeight
       for case let label as UILabel in subviews
