@@ -17,6 +17,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   private let head = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let headMask = CAGradientLayer()
   private let fieldWrap = UIView()
+  private let fieldBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
   private let field = UITextField()
   private let table = UITableView(frame: .zero, style: .plain)
   private let statusLabel = UILabel()
@@ -26,6 +27,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   private var mode: Mode = .hot
   private var workItem: DispatchWorkItem?
   private var loading = false
+  private var requestToken = 0
   private var dismissPan: UIPanGestureRecognizer?
 
 
@@ -43,13 +45,26 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     headMask.locations = [0, 0.5, 0.82]
     blur.layer.mask = headMask
 
-    fieldWrap.backgroundColor = NativeTheme.background
+    fieldWrap.backgroundColor = .clear
     fieldWrap.layer.cornerRadius = NativeTheme.cornerRadius
     fieldWrap.layer.cornerCurve = .continuous
     fieldWrap.layer.borderWidth = 1
     fieldWrap.layer.borderColor = NativeTheme.hairline.cgColor
     view.addSubview(fieldWrap)
     fieldWrap.translatesAutoresizingMaskIntoConstraints = false
+
+    fieldBlur.layer.cornerRadius = NativeTheme.cornerRadius
+    fieldBlur.layer.cornerCurve = .continuous
+    fieldBlur.clipsToBounds = true
+    fieldBlur.isUserInteractionEnabled = false
+    fieldWrap.addSubview(fieldBlur)
+    fieldBlur.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      fieldBlur.leadingAnchor.constraint(equalTo: fieldWrap.leadingAnchor),
+      fieldBlur.trailingAnchor.constraint(equalTo: fieldWrap.trailingAnchor),
+      fieldBlur.topAnchor.constraint(equalTo: fieldWrap.topAnchor),
+      fieldBlur.bottomAnchor.constraint(equalTo: fieldWrap.bottomAnchor),
+    ])
 
     let iconWrap = UIView(frame: CGRect(x: 0, y: 0, width: 38, height: 24))
     let icon = UIImageView(image: UIImage(
@@ -105,12 +120,12 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
       blur.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       blur.trailingAnchor.constraint(equalTo: view.trailingAnchor),
       blur.topAnchor.constraint(equalTo: view.topAnchor),
-      blur.bottomAnchor.constraint(equalTo: fieldWrap.bottomAnchor, constant: 12),
+      blur.bottomAnchor.constraint(equalTo: fieldWrap.bottomAnchor, constant: 8),
 
       fieldWrap.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 18),
       fieldWrap.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -18),
-      fieldWrap.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
-      fieldWrap.heightAnchor.constraint(equalToConstant: 48),
+      fieldWrap.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 6),
+      fieldWrap.heightAnchor.constraint(equalToConstant: 44),
 
       field.leadingAnchor.constraint(equalTo: fieldWrap.leadingAnchor, constant: 4),
       field.trailingAnchor.constraint(equalTo: fieldWrap.trailingAnchor, constant: -10),
@@ -159,7 +174,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
     fieldWrap.layer.borderColor = NativeTheme.hairline.cgColor
-    fieldWrap.backgroundColor = NativeTheme.background
+    fieldWrap.backgroundColor = .clear
   }
 
   private func loadHot() {
@@ -180,6 +195,31 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     }
   }
 
+  /// Close-out reset: the next opening starts a fresh search flow.
+  func reset() {
+    requestToken += 1
+    workItem?.cancel()
+    workItem = nil
+    loading = false
+    field.text = ""
+    field.resignFirstResponder()
+    mode = .hot
+    items = []
+    suggestions = []
+    table.reloadData()
+    table.contentInset.top = 8
+    table.layoutIfNeeded()
+    table.setContentOffset(CGPoint(x: 0, y: -8), animated: false)
+    statusLabel.text = nil
+    emptyState()
+    fieldWrap.layer.borderWidth = 1
+    fieldWrap.layer.borderColor = NativeTheme.hairline.cgColor
+    fieldWrap.layer.shadowOpacity = 0
+    if hot.isEmpty {
+      loadHot()
+    }
+  }
+
   func focusNow() {
     guard !field.isFirstResponder else { return }
     field.becomeFirstResponder()
@@ -191,6 +231,8 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   }
 
   @objc private func textChanged() {
+    requestToken += 1
+    loading = false
     workItem?.cancel()
     let term = (field.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     guard !term.isEmpty else {
@@ -248,6 +290,8 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
 
   private func performSearch(_ term: String) {
     guard !loading else { return }
+    requestToken += 1
+    let token = requestToken
     workItem?.cancel()
     mode = .results
     items = []
@@ -257,7 +301,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     statusLabel.isHidden = false
     table.contentInset.top = 0
     BiliAPI.shared.search(term, page: 1) { [weak self] result in
-      guard let self = self else { return }
+      guard let self = self, token == self.requestToken else { return }
       self.loading = false
       switch result {
       case .failure(let error):

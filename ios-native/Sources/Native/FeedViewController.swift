@@ -673,6 +673,9 @@ final class FeedViewController: UIViewController,
         self.table.transform = .identity
         self.onToolbar?(self.toolbarWasHidden)
         self.startPreviewIfNeeded()
+        if !self.searchOpen {
+          search.reset()
+        }
       }
     }
   }
@@ -700,6 +703,9 @@ final class FeedViewController: UIViewController,
       table.transform = .identity
       onToolbar?(toolbarWasHidden)
       startPreviewIfNeeded()
+      if !searchOpen {
+        search.reset()
+      }
     }
   }
 
