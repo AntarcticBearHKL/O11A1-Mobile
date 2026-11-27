@@ -555,8 +555,12 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     if pan === embeddedSwipePan {
       let velocity = pan.velocity(in: view)
       let translation = pan.translation(in: view)
-      return abs(translation.x) > abs(translation.y) * 1.2
-        || abs(velocity.x) > abs(velocity.y) * 1.2
+      let movingRight = translation.x > 2 || velocity.x > 80
+      let horizontal = abs(translation.x) >= 8
+        && abs(translation.x) > abs(translation.y) * 1.8
+      let flick = abs(velocity.x) > 160
+        && abs(velocity.x) > abs(velocity.y) * 2.0
+      return movingRight && (horizontal || flick)
     }
     guard pan === dismissPan else { return true }
     let velocity = pan.velocity(in: view)

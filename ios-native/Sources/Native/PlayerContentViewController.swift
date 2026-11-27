@@ -1,3 +1,4 @@
+import QuartzCore
 import UIKit
 
 /// The page under the player: detail, comments and recommendations share one
@@ -38,6 +39,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
   private var related: RelatedViewController?
   private var tabSwipePan: UIPanGestureRecognizer?
   private var tabSwipeStartX: CGFloat = 0
+  private var tabSwipeSuppressedUntil: CFTimeInterval = 0
   private var dockHidden = false
 
   private let tabs: [(title: String, tab: Tab)] = [
@@ -163,6 +165,9 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
   func setReveal(_ value: CGFloat) {
     guard isViewLoaded else { return }
     let reveal = max(0, min(1, value))
+    if view.isHidden, reveal > 0.01 {
+      tabSwipeSuppressedUntil = CACurrentMediaTime() + 0.5
+    }
     view.alpha = reveal
     view.isHidden = reveal < 0.01
     view.isUserInteractionEnabled = reveal > 0.01
@@ -346,7 +351,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
 
   private func setDockHidden(_ hidden: Bool, animated: Bool) {
     dockHidden = hidden
-    tabDock.isUserInteractionEnabled = !hidden
+    tabDock.isUserInteractionEnabled = false
     tabDock.alpha = 1
     let normal = dockFrame()
     let distance = max(120, view.bounds.height - normal.minY + 16)
@@ -356,14 +361,19 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     let changes = {
       self.tabDock.transform = transform
     }
+    let finish = {
+      self.tabDock.isUserInteractionEnabled = !self.dockHidden
+    }
     if animated {
       UIView.animate(withDuration: 0.5, delay: 0,
                      usingSpringWithDamping: 0.92,
                      initialSpringVelocity: 0.15,
                      options: [.allowUserInteraction, .beginFromCurrentState],
-                     animations: changes)
+                     animations: changes,
+                     completion: { _ in finish() })
     } else {
       changes()
+      finish()
     }
   }
 
@@ -376,12 +386,15 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
 
   @objc private func handleTabSwipe(_ gesture: UIPanGestureRecognizer) {
     guard gesture.state == .ended || gesture.state == .cancelled else { return }
-    let translation = gesture.translation(in: view).x
-    let velocity = gesture.velocity(in: view).x
-    guard abs(translation) > 45 || abs(velocity) > 280 else { return }
+    let translation = gesture.translation(in: view)
+    let velocity = gesture.velocity(in: view)
+    let horizontal = abs(translation.x) > abs(translation.y) * 1.4
+      || abs(velocity.x) > abs(velocity.y) * 1.5
+    guard horizontal,
+          abs(translation.x) > 55 || abs(velocity.x) > 420 else { return }
     let all: [Tab] = [.detail, .comments, .related]
     guard let index = all.firstIndex(of: selected) else { return }
-    let next = translation < 0 ? index + 1 : index - 1
+    let next = translation.x < 0 ? index + 1 : index - 1
     guard all.indices.contains(next) else { return }
     UIImpactFeedbackGenerator(style: .light).impactOccurred()
     select(all[next])
@@ -390,6 +403,9 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                          shouldReceive touch: UITouch) -> Bool {
     if gestureRecognizer === tabSwipePan {
+      if touch.view?.isDescendant(of: tabDock) == true {
+        return false
+      }
       tabSwipeStartX = touch.location(in: view).x
     }
     return true
@@ -398,11 +414,15 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
           pan === tabSwipePan else { return true }
-    guard tabSwipeStartX >= view.bounds.width / 6.0 else { return false }
+    guard tabSwipeStartX >= view.bounds.width / 6.0,
+          CACurrentMediaTime() >= tabSwipeSuppressedUntil else { return false }
     let translation = pan.translation(in: view)
     let velocity = pan.velocity(in: view)
-    return (abs(translation.x) > 8 && abs(translation.x) > abs(translation.y) * 1.2)
-      || (abs(velocity.x) > 90 && abs(velocity.x) > abs(velocity.y) * 1.2)
+    let horizontal = abs(translation.x) >= 10
+      && abs(translation.x) > abs(translation.y) * 1.6
+    let flick = abs(velocity.x) >= 180
+      && abs(velocity.x) > abs(velocity.y) * 2.0
+    return horizontal || flick
   }
 
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
