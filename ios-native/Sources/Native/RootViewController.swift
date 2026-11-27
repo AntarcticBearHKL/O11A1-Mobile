@@ -200,6 +200,10 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     super.viewDidAppear(animated)
     ThemeManager.shared.apply()
     loadTopAvatar()
+    ClipboardShareWatcher.shared.onOpen = { [weak self] target in
+      self?.openShared(target)
+    }
+    ClipboardShareWatcher.shared.start()
     guard !testFlowTriggered else { return }
     testFlowTriggered = true
     let flow = ProcessInfo.processInfo.environment["O11A1_TEST_FLOW"] ?? ""
@@ -350,9 +354,13 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     mainHost.bringSubviewToFront(avatarButton)
   }
 
-  private func openPlayer(_ item: VideoItem, from source: UIView?) {
+  private func openPlayer(_ item: VideoItem, from source: UIView?,
+                          startAt: Double = 0) {
+    if let presented = presentedViewController {
+      presented.dismiss(animated: false)
+    }
     if let existing = player {
-      existing.play(item)
+      existing.play(item, startAt: startAt)
       view.bringSubviewToFront(existing.view)
       if upProfile != nil {
         profileCoveredByPlayer = true
@@ -364,6 +372,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     feed?.suspendPreview()
     let sourceView = (source as? HomeCardCell)?.mediaHost ?? source
     let controller = PlayerViewController(item: item, sourceView: sourceView)
+    controller.pendingStartSeconds = startAt
     controller.onClose = { [weak self] in
       self?.closePlayer()
     }
@@ -697,6 +706,35 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     controller.view.removeFromSuperview()
     controller.removeFromParent()
     messages = nil
+  }
+
+  private func openShared(_ target: BiliShareTarget) {
+    let apply: ([String: Any]) -> Void = { [weak self] json in
+      guard let self = self else { return }
+      var dict = json
+      if let stat = json["stat"] as? [String: Any] {
+        dict["play"] = o11a1Int64(stat["view"])
+        dict["playText"] = o11a1Count(o11a1Int64(stat["view"]))
+      }
+      if let pages = json["pages"] as? [[String: Any]],
+         target.part > 1, target.part <= pages.count {
+        dict["cid"] = pages[target.part - 1]["cid"]
+      }
+      let item = VideoItem(json: dict)
+      guard !item.bvid.isEmpty else { return }
+      DispatchQueue.main.async {
+        self.openPlayer(item, from: nil, startAt: target.startSeconds)
+      }
+    }
+    if !target.bvid.isEmpty {
+      BiliAPI.shared.videoInfo(target.bvid) { result in
+        if case .success(let json) = result { apply(json) }
+      }
+    } else if target.aid > 0 {
+      BiliAPI.shared.videoInfo(aid: target.aid) { result in
+        if case .success(let json) = result { apply(json) }
+      }
+    }
   }
 
   @objc private func openSearchFromTop() {

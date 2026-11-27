@@ -69,6 +69,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var portraitSettling = false
   private var portraitShrinking = false
   private var openingTransition = false
+  var pendingStartSeconds: Double = 0
   private var portraitTransition: CGFloat = 0
   private var portraitStageIsTop = false
   private var panDirectionDecided = false
@@ -463,6 +464,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self.errorLabel.isHidden = true
       self.backdropVideo.alpha = 1
       self.engine.play()
+      if self.pendingStartSeconds > 0 {
+        let seconds = self.pendingStartSeconds
+        self.pendingStartSeconds = 0
+        self.engine.seek(to: seconds, resume: true)
+      }
     }
     engine.onError = { [weak self] message in
       guard let self = self else { return }
@@ -1269,7 +1275,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
   }
 
-  func play(_ value: VideoItem) {
+  func play(_ value: VideoItem, startAt: Double = 0) {
+    pendingStartSeconds = max(0, startAt)
     replace(with: value)
   }
 

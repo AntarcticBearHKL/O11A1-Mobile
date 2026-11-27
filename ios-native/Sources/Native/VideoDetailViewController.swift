@@ -24,10 +24,20 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private let ownerName = UILabel()
   private let ownerMeta = UILabel()
   private let authorButton = UIButton(type: .custom)
-  private let viewValue = UILabel()
-  private let danmakuValue = UILabel()
   private let likeValue = UILabel()
   private let favoriteValue = UILabel()
+  private let likeIcon = UIImageView()
+  private let coinIcon = UIImageView()
+  private let favoriteIcon = UIImageView()
+  private let shareIcon = UIImageView()
+  private let shareTitle = UILabel()
+  private var likeCount: Int64 = 0
+  private var favoriteCount: Int64 = 0
+  private var liked = false
+  private var faved = false
+  private var coined = false
+  private var detailAid: Int64 = 0
+  private var detailBvid = ""
   private let descLabel = UILabel()
   private let descToggle = UIButton(type: .system)
   private let qualitySetting = UILabel()
@@ -213,33 +223,49 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       authorButton.bottomAnchor.constraint(equalTo: author.bottomAnchor),
     ])
 
-    let stats = UIStackView()
-    stats.axis = .horizontal
-    stats.distribution = .fillEqually
-    stats.alignment = .fill
-    stats.backgroundColor = NativeTheme.background
-    stats.layer.cornerRadius = NativeTheme.cornerRadius
-    stats.layer.cornerCurve = .continuous
-    stats.isLayoutMarginsRelativeArrangement = true
-    stats.layoutMargins = UIEdgeInsets(top: 10, left: 0, bottom: 10, right: 0)
-    stack.addArrangedSubview(stats)
-    for (value, label) in [(viewValue, "播放"), (danmakuValue, "弹幕"),
-                           (likeValue, "点赞"), (favoriteValue, "收藏")] {
-      let column = UIStackView()
-      column.axis = .vertical
-      column.alignment = .center
-      column.spacing = 3
-      value.font = UIFont.monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
-      value.textColor = NativeTheme.foreground
-      value.text = "—"
-      let caption = UILabel()
-      caption.text = label
-      caption.font = NativeTheme.bodyFont(9.5)
-      caption.textColor = NativeTheme.secondary
-      column.addArrangedSubview(value)
-      column.addArrangedSubview(caption)
-      stats.addArrangedSubview(column)
+    let actions = UIStackView()
+    actions.axis = .horizontal
+    actions.distribution = .fillEqually
+    actions.alignment = .fill
+    actions.backgroundColor = NativeTheme.background
+    actions.layer.cornerRadius = NativeTheme.cornerRadius
+    actions.layer.cornerCurve = .continuous
+    actions.isLayoutMarginsRelativeArrangement = true
+    actions.layoutMargins = UIEdgeInsets(top: 7, left: 4, bottom: 7, right: 4)
+    stack.addArrangedSubview(actions)
+
+    let coinValue = UILabel()
+    let shareValue = UILabel()
+    let likeTitle = UILabel()
+    let coinTitle = UILabel()
+    let favoriteTitle = UILabel()
+    coinTitle.text = "投币"
+    favoriteTitle.text = "收藏"
+    shareTitle.text = "分享"
+    for title in [likeTitle, coinTitle, favoriteTitle, shareTitle] {
+      title.font = UIFont.systemFont(ofSize: 11, weight: .medium)
+      title.textColor = NativeTheme.secondary
     }
+    likeTitle.text = "点赞"
+    for value in [likeValue, favoriteValue, coinValue, shareValue] {
+      value.font = UIFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
+      value.textColor = NativeTheme.secondary
+      value.textAlignment = .center
+      value.text = " "
+    }
+    actions.addArrangedSubview(makeActionGroup(
+      icon: likeIcon, symbol: "hand.thumbsup", title: likeTitle,
+      count: likeValue, action: #selector(likeTapped)))
+    actions.addArrangedSubview(makeActionGroup(
+      icon: coinIcon, symbol: "bitcoinsign.circle", title: coinTitle,
+      count: coinValue, action: #selector(coinTapped)))
+    actions.addArrangedSubview(makeActionGroup(
+      icon: favoriteIcon, symbol: "star", title: favoriteTitle,
+      count: favoriteValue, action: #selector(favoriteTapped)))
+    actions.addArrangedSubview(makeActionGroup(
+      icon: shareIcon, symbol: "square.and.arrow.up", title: shareTitle,
+      count: shareValue, action: #selector(shareTapped)))
+    updateActions()
 
     descLabel.font = NativeTheme.bodyFont(12)
     descLabel.textColor = NativeTheme.secondary
@@ -667,6 +693,118 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     loopSetting.text = loopOn ? "循环" : "单个"
   }
 
+  private func makeActionGroup(icon: UIImageView, symbol: String, title: UILabel,
+                               count: UILabel, action: Selector) -> UIView {
+    let container = UIView()
+    icon.image = UIImage(systemName: symbol, withConfiguration:
+      UIImage.SymbolConfiguration(pointSize: 21, weight: .regular))
+    icon.tintColor = NativeTheme.foreground
+    icon.contentMode = .scaleAspectFit
+    icon.translatesAutoresizingMaskIntoConstraints = false
+    icon.widthAnchor.constraint(equalToConstant: 24).isActive = true
+    icon.heightAnchor.constraint(equalToConstant: 24).isActive = true
+
+    let column = UIStackView()
+    column.axis = .vertical
+    column.alignment = .center
+    column.spacing = 1
+    column.addArrangedSubview(icon)
+    column.addArrangedSubview(title)
+    column.addArrangedSubview(count)
+    container.addSubview(column)
+    column.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      column.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+      column.topAnchor.constraint(equalTo: container.topAnchor, constant: 2),
+      column.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -2),
+      column.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor, constant: 2),
+      column.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor, constant: -2),
+    ])
+    let button = UIButton(type: .custom)
+    button.addTarget(self, action: action, for: .touchUpInside)
+    container.addSubview(button)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      button.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      button.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      button.topAnchor.constraint(equalTo: container.topAnchor),
+      button.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+    ])
+    return container
+  }
+
+  private var actionAid: Int64 {
+    return detailAid > 0 ? detailAid : item.aid
+  }
+
+  private func updateActions() {
+    let config = UIImage.SymbolConfiguration(pointSize: 21, weight: .regular)
+    likeIcon.image = UIImage(systemName: liked ? "hand.thumbsup.fill" : "hand.thumbsup",
+                             withConfiguration: config)
+    likeIcon.tintColor = liked ? NativeTheme.warmOrange : NativeTheme.foreground
+    coinIcon.image = UIImage(systemName: coined ? "bitcoinsign.circle.fill" : "bitcoinsign.circle",
+                             withConfiguration: config)
+    coinIcon.tintColor = coined ? NativeTheme.warmOrange : NativeTheme.foreground
+    favoriteIcon.image = UIImage(systemName: faved ? "star.fill" : "star",
+                                 withConfiguration: config)
+    favoriteIcon.tintColor = faved ? NativeTheme.warmOrange : NativeTheme.foreground
+    shareIcon.image = UIImage(systemName: "square.and.arrow.up", withConfiguration: config)
+    shareIcon.tintColor = NativeTheme.foreground
+    likeValue.text = likeCount > 0 ? o11a1Count(likeCount) : " "
+    favoriteValue.text = favoriteCount > 0 ? o11a1Count(favoriteCount) : " "
+  }
+
+  @objc private func likeTapped() {
+    let aid = actionAid
+    guard aid > 0 else { return }
+    let next = !liked
+    BiliAPI.shared.like(aid: aid, on: next) { [weak self] ok in
+      guard ok, let self = self else { return }
+      self.liked = next
+      self.likeCount = max(0, self.likeCount + (next ? 1 : -1))
+      self.updateActions()
+      UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+  }
+
+  @objc private func coinTapped() {
+    let aid = actionAid
+    guard aid > 0 else { return }
+    BiliAPI.shared.coin(aid: aid) { [weak self] ok in
+      guard ok, let self = self else { return }
+      self.coined = true
+      self.updateActions()
+      UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+  }
+
+  @objc private func favoriteTapped() {
+    let aid = actionAid
+    guard aid > 0 else { return }
+    let next = !faved
+    BiliAPI.shared.favorite(aid: aid, on: next) { [weak self] ok in
+      guard ok, let self = self else { return }
+      self.faved = next
+      self.favoriteCount = max(0, self.favoriteCount + (next ? 1 : -1))
+      self.updateActions()
+      UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+  }
+
+  @objc private func shareTapped() {
+    let bvid = detailBvid.isEmpty ? item.bvid : detailBvid
+    let link = bvid.isEmpty
+      ? "https://www.bilibili.com/video/av\(actionAid)"
+      : "https://www.bilibili.com/video/\(bvid)"
+    ClipboardShareWatcher.shared.ignore(link)
+    UIPasteboard.general.string = link
+    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    shareTitle.text = "已复制"
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+      self?.shareTitle.text = "分享"
+    }
+  }
+
   private func loadDetail() {
     BiliAPI.shared.videoInfo(item.bvid) { [weak self] result in
       guard let self = self, case .success(let json) = result else { return }
@@ -684,6 +822,8 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       let face = o11a1HTTPS(o11a1String(json["ownerFace"]))
       if !face.isEmpty { ImageLoader.shared.load(face, into: self.avatar, placeholder: nil) }
       self.detailMid = o11a1Int64(json["mid"])
+      self.detailAid = o11a1Int64(json["aid"])
+      self.detailBvid = o11a1String(json["bvid"])
       if self.detailMid > 0 {
         self.ownerMeta.text = "UID \(self.detailMid) · 点击进入主页"
       }
@@ -695,10 +835,12 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       let date = Self.dateText(o11a1Int64(json["pubdate"]))
       if !date.isEmpty { self.dateLabel.text = date }
       if let stat = json["stat"] as? [String: Any] {
-        self.viewValue.text = o11a1Count(o11a1Int64(stat["view"]))
-        self.danmakuValue.text = o11a1Count(o11a1Int64(stat["danmaku"]))
-        self.likeValue.text = o11a1Count(o11a1Int64(stat["like"]))
-        self.favoriteValue.text = o11a1Count(o11a1Int64(stat["favorite"]))
+        self.likeCount = o11a1Int64(stat["like"])
+        self.favoriteCount = o11a1Int64(stat["favorite"])
+        self.liked = o11a1Bool(json["liked"])
+        self.faved = o11a1Bool(json["faved"])
+        self.coined = o11a1Int(json["coined"]) > 0
+        self.updateActions()
       }
     }
   }

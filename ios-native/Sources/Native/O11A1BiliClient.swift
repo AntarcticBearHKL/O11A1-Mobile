@@ -1429,16 +1429,25 @@ final class O11A1BiliClient {
   }
 
   func videoInfo(bvid: String) -> Data {
-    guard let payload = json(base: Self.apiBase, path: "/x/web-interface/view", query: ["bvid": bvid]),
+    videoInfo(query: ["bvid": bvid])
+  }
+
+  func videoInfo(aid: Int64) -> Data {
+    videoInfo(query: ["aid": "\(aid)"])
+  }
+
+  private func videoInfo(query: [String: String]) -> Data {
+    guard let payload = json(base: Self.apiBase, path: "/x/web-interface/view", query: query),
           let data = payload["data"] as? [String: Any] else {
       return o11a1Error("视频信息不可用")
     }
     let owner = data["owner"] as? [String: Any]
     let stat = data["stat"] as? [String: Any]
     let pages = data["pages"] as? [[String: Any]] ?? []
+    let bvid = o11a1String(data["bvid"])
     var output: [String: Any] = [
       "ok": true,
-      "bvid": o11a1String(data["bvid"]),
+      "bvid": bvid,
       "aid": o11a1Int64(data["aid"]),
       "cid": o11a1Int64(data["cid"]),
       "mid": owner == nil ? 0 : o11a1Int64(owner?["mid"]),
@@ -1473,7 +1482,7 @@ final class O11A1BiliClient {
         "duration": o11a1Int(page["duration"])
       ]
     }
-    if cookies.hasSession(),
+    if cookies.hasSession(), !bvid.isEmpty,
        let relationPayload = json(base: Self.apiBase, path: "/x/web-interface/archive/relation", query: ["bvid": bvid]),
        var relation = relationPayload["data"] as? [String: Any] {
       if let nested = relation["relation"] as? [String: Any] { relation = nested }

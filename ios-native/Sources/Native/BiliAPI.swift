@@ -140,6 +140,10 @@ final class BiliAPI {
     run({ self.client.videoInfo(bvid: bvid) }, completion)
   }
 
+  func videoInfo(aid: Int64, completion: @escaping (Result<[String: Any], Error>) -> Void) {
+    run({ self.client.videoInfo(aid: aid) }, completion)
+  }
+
   func related(_ bvid: String, completion: @escaping (Result<[VideoItem], Error>) -> Void) {
     run({ self.client.related(bvid: bvid) }) { result in
       switch result {
