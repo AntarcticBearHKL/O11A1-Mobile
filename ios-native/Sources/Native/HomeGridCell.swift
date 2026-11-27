@@ -3,6 +3,12 @@ import UIKit
 /// A compact Bilibili-style two-column video card: cover on top, the same
 /// information as the large card below with smaller type.
 final class MiniVideoCardView: UIView {
+  private static let cardSurface = UIColor { trait in
+    trait.userInterfaceStyle == .dark
+      ? UIColor(red: 28.0 / 255.0, green: 28.0 / 255.0, blue: 30.0 / 255.0, alpha: 1)
+      : UIColor(red: 242.0 / 255.0, green: 242.0 / 255.0, blue: 242.0 / 255.0, alpha: 1)
+  }
+
   let mediaHost = UIView()
   private let cover = UIImageView()
   private let duration = UILabel()
@@ -11,19 +17,15 @@ final class MiniVideoCardView: UIView {
   private let progressFill = UIView()
   private var progressWidth: NSLayoutConstraint?
   private let info = UIView()
-  private let avatar = UIImageView()
   private let title = UILabel()
   private let owner = UILabel()
   private let play = UILabel()
   private let time = UILabel()
-  private let dot = UILabel()
-  private let meta = UIStackView()
+  private let stats = UIStackView()
   private let tapButton = UIButton(type: .custom)
-  private let avatarButton = UIButton(type: .custom)
   private var item: VideoItem?
 
   var onOpen: (() -> Void)?
-  var onAvatar: (() -> Void)?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -32,12 +34,12 @@ final class MiniVideoCardView: UIView {
     layer.cornerCurve = .continuous
     layer.borderWidth = 0.5
     layer.borderColor = NativeTheme.hairline.cgColor
-    backgroundColor = NativeTheme.surface
+    backgroundColor = Self.cardSurface
 
     mediaHost.clipsToBounds = true
     mediaHost.backgroundColor = UIColor { trait in
       trait.userInterfaceStyle == .dark
-        ? UIColor(red: 26.0 / 255.0, green: 32.0 / 255.0, blue: 42.0 / 255.0, alpha: 1)
+        ? .black
         : UIColor(red: 228.0 / 255.0, green: 231.0 / 255.0, blue: 236.0 / 255.0, alpha: 1)
     }
     addSubview(mediaHost)
@@ -76,20 +78,9 @@ final class MiniVideoCardView: UIView {
     progressTrack.addSubview(progressFill)
     progressFill.translatesAutoresizingMaskIntoConstraints = false
 
-    info.backgroundColor = NativeTheme.surface
+    info.backgroundColor = Self.cardSurface
     addSubview(info)
     info.translatesAutoresizingMaskIntoConstraints = false
-
-    avatar.contentMode = .scaleAspectFill
-    avatar.clipsToBounds = true
-    avatar.layer.cornerRadius = 15
-    avatar.backgroundColor = NativeTheme.tertiary.withAlphaComponent(0.16)
-    info.addSubview(avatar)
-    avatar.translatesAutoresizingMaskIntoConstraints = false
-
-    avatarButton.backgroundColor = .clear
-    avatarButton.addTarget(self, action: #selector(avatarTapped), for: .touchUpInside)
-    avatarButton.translatesAutoresizingMaskIntoConstraints = false
 
     title.font = UIFont.systemFont(ofSize: 13, weight: .bold)
     title.textColor = NativeTheme.foreground
@@ -98,11 +89,14 @@ final class MiniVideoCardView: UIView {
     info.addSubview(title)
     title.translatesAutoresizingMaskIntoConstraints = false
 
-    owner.font = UIFont.systemFont(ofSize: 9.5, weight: .medium)
+    owner.font = UIFont.systemFont(ofSize: 10.5, weight: .medium)
     owner.textColor = NativeTheme.secondary
     owner.numberOfLines = 1
     owner.lineBreakMode = .byTruncatingTail
     owner.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    info.addSubview(owner)
+    owner.translatesAutoresizingMaskIntoConstraints = false
+
     play.font = UIFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .medium)
     play.textAlignment = .right
     play.numberOfLines = 1
@@ -114,29 +108,20 @@ final class MiniVideoCardView: UIView {
     time.numberOfLines = 1
     time.setContentHuggingPriority(.required, for: .horizontal)
     time.setContentCompressionResistancePriority(.required, for: .horizontal)
-    dot.text = "·"
-    dot.font = UIFont.systemFont(ofSize: 9.5, weight: .medium)
-    dot.textColor = NativeTheme.tertiary
-    dot.setContentHuggingPriority(.required, for: .horizontal)
-    meta.axis = .horizontal
-    meta.distribution = .fill
-    meta.alignment = .center
-    meta.spacing = 3
-    let metaSpacer = UIView()
-    metaSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-    meta.addArrangedSubview(owner)
-    meta.addArrangedSubview(metaSpacer)
-    meta.addArrangedSubview(play)
-    meta.addArrangedSubview(dot)
-    meta.addArrangedSubview(time)
-    info.addSubview(meta)
-    meta.translatesAutoresizingMaskIntoConstraints = false
+
+    stats.axis = .vertical
+    stats.alignment = .trailing
+    stats.distribution = .fill
+    stats.spacing = 1
+    stats.addArrangedSubview(play)
+    stats.addArrangedSubview(time)
+    info.addSubview(stats)
+    stats.translatesAutoresizingMaskIntoConstraints = false
 
     tapButton.backgroundColor = .clear
     tapButton.addTarget(self, action: #selector(tapped), for: .touchUpInside)
     addSubview(tapButton)
     tapButton.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(avatarButton)
 
     NSLayoutConstraint.activate([
       mediaHost.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -173,22 +158,19 @@ final class MiniVideoCardView: UIView {
       info.bottomAnchor.constraint(equalTo: bottomAnchor),
       info.heightAnchor.constraint(equalToConstant: HomeGridCell.infoHeight),
 
-      avatar.leadingAnchor.constraint(equalTo: info.leadingAnchor, constant: 9),
-      avatar.centerYAnchor.constraint(equalTo: info.centerYAnchor),
-      avatar.widthAnchor.constraint(equalToConstant: 30),
-      avatar.heightAnchor.constraint(equalToConstant: 30),
-      avatarButton.leadingAnchor.constraint(equalTo: avatar.leadingAnchor),
-      avatarButton.trailingAnchor.constraint(equalTo: avatar.trailingAnchor),
-      avatarButton.topAnchor.constraint(equalTo: avatar.topAnchor),
-      avatarButton.bottomAnchor.constraint(equalTo: avatar.bottomAnchor),
-
-      title.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 7),
+      title.leadingAnchor.constraint(equalTo: info.leadingAnchor, constant: 9),
       title.trailingAnchor.constraint(equalTo: info.trailingAnchor, constant: -9),
       title.topAnchor.constraint(equalTo: info.topAnchor, constant: 7),
 
-      meta.leadingAnchor.constraint(equalTo: title.leadingAnchor),
-      meta.trailingAnchor.constraint(equalTo: title.trailingAnchor),
-      meta.bottomAnchor.constraint(equalTo: info.bottomAnchor, constant: -7),
+      owner.leadingAnchor.constraint(equalTo: info.leadingAnchor, constant: 9),
+      owner.bottomAnchor.constraint(equalTo: info.bottomAnchor, constant: -8),
+      owner.trailingAnchor.constraint(lessThanOrEqualTo: stats.leadingAnchor, constant: -8),
+
+      stats.trailingAnchor.constraint(equalTo: info.trailingAnchor, constant: -9),
+      stats.bottomAnchor.constraint(equalTo: info.bottomAnchor, constant: -8),
+
+      title.bottomAnchor.constraint(lessThanOrEqualTo: stats.topAnchor, constant: -4),
+      title.bottomAnchor.constraint(lessThanOrEqualTo: owner.topAnchor, constant: -4),
 
       tapButton.leadingAnchor.constraint(equalTo: leadingAnchor),
       tapButton.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -204,14 +186,14 @@ final class MiniVideoCardView: UIView {
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
     layer.borderColor = NativeTheme.hairline.cgColor
-    info.backgroundColor = NativeTheme.surface
+    backgroundColor = Self.cardSurface
+    info.backgroundColor = Self.cardSurface
     cover.backgroundColor = mediaHost.backgroundColor
   }
 
   func prepareForReuse() {
     item = nil
     cover.image = nil
-    avatar.image = nil
   }
 
   func configure(_ item: VideoItem) {
@@ -232,7 +214,6 @@ final class MiniVideoCardView: UIView {
     owner.text = season && !item.meta.isEmpty ? item.meta : item.owner
     play.isHidden = season || isLive
     time.isHidden = season
-    dot.isHidden = play.isHidden || time.isHidden
     play.text = item.playText.isEmpty ? "" : item.playText + "播放"
     play.textColor = NativeTheme.playCountColor(item.play)
     if isLive {
@@ -248,11 +229,6 @@ final class MiniVideoCardView: UIView {
     duration.isHidden = isLive
     live.isHidden = !isLive
     ImageLoader.shared.load(item.pic, into: cover)
-    if item.ownerFace.isEmpty {
-      avatar.image = nil
-    } else {
-      ImageLoader.shared.load(item.ownerFace, into: avatar, placeholder: nil)
-    }
     progressWidth?.isActive = false
     if item.progress > 0, item.durationSec > 0 {
       progressTrack.isHidden = false
@@ -267,10 +243,6 @@ final class MiniVideoCardView: UIView {
 
   @objc private func tapped() {
     onOpen?()
-  }
-
-  @objc private func avatarTapped() {
-    onAvatar?()
   }
 }
 
@@ -287,7 +259,6 @@ final class HomeGridCell: UITableViewCell {
   private var rightItem: VideoItem?
 
   var onOpen: ((VideoItem, MiniVideoCardView) -> Void)?
-  var onAvatar: ((Int64) -> Void)?
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
     super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -313,17 +284,9 @@ final class HomeGridCell: UITableViewCell {
       guard let self = self, let item = self.leftItem else { return }
       self.onOpen?(item, self.leftCard)
     }
-    leftCard.onAvatar = { [weak self] in
-      guard let self = self, let item = self.leftItem else { return }
-      self.onAvatar?(item.mid)
-    }
     rightCard.onOpen = { [weak self] in
       guard let self = self, let item = self.rightItem else { return }
       self.onOpen?(item, self.rightCard)
-    }
-    rightCard.onAvatar = { [weak self] in
-      guard let self = self, let item = self.rightItem else { return }
-      self.onAvatar?(item.mid)
     }
   }
 
@@ -338,7 +301,6 @@ final class HomeGridCell: UITableViewCell {
     leftCard.prepareForReuse()
     rightCard.prepareForReuse()
     onOpen = nil
-    onAvatar = nil
   }
 
   func configure(_ left: VideoItem, _ right: VideoItem?) {

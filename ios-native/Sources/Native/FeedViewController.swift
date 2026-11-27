@@ -422,9 +422,6 @@ final class FeedViewController: UIViewController,
       cell.onOpen = { [weak self] item, card in
         self?.open(item, source: card)
       }
-      cell.onAvatar = { [weak self] mid in
-        self?.onProfile?(mid)
-      }
       return cell
     }
     let cell = tableView.dequeueReusableCell(
