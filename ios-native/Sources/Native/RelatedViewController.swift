@@ -2,14 +2,18 @@ import UIKit
 
 final class RelatedViewController: UIViewController, UITableViewDataSource,
   UITableViewDelegate, UIGestureRecognizerDelegate {
+  var embedded = false
   var onSelect: ((VideoItem) -> Void)?
   var onClose: (() -> Void)?
+  var onSwipeRight: (() -> Void)?
 
   private let bvid: String
   private let table = UITableView(frame: .zero, style: .plain)
+  private let headerTitle = UILabel()
   private let status = UILabel()
   private var items: [VideoItem] = []
   private var dismissPan: UIPanGestureRecognizer?
+  private var closeSwipePan: UIPanGestureRecognizer?
   private var loading = false
 
   init(bvid: String) {
@@ -24,7 +28,19 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    view.backgroundColor = NativeTheme.background
+    view.backgroundColor = embedded ? NativeTheme.surface : NativeTheme.background
+
+    if embedded {
+      headerTitle.text = "推荐"
+      headerTitle.font = UIFont.systemFont(ofSize: 15, weight: .bold)
+      headerTitle.textColor = NativeTheme.foreground
+      view.addSubview(headerTitle)
+      headerTitle.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        headerTitle.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 18),
+        headerTitle.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
+      ])
+    }
 
     table.backgroundColor = .clear
     table.separatorStyle = .none
@@ -58,19 +74,29 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
       status.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -32),
     ])
 
-    let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
-    pan.delegate = self
-    table.panGestureRecognizer.require(toFail: pan)
-    view.addGestureRecognizer(pan)
-    dismissPan = pan
+    if embedded {
+      let swipe = UIPanGestureRecognizer(target: self, action: #selector(handleCloseSwipe(_:)))
+      swipe.delegate = self
+      table.panGestureRecognizer.require(toFail: swipe)
+      view.addGestureRecognizer(swipe)
+      closeSwipePan = swipe
+    } else {
+      let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+      pan.delegate = self
+      table.panGestureRecognizer.require(toFail: pan)
+      view.addGestureRecognizer(pan)
+      dismissPan = pan
+    }
 
     load()
   }
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    table.contentInset = UIEdgeInsets(top: view.safeAreaInsets.top, left: 0,
-                                      bottom: view.safeAreaInsets.bottom + 18, right: 0)
+    let top = embedded ? 48 : view.safeAreaInsets.top
+    let bottom = embedded ? 84 : 18
+    table.contentInset = UIEdgeInsets(top: top, left: 0,
+                                      bottom: view.safeAreaInsets.bottom + bottom, right: 0)
   }
 
   private func load() {
@@ -106,6 +132,15 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
     return cell
   }
 
+  @objc private func handleCloseSwipe(_ gesture: UIPanGestureRecognizer) {
+    guard gesture.state == .ended || gesture.state == .cancelled else { return }
+    let translation = gesture.translation(in: view).x
+    let velocity = gesture.velocity(in: view).x
+    if translation > 60 || velocity > 420 {
+      onSwipeRight?()
+    }
+  }
+
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
     let width = max(1, view.bounds.width)
     let reference = view.superview ?? view
@@ -126,9 +161,14 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
   }
 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-    guard let pan = gestureRecognizer as? UIPanGestureRecognizer, pan === dismissPan else {
-      return true
+    guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+    if pan === closeSwipePan {
+      let velocity = pan.velocity(in: view)
+      let translation = pan.translation(in: view)
+      return abs(translation.x) > abs(translation.y) * 1.2
+        || abs(velocity.x) > abs(velocity.y) * 1.2
     }
+    guard pan === dismissPan else { return true }
     let velocity = pan.velocity(in: view)
     let translation = pan.translation(in: view)
     return abs(translation.x) > abs(translation.y) * 1.1

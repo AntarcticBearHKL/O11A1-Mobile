@@ -13,6 +13,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   private let tint = UIView()
   private let table = UITableView(frame: .zero, style: .plain)
   private let status = UILabel()
+  private let headerTitle = UILabel()
   private let sortDock = UIView()
   private let sortBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let latestButton = UIButton(type: .custom)
@@ -118,11 +119,29 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     sortDock.clipsToBounds = false
     card.addSubview(sortDock)
     sortDock.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      sortDock.centerXAnchor.constraint(equalTo: card.centerXAnchor),
-      sortDock.bottomAnchor.constraint(equalTo: card.safeAreaLayoutGuide.bottomAnchor, constant: -16),
-      sortDock.heightAnchor.constraint(equalToConstant: 52),
-    ])
+    let sortHeight: CGFloat = embedded ? 36 : 52
+    if embedded {
+      NSLayoutConstraint.activate([
+        sortDock.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
+        sortDock.topAnchor.constraint(equalTo: card.topAnchor, constant: 10),
+        sortDock.heightAnchor.constraint(equalToConstant: sortHeight),
+      ])
+      headerTitle.text = "评论"
+      headerTitle.font = UIFont.systemFont(ofSize: 15, weight: .bold)
+      headerTitle.textColor = NativeTheme.foreground
+      card.addSubview(headerTitle)
+      headerTitle.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        headerTitle.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 18),
+        headerTitle.centerYAnchor.constraint(equalTo: sortDock.centerYAnchor),
+      ])
+    } else {
+      NSLayoutConstraint.activate([
+        sortDock.centerXAnchor.constraint(equalTo: card.centerXAnchor),
+        sortDock.bottomAnchor.constraint(equalTo: card.safeAreaLayoutGuide.bottomAnchor, constant: -16),
+        sortDock.heightAnchor.constraint(equalToConstant: sortHeight),
+      ])
+    }
     sortBlur.isUserInteractionEnabled = false
     sortBlur.layer.cornerRadius = NativeTheme.cornerRadius
     sortBlur.layer.cornerCurve = .continuous
@@ -135,14 +154,18 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
       sortBlur.topAnchor.constraint(equalTo: sortDock.topAnchor),
       sortBlur.bottomAnchor.constraint(equalTo: sortDock.bottomAnchor),
     ])
+    let sortButtonWidth: CGFloat = embedded ? 62 : 92
+    let sortButtonHeight: CGFloat = embedded ? 28 : 42
+    let sortFontSize: CGFloat = embedded ? 12.5 : 13.5
+    let sortInset: CGFloat = embedded ? 12 : 22
     for (index, button) in [latestButton, hotButton].enumerated() {
       button.tag = index
-      button.titleLabel?.font = UIFont.systemFont(ofSize: 13.5, weight: .bold)
+      button.titleLabel?.font = UIFont.systemFont(ofSize: sortFontSize, weight: .bold)
       button.layer.cornerRadius = NativeTheme.cornerRadius
       button.layer.cornerCurve = .continuous
-      button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 22, bottom: 0, right: 22)
-      button.widthAnchor.constraint(equalToConstant: 92).isActive = true
-      button.heightAnchor.constraint(equalToConstant: 42).isActive = true
+      button.contentEdgeInsets = UIEdgeInsets(top: 0, left: sortInset, bottom: 0, right: sortInset)
+      button.widthAnchor.constraint(equalToConstant: sortButtonWidth).isActive = true
+      button.heightAnchor.constraint(equalToConstant: sortButtonHeight).isActive = true
       button.addTarget(self, action: #selector(sortTapped(_:)), for: .touchUpInside)
       sortDock.addSubview(button)
       button.translatesAutoresizingMaskIntoConstraints = false
@@ -182,8 +205,8 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
 
   private func updateInsets() {
     if embedded {
-      table.contentInset = UIEdgeInsets(top: 0, left: 0,
-                                        bottom: 78 + view.safeAreaInsets.bottom, right: 0)
+      table.contentInset = UIEdgeInsets(top: 58, left: 0,
+                                        bottom: 84 + view.safeAreaInsets.bottom, right: 0)
     } else {
       table.contentInset = UIEdgeInsets(top: view.safeAreaInsets.top + 16, left: 0,
                                         bottom: 102 + view.safeAreaInsets.bottom, right: 0)
@@ -351,14 +374,9 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   @objc private func handleEmbeddedSwipe(_ gesture: UIPanGestureRecognizer) {
     guard gesture.state == .ended || gesture.state == .cancelled else { return }
     let translation = gesture.translation(in: view).x
-    if translation < -60 {
-      if embeddedSwipeStartX >= view.bounds.width * 2.0 / 3.0 {
-        onSwipeLeft?()
-      }
-    } else if translation > 60 {
-      if embeddedSwipeStartX <= view.bounds.width / 3.0 {
-        onSwipeRight?()
-      }
+    let velocity = gesture.velocity(in: view).x
+    if translation > 60 || velocity > 420 {
+      onSwipeRight?()
     }
   }
 
@@ -380,7 +398,10 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                          shouldReceive touch: UITouch) -> Bool {
     if gestureRecognizer === pullDownPan {
-      pullDownArmed = table.contentOffset.y <= 1
+      let x = touch.location(in: view).x
+      let width = max(1, view.bounds.width)
+      let sideColumn = x < width / 3.0 || x > width * 2.0 / 3.0
+      pullDownArmed = table.contentOffset.y <= 1 && sideColumn
     }
     if gestureRecognizer === embeddedSwipePan {
       embeddedSwipeStartX = touch.location(in: view).x

@@ -61,9 +61,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var loadToken = 0
   private var started = false
   private var speedIndex = 0
-  private var relatedSwipe = false
-  private var detailSwipe = false
+  private var closeSwipe = false
   private var portraitDismissDrag = false
+  private var landscapeDrag = false
   private var portraitUpDrag = false
   private var portraitRestoreDrag = false
   private var portraitDragActive = false
@@ -72,14 +72,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var openingTransition = false
   private var backdropCollapsed = false
   var pendingStartSeconds: Double = 0
-  private var portraitTransition: CGFloat = 0
-  private var portraitStageIsTop = false
+  private var portraitTransition: CGFloat = 1
+  private var portraitStageIsTop = true
+  private var contentReady = false
   private var panDirectionDecided = false
-  private var panStartX: CGFloat = 0
-  private var detailPanel: VideoDetailViewController?
-  private var relatedPanel: RelatedViewController?
+  private var contentController: PlayerContentViewController?
   private var settingsPanel: PlayerSettingsViewController?
-  private var portraitComments: CommentsPanelViewController?
   private var isLandscapePlayer = false
   private var loopOn = false
   private var controlsVisible = true
@@ -90,6 +88,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var panRestoreDimAlpha: CGFloat = 1
   private var panRestorePlayAlpha: CGFloat = 1
   private let panelSlideDistance: CGFloat = 28
+  private let playerPanelHeight: CGFloat = 112
   private let panelShowDuration: TimeInterval = 0.26
   private let panelHideDuration: TimeInterval = 0.28
   private let panelHideScale: Double =
@@ -114,9 +113,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   override var prefersStatusBarHidden: Bool { false }
   override var preferredStatusBarStyle: UIStatusBarStyle {
-    if relatedPanel != nil || detailPanel != nil || settingsPanel != nil {
-      return traitCollection.userInterfaceStyle == .dark ? .lightContent : .darkContent
-    }
     return .lightContent
   }
 
@@ -373,15 +369,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       ownerButton.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
       ownerButton.centerYAnchor.constraint(equalTo: ownerLabel.centerYAnchor),
 
-      wheel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 8),
-      wheel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -8),
-      wheel.topAnchor.constraint(equalTo: content.topAnchor, constant: 28),
-      wheel.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -25),
+      wheel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
+      wheel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
+      wheel.topAnchor.constraint(equalTo: content.topAnchor, constant: 52),
+      wheel.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -12),
 
       grid.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
       grid.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
-      grid.topAnchor.constraint(equalTo: content.topAnchor, constant: 8),
-      grid.heightAnchor.constraint(equalToConstant: 12),
+      grid.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
+      grid.heightAnchor.constraint(equalToConstant: 30),
 
       qualityLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
       qualityLabel.topAnchor.constraint(equalTo: wheel.bottomAnchor, constant: 2),
@@ -505,7 +501,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     bottomPanel.isUserInteractionEnabled = false
     [ownerLabel, ownerButton, qualityLabel, speedLabel, commentsButton,
      likeButton, coinButton, favButton].forEach { $0.removeFromSuperview() }
-    _ = ensurePortraitComments()
+    _ = ensurePlayerContent()
     speedFeedback.prepare()
     loadQuality(ThemeManager.shared.quality)
     if item.roomId == 0, item.cid > 0 {
@@ -541,10 +537,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     guard !started else { return }
     started = true
     view.layoutIfNeeded()
+    contentReady = true
     engine.enablePiP()
     if sourceFrame.width > 0 {
       let target = view.bounds.width > view.bounds.height
-        ? view.bounds : portraitVideoRects().center
+        ? view.bounds : portraitVideoRects().top
       let source = view.convert(sourceFrame, from: nil)
       videoContainer.frame = source
       let full = view.bounds
@@ -569,6 +566,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         }
       }
       sourceFrame = .zero
+    } else if !isLandscapePlayer {
+      applyPortraitTransition(portraitTransition)
     }
   }
 
@@ -675,7 +674,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     layoutVideoSubviews()
     danmakuOverlay.frame = lerpRect(full, videoRect, p)
 
-    let panelHeight: CGFloat = 88
+    let panelHeight: CGFloat = playerPanelHeight
     let panelWidth = max(1, full.width - 24)
     let centerPanelY = full.height - view.safeAreaInsets.bottom - panelHeight - 18
     let topPanelY = max(0, videoRect.maxY - panelHeight - 8)
@@ -685,24 +684,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     seekBubble.frame = CGRect(x: full.midX - 40, y: panelY - 27,
                               width: 80, height: 21)
 
-    let comments = ensurePortraitComments()
-    comments.view.frame = CGRect(x: 0, y: videoRect.maxY,
-                                 width: full.width,
-                                 height: max(0, full.height - videoRect.maxY))
+    let content = ensurePlayerContent()
+    content.view.frame = CGRect(x: 0, y: videoRect.maxY,
+                                width: full.width,
+                                height: max(0, full.height - videoRect.maxY))
     let reveal = p * p * (3 - 2 * p)
-    comments.view.alpha = reveal
-    comments.view.isHidden = p < 0.01
-    comments.view.isUserInteractionEnabled = true
+    content.setReveal(contentReady ? reveal : 0)
     view.bringSubviewToFront(danmakuOverlay)
-    if p > 0.01 && relatedPanel == nil && detailPanel == nil {
-      view.bringSubviewToFront(comments.view)
-    }
-    if relatedPanel == nil && detailPanel == nil {
-      view.bringSubviewToFront(bottomPanel)
-      view.bringSubviewToFront(seekBubble)
-    }
-    if let related = relatedPanel { view.bringSubviewToFront(related.view) }
-    if let detail = detailPanel { view.bringSubviewToFront(detail.view) }
+    view.bringSubviewToFront(content.view)
+    view.bringSubviewToFront(bottomPanel)
+    view.bringSubviewToFront(seekBubble)
     bottomPanel.layoutIfNeeded()
     grid.setNeedsDisplay()
   }
@@ -741,24 +732,54 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     settlePortrait(top: !complete, animated: true)
   }
 
-  private func ensurePortraitComments() -> CommentsPanelViewController {
-    if let comments = portraitComments { return comments }
-    let comments = CommentsPanelViewController(aid: item.aid)
-    comments.embedded = true
-    comments.onSwipeLeft = { [weak self] in self?.openRelatedPanel() }
-    comments.onSwipeRight = { [weak self] in self?.openDetailPanel() }
-    comments.onPullDown = { [weak self] progress in self?.commentsPull(progress) }
-    comments.onPullDownEnded = { [weak self] complete in self?.commentsPullEnded(complete) }
-    addChild(comments)
-    comments.view.frame = .zero
-    comments.view.autoresizingMask = []
-    comments.view.alpha = 0
-    comments.view.isHidden = true
-    comments.view.isUserInteractionEnabled = false
-    view.addSubview(comments.view)
-    comments.didMove(toParent: self)
-    portraitComments = comments
-    return comments
+  private func ensurePlayerContent() -> PlayerContentViewController {
+    if let content = contentController { return content }
+    let content = PlayerContentViewController(item: item)
+    content.initialQuality = currentQuality
+    content.initialDanmakuOn = danmakuOverlay.enabled
+    content.initialLoopOn = loopOn
+    content.onSelectRelated = { [weak self] value in self?.replace(with: value) }
+    content.onProfile = { [weak self] mid in self?.onProfile?(mid) }
+    content.onQuality = { [weak self] qn in
+      guard let self = self else { return }
+      self.currentQuality = qn
+      ThemeManager.shared.quality = qn
+      self.loadQuality(qn)
+    }
+    content.onDanmaku = { [weak self] on in
+      self?.danmakuOverlay.setEnabled(on)
+      UserDefaults.standard.set(on, forKey: "danmaku_enabled")
+      self?.danmakuToggle.alpha = on ? 1 : 0.45
+    }
+    content.onDanmakuSettingsChanged = { [weak self] in
+      guard let self = self else { return }
+      self.danmakuOverlay.applyStoredSettings()
+      self.danmakuToggle.alpha = self.danmakuOverlay.enabled ? 1 : 0.45
+    }
+    content.onLoop = { [weak self] on in
+      guard let self = self else { return }
+      self.loopOn = on
+      self.engine.setLoop(on)
+    }
+    content.onPullDown = { [weak self] progress in self?.commentsPull(progress) }
+    content.onPullDownEnded = { [weak self] complete in
+      self?.commentsPullEnded(complete)
+    }
+    content.onSwipeRightToClose = { [weak self] in self?.closeFromRightSwipe() }
+    addChild(content)
+    content.view.frame = .zero
+    content.view.autoresizingMask = []
+    content.setReveal(0)
+    view.addSubview(content.view)
+    content.didMove(toParent: self)
+    contentController = content
+    return content
+  }
+
+  private func closeFromRightSwipe() {
+    guard !closing, !portraitShrinking, !isLandscapePlayer,
+          portraitStageIsTop, portraitTransition > 0.98 else { return }
+    closePortraitWithShrink()
   }
 
   override func viewWillTransition(to size: CGSize,
@@ -797,15 +818,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     topBar.frame = CGRect(x: 0, y: view.safeAreaInsets.top, width: full.width, height: 52)
 
     if landscape {
-      portraitComments?.view.isHidden = true
-      portraitComments?.view.alpha = 0
+      contentController?.setReveal(0)
       if !openingTransition && (panProgress <= 0.001 || closing) {
         videoContainer.frame = full
       }
       videoContainer.layer.cornerRadius = 0
       layoutVideoSubviews()
       danmakuOverlay.frame = full
-      let panelHeight: CGFloat = 88
+      let panelHeight: CGFloat = playerPanelHeight
       let panelWidth = min(560, full.width - 32)
       let panelY = full.height - view.safeAreaInsets.bottom - panelHeight - 6
       bottomPanel.bounds = CGRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
@@ -818,12 +838,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       } else {
         layoutVideoSubviews()
       }
-    }
-    if let related = relatedPanel {
-      view.bringSubviewToFront(related.view)
-    }
-    if let detail = detailPanel {
-      view.bringSubviewToFront(detail.view)
     }
 
     bottomPanel.layoutIfNeeded()
@@ -1068,8 +1082,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let translation = gesture.translation(in: reference)
     switch gesture.state {
     case .began:
-      relatedSwipe = false
-      detailSwipe = false
+      closeSwipe = false
+      landscapeDrag = false
       portraitDismissDrag = false
       portraitUpDrag = false
       portraitRestoreDrag = false
@@ -1083,15 +1097,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       panRestorePlayAlpha = playButton.alpha
       view.transform = .identity
       view.layer.cornerRadius = 0
-      panStartX = gesture.location(in: view).x
       let velocity = gesture.velocity(in: videoContainer)
       if abs(velocity.x) > abs(velocity.y) && abs(velocity.x) > 80 {
         panDirectionDecided = true
-        if velocity.x < 0, panStartX >= view.bounds.width * 2.0 / 3.0 {
-          relatedSwipe = true
-        } else if velocity.x > 0, panStartX <= view.bounds.width / 3.0 {
-          detailSwipe = true
-        }
+        closeSwipe = velocity.x > 0 && !isLandscapePlayer
+          && portraitStageIsTop && portraitTransition > 0.98
       }
     case .changed:
       if !panDirectionDecided {
@@ -1099,15 +1109,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         if abs(translation.x) > threshold || abs(translation.y) > threshold {
           if abs(translation.x) > abs(translation.y) * 1.15 {
             panDirectionDecided = true
-            if translation.x < 0 {
-              if panStartX >= view.bounds.width * 2.0 / 3.0 {
-                relatedSwipe = true
-              }
-            } else {
-              if panStartX <= view.bounds.width / 3.0 {
-                detailSwipe = true
-              }
-            }
+            closeSwipe = translation.x > 0 && !isLandscapePlayer
+              && portraitStageIsTop && portraitTransition > 0.98
           } else if !isLandscapePlayer {
             panDirectionDecided = true
             if portraitStageIsTop {
@@ -1123,10 +1126,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             }
           } else {
             panDirectionDecided = true
+            landscapeDrag = true
           }
         }
       }
-      guard !relatedSwipe && !detailSwipe else { return }
+      guard !closeSwipe else { return }
+      guard !isLandscapePlayer || landscapeDrag else { return }
       if !isLandscapePlayer {
         let rects = portraitVideoRects()
         let distance = max(120, rects.center.minY - rects.top.minY)
@@ -1168,24 +1173,22 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       dim.alpha = 1 - p * 0.5
     case .ended, .cancelled:
       let endVelocity = gesture.velocity(in: view)
-      if relatedSwipe {
-        relatedSwipe = false
+      if closeSwipe {
+        closeSwipe = false
         panDirectionDecided = false
         portraitDragActive = false
-        if translation.x < -50 || endVelocity.x < -420 {
-          openRelatedPanel()
+        if translation.x > 60 || endVelocity.x > 420 {
+          closePortraitWithShrink()
         }
         return
       }
-      if detailSwipe {
-        detailSwipe = false
+      if isLandscapePlayer && !landscapeDrag {
+        landscapeDrag = false
         panDirectionDecided = false
         portraitDragActive = false
-        if translation.x > 50 || endVelocity.x > 420 {
-          openDetailPanel()
-        }
         return
       }
+      landscapeDrag = false
       if !isLandscapePlayer {
         let rects = portraitVideoRects()
         let distance = max(120, rects.center.minY - rects.top.minY)
@@ -1262,6 +1265,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self.backdropHost.transform = CGAffineTransform(
         translationX: 0, y: finalDown)
       self.backdropHost.alpha = 0
+      self.contentController?.view.alpha = 0
       self.topBar.alpha = 0
       self.bottomPanel.alpha = 0
       self.dim.alpha = 0
@@ -1273,41 +1277,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func openRelatedPanel() {
-    guard relatedPanel == nil else { return }
     hideControls()
-    let panel = RelatedViewController(bvid: item.bvid)
-    panel.onSelect = { [weak self] value in
-      self?.replace(with: value)
-    }
-    panel.onClose = { [weak self] in
-      self?.closeRelatedPanel()
-    }
-    relatedPanel = panel
-    setNeedsStatusBarAppearanceUpdate()
-    addChild(panel)
-    panel.view.frame = view.bounds
-    panel.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    view.addSubview(panel.view)
-    panel.didMove(toParent: self)
-    panel.view.transform = CGAffineTransform(translationX: view.bounds.width, y: 0)
-    UIView.animate(withDuration: 0.34, delay: 0, options: [.curveEaseOut]) {
-      panel.view.transform = .identity
-    }
-  }
-
-  private func closeRelatedPanel() {
-    guard let panel = relatedPanel else { return }
-    panel.willMove(toParent: nil)
-    UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseIn]) {
-      panel.view.transform = CGAffineTransform(translationX: self.view.bounds.width, y: 0)
-    } completion: { [weak self] _ in
-      panel.view.removeFromSuperview()
-      panel.removeFromParent()
-      if self?.relatedPanel === panel {
-        self?.relatedPanel = nil
-        self?.setNeedsStatusBarAppearanceUpdate()
-      }
-    }
+    ensurePlayerContent().select(.related)
   }
 
   func play(_ value: VideoItem, startAt: Double = 0) {
@@ -1316,13 +1287,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func replace(with value: VideoItem) {
-    guard value.bvid != item.bvid || value.roomId != item.roomId else {
-      closeRelatedPanel()
-      return
-    }
-    closeDetailPanel()
+    guard value.bvid != item.bvid || value.roomId != item.roomId else { return }
     closeSettingsPanel()
-    closeRelatedPanel()
     stopLiveChat()
     engine.stop()
     controlsTimer?.invalidate()
@@ -1330,12 +1296,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     bottomPanel.alpha = 0
     bottomPanel.transform = CGAffineTransform(translationX: 0, y: panelSlideDistance)
     bottomPanel.isUserInteractionEnabled = false
-    if let comments = portraitComments {
-      comments.willMove(toParent: nil)
-      comments.view.removeFromSuperview()
-      comments.removeFromParent()
-      portraitComments = nil
-    }
     item = value
     closing = false
     errorLabel.isHidden = true
@@ -1353,6 +1313,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       danmakuOverlay.load(cid: value.cid)
     }
     currentQuality = ThemeManager.shared.quality
+    contentController?.update(
+      item: value,
+      quality: currentQuality,
+      danmaku: danmakuOverlay.enabled,
+      loop: loopOn
+    )
     view.setNeedsLayout()
     loadQuality(currentQuality)
   }
@@ -1367,61 +1333,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func openDetailPanel() {
-    guard detailPanel == nil else { return }
     hideControls()
-    let detail = VideoDetailViewController(item: item)
-    detail.initialQuality = currentQuality
-    detail.initialDanmakuOn = danmakuOverlay.enabled
-    detail.initialLoopOn = loopOn
-    detail.onProfile = { [weak self] mid in self?.onProfile?(mid) }
-    detail.onClose = { [weak self] in self?.closeDetailPanel() }
-    detail.onQuality = { [weak self] qn in
-      guard let self = self else { return }
-      self.currentQuality = qn
-      ThemeManager.shared.quality = qn
-      self.loadQuality(qn)
-    }
-    detail.onDanmaku = { [weak self] on in
-      self?.danmakuOverlay.setEnabled(on)
-      UserDefaults.standard.set(on, forKey: "danmaku_enabled")
-      self?.danmakuToggle.alpha = on ? 1 : 0.45
-    }
-    detail.onDanmakuSettingsChanged = { [weak self] in
-      guard let self = self else { return }
-      self.danmakuOverlay.applyStoredSettings()
-      self.danmakuToggle.alpha = self.danmakuOverlay.enabled ? 1 : 0.45
-    }
-    detail.onLoop = { [weak self] on in
-      guard let self = self else { return }
-      self.loopOn = on
-      self.engine.setLoop(on)
-    }
-    detailPanel = detail
-    setNeedsStatusBarAppearanceUpdate()
-    addChild(detail)
-    detail.view.frame = view.bounds
-    detail.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    view.addSubview(detail.view)
-    detail.didMove(toParent: self)
-    detail.view.transform = CGAffineTransform(translationX: -view.bounds.width, y: 0)
-    UIView.animate(withDuration: 0.34, delay: 0, options: [.curveEaseOut]) {
-      detail.view.transform = .identity
-    }
-  }
-
-  private func closeDetailPanel() {
-    guard let detail = detailPanel else { return }
-    detail.willMove(toParent: nil)
-    UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseIn]) {
-      detail.view.transform = CGAffineTransform(translationX: -self.view.bounds.width, y: 0)
-    } completion: { [weak self] _ in
-      detail.view.removeFromSuperview()
-      detail.removeFromParent()
-      if self?.detailPanel === detail {
-        self?.detailPanel = nil
-        self?.setNeedsStatusBarAppearanceUpdate()
-      }
-    }
+    ensurePlayerContent().select(.detail)
   }
 
   private func openSettingsPanel() {
@@ -1479,12 +1392,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   func testOpenDanmakuSettings() {
-    openDetailPanel()
-    detailPanel?.testExpandDanmaku()
+    ensurePlayerContent().testExpandDanmaku()
   }
 
   func testOpenComments() {
-    openCommentsPanel()
+    ensurePlayerContent().select(.comments)
   }
 
   func testOpenSettings() {
@@ -1645,12 +1557,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     if touch.view is UIControl { return false }
     if touch.view?.isDescendant(of: bottomPanel) == true { return false }
     if touch.view?.isDescendant(of: topBar) == true { return false }
-    if let comments = portraitComments, !comments.view.isHidden,
-       touch.view?.isDescendant(of: comments.view) == true { return false }
-    if let related = relatedPanel,
-       touch.view?.isDescendant(of: related.view) == true { return false }
-    if let detail = detailPanel,
-       touch.view?.isDescendant(of: detail.view) == true { return false }
+    if let content = contentController,
+       touch.view?.isDescendant(of: content.view) == true { return false }
     return true
   }
 }

@@ -1,7 +1,8 @@
 import UIKit
 
-/// Precision ruler from the original player. The red needle stays in the
-/// centre while the tick strip moves under it.
+/// The desktop player's endless precision ruler: half-second notches sit on a
+/// fixed 12pt ridge, every fifth second carries its absolute timestamp and a
+/// red needle marks the exact centre. The strip slides under the needle.
 final class ProgressWheel: UIControl {
   var progress: Double = 0 {
     didSet { setNeedsDisplay() }
@@ -13,6 +14,8 @@ final class ProgressWheel: UIControl {
   var durationText: String = "00:00"
   var onScrub: ((Double, Bool) -> Void)?
 
+  private let ridgeGap: CGFloat = 12
+  private let tickStep: Double = 0.5
   private var lastX: CGFloat = 0
 
   override init(frame: CGRect) {
@@ -29,119 +32,137 @@ final class ProgressWheel: UIControl {
   }
 
   override var intrinsicContentSize: CGSize {
-    return CGSize(width: UIView.noIntrinsicMetric, height: 50)
+    return CGSize(width: UIView.noIntrinsicMetric, height: 48)
   }
 
   private var pxPerSecond: CGFloat {
-    return max(4.5, min(11, bounds.width / 72))
-  }
-
-  private var minorStep: Double {
-    let steps: [Double] = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600]
-    for step in steps where CGFloat(step) * pxPerSecond >= 11 {
-      return step
-    }
-    return 600
+    return ridgeGap / CGFloat(tickStep)
   }
 
   override func draw(_ rect: CGRect) {
-    guard let context = UIGraphicsGetCurrentContext(), bounds.width > 0 else { return }
+    guard let context = UIGraphicsGetCurrentContext(), bounds.width > 1 else { return }
     let light = traitCollection.userInterfaceStyle == .light
-    let centerX = bounds.width / 2
     let total = max(0, durationSeconds)
-    let center = max(0, min(total, progress * total))
+    let centerTime = max(0, min(total, progress * total))
 
-    // centre band
-    let band = CGRect(x: centerX - 26, y: 0, width: 52, height: bounds.height)
-    (light ? UIColor(red: 47.0 / 255.0, green: 124.0 / 255.0, blue: 246.0 / 255.0, alpha: 0.1)
-          : UIColor(red: 110.0 / 255.0, green: 168.0 / 255.0, blue: 1.0, alpha: 0.1)).setFill()
-    UIBezierPath(roundedRect: band, cornerRadius: NativeTheme.cornerRadius).fill()
+    let chipColor = light
+      ? UIColor(white: 0, alpha: 0.063)
+      : UIColor(red: 42.0 / 255.0, green: 42.0 / 255.0, blue: 51.0 / 255.0, alpha: 1)
+    let borderColor = light
+      ? UIColor(white: 0, alpha: 0.12)
+      : UIColor(red: 58.0 / 255.0, green: 58.0 / 255.0, blue: 68.0 / 255.0, alpha: 0.80)
+    let accentColor = light
+      ? UIColor(red: 0.0 / 255.0, green: 95.0 / 255.0, blue: 184.0 / 255.0, alpha: 1)
+      : UIColor(red: 62.0 / 255.0, green: 166.0 / 255.0, blue: 255.0 / 255.0, alpha: 1)
+    let dimColor = light
+      ? UIColor(red: 95.0 / 255.0, green: 95.0 / 255.0, blue: 104.0 / 255.0, alpha: 1)
+      : UIColor(red: 154.0 / 255.0, green: 154.0 / 255.0, blue: 162.0 / 255.0, alpha: 0.78)
+    let faintColor = light
+      ? UIColor(red: 120.0 / 255.0, green: 120.0 / 255.0, blue: 130.0 / 255.0, alpha: 1)
+      : UIColor(red: 154.0 / 255.0, green: 154.0 / 255.0, blue: 162.0 / 255.0, alpha: 0.55)
+    let aimColor = light
+      ? UIColor(red: 198.0 / 255.0, green: 64.0 / 255.0, blue: 58.0 / 255.0, alpha: 1)
+      : UIColor(red: 1.0, green: 112.0 / 255.0, blue: 102.0 / 255.0, alpha: 1)
 
-    if total > 0 {
-      let step = minorStep
-      let px = pxPerSecond
-      let halfSpan = Double(bounds.width / 2) / Double(px)
-      let start = center - halfSpan
-      let end = center + halfSpan
-      let first = Int(ceil(start / step))
-      let last = Int(floor(end / step))
+    let outer = bounds
+    let card = UIBezierPath(roundedRect: outer, cornerRadius: 10)
+    chipColor.setFill()
+    card.fill()
+    let borderRect = outer.insetBy(dx: 0.5, dy: 0.5)
+    let border = UIBezierPath(roundedRect: borderRect, cornerRadius: 9.5)
+    borderColor.setStroke()
+    border.lineWidth = 1
+    border.stroke()
 
-      let minorColor = light
-        ? UIColor(red: 158.0 / 255.0, green: 162.0 / 255.0, blue: 168.0 / 255.0, alpha: 0.88)
-        : UIColor(red: 124.0 / 255.0, green: 130.0 / 255.0, blue: 138.0 / 255.0, alpha: 0.85)
-      let midColor = light
-        ? UIColor(red: 32.0 / 255.0, green: 34.0 / 255.0, blue: 38.0 / 255.0, alpha: 0.92)
-        : UIColor(red: 230.0 / 255.0, green: 233.0 / 255.0, blue: 238.0 / 255.0, alpha: 0.92)
-      let majorColor = light
-        ? UIColor(red: 103.0 / 255.0, green: 125.0 / 255.0, blue: 154.0 / 255.0, alpha: 1)
-        : UIColor(red: 139.0 / 255.0, green: 160.0 / 255.0, blue: 186.0 / 255.0, alpha: 0.95)
-      let labelColor = light
-        ? UIColor(red: 26.0 / 255.0, green: 26.0 / 255.0, blue: 26.0 / 255.0, alpha: 0.44)
-        : UIColor(white: 1, alpha: 0.44)
-      let pastLabelColor = light
-        ? UIColor(red: 47.0 / 255.0, green: 124.0 / 255.0, blue: 246.0 / 255.0, alpha: 1)
-        : UIColor(red: 140.0 / 255.0, green: 188.0 / 255.0, blue: 1.0, alpha: 0.78)
+    let centreX = outer.midX
+    let band = CGRect(x: centreX - 24, y: 2, width: 48, height: max(0, outer.height - 4))
+    accentColor.withAlphaComponent(0.16).setFill()
+    UIBezierPath(roundedRect: band, cornerRadius: 7).fill()
 
-      let labelFont = UIFont.monospacedDigitSystemFont(ofSize: 7, weight: .medium)
-      let labelAttributes: [NSAttributedString.Key: Any] = [
-        .font: labelFont,
-      ]
+    context.saveGState()
+    UIBezierPath(rect: outer.insetBy(dx: 1, dy: 1)).addClip()
 
-      if first <= last {
-        for index in first...last {
-          let seconds = Double(index) * step
-          let x = centerX + CGFloat(seconds - center) * px
-          let major = index % 5 == 0
-          let mid = index % 2 == 0
-          let outside = seconds < 0 || seconds > total
-          let past = seconds <= center
-          let tickColor: UIColor
-          if major {
-            tickColor = outside ? minorColor : majorColor
-          } else if mid {
-            tickColor = midColor
-          } else {
-            tickColor = minorColor
-          }
-          let width: CGFloat = major ? 1.6 : 1
+    let labelTop: CGFloat = 2
+    let labelBottom: CGFloat = 15
+    let tickTop: CGFloat = 18
+    let tickBottom = outer.height - 7
+    let tickHeight = max(1, tickBottom - tickTop)
+    let halfSpan = (outer.width / 2) / pxPerSecond
+    let start = centerTime - Double(halfSpan)
+    let end = centerTime + Double(halfSpan)
+    let first = Int(ceil(start / tickStep))
+    let last = Int(floor(end / tickStep))
+
+    let labelFont = UIFont.monospacedDigitSystemFont(ofSize: 7.5, weight: .medium)
+    let labelAttributes: [NSAttributedString.Key: Any] = [
+      .font: labelFont,
+      .foregroundColor: dimColor,
+    ]
+
+    if first <= last {
+      for index in first...last {
+        let seconds = Double(index) * tickStep
+        let x = centreX + CGFloat(seconds - centerTime) * pxPerSecond
+        guard x > -30, x < outer.width + 30 else { continue }
+        let major = index % 10 == 0
+        let second = index % 2 == 0
+        let inRange = seconds >= 0 && seconds <= total
+        let atAim = abs(x - centreX) < 1
+
+        if !atAim {
           let height: CGFloat
-          if major {
-            height = bounds.height - 19
-          } else if mid {
-            height = 20
+          let width: CGFloat
+          let color: UIColor
+          if !inRange {
+            height = tickHeight
+            width = 1
+            color = faintColor
+          } else if major {
+            height = tickHeight
+            width = 1.6
+            color = accentColor
+          } else if second {
+            height = tickHeight * 2.0 / 3.0
+            width = 1
+            color = dimColor
           } else {
-            height = 11
+            height = tickHeight / 3.0
+            width = 1
+            color = faintColor
           }
-          tickColor.setFill()
-          let tick = CGRect(x: x - width / 2, y: bounds.height - 5 - height,
+          color.setFill()
+          let tick = CGRect(x: x - width / 2, y: tickBottom - height,
                             width: width, height: height)
-          UIBezierPath(roundedRect: tick, cornerRadius: 1).fill()
+          UIBezierPath(roundedRect: tick, cornerRadius: 0.5).fill()
+        }
 
-          if major && seconds >= 0 && seconds <= total
-            && x > 22 && x < bounds.width - 22 {
-            let text = Self.timeText(seconds) as NSString
-            var attributes = labelAttributes
-            attributes[.foregroundColor] = past ? pastLabelColor : labelColor
-            let size = text.size(withAttributes: attributes)
-            text.draw(at: CGPoint(x: x - size.width / 2, y: 2.5),
-                      withAttributes: attributes)
-          }
+        if inRange && major
+          && x >= outer.minX + 30 && x <= outer.maxX - 30 {
+          let text = Self.timeText(seconds) as NSString
+          let size = text.size(withAttributes: labelAttributes)
+          text.draw(at: CGPoint(x: x - size.width / 2, y: labelTop + 1),
+                    withAttributes: labelAttributes)
         }
       }
     }
 
-    // centre needle
-    let needleColor = light
-      ? UIColor(red: 211.0 / 255.0, green: 69.0 / 255.0, blue: 61.0 / 255.0, alpha: 1)
-      : UIColor(red: 1.0, green: 90.0 / 255.0, blue: 95.0 / 255.0, alpha: 1)
-    needleColor.setFill()
-    UIBezierPath(roundedRect: CGRect(x: centerX - 1, y: 0, width: 2, height: bounds.height),
-                 cornerRadius: 1).fill()
+    context.restoreGState()
+
+    // One long red needle owns the exact seek point, running past the scale at
+    // both ends as on the desktop panel.
+    aimColor.setFill()
+    let needle = CGRect(x: centreX - 1, y: labelBottom,
+                        width: 2, height: max(0, outer.height - 2 - labelBottom))
+    UIBezierPath(roundedRect: needle, cornerRadius: 1).fill()
   }
 
   private static func timeText(_ seconds: Double) -> String {
-    let value = max(0, Int(seconds.rounded()))
-    return String(format: "%02d:%02d", value / 60, value % 60)
+    let total = max(0, Int(seconds.rounded()))
+    if total >= 3600 {
+      return String(format: "%d:%02d:%02d",
+                    total / 3600, (total % 3600) / 60, total % 60)
+    }
+    return String(format: "%02d:%02d", total / 60, total % 60)
   }
 
   override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
@@ -154,7 +175,8 @@ final class ProgressWheel: UIControl {
     let delta = x - lastX
     lastX = x
     if durationSeconds > 0 {
-      progress = max(0, min(1, progress - Double(delta) / (durationSeconds * Double(pxPerSecond))))
+      progress = max(0, min(1, progress - Double(delta) /
+        (durationSeconds * Double(pxPerSecond))))
     } else {
       progress = max(0, min(1, Double(x / max(1, bounds.width))))
     }

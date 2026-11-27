@@ -1,0 +1,257 @@
+import UIKit
+
+/// The page under the player: detail, comments and recommendations share one
+/// scrolling area, switched by the floating three-item dock at the bottom.
+final class PlayerContentViewController: UIViewController {
+  enum Tab: Int {
+    case detail
+    case comments
+    case related
+  }
+
+  private(set) var item: VideoItem
+  private(set) var selected: Tab = .comments
+
+  var initialQuality = 80
+  var initialDanmakuOn = true
+  var initialLoopOn = false
+
+  var onSelectRelated: ((VideoItem) -> Void)?
+  var onProfile: ((Int64) -> Void)?
+  var onQuality: ((Int) -> Void)?
+  var onDanmaku: ((Bool) -> Void)?
+  var onDanmakuSettingsChanged: (() -> Void)?
+  var onLoop: ((Bool) -> Void)?
+  var onPullDown: ((CGFloat) -> Void)?
+  var onPullDownEnded: ((Bool) -> Void)?
+  var onSwipeRightToClose: (() -> Void)?
+
+  private let host = UIView()
+  private let tabDock = UIView()
+  private var tabButtons: [UIButton] = []
+  private var detail: VideoDetailViewController?
+  private var comments: CommentsPanelViewController?
+  private var related: RelatedViewController?
+
+  private let tabs: [(title: String, tab: Tab)] = [
+    ("详情", .detail),
+    ("评论", .comments),
+    ("推荐", .related),
+  ]
+
+  init(item: VideoItem) {
+    self.item = item
+    super.init(nibName: nil, bundle: nil)
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    view.backgroundColor = NativeTheme.surface
+    view.clipsToBounds = true
+
+    host.backgroundColor = .clear
+    view.addSubview(host)
+
+    tabDock.backgroundColor = NativeTheme.surface
+    tabDock.layer.cornerRadius = NativeTheme.cornerRadius
+    tabDock.layer.cornerCurve = .continuous
+    tabDock.layer.borderWidth = 1
+    tabDock.layer.borderColor = NativeTheme.hairline.cgColor
+    tabDock.layer.shadowColor = UIColor.black.cgColor
+    tabDock.layer.shadowOpacity = 0.18
+    tabDock.layer.shadowRadius = 17
+    tabDock.layer.shadowOffset = CGSize(width: 0, height: 7)
+    tabDock.clipsToBounds = false
+    view.addSubview(tabDock)
+
+    for entry in tabs {
+      let button = UIButton(type: .custom)
+      button.tag = entry.tab.rawValue
+      button.setTitle(entry.title, for: .normal)
+      button.titleLabel?.font = UIFont.systemFont(ofSize: 13.5, weight: .bold)
+      button.layer.cornerRadius = NativeTheme.cornerRadius
+      button.layer.cornerCurve = .continuous
+      button.addTarget(self, action: #selector(tabTapped(_:)), for: .touchUpInside)
+      tabDock.addSubview(button)
+      tabButtons.append(button)
+    }
+    updateTabs()
+    show(selected)
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    host.frame = view.bounds
+    let safeBottom = view.safeAreaInsets.bottom
+    let dockWidth: CGFloat = 244
+    tabDock.frame = CGRect(
+      x: (view.bounds.width - dockWidth) / 2,
+      y: view.bounds.height - safeBottom - 16 - 52,
+      width: dockWidth,
+      height: 52
+    )
+    let buttonWidth: CGFloat = 78
+    let buttonHeight: CGFloat = 42
+    for (index, button) in tabButtons.enumerated() {
+      button.frame = CGRect(
+        x: 5 + CGFloat(index) * (buttonWidth + 1.5),
+        y: (52 - buttonHeight) / 2,
+        width: buttonWidth,
+        height: buttonHeight
+      )
+    }
+    for child in [detail?.view, comments?.view, related?.view] {
+      child?.frame = host.bounds
+    }
+  }
+
+  override func traitCollectionDidChange(_ previous: UITraitCollection?) {
+    super.traitCollectionDidChange(previous)
+    tabDock.backgroundColor = NativeTheme.surface
+    tabDock.layer.borderColor = NativeTheme.hairline.cgColor
+    updateTabs()
+  }
+
+  func setReveal(_ value: CGFloat) {
+    guard isViewLoaded else { return }
+    let reveal = max(0, min(1, value))
+    view.alpha = reveal
+    view.isHidden = reveal < 0.01
+    view.isUserInteractionEnabled = reveal > 0.01
+  }
+
+  func update(item: VideoItem, quality: Int, danmaku: Bool, loop: Bool) {
+    self.item = item
+    initialQuality = quality
+    initialDanmakuOn = danmaku
+    initialLoopOn = loop
+    clearContent()
+    show(selected)
+  }
+
+  func select(_ tab: Tab) {
+    selected = tab
+    show(tab)
+  }
+
+  func refreshTabColors() {
+    updateTabs()
+  }
+
+  func testExpandDanmaku() {
+    select(.detail)
+    detail?.testExpandDanmaku()
+  }
+
+  private func show(_ tab: Tab) {
+    guard isViewLoaded else {
+      selected = tab
+      return
+    }
+    let controller: UIViewController
+    switch tab {
+    case .detail:
+      controller = ensureDetail()
+    case .comments:
+      controller = ensureComments()
+    case .related:
+      controller = ensureRelated()
+    }
+    detail?.view.isHidden = tab != .detail
+    comments?.view.isHidden = tab != .comments
+    related?.view.isHidden = tab != .related
+    controller.view.frame = host.bounds
+    host.bringSubviewToFront(controller.view)
+    view.bringSubviewToFront(tabDock)
+    updateTabs()
+  }
+
+  private func ensureDetail() -> VideoDetailViewController {
+    if let detail = detail { return detail }
+    let controller = VideoDetailViewController(item: item)
+    controller.embedded = true
+    controller.initialQuality = initialQuality
+    controller.initialDanmakuOn = initialDanmakuOn
+    controller.initialLoopOn = initialLoopOn
+    controller.onProfile = { [weak self] mid in self?.onProfile?(mid) }
+    controller.onQuality = { [weak self] qn in self?.onQuality?(qn) }
+    controller.onDanmaku = { [weak self] on in self?.onDanmaku?(on) }
+    controller.onDanmakuSettingsChanged = { [weak self] in
+      self?.onDanmakuSettingsChanged?()
+    }
+    controller.onLoop = { [weak self] on in self?.onLoop?(on) }
+    controller.onSwipeRight = { [weak self] in self?.onSwipeRightToClose?() }
+    addChild(controller)
+    controller.view.frame = host.bounds
+    controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    host.addSubview(controller.view)
+    controller.didMove(toParent: self)
+    controller.view.isHidden = selected != .detail
+    detail = controller
+    return controller
+  }
+
+  private func ensureComments() -> CommentsPanelViewController {
+    if let comments = comments { return comments }
+    let controller = CommentsPanelViewController(aid: item.aid)
+    controller.embedded = true
+    controller.onSwipeRight = { [weak self] in self?.onSwipeRightToClose?() }
+    controller.onPullDown = { [weak self] progress in self?.onPullDown?(progress) }
+    controller.onPullDownEnded = { [weak self] complete in
+      self?.onPullDownEnded?(complete)
+    }
+    addChild(controller)
+    controller.view.frame = host.bounds
+    controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    host.addSubview(controller.view)
+    controller.didMove(toParent: self)
+    controller.view.isHidden = selected != .comments
+    comments = controller
+    return controller
+  }
+
+  private func ensureRelated() -> RelatedViewController {
+    if let related = related { return related }
+    let controller = RelatedViewController(bvid: item.bvid)
+    controller.embedded = true
+    controller.onSelect = { [weak self] value in self?.onSelectRelated?(value) }
+    controller.onSwipeRight = { [weak self] in self?.onSwipeRightToClose?() }
+    addChild(controller)
+    controller.view.frame = host.bounds
+    controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    host.addSubview(controller.view)
+    controller.didMove(toParent: self)
+    controller.view.isHidden = selected != .related
+    related = controller
+    return controller
+  }
+
+  private func clearContent() {
+    for controller in [detail, comments, related] {
+      guard let controller = controller else { continue }
+      controller.willMove(toParent: nil)
+      controller.view.removeFromSuperview()
+      controller.removeFromParent()
+    }
+    detail = nil
+    comments = nil
+    related = nil
+  }
+
+  private func updateTabs() {
+    for (index, button) in tabButtons.enumerated() {
+      let on = tabs[index].tab == selected
+      button.backgroundColor = on ? NativeTheme.foreground : .clear
+      button.setTitleColor(on ? NativeTheme.background : NativeTheme.secondary, for: .normal)
+    }
+  }
+
+  @objc private func tabTapped(_ sender: UIButton) {
+    guard let tab = Tab(rawValue: sender.tag) else { return }
+    select(tab)
+  }
+}

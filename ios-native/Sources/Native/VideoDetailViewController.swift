@@ -7,6 +7,8 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   var onDanmaku: ((Bool) -> Void)?
   var onDanmakuSettingsChanged: (() -> Void)?
   var onLoop: ((Bool) -> Void)?
+  var embedded = false
+  var onSwipeRight: (() -> Void)?
   var initialQuality = 80
   var initialDanmakuOn = true
   var initialLoopOn = false
@@ -60,6 +62,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private var descExpanded = false
   private var detailMid: Int64 = 0
   private var dismissPan: UIPanGestureRecognizer?
+  private var closeSwipePan: UIPanGestureRecognizer?
 
   init(item: VideoItem) {
     self.item = item
@@ -75,7 +78,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     view.backgroundColor = .clear
 
     card.backgroundColor = NativeTheme.surface
-    card.layer.cornerRadius = NativeTheme.cornerRadius
+    card.layer.cornerRadius = embedded ? 0 : NativeTheme.cornerRadius
     card.layer.cornerCurve = .continuous
     card.clipsToBounds = true
     view.addSubview(card)
@@ -108,7 +111,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 20),
       stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -20),
       stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor,
-                                 constant: view.safeAreaInsets.top + 16),
+                                 constant: embedded ? 12 : view.safeAreaInsets.top + 16),
       stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -32),
       stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -40),
     ])
@@ -145,6 +148,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       durationChip.heightAnchor.constraint(equalToConstant: 18),
     ])
     stack.addArrangedSubview(hero)
+    hero.isHidden = embedded
 
     titleLabel.text = item.title
     titleLabel.font = UIFont.systemFont(ofSize: 19, weight: .bold)
@@ -346,12 +350,37 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
 
     updateSettingsLabels()
 
-    let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
-    pan.delegate = self
-    view.addGestureRecognizer(pan)
-    dismissPan = pan
+    if embedded {
+      let swipe = UIPanGestureRecognizer(target: self, action: #selector(handleCloseSwipe(_:)))
+      swipe.delegate = self
+      scroll.panGestureRecognizer.require(toFail: swipe)
+      view.addGestureRecognizer(swipe)
+      closeSwipePan = swipe
+    } else {
+      let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+      pan.delegate = self
+      view.addGestureRecognizer(pan)
+      dismissPan = pan
+    }
 
     loadDetail()
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    if embedded {
+      scroll.contentInset.bottom = 84 + view.safeAreaInsets.bottom
+      scroll.verticalScrollIndicatorInsets.bottom = 60
+    }
+  }
+
+  @objc private func handleCloseSwipe(_ gesture: UIPanGestureRecognizer) {
+    guard gesture.state == .ended || gesture.state == .cancelled else { return }
+    let translation = gesture.translation(in: view).x
+    let velocity = gesture.velocity(in: view).x
+    if translation > 60 || velocity > 420 {
+      onSwipeRight?()
+    }
   }
 
   private func makeSettingsRow(title: String, value: UILabel, chevron: Bool,
@@ -886,9 +915,14 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   }
 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-    guard let pan = gestureRecognizer as? UIPanGestureRecognizer, pan === dismissPan else {
-      return true
+    guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+    if pan === closeSwipePan {
+      let velocity = pan.velocity(in: view)
+      let translation = pan.translation(in: view)
+      return abs(translation.x) > abs(translation.y) * 1.2
+        || abs(velocity.x) > abs(velocity.y) * 1.2
     }
+    guard pan === dismissPan else { return true }
     let velocity = pan.velocity(in: view)
     let translation = pan.translation(in: view)
     return abs(translation.x) > abs(translation.y) * 1.1

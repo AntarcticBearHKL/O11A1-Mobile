@@ -180,7 +180,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
 
     table.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
     table.trailingAnchor.constraint(equalTo: view.trailingAnchor).isActive = true
-    table.topAnchor.constraint(equalTo: sortDock.bottomAnchor, constant: 8).isActive = true
+    table.topAnchor.constraint(equalTo: bottomCard.bottomAnchor, constant: 8).isActive = true
     table.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true
 
     NSLayoutConstraint.activate([
@@ -237,7 +237,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     followButton.heightAnchor.constraint(equalToConstant: 34).isActive = true
 
     sortDock.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
-    sortDock.topAnchor.constraint(equalTo: bottomCard.bottomAnchor, constant: 12).isActive = true
+    sortDock.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16).isActive = true
     sortDock.heightAnchor.constraint(equalToConstant: 52).isActive = true
 
     let closePan = UIPanGestureRecognizer(target: self, action: #selector(handleDismissPan(_:)))
@@ -261,7 +261,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
 
   private func updateInsets() {
     table.contentInset = UIEdgeInsets(top: 0, left: 0,
-                                      bottom: 24 + view.safeAreaInsets.bottom,
+                                      bottom: 84 + view.safeAreaInsets.bottom,
                                       right: 0)
     table.verticalScrollIndicatorInsets = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
     topBlur.updateHeight(safeAreaTop: view.safeAreaInsets.top)
