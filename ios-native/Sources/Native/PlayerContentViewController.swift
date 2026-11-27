@@ -2,7 +2,7 @@ import UIKit
 
 /// The page under the player: detail, comments and recommendations share one
 /// scrolling area, switched by the floating three-item dock at the bottom.
-final class PlayerContentViewController: UIViewController {
+final class PlayerContentViewController: UIViewController, UIGestureRecognizerDelegate {
   enum Tab: Int {
     case detail
     case comments
@@ -35,6 +35,8 @@ final class PlayerContentViewController: UIViewController {
   private var detail: VideoDetailViewController?
   private var comments: CommentsPanelViewController?
   private var related: RelatedViewController?
+  private var tabSwipePan: UIPanGestureRecognizer?
+  private var tabSwipeStartX: CGFloat = 0
 
   private let tabs: [(title: String, tab: Tab)] = [
     ("详情", .detail),
@@ -84,6 +86,13 @@ final class PlayerContentViewController: UIViewController {
     }
     updateTabs()
     show(selected)
+
+    let swipe = UIPanGestureRecognizer(
+      target: self, action: #selector(handleTabSwipe(_:)))
+    swipe.delegate = self
+    swipe.cancelsTouchesInView = false
+    view.addGestureRecognizer(swipe)
+    tabSwipePan = swipe
   }
 
   override func viewDidLayoutSubviews() {
@@ -277,5 +286,41 @@ final class PlayerContentViewController: UIViewController {
   @objc private func tabTapped(_ sender: UIButton) {
     guard let tab = Tab(rawValue: sender.tag) else { return }
     select(tab)
+  }
+
+  @objc private func handleTabSwipe(_ gesture: UIPanGestureRecognizer) {
+    guard gesture.state == .ended || gesture.state == .cancelled else { return }
+    let translation = gesture.translation(in: view).x
+    let velocity = gesture.velocity(in: view).x
+    guard abs(translation) > 45 || abs(velocity) > 280 else { return }
+    let all: [Tab] = [.detail, .comments, .related]
+    guard let index = all.firstIndex(of: selected) else { return }
+    let next = translation < 0 ? index + 1 : index - 1
+    guard all.indices.contains(next) else { return }
+    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    select(all[next])
+  }
+
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldReceive touch: UITouch) -> Bool {
+    if gestureRecognizer === tabSwipePan {
+      tabSwipeStartX = touch.location(in: view).x
+    }
+    return true
+  }
+
+  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+          pan === tabSwipePan else { return true }
+    guard tabSwipeStartX >= view.bounds.width / 3.0 else { return false }
+    let translation = pan.translation(in: view)
+    let velocity = pan.velocity(in: view)
+    return (abs(translation.x) > 8 && abs(translation.x) > abs(translation.y) * 1.2)
+      || (abs(velocity.x) > 90 && abs(velocity.x) > abs(velocity.y) * 1.2)
+  }
+
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+    return gestureRecognizer === tabSwipePan || other === tabSwipePan
   }
 }

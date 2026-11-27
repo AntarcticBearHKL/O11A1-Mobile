@@ -80,6 +80,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var volumeSlider: UISlider?
   private var progressLink: CADisplayLink?
   private var contentClosePan: UIPanGestureRecognizer?
+  private var contentCloseStartX: CGFloat = 0
   private var previewHandoff: PreviewHandoff?
   private var upgradeEngine: VideoEngine?
   private var upgradeView: PlayerLayerView?
@@ -2023,6 +2024,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             let pan = gestureRecognizer as? UIPanGestureRecognizer else {
         return false
       }
+      guard contentCloseStartX < view.bounds.width / 3.0 else { return false }
       let translation = pan.translation(in: view)
       let velocity = pan.velocity(in: view)
       guard translation.x > 2, velocity.x >= 0 else { return false }
@@ -2040,6 +2042,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                          shouldReceive touch: UITouch) -> Bool {
+    if gestureRecognizer === contentClosePan {
+      contentCloseStartX = touch.location(in: view).x
+    }
     if touch.view is UIControl { return false }
     if touch.view?.isDescendant(of: bottomPanel) == true { return false }
     if touch.view?.isDescendant(of: topBar) == true { return false }
