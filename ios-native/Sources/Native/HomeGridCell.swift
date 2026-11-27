@@ -81,10 +81,11 @@ final class MiniVideoCardView: UIView {
     addSubview(info)
     info.translatesAutoresizingMaskIntoConstraints = false
 
-    title.font = UIFont.systemFont(ofSize: 15, weight: .bold)
+    title.font = UIFont.systemFont(ofSize: 15, weight: .medium)
     title.textColor = NativeTheme.foreground
-    title.numberOfLines = 1
+    title.numberOfLines = 2
     title.lineBreakMode = .byTruncatingTail
+    title.heightAnchor.constraint(equalToConstant: 38).isActive = true
 
     owner.font = UIFont.systemFont(ofSize: 12.5, weight: .medium)
     owner.textColor = .white
@@ -201,9 +202,9 @@ final class MiniVideoCardView: UIView {
     paragraph.maximumLineHeight = 19
     paragraph.lineBreakMode = .byTruncatingTail
     title.attributedText = NSAttributedString(
-      string: item.title,
+      string: item.title + "\n",
       attributes: [
-        .font: UIFont.systemFont(ofSize: 15, weight: .bold),
+        .font: UIFont.systemFont(ofSize: 15, weight: .medium),
         .foregroundColor: NativeTheme.foreground,
         .paragraphStyle: paragraph,
       ])
@@ -249,7 +250,7 @@ final class HomeGridCell: UITableViewCell {
   static let sideInset: CGFloat = 4
   static let columnSpacing: CGFloat = 4
   static let verticalInset: CGFloat = 2
-  static let infoHeight: CGFloat = 56
+  static let infoHeight: CGFloat = 76
 
   let leftCard = MiniVideoCardView()
   private let rightCard = MiniVideoCardView()
