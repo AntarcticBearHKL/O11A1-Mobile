@@ -31,6 +31,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private let authorButton = UIButton(type: .custom)
   private let likeValue = UILabel()
   private let favoriteValue = UILabel()
+  private let coinValue = UILabel()
   private let likeIcon = UIImageView()
   private let coinIcon = UIImageView()
   private let favoriteIcon = UIImageView()
@@ -38,6 +39,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private let shareTitle = UILabel()
   private var likeCount: Int64 = 0
   private var favoriteCount: Int64 = 0
+  private var coinCount: Int64 = 0
   private var liked = false
   private var faved = false
   private var coined = false
@@ -243,37 +245,27 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     actions.layoutMargins = UIEdgeInsets(top: 7, left: 4, bottom: 7, right: 4)
     stack.addArrangedSubview(actions)
 
-    let coinValue = UILabel()
-    let shareValue = UILabel()
-    let likeTitle = UILabel()
-    let coinTitle = UILabel()
-    let favoriteTitle = UILabel()
-    coinTitle.text = "投币"
-    favoriteTitle.text = "收藏"
     shareTitle.text = "分享"
-    for title in [likeTitle, coinTitle, favoriteTitle, shareTitle] {
-      title.font = UIFont.systemFont(ofSize: 11, weight: .medium)
-      title.textColor = NativeTheme.secondary
-    }
-    likeTitle.text = "点赞"
-    for value in [likeValue, favoriteValue, coinValue, shareValue] {
+    shareTitle.font = UIFont.systemFont(ofSize: 11, weight: .medium)
+    shareTitle.textColor = NativeTheme.secondary
+    for value in [likeValue, favoriteValue, coinValue] {
       value.font = UIFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
       value.textColor = NativeTheme.secondary
       value.textAlignment = .center
-      value.text = " "
+      value.text = "0"
     }
     actions.addArrangedSubview(makeActionGroup(
-      icon: likeIcon, symbol: "hand.thumbsup", title: likeTitle,
+      icon: likeIcon, symbol: "hand.thumbsup", title: nil,
       count: likeValue, action: #selector(likeTapped)))
     actions.addArrangedSubview(makeActionGroup(
-      icon: coinIcon, symbol: "bitcoinsign.circle", title: coinTitle,
+      icon: coinIcon, symbol: "bitcoinsign.circle", title: nil,
       count: coinValue, action: #selector(coinTapped)))
     actions.addArrangedSubview(makeActionGroup(
-      icon: favoriteIcon, symbol: "star", title: favoriteTitle,
+      icon: favoriteIcon, symbol: "star", title: nil,
       count: favoriteValue, action: #selector(favoriteTapped)))
     actions.addArrangedSubview(makeActionGroup(
       icon: shareIcon, symbol: "square.and.arrow.up", title: shareTitle,
-      count: shareValue, action: #selector(shareTapped)))
+      count: nil, action: #selector(shareTapped)))
     updateActions()
 
     descLabel.font = NativeTheme.bodyFont(12)
@@ -735,8 +727,8 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     loopSetting.text = loopOn ? "循环" : "单个"
   }
 
-  private func makeActionGroup(icon: UIImageView, symbol: String, title: UILabel,
-                               count: UILabel, action: Selector) -> UIView {
+  private func makeActionGroup(icon: UIImageView, symbol: String, title: UILabel?,
+                               count: UILabel?, action: Selector) -> UIView {
     let container = UIView()
     icon.image = UIImage(systemName: symbol, withConfiguration:
       UIImage.SymbolConfiguration(pointSize: 21, weight: .regular))
@@ -751,8 +743,12 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     column.alignment = .center
     column.spacing = 1
     column.addArrangedSubview(icon)
-    column.addArrangedSubview(title)
-    column.addArrangedSubview(count)
+    if let title = title {
+      column.addArrangedSubview(title)
+    }
+    if let count = count {
+      column.addArrangedSubview(count)
+    }
     container.addSubview(column)
     column.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
@@ -792,8 +788,9 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     favoriteIcon.tintColor = faved ? NativeTheme.warmOrange : NativeTheme.foreground
     shareIcon.image = UIImage(systemName: "square.and.arrow.up", withConfiguration: config)
     shareIcon.tintColor = NativeTheme.foreground
-    likeValue.text = likeCount > 0 ? o11a1Count(likeCount) : " "
-    favoriteValue.text = favoriteCount > 0 ? o11a1Count(favoriteCount) : " "
+    likeValue.text = o11a1Count(likeCount)
+    favoriteValue.text = o11a1Count(favoriteCount)
+    coinValue.text = o11a1Count(coinCount)
   }
 
   @objc private func likeTapped() {
@@ -814,6 +811,9 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     guard aid > 0 else { return }
     BiliAPI.shared.coin(aid: aid) { [weak self] ok in
       guard ok, let self = self else { return }
+      if !self.coined {
+        self.coinCount += 1
+      }
       self.coined = true
       self.updateActions()
       UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -879,6 +879,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       if let stat = json["stat"] as? [String: Any] {
         self.likeCount = o11a1Int64(stat["like"])
         self.favoriteCount = o11a1Int64(stat["favorite"])
+        self.coinCount = o11a1Int64(stat["coin"])
         self.liked = o11a1Bool(json["liked"])
         self.faved = o11a1Bool(json["faved"])
         self.coined = o11a1Int(json["coined"]) > 0
@@ -949,7 +950,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
     card.backgroundColor = NativeTheme.surface
-    authorButton.superview?.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
+    authorButton.superview?.backgroundColor = NativeTheme.background
     descLabel.textColor = NativeTheme.secondary
   }
 }
