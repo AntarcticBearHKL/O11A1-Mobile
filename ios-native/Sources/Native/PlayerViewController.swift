@@ -1222,6 +1222,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     guard upgradePending, !upgradeAdopted, !closing,
           let upgrade = upgradeEngine,
           upgrade.player.currentItem != nil else { return }
+    if portraitDragActive || portraitShrinking || horizontalCloseActive {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        self?.attemptUpgradeSwap()
+      }
+      return
+    }
     upgradePending = false
     seekUpgrade(upgrade, attempts: 0, generation: upgradeGeneration)
   }
