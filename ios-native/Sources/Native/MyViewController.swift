@@ -69,12 +69,21 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
 
     nameLabel.font = UIFont.systemFont(ofSize: 17, weight: .bold)
     nameLabel.textColor = NativeTheme.foreground
-    accountCard.addSubview(nameLabel)
+    nameLabel.numberOfLines = 1
+    nameLabel.lineBreakMode = .byTruncatingTail
     nameLabel.translatesAutoresizingMaskIntoConstraints = false
     metaLabel.font = NativeTheme.bodyFont(10.5)
     metaLabel.textColor = NativeTheme.secondary
-    accountCard.addSubview(metaLabel)
+    metaLabel.numberOfLines = 1
+    metaLabel.lineBreakMode = .byTruncatingTail
     metaLabel.translatesAutoresizingMaskIntoConstraints = false
+
+    let identity = UIStackView(arrangedSubviews: [nameLabel, metaLabel])
+    identity.axis = .vertical
+    identity.alignment = .fill
+    identity.spacing = 3
+    accountCard.addSubview(identity)
+    identity.translatesAutoresizingMaskIntoConstraints = false
 
     accountButton.titleLabel?.font = UIFont.systemFont(ofSize: 11.5, weight: .bold)
     accountButton.setTitleColor(NativeTheme.navBlue, for: .normal)
@@ -96,12 +105,9 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
       avatar.centerYAnchor.constraint(equalTo: avatarRing.centerYAnchor),
       avatar.widthAnchor.constraint(equalToConstant: 54),
       avatar.heightAnchor.constraint(equalToConstant: 54),
-      nameLabel.leadingAnchor.constraint(equalTo: avatarRing.trailingAnchor, constant: 12),
-      nameLabel.topAnchor.constraint(equalTo: accountCard.topAnchor, constant: 24),
-      nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: accountButton.leadingAnchor, constant: -8),
-      metaLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
-      metaLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 3),
-      metaLabel.trailingAnchor.constraint(lessThanOrEqualTo: accountButton.leadingAnchor, constant: -8),
+      identity.leadingAnchor.constraint(equalTo: avatarRing.trailingAnchor, constant: 12),
+      identity.trailingAnchor.constraint(equalTo: accountButton.leadingAnchor, constant: -8),
+      identity.centerYAnchor.constraint(equalTo: accountCard.centerYAnchor),
       accountButton.trailingAnchor.constraint(equalTo: accountCard.trailingAnchor, constant: -16),
       accountButton.centerYAnchor.constraint(equalTo: accountCard.centerYAnchor),
       accountButton.heightAnchor.constraint(equalToConstant: 34),
