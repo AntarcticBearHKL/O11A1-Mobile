@@ -18,6 +18,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   private let status = UILabel()
   private let headerTitle = UILabel()
   private let headerBar = UIView()
+  private let headerBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let sortDock = UIView()
   private let sortBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let latestButton = UIButton(type: .custom)
@@ -101,7 +102,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     ])
 
     if embedded {
-      headerBar.backgroundColor = NativeTheme.surface
+      headerBar.backgroundColor = .clear
       card.addSubview(headerBar)
       headerBar.translatesAutoresizingMaskIntoConstraints = false
       NSLayoutConstraint.activate([
@@ -109,6 +110,26 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
         headerBar.trailingAnchor.constraint(equalTo: card.trailingAnchor),
         headerBar.topAnchor.constraint(equalTo: card.topAnchor),
         headerBar.heightAnchor.constraint(equalToConstant: 56),
+      ])
+      headerBlur.isUserInteractionEnabled = false
+      headerBar.addSubview(headerBlur)
+      headerBlur.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        headerBlur.leadingAnchor.constraint(equalTo: headerBar.leadingAnchor),
+        headerBlur.trailingAnchor.constraint(equalTo: headerBar.trailingAnchor),
+        headerBlur.topAnchor.constraint(equalTo: headerBar.topAnchor),
+        headerBlur.bottomAnchor.constraint(equalTo: headerBar.bottomAnchor),
+      ])
+      let headerLine = UIView()
+      headerLine.backgroundColor = NativeTheme.hairline
+      headerLine.isUserInteractionEnabled = false
+      headerBar.addSubview(headerLine)
+      headerLine.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        headerLine.leadingAnchor.constraint(equalTo: headerBar.leadingAnchor, constant: 18),
+        headerLine.trailingAnchor.constraint(equalTo: headerBar.trailingAnchor, constant: -18),
+        headerLine.bottomAnchor.constraint(equalTo: headerBar.bottomAnchor),
+        headerLine.heightAnchor.constraint(equalToConstant: 0.5),
       ])
     }
 
@@ -144,7 +165,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
         sortDock.heightAnchor.constraint(equalToConstant: sortHeight),
       ])
       headerTitle.text = "评论"
-      headerTitle.font = UIFont.systemFont(ofSize: 15, weight: .bold)
+      headerTitle.font = UIFont.systemFont(ofSize: 16, weight: .bold)
       headerTitle.textColor = NativeTheme.foreground
       card.addSubview(headerTitle)
       headerTitle.translatesAutoresizingMaskIntoConstraints = false
@@ -171,10 +192,10 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
       sortBlur.topAnchor.constraint(equalTo: sortDock.topAnchor),
       sortBlur.bottomAnchor.constraint(equalTo: sortDock.bottomAnchor),
     ])
-    let sortButtonWidth: CGFloat = embedded ? 62 : 92
-    let sortButtonHeight: CGFloat = embedded ? 28 : 42
-    let sortFontSize: CGFloat = embedded ? 12.5 : 13.5
-    let sortInset: CGFloat = embedded ? 12 : 22
+    let sortButtonWidth: CGFloat = embedded ? 46 : 92
+    let sortButtonHeight: CGFloat = embedded ? 30 : 42
+    let sortFontSize: CGFloat = embedded ? 13 : 13.5
+    let sortInset: CGFloat = embedded ? 6 : 22
     for (index, button) in [latestButton, hotButton].enumerated() {
       button.tag = index
       button.titleLabel?.font = UIFont.systemFont(ofSize: sortFontSize, weight: .bold)
@@ -255,14 +276,33 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     tint.backgroundColor = NativeTheme.surface
     card.layer.borderWidth = 0.5
     card.layer.borderColor = NativeTheme.hairline.cgColor
-    sortDock.layer.borderColor = light
-      ? UIColor(white: 0, alpha: 0.08).cgColor
-      : UIColor(white: 1, alpha: 0.12).cgColor
     sortBlur.isHidden = true
-    sortDock.backgroundColor = NativeTheme.surface
+    if embedded {
+      sortDock.backgroundColor = .clear
+      sortDock.layer.borderWidth = 0
+      sortDock.layer.shadowOpacity = 0
+    } else {
+      sortDock.layer.borderWidth = 1
+      sortDock.layer.borderColor = light
+        ? UIColor(white: 0, alpha: 0.08).cgColor
+        : UIColor(white: 1, alpha: 0.12).cgColor
+      sortDock.layer.shadowOpacity = 0.18
+      sortDock.backgroundColor = NativeTheme.surface
+    }
   }
 
   private func updateSort() {
+    if embedded {
+      for (index, button) in [latestButton, hotButton].enumerated() {
+        let on = (index == 0 && sort == 0) || (index == 1 && sort == 2)
+        button.backgroundColor = .clear
+        button.setTitleColor(on ? NativeTheme.foreground : NativeTheme.secondary,
+                             for: .normal)
+        button.titleLabel?.font = UIFont.systemFont(ofSize: 13,
+                                                    weight: on ? .bold : .medium)
+      }
+      return
+    }
     let light = traitCollection.userInterfaceStyle == .light
     for (index, button) in [latestButton, hotButton].enumerated() {
       let on = (index == 0 && sort == 0) || (index == 1 && sort == 2)
@@ -270,6 +310,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
         ? (light ? NativeTheme.foreground : NativeTheme.foreground)
         : .clear
       button.setTitleColor(on ? NativeTheme.background : NativeTheme.secondary, for: .normal)
+      button.titleLabel?.font = UIFont.systemFont(ofSize: 13.5, weight: .bold)
     }
   }
 

@@ -75,7 +75,7 @@ final class PlayerContentViewController: UIViewController {
       let button = UIButton(type: .custom)
       button.tag = entry.tab.rawValue
       button.setTitle(entry.title, for: .normal)
-      button.titleLabel?.font = UIFont.systemFont(ofSize: 13.5, weight: .bold)
+      button.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .bold)
       button.layer.cornerRadius = NativeTheme.cornerRadius
       button.layer.cornerCurve = .continuous
       button.addTarget(self, action: #selector(tabTapped(_:)), for: .touchUpInside)
@@ -90,19 +90,19 @@ final class PlayerContentViewController: UIViewController {
     super.viewDidLayoutSubviews()
     host.frame = view.bounds
     let safeBottom = view.safeAreaInsets.bottom
-    let dockWidth: CGFloat = 244
+    let dockWidth: CGFloat = 304
     tabDock.frame = CGRect(
       x: (view.bounds.width - dockWidth) / 2,
-      y: view.bounds.height - safeBottom - 16 - 52,
+      y: view.bounds.height - safeBottom - 16 - 58,
       width: dockWidth,
-      height: 52
+      height: 58
     )
-    let buttonWidth: CGFloat = 78
-    let buttonHeight: CGFloat = 42
+    let buttonWidth: CGFloat = 96
+    let buttonHeight: CGFloat = 46
     for (index, button) in tabButtons.enumerated() {
       button.frame = CGRect(
-        x: 5 + CGFloat(index) * (buttonWidth + 1.5),
-        y: (52 - buttonHeight) / 2,
+        x: 5 + CGFloat(index) * (buttonWidth + 3),
+        y: (58 - buttonHeight) / 2,
         width: buttonWidth,
         height: buttonHeight
       )
