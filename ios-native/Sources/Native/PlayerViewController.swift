@@ -692,6 +692,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     content.setReveal(contentReady ? reveal : 0)
     view.bringSubviewToFront(danmakuOverlay)
     view.bringSubviewToFront(content.view)
+    view.bringSubviewToFront(errorLabel)
     view.bringSubviewToFront(bottomPanel)
     view.bringSubviewToFront(seekBubble)
     bottomPanel.layoutIfNeeded()
