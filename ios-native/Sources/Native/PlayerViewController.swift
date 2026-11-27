@@ -114,6 +114,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var lastPlayingState = false
   private let panelSlideDistance: CGFloat = 28
   private let playerPanelHeight: CGFloat = 112
+  private let focusedPanelLift: CGFloat = 30
   private let panelShowDuration: TimeInterval = 0.26
   private let panelHideDuration: TimeInterval = 0.28
   private let panelHideScale: Double =
@@ -865,7 +866,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     let panelHeight: CGFloat = playerPanelHeight
     let panelWidth = max(1, full.width - 24)
-    let centerPanelY = full.height - view.safeAreaInsets.bottom - panelHeight - 18
+    let centerPanelY = full.height - view.safeAreaInsets.bottom - panelHeight
+      - 18 - focusedPanelLift
     let topPanelY = max(0, videoRect.maxY - panelHeight - 8)
     let panelY = centerPanelY + (topPanelY - centerPanelY) * p
     bottomPanel.bounds = CGRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
@@ -1442,11 +1444,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   private func scheduleControlsHide() {
     controlsTimer?.invalidate()
-    guard engine.isPlaying else { return }
-    controlsTimer = Timer.scheduledTimer(withTimeInterval: 3.2, repeats: false) { [weak self] _ in
-      guard let self = self, self.engine.isPlaying, !self.isScrubbing else { return }
+    let timer = Timer(timeInterval: 3.2, repeats: false) { [weak self] _ in
+      guard let self = self, !self.isScrubbing else { return }
       self.hideControls()
     }
+    RunLoop.main.add(timer, forMode: .common)
+    controlsTimer = timer
   }
 
   @objc private func longPress(_ gesture: UILongPressGestureRecognizer) {
