@@ -1399,6 +1399,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       if bottomPanel.alpha > 0.01 {
         hideControls()
       }
+      if !closing, !portraitShrinking, !portraitSettling,
+         !portraitDragActive, !openingTransition, !horizontalCloseActive {
+        settlePortrait(top: false, animated: true)
+      }
       return
     }
     let visible = bottomPanel.alpha > 0.5 && !bottomPanel.isHidden
