@@ -449,7 +449,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       guard let self = self else { return }
       self.playButton.setImage(UIImage(systemName: playing ? "pause.fill" : "play.fill"), for: .normal)
       self.pausedVeil.isHidden = playing
-      self.videoContainer.backgroundColor = playing ? .black : NativeTheme.pipRose
+      self.videoContainer.backgroundColor = .clear
       let changed = playing != self.lastPlayingState
       self.lastPlayingState = playing
       if playing && changed && self.controlsVisible {
@@ -939,7 +939,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   @objc private func togglePlay() {
     engine.toggle()
-    videoContainer.backgroundColor = engine.isPlaying ? .black : NativeTheme.pipRose
+    videoContainer.backgroundColor = .clear
   }
 
   @objc private func handleSingleTap() {
