@@ -39,6 +39,7 @@ final class FeedViewController: UIViewController,
   private var sidebarPan: UIPanGestureRecognizer?
   private var searchOpen = false
   private var searchProgress: CGFloat = 0
+  private var searchKeyboardShown = false
   private var searchPanStartX: CGFloat = 0
   private var sidebarPanStartX: CGFloat = 0
   private var feedScrollingAtTouch = false
@@ -588,6 +589,15 @@ final class FeedViewController: UIViewController,
     search.view.frame = CGRect(x: width * (1 - progress), y: 0,
                                width: width, height: view.bounds.height)
     table.transform = CGAffineTransform(translationX: -width * 0.18 * progress, y: 0)
+    if searchOpen {
+      if progress > 0.28 && !searchKeyboardShown {
+        searchKeyboardShown = true
+        search.focusNow()
+      } else if progress < 0.58 && searchKeyboardShown {
+        searchKeyboardShown = false
+        search.resignKeyboard()
+      }
+    }
   }
 
   private func beginSearchInteractive() {
@@ -600,13 +610,13 @@ final class FeedViewController: UIViewController,
     updateSearchProgress(0)
     toolbarWasHidden = toolbarHidden
     onToolbar?(true)
-    search.focusNow()
   }
 
   private func settleSearch(open: Bool) {
     guard let search = searchController else { return }
     searchOpen = open
     if !open {
+      searchKeyboardShown = false
       search.resignKeyboard()
     }
     let changes = {
@@ -619,7 +629,8 @@ final class FeedViewController: UIViewController,
                    animations: changes) { [weak self] _ in
       guard let self = self else { return }
       if open {
-        search.focus()
+        search.focusNow()
+        self.searchKeyboardShown = true
       } else {
         search.view.isHidden = true
         self.table.transform = .identity
