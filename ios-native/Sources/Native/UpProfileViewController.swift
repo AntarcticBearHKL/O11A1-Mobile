@@ -129,17 +129,25 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     followButton.translatesAutoresizingMaskIntoConstraints = false
     updateFollowButton()
 
-    sortDock.backgroundColor = .clear
+    sortDock.backgroundColor = NativeTheme.surface
+    sortDock.layer.cornerRadius = NativeTheme.cornerRadius
+    sortDock.layer.cornerCurve = .continuous
+    sortDock.layer.borderWidth = 1
+    sortDock.layer.borderColor = NativeTheme.hairline.cgColor
+    sortDock.layer.shadowColor = UIColor.black.cgColor
+    sortDock.layer.shadowOpacity = 0.18
+    sortDock.layer.shadowRadius = 17
+    sortDock.layer.shadowOffset = CGSize(width: 0, height: 7)
     sortDock.clipsToBounds = false
     view.addSubview(sortDock)
     sortDock.translatesAutoresizingMaskIntoConstraints = false
 
     for (index, button) in [latestButton, playButton].enumerated() {
       button.tag = index
-      button.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+      button.titleLabel?.font = UIFont.systemFont(ofSize: 13.5, weight: .bold)
       button.layer.cornerRadius = NativeTheme.cornerRadius
       button.layer.cornerCurve = .continuous
-      button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
+      button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 22, bottom: 0, right: 22)
       button.widthAnchor.constraint(equalToConstant: 92).isActive = true
       button.heightAnchor.constraint(equalToConstant: 42).isActive = true
       button.addTarget(self, action: #selector(sortTapped(_:)), for: .touchUpInside)
@@ -209,7 +217,6 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     sortDock.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
     sortDock.bottomAnchor.constraint(equalTo: bottomCard.topAnchor, constant: -10).isActive = true
     sortDock.heightAnchor.constraint(equalToConstant: 52).isActive = true
-    sortDock.widthAnchor.constraint(equalToConstant: 200).isActive = true
 
     let closePan = UIPanGestureRecognizer(target: self, action: #selector(handleDismissPan(_:)))
     closePan.delegate = self
@@ -309,12 +316,12 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   }
 
   private func updateSort() {
+    sortDock.layer.borderColor = NativeTheme.hairline.cgColor
     for (index, button) in [latestButton, playButton].enumerated() {
       let on = (index == 0 && order == "pubdate") || (index == 1 && order == "click")
-      button.backgroundColor = on ? NativeTheme.foreground : NativeTheme.surface
+      button.backgroundColor = on ? NativeTheme.foreground : .clear
       button.setTitleColor(on ? NativeTheme.background : NativeTheme.secondary, for: .normal)
-      button.layer.borderWidth = on ? 0 : 0.5
-      button.layer.borderColor = NativeTheme.hairline.cgColor
+      button.layer.borderWidth = 0
     }
   }
 
