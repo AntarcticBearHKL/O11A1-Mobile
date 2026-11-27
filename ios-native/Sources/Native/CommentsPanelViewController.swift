@@ -615,8 +615,8 @@ private final class PanelCommentCell: UITableViewCell {
     likes.setContentHuggingPriority(.required, for: .horizontal)
     likes.setContentCompressionResistancePriority(.required, for: .horizontal)
 
-    repliesCount.font = UIFont.systemFont(ofSize: 11.5, weight: .semibold)
-    repliesCount.textColor = NativeTheme.navBlue
+    repliesCount.font = UIFont.systemFont(ofSize: 11.5, weight: .medium)
+    repliesCount.textColor = NativeTheme.secondary
     repliesCount.isHidden = true
     repliesCount.setContentHuggingPriority(.required, for: .horizontal)
     repliesCount.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -634,7 +634,7 @@ private final class PanelCommentCell: UITableViewCell {
     ])
     titleRow.axis = .horizontal
     titleRow.alignment = .center
-    titleRow.spacing = 8
+    titleRow.spacing = 10
     contentView.addSubview(titleRow)
     titleRow.translatesAutoresizingMaskIntoConstraints = false
 
@@ -684,6 +684,7 @@ private final class PanelCommentCell: UITableViewCell {
     super.prepareForReuse()
     avatar.image = nil
     likes.attributedText = nil
+    repliesCount.attributedText = nil
     repliesCount.isHidden = true
     time.text = nil
     repliesStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
@@ -696,23 +697,16 @@ private final class PanelCommentCell: UITableViewCell {
     time.textColor = NativeTheme.freshnessColor(Int64(item.time))
     setMessage(item.message)
 
-    let likeText = NSMutableAttributedString(
-      string: "♥",
-      attributes: [
-        .font: UIFont.systemFont(ofSize: 12.5, weight: .semibold),
-        .foregroundColor: NativeTheme.accent,
-      ])
-    likeText.append(NSAttributedString(
-      string: " \(item.likes)",
-      attributes: [
-        .font: UIFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium),
-        .foregroundColor: NativeTheme.tertiary,
-      ]))
-    likes.attributedText = likeText
-
+    likes.attributedText = metric(icon: "heart.fill",
+                                  tint: NativeTheme.accent,
+                                  value: item.likes)
     let count = max(item.replies, items.count)
     repliesCount.isHidden = count == 0
-    repliesCount.text = "\(count) 评论"
+    repliesCount.attributedText = count == 0
+      ? nil
+      : metric(icon: "bubble.left.fill",
+               tint: NativeTheme.navBlue,
+               value: count)
     separator.backgroundColor = NativeTheme.hairline
     ImageLoader.shared.load(item.face, into: avatar)
 
@@ -740,6 +734,27 @@ private final class PanelCommentCell: UITableViewCell {
       string: text,
       attributes: [.paragraphStyle: style]
     )
+  }
+
+  private func metric(icon: String, tint: UIColor, value: Int) -> NSAttributedString {
+    let result = NSMutableAttributedString()
+    let configuration = UIImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+    if let base = UIImage(systemName: icon, withConfiguration: configuration) {
+      let symbol = base.withTintColor(tint, renderingMode: .alwaysOriginal)
+      let attachment = NSTextAttachment()
+      attachment.image = symbol
+      attachment.bounds = CGRect(x: 0, y: -1.5,
+                                 width: symbol.size.width,
+                                 height: symbol.size.height)
+      result.append(NSAttributedString(attachment: attachment))
+    }
+    result.append(NSAttributedString(
+      string: " \(value)",
+      attributes: [
+        .font: UIFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium),
+        .foregroundColor: NativeTheme.tertiary,
+      ]))
+    return result
   }
 
   private func makeReplyRow(_ item: CommentItem) -> UIView {
