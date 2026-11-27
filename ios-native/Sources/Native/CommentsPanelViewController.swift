@@ -366,34 +366,57 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
                    replies: repliesCache[item.rpid] ?? [],
                    expanded: expanded,
                    loading: loadingReplies.contains(item.rpid))
-    cell.onReplies = { [weak self] in
-      self?.toggleReplies(item)
-    }
     return cell
+  }
+
+  func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    tableView.deselectRow(at: indexPath, animated: false)
+    guard items.indices.contains(indexPath.row) else { return }
+    toggleReplies(items[indexPath.row])
   }
 
   private func toggleReplies(_ item: CommentItem) {
     let root = item.rpid
     guard root > 0 else { return }
+    let cached = repliesCache[root]
+    guard item.replies > 0 || !(cached?.isEmpty ?? true) else { return }
     if expandedRoots.contains(root) {
       expandedRoots.remove(root)
       reloadComment(root)
       return
     }
     expandedRoots.insert(root)
-    if repliesCache[root] != nil {
+    if cached != nil {
+      reloadComment(root)
+      return
+    }
+    if loadingReplies.contains(root) {
       reloadComment(root)
       return
     }
     loadingReplies.insert(root)
     reloadComment(root)
-    BiliAPI.shared.commentReplies(aid: aid, root: root, page: 1) { [weak self] result in
+    loadReplyPage(root: root, page: 1, collected: [])
+  }
+
+  private func loadReplyPage(root: Int64, page: Int, collected: [CommentItem]) {
+    BiliAPI.shared.commentReplies(aid: aid, root: root, page: page) { [weak self] result in
       guard let self = self else { return }
-      self.loadingReplies.remove(root)
-      if case .success(let values) = result {
-        self.repliesCache[root] = values
+      switch result {
+      case .failure:
+        self.loadingReplies.remove(root)
+        self.repliesCache[root] = collected
+        self.reloadComment(root)
+      case .success(let values):
+        let all = collected + values
+        if values.count >= 20 && page < 10 {
+          self.loadReplyPage(root: root, page: page + 1, collected: all)
+        } else {
+          self.loadingReplies.remove(root)
+          self.repliesCache[root] = all
+          self.reloadComment(root)
+        }
       }
-      self.reloadComment(root)
     }
   }
 
@@ -518,14 +541,12 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
 private final class PanelCommentCell: UITableViewCell {
   static let reuseID = "PanelCommentCell"
 
-  var onReplies: (() -> Void)?
-
   private let avatar = UIImageView()
   private let name = UILabel()
   private let time = UILabel()
   private let message = UILabel()
   private let likes = UILabel()
-  private let replies = UIButton(type: .system)
+  private let replies = UILabel()
   private let repliesStack = UIStackView()
   private let separator = UIView()
 
@@ -561,20 +582,19 @@ private final class PanelCommentCell: UITableViewCell {
     meta.alignment = .center
     meta.spacing = 8
 
-    message.font = UIFont.systemFont(ofSize: 14.5, weight: .regular)
+    message.font = UIFont.systemFont(ofSize: 16.5, weight: .regular)
     message.textColor = NativeTheme.foreground
     message.numberOfLines = 0
     message.lineBreakMode = .byWordWrapping
 
-    likes.font = UIFont.systemFont(ofSize: 11, weight: .medium)
-    likes.textColor = NativeTheme.tertiary
+    likes.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+    likes.textColor = NativeTheme.accent
 
-    replies.titleLabel?.font = UIFont.systemFont(ofSize: 11, weight: .semibold)
-    replies.setTitleColor(NativeTheme.secondary, for: .normal)
-    replies.contentHorizontalAlignment = .right
-    replies.contentEdgeInsets = UIEdgeInsets(top: 2, left: 8, bottom: 2, right: 0)
+    replies.font = UIFont.systemFont(ofSize: 11.5, weight: .semibold)
+    replies.textColor = NativeTheme.navBlue
+    replies.textAlignment = .right
+    replies.isUserInteractionEnabled = false
     replies.isHidden = true
-    replies.addTarget(self, action: #selector(tapReplies), for: .touchUpInside)
     replies.setContentHuggingPriority(.required, for: .horizontal)
 
     let actionSpacer = UIView()
@@ -626,7 +646,6 @@ private final class PanelCommentCell: UITableViewCell {
 
   override func prepareForReuse() {
     super.prepareForReuse()
-    onReplies = nil
     avatar.image = nil
     repliesStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
   }
@@ -636,11 +655,10 @@ private final class PanelCommentCell: UITableViewCell {
     name.text = item.name.isEmpty ? "用户" : item.name
     time.text = NativeTheme.timeAgo(Int64(item.time))
     setMessage(item.message)
-    likes.text = "赞 \(item.likes)"
+    likes.text = "♥ \(item.likes)"
     let hasReplies = item.replies > 0 || !items.isEmpty
     replies.isHidden = !hasReplies
-    replies.setTitle(expanded ? "收起回复" : "\(max(item.replies, items.count)) 条回复",
-                     for: .normal)
+    replies.text = "\(max(item.replies, items.count)) 条回复"
     separator.backgroundColor = NativeTheme.hairline
     ImageLoader.shared.load(item.face, into: avatar)
 
@@ -655,21 +673,14 @@ private final class PanelCommentCell: UITableViewCell {
       repliesStack.addArrangedSubview(loadingLabel)
       return
     }
-    for reply in items.prefix(3) {
+    for reply in items {
       repliesStack.addArrangedSubview(makeReplyRow(reply))
-    }
-    if items.count > 3 {
-      let more = UILabel()
-      more.text = "共 \(items.count) 条回复"
-      more.font = UIFont.systemFont(ofSize: 11.5, weight: .medium)
-      more.textColor = NativeTheme.tertiary
-      repliesStack.addArrangedSubview(more)
     }
   }
 
   private func setMessage(_ text: String) {
     let style = NSMutableParagraphStyle()
-    style.lineSpacing = 3.5
+    style.lineSpacing = 4.5
     style.lineBreakMode = .byWordWrapping
     message.attributedText = NSAttributedString(
       string: text,
@@ -694,11 +705,11 @@ private final class PanelCommentCell: UITableViewCell {
     replyName.textColor = NativeTheme.secondary
 
     let replyMessage = UILabel()
-    replyMessage.font = UIFont.systemFont(ofSize: 13, weight: .regular)
+    replyMessage.font = UIFont.systemFont(ofSize: 14.5, weight: .regular)
     replyMessage.textColor = NativeTheme.foreground
     replyMessage.numberOfLines = 0
     let style = NSMutableParagraphStyle()
-    style.lineSpacing = 2.5
+    style.lineSpacing = 3
     style.lineBreakMode = .byWordWrapping
     replyMessage.attributedText = NSAttributedString(
       string: item.message,
@@ -715,9 +726,5 @@ private final class PanelCommentCell: UITableViewCell {
     row.alignment = .top
     row.spacing = 10
     return row
-  }
-
-  @objc private func tapReplies() {
-    onReplies?()
   }
 }
