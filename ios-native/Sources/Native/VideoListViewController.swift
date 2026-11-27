@@ -253,7 +253,7 @@ final class VideoRowCell: UITableViewCell {
 
   func configureUp(_ item: VideoItem) {
     title.text = item.title
-    metaLeft.text = "\(item.playText) 播放"
+    metaLeft.text = item.playText + "播放"
     metaLeft.textColor = NativeTheme.playCountColor(item.play)
     metaRight.text = NativeTheme.freshness(item.pubdate)
     metaRight.textColor = NativeTheme.freshnessColor(item.pubdate)

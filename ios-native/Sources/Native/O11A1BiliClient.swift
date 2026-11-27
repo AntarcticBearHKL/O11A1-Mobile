@@ -1082,7 +1082,8 @@ final class O11A1BiliClient {
         "mid": o11a1Int64(row["mid"]) != 0 ? o11a1Int64(row["mid"]) : mid,
         "duration": duration,
         "durationSec": o11a1DurationSeconds(duration),
-        "pubdate": o11a1Int64(row["pubdate"]),
+        "pubdate": o11a1Int64(row["pubdate"]) != 0
+          ? o11a1Int64(row["pubdate"]) : o11a1Int64(row["created"]),
         "play": plays,
         "playText": o11a1Count(plays),
         "desc": o11a1StripHTML(o11a1String(row["description"])),
