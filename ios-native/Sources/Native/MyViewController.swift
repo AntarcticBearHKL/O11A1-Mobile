@@ -1,6 +1,6 @@
 import UIKit
 
-final class MyViewController: UIViewController {
+final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
   var onOpenModule: ((ModuleListViewController.Mode, Int64, String) -> Void)?
   var onFish: (() -> Void)?
   var onSettings: (() -> Void)?
@@ -20,30 +20,11 @@ final class MyViewController: UIViewController {
     super.viewDidLoad()
     view.backgroundColor = NativeTheme.background
 
-    let header = UIStackView()
-    header.axis = .horizontal
-    header.alignment = .center
-    header.spacing = 4
-    let back = UIButton(type: .system)
-    back.setImage(UIImage(systemName: "chevron.left"), for: .normal)
-    back.tintColor = NativeTheme.foreground
-    back.addTarget(self, action: #selector(close), for: .touchUpInside)
-    back.widthAnchor.constraint(equalToConstant: 44).isActive = true
-    back.heightAnchor.constraint(equalToConstant: 44).isActive = true
-    header.addArrangedSubview(back)
-    let title = UILabel()
-    title.text = "用户"
-    title.font = UIFont.systemFont(ofSize: 19, weight: .bold)
-    title.textColor = NativeTheme.foreground
-    header.addArrangedSubview(title)
-    header.addArrangedSubview(UIView())
-    view.addSubview(header)
-    header.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      header.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
-      header.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-      header.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-    ])
+    let dismissPan = UIPanGestureRecognizer(
+      target: self, action: #selector(handleDismissPan(_:)))
+    dismissPan.delegate = self
+    dismissPan.cancelsTouchesInView = false
+    view.addGestureRecognizer(dismissPan)
 
     let accountCard = UIView()
     accountCard.backgroundColor = NativeTheme.surface
@@ -119,7 +100,7 @@ final class MyViewController: UIViewController {
     NSLayoutConstraint.activate([
       scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      scroll.topAnchor.constraint(equalTo: header.bottomAnchor),
+      scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
       scroll.bottomAnchor.constraint(equalTo: accountCard.topAnchor),
       list.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 18),
       list.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -18),
@@ -186,12 +167,43 @@ final class MyViewController: UIViewController {
     list.addArrangedSubview(lineWrap)
   }
 
+  @objc private func handleDismissPan(_ gesture: UIPanGestureRecognizer) {
+    let reference = view.superview ?? view
+    let width = max(1, view.bounds.width)
+    let translation = min(0, gesture.translation(in: reference).x)
+    switch gesture.state {
+    case .changed:
+      view.transform = CGAffineTransform(translationX: translation, y: 0)
+    case .ended, .cancelled:
+      let velocity = gesture.velocity(in: reference).x
+      if translation < -width * 0.22 || velocity < -350 {
+        close()
+      } else {
+        UIView.animate(withDuration: 0.24, delay: 0,
+                       options: [.curveEaseOut, .beginFromCurrentState]) {
+          self.view.transform = .identity
+        }
+      }
+    default:
+      break
+    }
+  }
+
+  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+    let velocity = pan.velocity(in: view)
+    let translation = pan.translation(in: view)
+    let movingLeft = translation.x < -1 || velocity.x < -1
+    return movingLeft && (abs(translation.x) > abs(translation.y) * 1.1
+      || abs(velocity.x) > abs(velocity.y) * 1.1)
+  }
+
   @objc private func close() {
     guard !closing else { return }
     closing = true
-    UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseIn], animations: {
+    UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseIn]) {
       self.view.transform = CGAffineTransform(translationX: -self.view.bounds.width, y: 0)
-    }) { _ in
+    } completion: { _ in
       self.dismiss(animated: false)
     }
   }
