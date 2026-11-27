@@ -75,9 +75,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var landscapeControl: LandscapeVerticalControl = .none
   private var landscapeAdjusting = false
   private var landscapeStartValue: Float = 0
-  private var portraitControl: LandscapeVerticalControl = .none
-  private var portraitAdjusting = false
-  private var portraitStartValue: Float = 0
   private let volumeView = MPVolumeView()
   private var volumeSlider: UISlider?
   private var progressLink: CADisplayLink?
@@ -1493,8 +1490,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       landscapeDrag = false
       landscapeAdjusting = false
       landscapeControl = .none
-      portraitControl = .none
-      portraitAdjusting = false
       portraitUpDrag = false
       portraitRestoreDrag = false
       panDirectionDecided = false
@@ -1516,19 +1511,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
           }
           landscapeStartValue = volumeSlider?.value ?? 0.5
         }
-      } else if !portraitStageIsTop && portraitTransition < 0.02 {
-        let x = gesture.location(in: view).x
-        let width = max(1, view.bounds.width)
-        if x < width / 3.0 {
-          portraitControl = .brightness
-          portraitStartValue = Float(UIScreen.main.brightness)
-        } else if x > width * 2.0 / 3.0 {
-          portraitControl = .volume
-          if volumeSlider == nil {
-            volumeSlider = findVolumeSlider(in: volumeView)
-          }
-          portraitStartValue = volumeSlider?.value ?? 0.5
-        }
       }
       let velocity = gesture.velocity(in: videoContainer)
       if abs(velocity.x) > abs(velocity.y) && abs(velocity.x) > 80 {
@@ -1546,9 +1528,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
               if translation.y > 0 {
                 portraitRestoreDrag = true
               }
-            } else if portraitControl != .none {
-              portraitAdjusting = true
-              hideControls()
             } else if translation.y < 0 {
               portraitUpDrag = true
             }
@@ -1573,11 +1552,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       if isLandscapePlayer && landscapeAdjusting {
         applyVerticalControl(translation, control: landscapeControl,
                              base: landscapeStartValue)
-        return
-      }
-      if !isLandscapePlayer && portraitAdjusting {
-        applyVerticalControl(translation, control: portraitControl,
-                             base: portraitStartValue)
         return
       }
       guard !isLandscapePlayer || landscapeDrag else { return }
@@ -1636,13 +1610,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         portraitDragActive = false
         return
       }
-      if portraitAdjusting {
-        portraitAdjusting = false
-        portraitControl = .none
-        panDirectionDecided = false
-        portraitDragActive = false
-        return
-      }
       if isLandscapePlayer && !landscapeDrag {
         landscapeDrag = false
         landscapeControl = .none
@@ -1652,7 +1619,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       }
       landscapeDrag = false
       landscapeControl = .none
-      portraitControl = .none
       if !isLandscapePlayer {
         let rects = portraitVideoRects()
         let distance = max(120, rects.center.minY - rects.top.minY)
