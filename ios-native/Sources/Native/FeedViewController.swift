@@ -114,7 +114,8 @@ final class FeedViewController: UIViewController,
     previewEngine.onTime = { [weak self] seconds, duration in
       guard let self = self, !self.previewSuspended, duration > 0,
             let cell = self.previewCell else { return }
-      cell.setPreviewProgress(CGFloat(max(0, min(1, seconds / duration))))
+      cell.setPreviewProgress(CGFloat(max(0, min(1, seconds / duration))),
+                              current: seconds, total: duration)
     }
     previewView.alpha = 0
     previewView.isUserInteractionEnabled = false
@@ -455,7 +456,7 @@ final class FeedViewController: UIViewController,
         backup: source.backup,
         headers: BiliAPI.shared.mediaHeaders,
         autoplay: true,
-        muted: true,
+        muted: false,
         loop: true
       )
     }

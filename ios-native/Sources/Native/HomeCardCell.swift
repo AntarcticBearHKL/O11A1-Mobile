@@ -69,10 +69,11 @@ final class HomeCardCell: UITableViewCell {
     mediaHost.translatesAutoresizingMaskIntoConstraints = false
 
     duration.font = NativeTheme.numberFont(11)
-    duration.textColor = .white
+    duration.textColor = NativeTheme.background
     duration.textAlignment = .center
-    duration.backgroundColor = UIColor.black.withAlphaComponent(0.78)
+    duration.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.78)
     duration.layer.cornerRadius = NativeTheme.cornerRadius
+    duration.layer.cornerCurve = .continuous
     duration.clipsToBounds = true
     media.addSubview(duration)
     duration.translatesAutoresizingMaskIntoConstraints = false
@@ -210,9 +211,9 @@ final class HomeCardCell: UITableViewCell {
       live.heightAnchor.constraint(equalToConstant: 18),
 
       duration.trailingAnchor.constraint(equalTo: media.trailingAnchor, constant: -8),
-      duration.bottomAnchor.constraint(equalTo: media.bottomAnchor, constant: -8),
+      duration.bottomAnchor.constraint(equalTo: media.bottomAnchor, constant: -10),
       duration.widthAnchor.constraint(greaterThanOrEqualToConstant: 38),
-      duration.heightAnchor.constraint(equalToConstant: 18),
+      duration.heightAnchor.constraint(equalToConstant: 22),
 
       progressTrack.leadingAnchor.constraint(equalTo: media.leadingAnchor),
       progressTrack.trailingAnchor.constraint(equalTo: media.trailingAnchor),
@@ -222,15 +223,15 @@ final class HomeCardCell: UITableViewCell {
       progressFill.topAnchor.constraint(equalTo: progressTrack.topAnchor),
       progressFill.bottomAnchor.constraint(equalTo: progressTrack.bottomAnchor),
 
-      previewBar.leadingAnchor.constraint(equalTo: media.leadingAnchor, constant: 14),
-      previewBar.trailingAnchor.constraint(equalTo: media.trailingAnchor, constant: -14),
+      previewBar.leadingAnchor.constraint(equalTo: media.leadingAnchor),
+      previewBar.trailingAnchor.constraint(equalTo: media.trailingAnchor),
       previewBar.bottomAnchor.constraint(equalTo: media.bottomAnchor),
       previewBar.heightAnchor.constraint(equalToConstant: 4),
 
       copyView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
       copyView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
       copyView.topAnchor.constraint(equalTo: media.bottomAnchor),
-      copyView.heightAnchor.constraint(equalToConstant: 122),
+      copyView.heightAnchor.constraint(equalToConstant: 98),
       copyView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -14),
 
       topLine.leadingAnchor.constraint(equalTo: copyView.leadingAnchor),
@@ -374,20 +375,32 @@ final class HomeCardCell: UITableViewCell {
     previewBar.progress = 0
   }
 
-  func setPreviewProgress(_ ratio: CGFloat?) {
+  func setPreviewProgress(_ ratio: CGFloat?, current: Double = 0, total: Double = 0) {
     if let ratio = ratio {
       previewBar.isHidden = false
       previewBar.progress = ratio
       progressTrack.isHidden = true
+      let totalValue = total > 0 ? total : Double(item?.durationSec ?? 0)
+      duration.text = " \(previewTime(current)) / \(previewTime(totalValue)) "
     } else {
       previewBar.isHidden = true
       previewBar.progress = 0
+      duration.text = item?.duration ?? ""
       guard let item = item, item.progress > 0, item.durationSec > 0 else {
         progressTrack.isHidden = true
         return
       }
       applyWatchProgress()
     }
+  }
+
+  private func previewTime(_ value: Double) -> String {
+    let seconds = max(0, Int(value.rounded()))
+    if seconds >= 3600 {
+      return String(format: "%d:%02d:%02d", seconds / 3600,
+                    (seconds % 3600) / 60, seconds % 60)
+    }
+    return String(format: "%02d:%02d", seconds / 60, seconds % 60)
   }
 
   private func applyWatchProgress() {

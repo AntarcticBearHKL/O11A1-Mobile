@@ -11,7 +11,6 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   private let mid: Int64
   private let table = UITableView(frame: .zero, style: .plain)
   private let statusLabel = UILabel()
-  private let backButton = UIButton(type: .system)
   private let topBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let topBlurMask = CAGradientLayer()
   private var topBlurHeight: NSLayoutConstraint?
@@ -32,7 +31,6 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   private var following = false
   private var profile: BiliAPI.UpProfilePage?
   private var dismissPan: UIPanGestureRecognizer?
-  private var backTop: NSLayoutConstraint?
 
   init(mid: Int64) {
     self.mid = mid
@@ -83,17 +81,6 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     statusLabel.text = "正在加载 UP 主页…"
     view.addSubview(statusLabel)
     statusLabel.translatesAutoresizingMaskIntoConstraints = false
-
-    backButton.setImage(UIImage(systemName: "chevron.left"), for: .normal)
-    backButton.tintColor = NativeTheme.foreground
-    backButton.backgroundColor = NativeTheme.glass
-    backButton.layer.cornerRadius = 20
-    backButton.layer.cornerCurve = .continuous
-    backButton.layer.borderWidth = 0.5
-    backButton.layer.borderColor = NativeTheme.hairline.cgColor
-    backButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
-    view.addSubview(backButton)
-    backButton.translatesAutoresizingMaskIntoConstraints = false
 
     bottomCard.backgroundColor = .clear
     bottomCard.layer.cornerRadius = NativeTheme.cornerRadius
@@ -194,14 +181,6 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     statusLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor).isActive = true
     statusLabel.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 32).isActive = true
     statusLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -32).isActive = true
-
-    backTop = backButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8)
-    NSLayoutConstraint.activate([
-      backTop!,
-      backButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-      backButton.widthAnchor.constraint(equalToConstant: 40),
-      backButton.heightAnchor.constraint(equalToConstant: 40),
-    ])
 
     bottomCard.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
     bottomCard.trailingAnchor.constraint(equalTo: view.trailingAnchor).isActive = true
@@ -342,7 +321,9 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   private func updateSort() {
     for (index, button) in [latestButton, playButton].enumerated() {
       let on = (index == 0 && order == "pubdate") || (index == 1 && order == "click")
-      button.backgroundColor = on ? NativeTheme.foreground : .clear
+      button.backgroundColor = on
+        ? NativeTheme.foreground
+        : NativeTheme.foreground.withAlphaComponent(0.08)
       button.setTitleColor(on ? NativeTheme.background : NativeTheme.secondary, for: .normal)
     }
   }
@@ -367,10 +348,6 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
       }
     }
-  }
-
-  @objc private func closeTapped() {
-    onClose?()
   }
 
   @objc private func handleDismissPan(_ gesture: UIPanGestureRecognizer) {

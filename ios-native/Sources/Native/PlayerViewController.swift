@@ -578,11 +578,17 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let height = max(1, view.bounds.height)
     let progress = min(1, max(0, down / (height * 0.62)))
     videoContainer.transform = CGAffineTransform(translationX: 0, y: down)
-    videoContainer.alpha = 1 - progress * 0.6
-    let scale = 1 - 0.14 * progress
-    let retreat = CGAffineTransform(translationX: 0, y: -down * 0.12)
-      .scaledBy(x: scale, y: scale)
-    applyBackdrop(transform: retreat, alpha: 1 - progress)
+    videoContainer.alpha = 1 - progress * 0.5
+    let full = view.bounds
+    let videoWidth = max(1, videoContainer.bounds.width)
+    let videoHeight = max(1, videoContainer.bounds.height)
+    let targetX = videoWidth / max(1, full.width)
+    let targetY = videoHeight / max(1, full.height)
+    let scaleX = 1 + (targetX - 1) * progress
+    let scaleY = 1 + (targetY - 1) * progress
+    let retreat = CGAffineTransform(translationX: 0, y: down)
+      .scaledBy(x: scaleX, y: scaleY)
+    applyBackdrop(transform: retreat, alpha: 1 - progress * 0.2)
     topBar.alpha = panRestoreTopAlpha * (1 - progress)
     bottomPanel.alpha = panRestorePanelAlpha * (1 - progress)
     dim.alpha = panRestoreDimAlpha * (1 - progress)
@@ -1204,13 +1210,17 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     portraitShrinking = true
     portraitDragActive = false
     let height = max(1, view.bounds.height)
+    let full = view.bounds
+    let finalDown = height * 0.58
+    let target = CGAffineTransform(translationX: 0, y: finalDown)
+      .scaledBy(x: max(0.05, videoContainer.bounds.width / max(1, full.width)),
+                y: max(0.05, videoContainer.bounds.height / max(1, full.height)))
     UIView.animate(withDuration: 0.30, delay: 0,
                    options: [.curveEaseIn, .beginFromCurrentState]) {
       self.videoContainer.transform = CGAffineTransform(
-        translationX: 0, y: height * 0.58)
+        translationX: 0, y: finalDown)
       self.videoContainer.alpha = 0
-      self.applyBackdrop(
-        transform: CGAffineTransform(scaleX: 0.82, y: 0.82), alpha: 0)
+      self.applyBackdrop(transform: target, alpha: 0)
       self.topBar.alpha = 0
       self.bottomPanel.alpha = 0
       self.dim.alpha = 0
