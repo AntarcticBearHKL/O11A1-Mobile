@@ -107,8 +107,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var isLandscapePlayer = false
   private var loopOn = false
   private var controlsVisible = true
-  private var controlsTimer: Timer?
-  private var lastPlayingState = false
   private let panelSlideDistance: CGFloat = 28
   private let playerPanelHeight: CGFloat = 88
   private let focusedPanelLift: CGFloat = 30
@@ -305,7 +303,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       guard let self = self else { return }
       self.showControls()
       self.scrub(ratio: ratio, finished: finished)
-      if finished { self.scheduleControlsHide() }
     }
     content.addSubview(wheel)
 
@@ -697,11 +694,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     } else {
       stopProgressLink()
       progressTick()
-    }
-    let changed = playing != lastPlayingState
-    lastPlayingState = playing
-    if playing && changed && controlsVisible {
-      scheduleControlsHide()
     }
   }
 
@@ -1412,7 +1404,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func showControls() {
-    controlsTimer?.invalidate()
     controlsVisible = true
     bottomPanel.isUserInteractionEnabled = true
     UIView.animate(withDuration: panelShowDuration, delay: 0,
@@ -1420,11 +1411,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self.bottomPanel.alpha = 1
       self.bottomPanel.transform = .identity
     }
-    scheduleControlsHide()
   }
 
   private func hideControls() {
-    controlsTimer?.invalidate()
     controlsVisible = false
     seekBubble.isHidden = true
     UIView.animate(withDuration: panelHideDuration * panelHideScale, delay: 0,
@@ -1437,16 +1426,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         self.bottomPanel.isUserInteractionEnabled = false
       }
     }
-  }
-
-  private func scheduleControlsHide() {
-    controlsTimer?.invalidate()
-    let timer = Timer(timeInterval: 3.2, repeats: false) { [weak self] _ in
-      guard let self = self, !self.isScrubbing else { return }
-      self.hideControls()
-    }
-    RunLoop.main.add(timer, forMode: .common)
-    controlsTimer = timer
   }
 
   @objc private func longPress(_ gesture: UILongPressGestureRecognizer) {
@@ -1676,7 +1655,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     stopLiveChat()
     cancelUpgradePreload()
     engine.stop()
-    controlsTimer?.invalidate()
     controlsVisible = false
     bottomPanel.alpha = 0
     bottomPanel.transform = CGAffineTransform(translationX: 0, y: panelSlideDistance)
@@ -1794,7 +1772,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   func testShowControls(hold: Bool) {
     showControls()
-    if hold { controlsTimer?.invalidate() }
   }
 
   func testHideControls() {
