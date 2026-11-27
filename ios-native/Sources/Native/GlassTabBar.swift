@@ -25,7 +25,8 @@ final class GlassTabBar: UIView {
   private let barRadius: CGFloat = NativeTheme.cornerRadius
   private var pillAnimating = false
   private let rowHeight: CGFloat = 72
-  private let menuRowHeight: CGFloat = 56
+  private let menuRowHeight: CGFloat = 60
+  private var menuListHeight: CGFloat { menuRowHeight * CGFloat(menuTitles.count) }
   private var barHeight: NSLayoutConstraint?
   private var menuHeight: NSLayoutConstraint?
   private var expansion: CGFloat = 0
@@ -101,7 +102,7 @@ final class GlassTabBar: UIView {
       menuHeight!,
     ])
 
-    menuStack.axis = .horizontal
+    menuStack.axis = .vertical
     menuStack.distribution = .fillEqually
     menuStack.alignment = .fill
     menuStack.spacing = 0
@@ -111,7 +112,7 @@ final class GlassTabBar: UIView {
       menuStack.leadingAnchor.constraint(equalTo: menuClip.leadingAnchor),
       menuStack.trailingAnchor.constraint(equalTo: menuClip.trailingAnchor),
       menuStack.topAnchor.constraint(equalTo: menuClip.topAnchor),
-      menuStack.heightAnchor.constraint(equalToConstant: menuRowHeight),
+      menuStack.heightAnchor.constraint(equalToConstant: menuListHeight),
     ])
 
     rowLine.backgroundColor = NativeTheme.hairline
@@ -143,21 +144,54 @@ final class GlassTabBar: UIView {
     for index in 0..<menuTitles.count {
       let button = UIButton(type: .custom)
       button.tag = index
-      button.titleLabel?.font = UIFont.systemFont(ofSize: 10, weight: .medium)
-      button.setTitleColor(NativeTheme.tabInactive, for: .normal)
-      let config = UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
-      button.setImage(UIImage(systemName: menuSymbols[index], withConfiguration: config),
-                      for: .normal)
-      button.tintColor = NativeTheme.tabInactive
-      button.setTitle(menuTitles[index], for: .normal)
-      button.alignImageAndTitleVertically(gap: 2)
+      button.accessibilityLabel = menuTitles[index]
       button.addTarget(self, action: #selector(menuTap(_:)), for: .touchUpInside)
+
+      let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .regular)
+      let icon = UIImageView(image: UIImage(systemName: menuSymbols[index],
+                                             withConfiguration: config))
+      icon.tintColor = NativeTheme.tabInactive
+      icon.contentMode = .scaleAspectFit
+      icon.isUserInteractionEnabled = false
+      button.addSubview(icon)
+      icon.translatesAutoresizingMaskIntoConstraints = false
+
+      let label = UILabel()
+      label.text = menuTitles[index]
+      label.font = UIFont.systemFont(ofSize: 15, weight: .medium)
+      label.textColor = NativeTheme.foreground
+      label.isUserInteractionEnabled = false
+      button.addSubview(label)
+      label.translatesAutoresizingMaskIntoConstraints = false
+
+      let line = UIView()
+      line.backgroundColor = NativeTheme.hairline
+      line.isUserInteractionEnabled = false
+      button.addSubview(line)
+      line.translatesAutoresizingMaskIntoConstraints = false
+
+      NSLayoutConstraint.activate([
+        icon.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 22),
+        icon.centerYAnchor.constraint(equalTo: button.centerYAnchor),
+        icon.widthAnchor.constraint(equalToConstant: 24),
+        icon.heightAnchor.constraint(equalToConstant: 24),
+        label.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 16),
+        label.trailingAnchor.constraint(lessThanOrEqualTo: button.trailingAnchor, constant: -22),
+        label.centerYAnchor.constraint(equalTo: button.centerYAnchor),
+        line.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 22),
+        line.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -22),
+        line.bottomAnchor.constraint(equalTo: button.bottomAnchor),
+        line.heightAnchor.constraint(equalToConstant: 0.5),
+      ])
+      if index == menuTitles.count - 1 {
+        line.isHidden = true
+      }
       menuButtons.append(button)
       menuStack.addArrangedSubview(button)
     }
 
     let expandPan = UIPanGestureRecognizer(target: self, action: #selector(handleExpandPan(_:)))
-    expandPan.cancelsTouchesInView = false
+    expandPan.cancelsTouchesInView = true
     addGestureRecognizer(expandPan)
 
     selectionFeedback.prepare()
@@ -225,7 +259,7 @@ final class GlassTabBar: UIView {
     case .began:
       dragStartExpansion = expansion
     case .changed:
-      let value = min(1, max(0, dragStartExpansion - translation / menuRowHeight))
+      let value = min(1, max(0, dragStartExpansion - translation / menuListHeight))
       setExpansion(value)
     case .ended, .cancelled:
       let velocity = gesture.velocity(in: self).y
@@ -244,9 +278,9 @@ final class GlassTabBar: UIView {
   private func setExpansion(_ value: CGFloat, animated: Bool = false) {
     expansion = value
     let update = {
-      self.barHeight?.constant = self.rowHeight + self.menuRowHeight * value
-      self.menuHeight?.constant = self.menuRowHeight * value
-      self.menuStack.alpha = min(1, value * 1.6)
+      self.barHeight?.constant = self.rowHeight + self.menuListHeight * value
+      self.menuHeight?.constant = self.menuListHeight * value
+      self.menuStack.alpha = min(1, value * 1.8)
       self.rowLine.alpha = value
       self.superview?.layoutIfNeeded()
       self.layoutIfNeeded()
