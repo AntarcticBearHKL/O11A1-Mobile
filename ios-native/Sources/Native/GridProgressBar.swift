@@ -63,7 +63,7 @@ final class GridProgressBar: UIView {
     accent.setFill()
     let baseline = CGRect(
       x: outer.minX,
-      y: outer.maxY - 4,
+      y: outer.maxY - 3,
       width: max(0, playX - outer.minX),
       height: 2
     )

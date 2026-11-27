@@ -1436,6 +1436,18 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
   }
 
+  func testPortrait() {
+    if #available(iOS 16.0, *) {
+      view.window?.windowScene?.requestGeometryUpdate(
+        .iOS(interfaceOrientations: .portrait))
+    } else {
+      UIDevice.current.setValue(
+        UIInterfaceOrientation.portrait.rawValue,
+        forKey: "orientation")
+      UIViewController.attemptRotationToDeviceOrientation()
+    }
+  }
+
   @objc private func closeTapped() {
     closePlayer(animated: true)
   }

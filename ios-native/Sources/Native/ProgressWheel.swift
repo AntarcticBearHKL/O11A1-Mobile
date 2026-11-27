@@ -1,8 +1,8 @@
 import UIKit
 
-/// The desktop player's endless precision ruler: half-second notches sit on a
-/// fixed 12pt ridge, every fifth second carries its absolute timestamp and a
-/// red needle marks the exact centre. The strip slides under the needle.
+/// The desktop player's endless precision ruler: half-second notches run at a
+/// fixed 12pt per second, every fifth second carries its absolute timestamp
+/// and a red needle marks the exact centre. The strip slides under the needle.
 final class ProgressWheel: UIControl {
   var progress: Double = 0 {
     didSet { setNeedsDisplay() }
@@ -36,7 +36,7 @@ final class ProgressWheel: UIControl {
   }
 
   private var pxPerSecond: CGFloat {
-    return ridgeGap / CGFloat(tickStep)
+    return ridgeGap
   }
 
   override func draw(_ rect: CGRect) {
