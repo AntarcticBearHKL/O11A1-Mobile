@@ -21,7 +21,6 @@ final class MiniVideoCardView: UIView {
   private let owner = UILabel()
   private let play = UILabel()
   private let time = UILabel()
-  private let stats = UIStackView()
   private let tapButton = UIButton(type: .custom)
   private var item: VideoItem?
 
@@ -82,41 +81,42 @@ final class MiniVideoCardView: UIView {
     addSubview(info)
     info.translatesAutoresizingMaskIntoConstraints = false
 
-    title.font = UIFont.systemFont(ofSize: 17.5, weight: .bold)
+    title.font = UIFont.systemFont(ofSize: 15, weight: .bold)
     title.textColor = NativeTheme.foreground
-    title.numberOfLines = 2
+    title.numberOfLines = 1
     title.lineBreakMode = .byTruncatingTail
-    info.addSubview(title)
-    title.translatesAutoresizingMaskIntoConstraints = false
 
-    owner.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+    owner.font = UIFont.systemFont(ofSize: 13, weight: .medium)
     owner.textColor = NativeTheme.secondary
     owner.numberOfLines = 1
     owner.lineBreakMode = .byTruncatingTail
     owner.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-    info.addSubview(owner)
-    owner.translatesAutoresizingMaskIntoConstraints = false
 
-    play.font = UIFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .medium)
-    play.textAlignment = .right
+    play.font = UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+    play.textAlignment = .left
     play.numberOfLines = 1
     play.setContentHuggingPriority(.required, for: .horizontal)
     play.setContentCompressionResistancePriority(.required, for: .horizontal)
-    time.font = UIFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .medium)
+    time.font = UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
     time.textColor = NativeTheme.tertiary
     time.textAlignment = .right
     time.numberOfLines = 1
     time.setContentHuggingPriority(.required, for: .horizontal)
     time.setContentCompressionResistancePriority(.required, for: .horizontal)
 
-    stats.axis = .vertical
-    stats.alignment = .trailing
-    stats.distribution = .fill
-    stats.spacing = 1.5
-    stats.addArrangedSubview(play)
-    stats.addArrangedSubview(time)
-    info.addSubview(stats)
-    stats.translatesAutoresizingMaskIntoConstraints = false
+    let metaSpacer = UIView()
+    metaSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    let metaRow = UIStackView(arrangedSubviews: [play, metaSpacer, time])
+    metaRow.axis = .horizontal
+    metaRow.alignment = .center
+    metaRow.spacing = 10
+
+    let copy = UIStackView(arrangedSubviews: [title, owner, metaRow])
+    copy.axis = .vertical
+    copy.alignment = .fill
+    copy.spacing = 6
+    info.addSubview(copy)
+    copy.translatesAutoresizingMaskIntoConstraints = false
 
     tapButton.backgroundColor = .clear
     tapButton.addTarget(self, action: #selector(tapped), for: .touchUpInside)
@@ -158,19 +158,11 @@ final class MiniVideoCardView: UIView {
       info.bottomAnchor.constraint(equalTo: bottomAnchor),
       info.heightAnchor.constraint(equalToConstant: HomeGridCell.infoHeight),
 
-      title.leadingAnchor.constraint(equalTo: info.leadingAnchor, constant: 12),
-      title.trailingAnchor.constraint(equalTo: info.trailingAnchor, constant: -12),
-      title.topAnchor.constraint(equalTo: info.topAnchor, constant: 9),
-
-      owner.leadingAnchor.constraint(equalTo: info.leadingAnchor, constant: 12),
-      owner.bottomAnchor.constraint(equalTo: info.bottomAnchor, constant: -11),
-      owner.trailingAnchor.constraint(lessThanOrEqualTo: stats.leadingAnchor, constant: -10),
-
-      stats.trailingAnchor.constraint(equalTo: info.trailingAnchor, constant: -12),
-      stats.bottomAnchor.constraint(equalTo: info.bottomAnchor, constant: -11),
-
-      title.bottomAnchor.constraint(lessThanOrEqualTo: stats.topAnchor, constant: -5),
-      title.bottomAnchor.constraint(lessThanOrEqualTo: owner.topAnchor, constant: -5),
+      copy.leadingAnchor.constraint(equalTo: info.leadingAnchor, constant: 12),
+      copy.trailingAnchor.constraint(equalTo: info.trailingAnchor, constant: -12),
+      copy.centerYAnchor.constraint(equalTo: info.centerYAnchor),
+      copy.topAnchor.constraint(greaterThanOrEqualTo: info.topAnchor, constant: 8),
+      copy.bottomAnchor.constraint(lessThanOrEqualTo: info.bottomAnchor, constant: -8),
 
       tapButton.leadingAnchor.constraint(equalTo: leadingAnchor),
       tapButton.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -199,13 +191,13 @@ final class MiniVideoCardView: UIView {
   func configure(_ item: VideoItem) {
     self.item = item
     let paragraph = NSMutableParagraphStyle()
-    paragraph.minimumLineHeight = 22
-    paragraph.maximumLineHeight = 22
+    paragraph.minimumLineHeight = 19
+    paragraph.maximumLineHeight = 19
     paragraph.lineBreakMode = .byTruncatingTail
     title.attributedText = NSAttributedString(
       string: item.title,
       attributes: [
-        .font: UIFont.systemFont(ofSize: 17.5, weight: .bold),
+        .font: UIFont.systemFont(ofSize: 15, weight: .bold),
         .foregroundColor: NativeTheme.foreground,
         .paragraphStyle: paragraph,
       ])
