@@ -61,8 +61,8 @@ final class ProgressWheel: UIControl {
       let step = minorStep
       let px = pxPerSecond
       let halfSpan = Double(bounds.width / 2) / Double(px)
-      let start = max(0, center - halfSpan)
-      let end = min(total, center + halfSpan)
+      let start = center - halfSpan
+      let end = center + halfSpan
       let first = Int(ceil(start / step))
       let last = Int(floor(end / step))
 
@@ -93,10 +93,11 @@ final class ProgressWheel: UIControl {
           let x = centerX + CGFloat(seconds - center) * px
           let major = index % 5 == 0
           let mid = index % 2 == 0
+          let outside = seconds < 0 || seconds > total
           let past = seconds <= center
           let tickColor: UIColor
           if major {
-            tickColor = majorColor
+            tickColor = outside ? minorColor : majorColor
           } else if mid {
             tickColor = midColor
           } else {
@@ -116,7 +117,8 @@ final class ProgressWheel: UIControl {
                             width: width, height: height)
           UIBezierPath(roundedRect: tick, cornerRadius: 1).fill()
 
-          if major && x > 22 && x < bounds.width - 22 {
+          if major && seconds >= 0 && seconds <= total
+            && x > 22 && x < bounds.width - 22 {
             let text = Self.timeText(seconds) as NSString
             var attributes = labelAttributes
             attributes[.foregroundColor] = past ? pastLabelColor : labelColor
