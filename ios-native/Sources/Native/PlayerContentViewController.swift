@@ -93,16 +93,16 @@ final class PlayerContentViewController: UIViewController {
     let dockWidth: CGFloat = 304
     tabDock.frame = CGRect(
       x: (view.bounds.width - dockWidth) / 2,
-      y: view.bounds.height - safeBottom - 16 - 58,
+      y: view.bounds.height - safeBottom - 16 - 66,
       width: dockWidth,
-      height: 58
+      height: 66
     )
     let buttonWidth: CGFloat = 96
-    let buttonHeight: CGFloat = 46
+    let buttonHeight: CGFloat = 52
     for (index, button) in tabButtons.enumerated() {
       button.frame = CGRect(
         x: 5 + CGFloat(index) * (buttonWidth + 3),
-        y: (58 - buttonHeight) / 2,
+        y: (66 - buttonHeight) / 2,
         width: buttonWidth,
         height: buttonHeight
       )

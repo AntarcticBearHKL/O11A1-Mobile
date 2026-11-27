@@ -112,7 +112,7 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     let top: CGFloat = embedded ? 48 : view.safeAreaInsets.top
-    let bottom: CGFloat = embedded ? 84 : 18
+    let bottom: CGFloat = embedded ? 96 : 18
     table.contentInset = UIEdgeInsets(top: top, left: 0,
                                       bottom: view.safeAreaInsets.bottom + bottom, right: 0)
   }

@@ -373,7 +373,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     if embedded {
-      scroll.contentInset.bottom = 84 + view.safeAreaInsets.bottom
+      scroll.contentInset.bottom = 96 + view.safeAreaInsets.bottom
       scroll.verticalScrollIndicatorInsets.bottom = 60
     }
   }

@@ -245,7 +245,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   private func updateInsets() {
     if embedded {
       table.contentInset = UIEdgeInsets(top: 58, left: 0,
-                                        bottom: 84 + view.safeAreaInsets.bottom, right: 0)
+                                        bottom: 96 + view.safeAreaInsets.bottom, right: 0)
     } else {
       table.contentInset = UIEdgeInsets(top: view.safeAreaInsets.top + 16, left: 0,
                                         bottom: 102 + view.safeAreaInsets.bottom, right: 0)
