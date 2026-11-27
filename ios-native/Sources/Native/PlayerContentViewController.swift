@@ -110,7 +110,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     let swipe = UIPanGestureRecognizer(
       target: self, action: #selector(handleTabSwipe(_:)))
     swipe.delegate = self
-    swipe.cancelsTouchesInView = false
+    swipe.cancelsTouchesInView = true
     view.addGestureRecognizer(swipe)
     tabSwipePan = swipe
   }
