@@ -83,6 +83,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let panelSlideDistance: CGFloat = 28
   private let panelShowDuration: TimeInterval = 0.26
   private let panelHideDuration: TimeInterval = 0.28
+  private let panelHideScale: Double =
+    ProcessInfo.processInfo.environment["O11A1_SLOW_PANEL"] == "1" ? 20 : 1
 
   init(item: VideoItem, sourceView: UIView?) {
     self.item = item
@@ -919,7 +921,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     controlsTimer?.invalidate()
     controlsVisible = false
     seekBubble.isHidden = true
-    UIView.animate(withDuration: panelHideDuration, delay: 0,
+    UIView.animate(withDuration: panelHideDuration * panelHideScale, delay: 0,
                    options: [.curveEaseInOut, .beginFromCurrentState, .allowUserInteraction]) {
       self.bottomPanel.alpha = 0
       self.bottomPanel.transform = CGAffineTransform(
@@ -1360,6 +1362,19 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   func testOpenRelated() {
     openRelatedPanel()
+  }
+
+  func testShowControls(hold: Bool) {
+    showControls()
+    if hold { controlsTimer?.invalidate() }
+  }
+
+  func testHideControls() {
+    hideControls()
+  }
+
+  func testOpenProfile() {
+    openProfile()
   }
 
   func testLandscape() {

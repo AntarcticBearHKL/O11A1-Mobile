@@ -167,7 +167,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     let flow = ProcessInfo.processInfo.environment["O11A1_TEST_FLOW"] ?? ""
     switch flow {
     case "player", "player-detail", "player-comments", "player-settings", "player-related",
-         "player-landscape":
+         "player-landscape", "player-controls", "player-panel", "player-up":
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
         self?.feed?.openFirstForTest()
       }
@@ -358,7 +358,15 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
         case "player-settings": controller?.testOpenSettings()
         case "player-related": controller?.testOpenRelated()
         case "player-landscape": controller?.testLandscape()
+        case "player-controls": controller?.testShowControls(hold: true)
+        case "player-panel": controller?.testShowControls(hold: true)
+        case "player-up": controller?.testOpenProfile()
         default: break
+        }
+      }
+      if flow == "player-panel" {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak controller] in
+          controller?.testHideControls()
         }
       }
     }
