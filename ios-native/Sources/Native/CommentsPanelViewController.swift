@@ -692,8 +692,8 @@ private final class PanelCommentCell: UITableViewCell {
   func configure(_ item: CommentItem, replies items: [CommentItem],
                  expanded: Bool, loading: Bool) {
     name.text = item.name.isEmpty ? "用户" : item.name
-    time.text = NativeTheme.freshness(item.time)
-    time.textColor = NativeTheme.freshnessColor(item.time)
+    time.text = NativeTheme.freshness(Int64(item.time))
+    time.textColor = NativeTheme.freshnessColor(Int64(item.time))
     setMessage(item.message)
 
     let likeText = NSMutableAttributedString(
