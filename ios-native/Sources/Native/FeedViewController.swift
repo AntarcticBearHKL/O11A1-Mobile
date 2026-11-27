@@ -21,13 +21,14 @@ final class FeedViewController: UIViewController,
   private let table = UITableView(frame: .zero, style: .plain)
   private let statusLabel = UILabel()
   private let topFade = TopBlurView()
-  private let previewEngine = VideoEngine()
+  private var previewEngine = VideoEngine()
   private lazy var previewView = PlayerLayerView(playerLayer: previewEngine.playerLayer)
   private var previewCell: HomeCardCell?
   private var previewIndex = -1
   private var previewToken = 0
   private var previewSuspended = false
   private var previewScrubbing = false
+  private var previewHandedOff = false
   private var previewSource: PlaySource?
   private var previewItemKey = ""
   private var nextPage = 1
@@ -97,27 +98,7 @@ final class FeedViewController: UIViewController,
       statusLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -32),
     ])
 
-    previewEngine.playerLayer.videoGravity = .resizeAspectFill
-    previewEngine.onReady = { [weak self] in
-      guard let self = self, !self.previewSuspended else { return }
-      self.previewCell?.hidePreviewLoading()
-      self.previewView.alpha = 1
-      self.previewEngine.play()
-    }
-    previewEngine.onError = { [weak self] _ in
-      self?.previewCell?.hidePreviewLoading()
-      self?.previewSource = nil
-      self?.previewItemKey = ""
-      self?.previewView.alpha = 0
-      self?.previewCell?.setPreviewProgress(nil)
-    }
-    previewEngine.onTime = { [weak self] seconds, duration in
-      guard let self = self, !self.previewSuspended, !self.previewScrubbing,
-            duration > 0,
-            let cell = self.previewCell else { return }
-      cell.setPreviewProgress(CGFloat(max(0, min(1, seconds / duration))),
-                              current: seconds, total: duration)
-    }
+    configurePreviewEngine()
     previewView.alpha = 0
     previewView.isUserInteractionEnabled = false
 
@@ -472,6 +453,7 @@ final class FeedViewController: UIViewController,
     if let cell = source as? HomeCardCell, previewCell === cell,
        let handoff = previewHandoffFor(item),
        let openPreview = onOpenPreview {
+      previewHandedOff = true
       openPreview(item, source, handoff)
       return
     }
@@ -482,13 +464,20 @@ final class FeedViewController: UIViewController,
     guard let source = previewSource, !source.url.isEmpty,
           previewEngine.player.currentItem != nil,
           previewItemKey == "\(item.bvid)-\(item.cid)" else { return nil }
+    previewEngine.onTime = nil
+    previewEngine.onPlaying = nil
+    previewEngine.onReady = nil
+    previewEngine.onError = nil
+    previewEngine.onPipClose = nil
+    previewEngine.onPipRestore = nil
     return PreviewHandoff(
       url: source.url,
       backup: source.backup,
       seconds: previewEngine.currentTime,
       duration: previewEngine.duration,
       quality: source.quality,
-      qualityLabel: source.qualityLabel
+      qualityLabel: source.qualityLabel,
+      engine: previewEngine
     )
   }
 
@@ -534,6 +523,38 @@ final class FeedViewController: UIViewController,
   }
 
   // MARK: - preview
+
+  private func configurePreviewEngine() {
+    previewEngine.playerLayer.videoGravity = .resizeAspectFill
+    previewEngine.onReady = { [weak self] in
+      guard let self = self, !self.previewSuspended else { return }
+      self.previewCell?.hidePreviewLoading()
+      self.previewView.alpha = 1
+      self.previewEngine.play()
+    }
+    previewEngine.onError = { [weak self] _ in
+      self?.previewCell?.hidePreviewLoading()
+      self?.previewSource = nil
+      self?.previewItemKey = ""
+      self?.previewView.alpha = 0
+      self?.previewCell?.setPreviewProgress(nil)
+    }
+    previewEngine.onTime = { [weak self] seconds, duration in
+      guard let self = self, !self.previewSuspended, !self.previewScrubbing,
+            duration > 0,
+            let cell = self.previewCell else { return }
+      cell.setPreviewProgress(CGFloat(max(0, min(1, seconds / duration))),
+                              current: seconds, total: duration)
+    }
+  }
+
+  private func resetPreviewEngine() {
+    previewEngine = VideoEngine()
+    previewView = PlayerLayerView(playerLayer: previewEngine.playerLayer)
+    previewView.alpha = 0
+    previewView.isUserInteractionEnabled = false
+    configurePreviewEngine()
+  }
 
   private func startPreviewIfNeeded() {
     guard !previewSuspended, !searchOpen, !items.isEmpty else { return }
@@ -622,6 +643,19 @@ final class FeedViewController: UIViewController,
     previewSuspended = true
     previewScrubbing = false
     previewToken += 1
+    if previewHandedOff {
+      previewHandedOff = false
+      previewView.removeFromSuperview()
+      previewView.alpha = 0
+      previewCell?.hidePreviewLoading()
+      previewCell?.setPreviewProgress(nil)
+      previewCell = nil
+      previewIndex = -1
+      previewSource = nil
+      previewItemKey = ""
+      resetPreviewEngine()
+      return
+    }
     previewEngine.stop()
     previewView.removeFromSuperview()
     previewView.alpha = 0

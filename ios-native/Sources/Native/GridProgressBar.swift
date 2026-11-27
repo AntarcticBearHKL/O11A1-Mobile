@@ -26,7 +26,7 @@ final class GridProgressBar: UIControl {
   }
 
   override var intrinsicContentSize: CGSize {
-    return CGSize(width: UIView.noIntrinsicMetric, height: 14)
+    return CGSize(width: UIView.noIntrinsicMetric, height: 18)
   }
 
   override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
@@ -70,10 +70,10 @@ final class GridProgressBar: UIControl {
     guard bounds.width > 1 else { return }
     let light = traitCollection.userInterfaceStyle == .light
     let blocks = 36
-    let gap: CGFloat = 2
+    let gap: CGFloat = 3
     let cellWidth = (bounds.width - gap * CGFloat(blocks - 1)) / CGFloat(blocks)
     guard cellWidth > 0 else { return }
-    let cellHeight = min(14, bounds.height)
+    let cellHeight = min(18, bounds.height)
     let y = (bounds.height - cellHeight) / 2
     let fraction = max(0, min(1, progress))
     let filled = Int(ceil(fraction * Double(blocks) - 1e-6))

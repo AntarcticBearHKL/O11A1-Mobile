@@ -78,7 +78,11 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     tabBlur.layer.cornerRadius = NativeTheme.cornerRadius
     tabBlur.layer.cornerCurve = .continuous
     tabBlur.clipsToBounds = true
-    tabBlur.contentView.backgroundColor = NativeTheme.glassWhite
+    tabBlur.contentView.backgroundColor = UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(white: 1, alpha: 0.12)
+        : UIColor(white: 1, alpha: 0.88)
+    }
     tabDock.addSubview(tabBlur)
     tabBlur.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([

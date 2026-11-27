@@ -68,9 +68,9 @@ final class ProgressWheel: UIControl {
     UIBezierPath(rect: outer.insetBy(dx: 1, dy: 1)).addClip()
 
     let labelTop: CGFloat = 2
-    let labelBottom: CGFloat = 15
-    let tickTop: CGFloat = 18
-    let tickBottom = outer.height - 7
+    let labelBottom: CGFloat = 17
+    let tickTop: CGFloat = 20
+    let tickBottom = outer.height - 8
     let tickHeight = max(1, tickBottom - tickTop)
     let halfSpan = (outer.width / 2) / pxPerSecond
     let start = centerTime - Double(halfSpan)
@@ -78,7 +78,7 @@ final class ProgressWheel: UIControl {
     let first = Int(ceil(start / tickStep))
     let last = Int(floor(end / tickStep))
 
-    let labelFont = UIFont.monospacedDigitSystemFont(ofSize: 7.5, weight: .medium)
+    let labelFont = UIFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .medium)
     let labelAttributes: [NSAttributedString.Key: Any] = [
       .font: labelFont,
       .foregroundColor: dimColor,

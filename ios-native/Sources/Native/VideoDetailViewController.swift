@@ -979,7 +979,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     if gestureRecognizer === pullDownPan {
       let x = touch.location(in: view).x
       let width = max(1, view.bounds.width)
-      pullDownArmed = x < width / 3.0 || x > width * 2.0 / 3.0
+      pullDownArmed = x < width / 6.0 || x > width * 5.0 / 6.0
     }
     return true
   }

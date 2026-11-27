@@ -130,6 +130,7 @@ struct PreviewHandoff {
   var duration: Double = 0
   var quality = 0
   var qualityLabel = ""
+  var engine: VideoEngine?
 }
 
 struct AccountInfo {

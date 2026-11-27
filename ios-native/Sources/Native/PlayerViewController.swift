@@ -109,8 +109,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var loopOn = false
   private var controlsVisible = true
   private let panelSlideDistance: CGFloat = 28
-  private let playerPanelHeight: CGFloat = 88
-  private let focusedPanelLift: CGFloat = 30
+  private let playerPanelHeight: CGFloat = 100
+  private let focusedPanelLift: CGFloat = 60
   private let portraitPanelWidthRatio: CGFloat = 0.8
   private let landscapePanelWidthRatio: CGFloat = 0.5
   private let panelShowDuration: TimeInterval = 0.26
@@ -121,6 +121,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   init(item: VideoItem, sourceView: UIView?, preview: PreviewHandoff? = nil) {
     self.item = item
     self.previewHandoff = preview
+    if let adopted = preview?.engine {
+      self.engine = adopted
+    }
     super.init(nibName: nil, bundle: nil)
     modalPresentationStyle = .overFullScreen
     if let sourceView = sourceView, let window = sourceView.window {
@@ -435,13 +438,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
       wheel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 6),
       wheel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -6),
-      wheel.topAnchor.constraint(equalTo: content.topAnchor, constant: 32),
+      wheel.topAnchor.constraint(equalTo: content.topAnchor, constant: 38),
       wheel.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -6),
 
       grid.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 6),
       grid.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -6),
       grid.topAnchor.constraint(equalTo: content.topAnchor, constant: 6),
-      grid.heightAnchor.constraint(equalToConstant: 22),
+      grid.heightAnchor.constraint(equalToConstant: 28),
 
       qualityLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
       qualityLabel.topAnchor.constraint(equalTo: wheel.bottomAnchor, constant: 2),
@@ -596,7 +599,23 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
      likeButton, coinButton, favButton].forEach { $0.removeFromSuperview() }
     _ = ensurePlayerContent()
     speedFeedback.prepare()
-    if let handoff = previewHandoff, !handoff.url.isEmpty, item.roomId == 0 {
+    if let handoff = previewHandoff, let adopted = handoff.engine {
+      handoffLowReady = true
+      adopted.playerLayer.videoGravity = .resizeAspect
+      adopted.setLoop(loopOn)
+      if handoff.quality > 0 {
+        currentQuality = handoff.quality
+      }
+      if !handoff.qualityLabel.isEmpty {
+        qualityLabel.text = handoff.qualityLabel
+      }
+      poster.isHidden = true
+      pausedVeil.isHidden = true
+      errorLabel.isHidden = true
+      backdropVideo.alpha = 1
+      applyPlaying(true)
+      adopted.play()
+    } else if let handoff = previewHandoff, !handoff.url.isEmpty, item.roomId == 0 {
       handoffLowReady = false
       let start = handoff.duration > 0
         ? min(handoff.seconds, max(0, handoff.duration - 0.5))
