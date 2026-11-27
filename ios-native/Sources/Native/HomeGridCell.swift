@@ -86,11 +86,15 @@ final class MiniVideoCardView: UIView {
     title.numberOfLines = 1
     title.lineBreakMode = .byTruncatingTail
 
-    owner.font = UIFont.systemFont(ofSize: 13, weight: .medium)
-    owner.textColor = NativeTheme.secondary
+    owner.font = UIFont.systemFont(ofSize: 12.5, weight: .medium)
+    owner.textColor = .white
     owner.numberOfLines = 1
     owner.lineBreakMode = .byTruncatingTail
+    owner.shadowColor = UIColor.black.withAlphaComponent(0.85)
+    owner.shadowOffset = CGSize(width: 1, height: 1)
     owner.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    mediaHost.addSubview(owner)
+    owner.translatesAutoresizingMaskIntoConstraints = false
 
     play.font = UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
     play.textAlignment = .left
@@ -111,7 +115,7 @@ final class MiniVideoCardView: UIView {
     metaRow.alignment = .center
     metaRow.spacing = 10
 
-    let copy = UIStackView(arrangedSubviews: [title, owner, metaRow])
+    let copy = UIStackView(arrangedSubviews: [title, metaRow])
     copy.axis = .vertical
     copy.alignment = .fill
     copy.spacing = 6
@@ -139,6 +143,10 @@ final class MiniVideoCardView: UIView {
       duration.widthAnchor.constraint(greaterThanOrEqualToConstant: 42),
       duration.heightAnchor.constraint(equalToConstant: 22),
 
+      owner.leadingAnchor.constraint(equalTo: mediaHost.leadingAnchor, constant: 8),
+      owner.centerYAnchor.constraint(equalTo: duration.centerYAnchor),
+      owner.trailingAnchor.constraint(lessThanOrEqualTo: duration.leadingAnchor, constant: -8),
+
       live.leadingAnchor.constraint(equalTo: mediaHost.leadingAnchor, constant: 8),
       live.topAnchor.constraint(equalTo: mediaHost.topAnchor, constant: 8),
       live.widthAnchor.constraint(equalToConstant: 40),
@@ -158,11 +166,9 @@ final class MiniVideoCardView: UIView {
       info.bottomAnchor.constraint(equalTo: bottomAnchor),
       info.heightAnchor.constraint(equalToConstant: HomeGridCell.infoHeight),
 
-      copy.leadingAnchor.constraint(equalTo: info.leadingAnchor, constant: 12),
-      copy.trailingAnchor.constraint(equalTo: info.trailingAnchor, constant: -12),
-      copy.centerYAnchor.constraint(equalTo: info.centerYAnchor),
-      copy.topAnchor.constraint(greaterThanOrEqualTo: info.topAnchor, constant: 8),
-      copy.bottomAnchor.constraint(lessThanOrEqualTo: info.bottomAnchor, constant: -8),
+      copy.leadingAnchor.constraint(equalTo: info.leadingAnchor, constant: 8),
+      copy.trailingAnchor.constraint(equalTo: info.trailingAnchor, constant: -8),
+      copy.topAnchor.constraint(equalTo: info.topAnchor, constant: 8),
 
       tapButton.leadingAnchor.constraint(equalTo: leadingAnchor),
       tapButton.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -243,7 +249,7 @@ final class HomeGridCell: UITableViewCell {
   static let sideInset: CGFloat = 4
   static let columnSpacing: CGFloat = 4
   static let verticalInset: CGFloat = 2
-  static let infoHeight: CGFloat = 76 * 4 / 3
+  static let infoHeight: CGFloat = 56
 
   let leftCard = MiniVideoCardView()
   private let rightCard = MiniVideoCardView()
