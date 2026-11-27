@@ -756,7 +756,8 @@ final class FeedViewController: UIViewController,
         self?.openFirstForTest()
       }
       return
-    }    table.scrollToRow(at: IndexPath(row: 0, section: 0), at: .top, animated: false)
+    }
+    table.scrollToRow(at: IndexPath(row: 0, section: 0), at: .top, animated: false)
     table.layoutIfNeeded()
     let cell = table.cellForRow(at: IndexPath(row: 0, section: 0))
     if let home = cell as? HomeCardCell {

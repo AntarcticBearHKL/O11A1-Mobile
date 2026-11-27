@@ -200,7 +200,8 @@ final class MiniVideoCardView: UIView {
   }
 
   func configure(_ item: VideoItem) {
-    self.item = item    let paragraph = NSMutableParagraphStyle()
+    self.item = item
+    let paragraph = NSMutableParagraphStyle()
     paragraph.minimumLineHeight = 19
     paragraph.maximumLineHeight = 19
     paragraph.lineBreakMode = .byTruncatingTail
