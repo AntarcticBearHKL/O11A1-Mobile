@@ -31,6 +31,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
 
   private let host = UIView()
   private let tabDock = UIView()
+  private let tabBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private var tabButtons: [UIButton] = []
   private var detail: VideoDetailViewController?
   private var comments: CommentsPanelViewController?
@@ -61,7 +62,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     host.backgroundColor = .clear
     view.addSubview(host)
 
-    tabDock.backgroundColor = NativeTheme.surface
+    tabDock.backgroundColor = .clear
     tabDock.layer.cornerRadius = NativeTheme.cornerRadius
     tabDock.layer.cornerCurve = .continuous
     tabDock.layer.borderWidth = 1
@@ -72,6 +73,19 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     tabDock.layer.shadowOffset = CGSize(width: 0, height: 7)
     tabDock.clipsToBounds = false
     view.addSubview(tabDock)
+
+    tabBlur.isUserInteractionEnabled = false
+    tabBlur.layer.cornerRadius = NativeTheme.cornerRadius
+    tabBlur.layer.cornerCurve = .continuous
+    tabBlur.clipsToBounds = true
+    tabDock.addSubview(tabBlur)
+    tabBlur.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      tabBlur.leadingAnchor.constraint(equalTo: tabDock.leadingAnchor),
+      tabBlur.trailingAnchor.constraint(equalTo: tabDock.trailingAnchor),
+      tabBlur.topAnchor.constraint(equalTo: tabDock.topAnchor),
+      tabBlur.bottomAnchor.constraint(equalTo: tabDock.bottomAnchor),
+    ])
 
     for entry in tabs {
       let button = UIButton(type: .custom)
@@ -106,6 +120,9 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
       width: dockWidth,
       height: 66
     )
+    tabDock.layer.shadowPath = UIBezierPath(
+      roundedRect: tabDock.bounds,
+      cornerRadius: NativeTheme.cornerRadius).cgPath
     let buttonWidth: CGFloat = 96
     let buttonHeight: CGFloat = 52
     for (index, button) in tabButtons.enumerated() {
@@ -123,7 +140,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
 
   override func traitCollectionDidChange(_ previous: UITraitCollection?) {
     super.traitCollectionDidChange(previous)
-    tabDock.backgroundColor = NativeTheme.surface
+    tabDock.backgroundColor = .clear
     tabDock.layer.borderColor = NativeTheme.hairline.cgColor
     updateTabs()
   }
