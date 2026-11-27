@@ -62,9 +62,9 @@ final class ProgressWheelView extends View {
             boolean major = i % 6 == 0;
             boolean dark = NativeTheme.isDark(getContext());
             if (major) {
-                tick.setColor(dark ? 0xFFE9C27A : 0xFFA87B36);
+                tick.setColor(dark ? 0xF28BA0BA : 0xFF677D9A);
             } else {
-                tick.setColor(dark ? 0xAD8B96AA : 0x9E6F7A8C);
+                tick.setColor(dark ? 0xAD7C828A : 0x9E9EA2A8);
             }
             tick.setStrokeWidth(NativeTheme.dp(getContext(), major ? 1.2f : 0.8f));
             float h = NativeTheme.dp(getContext(), major ? 11 : 6);

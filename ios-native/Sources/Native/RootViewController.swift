@@ -97,7 +97,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     NSLayoutConstraint.activate([
       tabBar.leadingAnchor.constraint(equalTo: mainHost.leadingAnchor, constant: 12),
       tabBar.trailingAnchor.constraint(equalTo: mainHost.trailingAnchor, constant: -12),
-      tabBar.bottomAnchor.constraint(equalTo: mainHost.bottomAnchor, constant: -14),
+      tabBar.bottomAnchor.constraint(equalTo: mainHost.bottomAnchor, constant: -24),
       tabBar.heightAnchor.constraint(equalToConstant: 72),
     ])
 
@@ -322,7 +322,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     }
     guard player == nil else { return }
     feed?.suspendPreview()
-    let controller = PlayerViewController(item: item, sourceView: source)
+    let sourceView = (source as? HomeCardCell)?.mediaHost ?? source
+    let controller = PlayerViewController(item: item, sourceView: sourceView)
     controller.onClose = { [weak self] in
       self?.closePlayer()
     }

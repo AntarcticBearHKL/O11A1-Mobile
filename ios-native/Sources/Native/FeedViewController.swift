@@ -38,6 +38,7 @@ final class FeedViewController: UIViewController,
   private var searchPan: UIPanGestureRecognizer?
   private var sidebarPan: UIPanGestureRecognizer?
   private var searchOpen = false
+  private var searchProgress: CGFloat = 0
   private var feedScrollingAtTouch = false
   private var homeSource = "recommend"
   private var sourceTitle = "推荐"
@@ -162,7 +163,7 @@ final class FeedViewController: UIViewController,
   private func updateInsets() {
     let insets = view.safeAreaInsets
     table.contentInset = UIEdgeInsets(top: insets.top, left: 0,
-                                      bottom: 112 + insets.bottom, right: 0)
+                                      bottom: 122 + insets.bottom, right: 0)
     table.verticalScrollIndicatorInsets.top = insets.top
     topFadeHeight?.constant = (insets.top + 18) * 2.0 / 3.0
   }
@@ -174,12 +175,10 @@ final class FeedViewController: UIViewController,
       gradient.frame = topFade.bounds
     }
     if let search = searchController {
-      if searchOpen {
-        search.view.frame = view.bounds
-      } else {
-        search.view.frame = CGRect(x: view.bounds.width, y: 0,
-                                   width: view.bounds.width, height: view.bounds.height)
-      }
+      let width = max(1, view.bounds.width)
+      let progress = max(0, min(1, searchProgress))
+      search.view.frame = CGRect(x: width * (1 - progress), y: 0,
+                                 width: width, height: view.bounds.height)
     }
   }
 
@@ -574,6 +573,7 @@ final class FeedViewController: UIViewController,
     guard let search = searchController else { return }
     let width = max(1, view.bounds.width)
     let progress = max(0, min(1, value))
+    searchProgress = progress
     search.view.frame = CGRect(x: width * (1 - progress), y: 0,
                                width: width, height: view.bounds.height)
     table.transform = CGAffineTransform(translationX: -width * 0.18 * progress, y: 0)

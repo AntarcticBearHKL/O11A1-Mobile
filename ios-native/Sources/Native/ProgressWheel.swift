@@ -67,14 +67,14 @@ final class ProgressWheel: UIControl {
       let last = Int(floor(end / step))
 
       let minorColor = light
-        ? UIColor(red: 111.0 / 255.0, green: 122.0 / 255.0, blue: 140.0 / 255.0, alpha: 0.58)
-        : UIColor(red: 139.0 / 255.0, green: 150.0 / 255.0, blue: 170.0 / 255.0, alpha: 0.66)
+        ? UIColor(red: 158.0 / 255.0, green: 162.0 / 255.0, blue: 168.0 / 255.0, alpha: 0.88)
+        : UIColor(red: 124.0 / 255.0, green: 130.0 / 255.0, blue: 138.0 / 255.0, alpha: 0.85)
       let midColor = light
-        ? UIColor(red: 168.0 / 255.0, green: 100.0 / 255.0, blue: 63.0 / 255.0, alpha: 0.88)
-        : UIColor(red: 215.0 / 255.0, green: 154.0 / 255.0, blue: 115.0 / 255.0, alpha: 0.92)
+        ? UIColor(red: 32.0 / 255.0, green: 34.0 / 255.0, blue: 38.0 / 255.0, alpha: 0.92)
+        : UIColor(red: 230.0 / 255.0, green: 233.0 / 255.0, blue: 238.0 / 255.0, alpha: 0.92)
       let majorColor = light
-        ? UIColor(red: 168.0 / 255.0, green: 123.0 / 255.0, blue: 54.0 / 255.0, alpha: 1)
-        : UIColor(red: 233.0 / 255.0, green: 194.0 / 255.0, blue: 122.0 / 255.0, alpha: 1)
+        ? UIColor(red: 103.0 / 255.0, green: 125.0 / 255.0, blue: 154.0 / 255.0, alpha: 1)
+        : UIColor(red: 139.0 / 255.0, green: 160.0 / 255.0, blue: 186.0 / 255.0, alpha: 0.95)
       let labelColor = light
         ? UIColor(red: 26.0 / 255.0, green: 26.0 / 255.0, blue: 26.0 / 255.0, alpha: 0.44)
         : UIColor(white: 1, alpha: 0.44)

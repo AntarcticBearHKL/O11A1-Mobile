@@ -68,6 +68,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var portraitDragActive = false
   private var portraitSettling = false
   private var portraitShrinking = false
+  private var openingTransition = false
   private var portraitTransition: CGFloat = 0
   private var portraitStageIsTop = false
   private var panDirectionDecided = false
@@ -80,6 +81,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var controlsVisible = true
   private var controlsTimer: Timer?
   private var lastPlayingState = false
+  private var panRestoreTopAlpha: CGFloat = 0
+  private var panRestorePanelAlpha: CGFloat = 0
+  private var panRestoreDimAlpha: CGFloat = 1
+  private var panRestorePlayAlpha: CGFloat = 1
   private let panelSlideDistance: CGFloat = 28
   private let panelShowDuration: TimeInterval = 0.26
   private let panelHideDuration: TimeInterval = 0.28
@@ -113,16 +118,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    view.backgroundColor = .black
+    view.backgroundColor = .clear
     view.clipsToBounds = true
 
     backdrop.contentMode = .scaleAspectFill
     backdrop.clipsToBounds = true
-    backdrop.backgroundColor = .black
+    backdrop.backgroundColor = .clear
     ImageLoader.shared.load(item.pic, into: backdrop)
     view.addSubview(backdrop)
 
-    backdropVideo.backgroundColor = .black
+    backdropVideo.backgroundColor = .clear
     backdropVideo.alpha = 0
     backdropVideo.isUserInteractionEnabled = false
     backdropVideo.layer.addSublayer(backdropLayer)
@@ -135,13 +140,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     backdropDim.isUserInteractionEnabled = false
     view.addSubview(backdropDim)
 
-    videoContainer.backgroundColor = .black
+    videoContainer.backgroundColor = .clear
     videoContainer.clipsToBounds = true
     view.addSubview(videoContainer)
 
-    poster.contentMode = .scaleAspectFill
+    poster.contentMode = .scaleAspectFit
     poster.clipsToBounds = true
-    poster.backgroundColor = .black
+    poster.backgroundColor = .clear
     ImageLoader.shared.load(item.pic, into: poster)
     videoContainer.addSubview(poster)
 
@@ -528,12 +533,59 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     if sourceFrame.width > 0 {
       let target = view.bounds.width > view.bounds.height
         ? view.bounds : portraitVideoRects().center
-      videoContainer.frame = view.convert(sourceFrame, from: nil)
-      UIView.animate(withDuration: 0.30, delay: 0, options: [.curveEaseOut]) {
+      let source = view.convert(sourceFrame, from: nil)
+      videoContainer.frame = source
+      let full = view.bounds
+      let scaleX = max(0.05, source.width / max(1, full.width))
+      let scaleY = max(0.05, source.height / max(1, full.height))
+      let origin = CGAffineTransform(
+        translationX: source.midX - full.midX,
+        y: source.midY - full.midY
+      ).scaledBy(x: scaleX, y: scaleY)
+      applyBackdrop(transform: origin, alpha: 0.35)
+      openingTransition = true
+      UIView.animate(withDuration: 0.42, delay: 0,
+                     usingSpringWithDamping: 0.9, initialSpringVelocity: 0.12,
+                     options: [.curveEaseOut, .beginFromCurrentState]) {
         self.videoContainer.frame = target
+        self.applyBackdrop(transform: .identity, alpha: 1)
+      } completion: { _ in
+        self.openingTransition = false
+        self.applyBackdrop(transform: .identity, alpha: 1)
+        if !self.isLandscapePlayer {
+          self.applyPortraitTransition(self.portraitTransition)
+        }
       }
       sourceFrame = .zero
     }
+  }
+
+  private func applyBackdrop(transform: CGAffineTransform, alpha: CGFloat) {
+    backdrop.transform = transform
+    backdrop.alpha = alpha
+    backdropBlur.transform = transform
+    backdropBlur.alpha = alpha
+    backdropDim.transform = transform
+    backdropDim.alpha = alpha
+    backdropVideo.transform = transform
+    if backdropVideo.alpha > 0 {
+      backdropVideo.alpha = alpha
+    }
+  }
+
+  private func applyDismissProgress(_ down: CGFloat) {
+    let height = max(1, view.bounds.height)
+    let progress = min(1, max(0, down / (height * 0.62)))
+    videoContainer.transform = CGAffineTransform(translationX: 0, y: down)
+    videoContainer.alpha = 1 - progress * 0.6
+    let scale = 1 - 0.14 * progress
+    let retreat = CGAffineTransform(translationX: 0, y: -down * 0.12)
+      .scaledBy(x: scale, y: scale)
+    applyBackdrop(transform: retreat, alpha: 1 - progress)
+    topBar.alpha = panRestoreTopAlpha * (1 - progress)
+    bottomPanel.alpha = panRestorePanelAlpha * (1 - progress)
+    dim.alpha = panRestoreDimAlpha * (1 - progress)
+    playButton.alpha = panRestorePlayAlpha * (1 - progress)
   }
 
   private func portraitVideoRects() -> (center: CGRect, top: CGRect) {
@@ -579,7 +631,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     let panelHeight: CGFloat = 108
     let panelWidth = max(1, full.width - 24)
-    let centerPanelY = full.height - view.safeAreaInsets.bottom - panelHeight - 8
+    let centerPanelY = full.height - view.safeAreaInsets.bottom - panelHeight - 18
     let topPanelY = max(0, videoRect.maxY - panelHeight - 8)
     let panelY = centerPanelY + (topPanelY - centerPanelY) * p
     bottomPanel.bounds = CGRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
@@ -677,23 +729,27 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let full = view.bounds
     let landscape = full.width > full.height
     isLandscapePlayer = landscape
-    view.backgroundColor = .black
-    backdrop.frame = full
-    backdropVideo.frame = full
-    backdropLayer.frame = backdropVideo.bounds
-    backdropBlur.frame = full
-    backdropDim.frame = full
-    backdrop.isHidden = landscape
-    backdropVideo.isHidden = landscape
-    backdropBlur.isHidden = landscape
-    backdropDim.isHidden = landscape
+    view.backgroundColor = .clear
+    let backdropBusy = openingTransition || portraitDragActive || portraitShrinking
+    if !backdropBusy {
+      backdrop.frame = full
+      backdropVideo.frame = full
+      backdropLayer.frame = backdropVideo.bounds
+      backdropBlur.frame = full
+      backdropDim.frame = full
+    }
+    backdrop.isHidden = false
+    backdropVideo.isHidden = false
+    backdropBlur.isHidden = false
+    backdropDim.isHidden = false
+    backdropDim.backgroundColor = UIColor.black.withAlphaComponent(landscape ? 0.30 : 0.42)
     dim.frame = full
     topBar.frame = CGRect(x: 0, y: view.safeAreaInsets.top, width: full.width, height: 52)
 
     if landscape {
       portraitComments?.view.isHidden = true
       portraitComments?.view.alpha = 0
-      if panProgress <= 0.001 || closing {
+      if !openingTransition && (panProgress <= 0.001 || closing) {
         videoContainer.frame = full
       }
       videoContainer.layer.cornerRadius = 0
@@ -707,7 +763,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       seekBubble.frame = CGRect(x: full.midX - 40, y: panelY - 27,
                                 width: 80, height: 21)
     } else {
-      if !portraitDragActive && !portraitSettling {
+      if !portraitDragActive && !portraitSettling && !openingTransition {
         applyPortraitTransition(portraitTransition)
       } else {
         layoutVideoSubviews()
@@ -971,6 +1027,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       portraitDragActive = true
       panStartFrame = videoContainer.frame
       panProgress = 0
+      panRestoreTopAlpha = topBar.alpha
+      panRestorePanelAlpha = bottomPanel.alpha
+      panRestoreDimAlpha = dim.alpha
+      panRestorePlayAlpha = playButton.alpha
+      view.transform = .identity
+      view.layer.cornerRadius = 0
       let velocity = gesture.velocity(in: videoContainer)
       if abs(velocity.x) > abs(velocity.y) && abs(velocity.x) > 80 {
         panDirectionDecided = true
@@ -1020,12 +1082,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
           applyPortraitTransition(p)
         } else if portraitDismissDrag {
           let down = max(0, translation.y)
-          let scale = max(0.82, 1 - down / 1600)
-          let radius = min(1, down / 320)
-          view.layer.cornerCurve = .continuous
-          view.layer.cornerRadius = NativeTheme.cornerRadius * radius
-          view.transform = CGAffineTransform(translationX: 0, y: down * 0.55)
-            .scaledBy(x: scale, y: scale)
+          applyDismissProgress(down)
         }
         return
       }
@@ -1096,10 +1153,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
           if translation.y > 120 || endVelocity.y > 700 {
             closePortraitWithShrink()
           } else {
-            UIView.animate(withDuration: 0.32, delay: 0,
-                           usingSpringWithDamping: 0.9, initialSpringVelocity: 0.3) {
-              self.view.transform = .identity
-              self.view.layer.cornerRadius = 0
+            UIView.animate(withDuration: 0.34, delay: 0,
+                           usingSpringWithDamping: 0.9, initialSpringVelocity: 0.3,
+                           options: [.beginFromCurrentState]) {
+              self.videoContainer.transform = .identity
+              self.videoContainer.alpha = 1
+              self.applyBackdrop(transform: .identity, alpha: 1)
+              self.topBar.alpha = self.panRestoreTopAlpha
+              self.bottomPanel.alpha = self.panRestorePanelAlpha
+              self.dim.alpha = self.panRestoreDimAlpha
+              self.playButton.alpha = self.panRestorePlayAlpha
             }
           }
           portraitDragActive = false
@@ -1133,14 +1196,18 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     guard !closing && !portraitShrinking else { return }
     portraitShrinking = true
     portraitDragActive = false
-    view.layer.cornerCurve = .continuous
+    let height = max(1, view.bounds.height)
     UIView.animate(withDuration: 0.30, delay: 0,
                    options: [.curveEaseIn, .beginFromCurrentState]) {
-      self.view.layer.cornerRadius = NativeTheme.cornerRadius
-      self.view.transform = CGAffineTransform(
-        translationX: 0, y: self.view.bounds.height * 0.20
-      ).scaledBy(x: 0.84, y: 0.84)
-      self.view.alpha = 0
+      self.videoContainer.transform = CGAffineTransform(
+        translationX: 0, y: height * 0.58)
+      self.videoContainer.alpha = 0
+      self.applyBackdrop(
+        transform: CGAffineTransform(scaleX: 0.82, y: 0.82), alpha: 0)
+      self.topBar.alpha = 0
+      self.bottomPanel.alpha = 0
+      self.dim.alpha = 0
+      self.playButton.alpha = 0
     } completion: { _ in
       self.portraitShrinking = false
       self.closePlayer(animated: false)
