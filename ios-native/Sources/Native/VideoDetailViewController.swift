@@ -12,6 +12,8 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   var onSwipeRightBegan: (() -> Void)?
   var onSwipeRightChanged: ((CGFloat) -> Void)?
   var onSwipeRightEnded: ((Bool) -> Void)?
+  var onPullDown: ((CGFloat) -> Void)?
+  var onPullDownEnded: ((Bool) -> Void)?
   var initialQuality = 80
   var initialDanmakuOn = true
   var initialLoopOn = false
@@ -70,6 +72,8 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private var dismissPan: UIPanGestureRecognizer?
   private var closeSwipePan: UIPanGestureRecognizer?
   private var closeSwipeStarted = false
+  private var pullDownPan: UIPanGestureRecognizer?
+  private var pullDownArmed = false
 
   init(item: VideoItem) {
     self.item = item
@@ -353,6 +357,12 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       scroll.panGestureRecognizer.require(toFail: swipe)
       view.addGestureRecognizer(swipe)
       closeSwipePan = swipe
+
+      let pull = UIPanGestureRecognizer(target: self, action: #selector(handlePullDown(_:)))
+      pull.delegate = self
+      scroll.panGestureRecognizer.require(toFail: pull)
+      view.addGestureRecognizer(pull)
+      pullDownPan = pull
     } else {
       let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
       pan.delegate = self
@@ -391,6 +401,20 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
         onSwipeRightEnded?(translation > width * 0.22 || velocity > 380)
       }
       closeSwipeStarted = false
+    default:
+      break
+    }
+  }
+
+  @objc private func handlePullDown(_ gesture: UIPanGestureRecognizer) {
+    let reference = view.superview ?? view
+    let translation = max(0, gesture.translation(in: reference).y)
+    let progress = min(1, translation / 240)
+    switch gesture.state {
+    case .changed:
+      onPullDown?(progress)
+    case .ended, .cancelled:
+      onPullDownEnded?(progress > 0.35 || gesture.velocity(in: reference).y > 450)
     default:
       break
     }
@@ -930,6 +954,13 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+    if pan === pullDownPan {
+      guard embedded, pullDownArmed else { return false }
+      let velocity = pan.velocity(in: view)
+      let translation = pan.translation(in: view)
+      return (translation.y > 2 && abs(translation.y) > abs(translation.x) * 1.1)
+        || (velocity.y > 60 && abs(velocity.y) > abs(velocity.x) * 1.1)
+    }
     if pan === closeSwipePan {
       let velocity = pan.velocity(in: view)
       let translation = pan.translation(in: view)
@@ -941,6 +972,16 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     let translation = pan.translation(in: view)
     return abs(translation.x) > abs(translation.y) * 1.1
       || abs(velocity.x) > abs(velocity.y) * 1.1
+  }
+
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldReceive touch: UITouch) -> Bool {
+    if gestureRecognizer === pullDownPan {
+      let x = touch.location(in: view).x
+      let width = max(1, view.bounds.width)
+      pullDownArmed = x < width / 3.0 || x > width * 2.0 / 3.0
+    }
+    return true
   }
 
   private func close() {

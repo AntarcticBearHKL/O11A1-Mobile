@@ -111,7 +111,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let panelSlideDistance: CGFloat = 28
   private let playerPanelHeight: CGFloat = 88
   private let focusedPanelLift: CGFloat = 30
-  private let progressPanelSideInset: CGFloat = 10
+  private let portraitPanelWidthRatio: CGFloat = 0.8
+  private let landscapePanelWidthRatio: CGFloat = 0.5
   private let panelShowDuration: TimeInterval = 0.26
   private let panelHideDuration: TimeInterval = 0.28
   private let panelHideScale: Double =
@@ -257,7 +258,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     playButton.addTarget(self, action: #selector(togglePlay), for: .touchUpInside)
     view.addSubview(playButton)
 
-    bottomPanel.layer.cornerRadius = 2
+    bottomPanel.layer.cornerRadius = 8
     bottomPanel.layer.cornerCurve = .continuous
     bottomPanel.clipsToBounds = true
     bottomPanel.layer.borderWidth = 1
@@ -308,6 +309,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     content.addSubview(wheel)
 
+    grid.onScrub = { [weak self] ratio, finished in
+      guard let self = self else { return }
+      self.showControls()
+      self.scrub(ratio: ratio, finished: finished)
+    }
     content.addSubview(grid)
 
     qualityLabel.font = NativeTheme.numberFont(10)
@@ -605,7 +611,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         startAt: 0
       )
       pendingHandoffStart = start
-      loadQuality(ThemeManager.shared.quality, upgrade: true)
+      if handoff.quality > 0 {
+        currentQuality = handoff.quality
+      }
+      if !handoff.qualityLabel.isEmpty {
+        qualityLabel.text = handoff.qualityLabel
+      }
     } else {
       loadQuality(ThemeManager.shared.quality)
     }
@@ -856,7 +867,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     danmakuOverlay.frame = lerpRect(full, videoRect, p)
 
     let panelHeight: CGFloat = playerPanelHeight
-    let panelWidth = max(1, full.width - progressPanelSideInset * 2)
+    let panelWidth = max(1, full.width * portraitPanelWidthRatio)
     let centerPanelY = full.height - view.safeAreaInsets.bottom - panelHeight
       - 18 - focusedPanelLift
     let topPanelY = max(0, videoRect.maxY - panelHeight - 8)
@@ -1088,7 +1099,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       layoutVideoSubviews()
       danmakuOverlay.frame = full
       let panelHeight: CGFloat = playerPanelHeight
-      let panelWidth = max(1, full.width - progressPanelSideInset * 2)
+      let panelWidth = max(1, full.width * landscapePanelWidthRatio)
       let panelY = full.height - view.safeAreaInsets.bottom - panelHeight - 6
       bottomPanel.bounds = CGRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
       bottomPanel.center = CGPoint(x: full.midX, y: panelY + panelHeight / 2)
@@ -1955,7 +1966,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             let pan = gestureRecognizer as? UIPanGestureRecognizer else {
         return false
       }
-      if portraitStageIsTop && contentCloseStartX >= view.bounds.width / 3.0 {
+      if portraitStageIsTop && contentCloseStartX >= view.bounds.width / 8.0 {
         return false
       }
       let translation = pan.translation(in: view)

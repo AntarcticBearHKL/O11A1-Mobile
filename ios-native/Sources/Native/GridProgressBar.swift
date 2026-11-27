@@ -2,10 +2,14 @@ import UIKit
 
 /// The desktop player's block grid progress: 36 heat cells that light up in
 /// blue as playback advances, sitting above the precision ruler.
-final class GridProgressBar: UIView {
+final class GridProgressBar: UIControl {
   var progress: Double = 0 {
     didSet { setNeedsDisplay() }
   }
+  var onScrub: ((Double, Bool) -> Void)?
+
+  private var lastX: CGFloat = 0
+  private var startY: CGFloat = 0
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -23,6 +27,43 @@ final class GridProgressBar: UIView {
 
   override var intrinsicContentSize: CGSize {
     return CGSize(width: UIView.noIntrinsicMetric, height: 14)
+  }
+
+  override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+    let area = CGRect(x: -10, y: -12,
+                      width: bounds.width + 20,
+                      height: bounds.height + 16)
+    return area.contains(point)
+  }
+
+  override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+    let point = touch.location(in: self)
+    lastX = point.x
+    startY = point.y
+    progress = max(0, min(1, Double(point.x / max(1, bounds.width))))
+    onScrub?(progress, false)
+    return true
+  }
+
+  override func continueTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+    let point = touch.location(in: self)
+    let dx = point.x - lastX
+    lastX = point.x
+    let lift = max(0, startY - point.y)
+    let damping = pow(0.5, max(0, lift - 6) / 80)
+    let delta = Double(dx / max(1, bounds.width)) * Double(damping)
+    progress = max(0, min(1, progress + delta))
+    onScrub?(progress, false)
+    sendActions(for: .valueChanged)
+    return true
+  }
+
+  override func endTracking(_ touch: UITouch?, with event: UIEvent?) {
+    onScrub?(progress, true)
+  }
+
+  override func cancelTracking(with event: UIEvent?) {
+    onScrub?(progress, true)
   }
 
   override func draw(_ rect: CGRect) {

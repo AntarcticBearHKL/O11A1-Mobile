@@ -224,6 +224,10 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     controller.onSwipeRightEnded = { [weak self] close in
       self?.onSwipeRightEnded?(close)
     }
+    controller.onPullDown = { [weak self] progress in self?.onPullDown?(progress) }
+    controller.onPullDownEnded = { [weak self] complete in
+      self?.onPullDownEnded?(complete)
+    }
     addChild(controller)
     controller.view.frame = host.bounds
     controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -272,6 +276,10 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     }
     controller.onSwipeRightEnded = { [weak self] close in
       self?.onSwipeRightEnded?(close)
+    }
+    controller.onPullDown = { [weak self] progress in self?.onPullDown?(progress) }
+    controller.onPullDownEnded = { [weak self] complete in
+      self?.onPullDownEnded?(complete)
     }
     addChild(controller)
     controller.view.frame = host.bounds
@@ -332,7 +340,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
           pan === tabSwipePan else { return true }
-    guard tabSwipeStartX >= view.bounds.width / 3.0 else { return false }
+    guard tabSwipeStartX >= view.bounds.width / 8.0 else { return false }
     let translation = pan.translation(in: view)
     let velocity = pan.velocity(in: view)
     return (abs(translation.x) > 8 && abs(translation.x) > abs(translation.y) * 1.2)

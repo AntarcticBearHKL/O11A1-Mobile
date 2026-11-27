@@ -128,6 +128,8 @@ struct PreviewHandoff {
   var backup = ""
   var seconds: Double = 0
   var duration: Double = 0
+  var quality = 0
+  var qualityLabel = ""
 }
 
 struct AccountInfo {

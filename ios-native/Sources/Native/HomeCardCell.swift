@@ -9,6 +9,7 @@ final class HomeCardCell: UITableViewCell {
   let mediaHost = UIView()
   var onOpen: (() -> Void)?
   var onAvatar: (() -> Void)?
+  var onPreviewScrub: ((CGFloat, Bool) -> Void)?
 
   private let cover = UIImageView()
   private let duration = UILabel()
@@ -17,6 +18,9 @@ final class HomeCardCell: UITableViewCell {
   private let progressFill = UIView()
   private var progressWidth: NSLayoutConstraint?
   private let previewBar = PreviewProgressBar()
+  private let previewLoading = UIView()
+  private let previewSpinner = UIActivityIndicatorView(style: .medium)
+  private let previewLoadingLabel = UILabel()
   private let avatar = UIImageView()
   private let avatarInitial = UILabel()
   private let avatarButton = UIButton(type: .custom)
@@ -94,6 +98,41 @@ final class HomeCardCell: UITableViewCell {
 
     media.addSubview(previewBar)
     previewBar.translatesAutoresizingMaskIntoConstraints = false
+    previewBar.onScrub = { [weak self] ratio, finished in
+      self?.onPreviewScrub?(ratio, finished)
+    }
+
+    previewLoading.backgroundColor = UIColor.black.withAlphaComponent(0.58)
+    previewLoading.layer.cornerRadius = 16
+    previewLoading.layer.cornerCurve = .continuous
+    previewLoading.isHidden = true
+    previewLoading.isUserInteractionEnabled = false
+    media.addSubview(previewLoading)
+    previewLoading.translatesAutoresizingMaskIntoConstraints = false
+
+    previewSpinner.color = .white
+    previewSpinner.hidesWhenStopped = true
+    previewLoadingLabel.text = "正在加载"
+    previewLoadingLabel.font = UIFont.systemFont(ofSize: 11.5, weight: .medium)
+    previewLoadingLabel.textColor = .white
+    let loadingRow = UIStackView(arrangedSubviews: [previewSpinner,
+                                                    previewLoadingLabel])
+    loadingRow.axis = .horizontal
+    loadingRow.alignment = .center
+    loadingRow.spacing = 6
+    previewLoading.addSubview(loadingRow)
+    loadingRow.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      loadingRow.leadingAnchor.constraint(equalTo: previewLoading.leadingAnchor,
+                                          constant: 12),
+      loadingRow.trailingAnchor.constraint(equalTo: previewLoading.trailingAnchor,
+                                           constant: -14),
+      loadingRow.topAnchor.constraint(equalTo: previewLoading.topAnchor),
+      loadingRow.bottomAnchor.constraint(equalTo: previewLoading.bottomAnchor),
+      previewLoading.centerXAnchor.constraint(equalTo: media.centerXAnchor),
+      previewLoading.centerYAnchor.constraint(equalTo: media.centerYAnchor),
+      previewLoading.heightAnchor.constraint(equalToConstant: 32),
+    ])
 
     copyView.backgroundColor = NativeTheme.surface
     copyView.layer.cornerRadius = cardBottomRadius
@@ -282,12 +321,25 @@ final class HomeCardCell: UITableViewCell {
     cover.image = nil
     avatar.image = nil
     mediaHost.subviews.forEach { $0.removeFromSuperview() }
+    hidePreviewLoading()
     onOpen = nil
     onAvatar = nil
+    onPreviewScrub = nil
+  }
+
+  func showPreviewLoading() {
+    previewLoading.isHidden = false
+    previewSpinner.startAnimating()
+  }
+
+  func hidePreviewLoading() {
+    previewLoading.isHidden = true
+    previewSpinner.stopAnimating()
   }
 
   func configure(_ item: VideoItem) {
     self.item = item
+    hidePreviewLoading()
     let paragraph = NSMutableParagraphStyle()
     paragraph.minimumLineHeight = 23.5
     paragraph.maximumLineHeight = 23.5
@@ -345,6 +397,7 @@ final class HomeCardCell: UITableViewCell {
       let totalValue = total > 0 ? total : Double(item?.durationSec ?? 0)
       duration.text = " \(previewTime(current)) / \(previewTime(totalValue)) "
     } else {
+      hidePreviewLoading()
       previewBar.isHidden = true
       previewBar.progress = 0
       duration.text = item?.duration ?? ""
@@ -386,6 +439,12 @@ final class HomeCardCell: UITableViewCell {
     let point = gesture.location(in: copyView)
     if avatarButton.frame.insetBy(dx: -6, dy: -6).contains(point) {
       return
+    }
+    if !previewBar.isHidden {
+      let barPoint = gesture.location(in: previewBar)
+      if previewBar.point(inside: barPoint, with: nil) {
+        return
+      }
     }
     onOpen?()
   }

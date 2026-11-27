@@ -27,6 +27,7 @@ final class FeedViewController: UIViewController,
   private var previewIndex = -1
   private var previewToken = 0
   private var previewSuspended = false
+  private var previewScrubbing = false
   private var previewSource: PlaySource?
   private var previewItemKey = ""
   private var nextPage = 1
@@ -99,17 +100,20 @@ final class FeedViewController: UIViewController,
     previewEngine.playerLayer.videoGravity = .resizeAspectFill
     previewEngine.onReady = { [weak self] in
       guard let self = self, !self.previewSuspended else { return }
+      self.previewCell?.hidePreviewLoading()
       self.previewView.alpha = 1
       self.previewEngine.play()
     }
     previewEngine.onError = { [weak self] _ in
+      self?.previewCell?.hidePreviewLoading()
       self?.previewSource = nil
       self?.previewItemKey = ""
       self?.previewView.alpha = 0
       self?.previewCell?.setPreviewProgress(nil)
     }
     previewEngine.onTime = { [weak self] seconds, duration in
-      guard let self = self, !self.previewSuspended, duration > 0,
+      guard let self = self, !self.previewSuspended, !self.previewScrubbing,
+            duration > 0,
             let cell = self.previewCell else { return }
       cell.setPreviewProgress(CGFloat(max(0, min(1, seconds / duration))),
                               current: seconds, total: duration)
@@ -435,6 +439,25 @@ final class FeedViewController: UIViewController,
     cell.onAvatar = { [weak self] in
       self?.onProfile?(item.mid)
     }
+    cell.onPreviewScrub = { [weak self, weak cell] ratio, finished in
+      guard let self = self, let cell = cell,
+            self.previewCell === cell else { return }
+      let duration = self.previewEngine.duration
+      guard duration > 0 else { return }
+      if !finished {
+        if !self.previewScrubbing {
+          self.previewScrubbing = true
+          self.previewEngine.pause()
+        }
+        cell.setPreviewProgress(ratio,
+                                current: duration * Double(ratio),
+                                total: duration)
+      } else {
+        self.previewScrubbing = false
+        self.previewEngine.seek(to: duration * Double(ratio), resume: true)
+        self.previewEngine.play()
+      }
+    }
     if indexPath.row == previewIndex, previewCell === cell {
       attachPreview(cell)
     }
@@ -463,7 +486,9 @@ final class FeedViewController: UIViewController,
       url: source.url,
       backup: source.backup,
       seconds: previewEngine.currentTime,
-      duration: previewEngine.duration
+      duration: previewEngine.duration,
+      quality: source.quality,
+      qualityLabel: source.qualityLabel
     )
   }
 
@@ -494,11 +519,6 @@ final class FeedViewController: UIViewController,
     loadMoreIfNeeded()
   }
 
-  func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
-    previewEngine.pause()
-    previewView.alpha = 0
-  }
-
   func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
     if !decelerate {
       startPreviewIfNeeded()
@@ -520,6 +540,7 @@ final class FeedViewController: UIViewController,
     if HomeFeedLayout.isGrid {
       previewEngine.pause()
       previewView.alpha = 0
+      previewCell?.hidePreviewLoading()
       previewCell?.setPreviewProgress(nil)
       previewCell = nil
       previewIndex = -1
@@ -540,18 +561,22 @@ final class FeedViewController: UIViewController,
       return
     }
     if previewCell !== cell {
+      previewCell?.hidePreviewLoading()
       previewCell?.setPreviewProgress(nil)
+      previewScrubbing = false
     }
     previewIndex = bestRow
     previewCell = cell
     previewSuspended = false
     if previewEngine.player.currentItem != nil, previewView.superview === cell.mediaHost {
+      cell.hidePreviewLoading()
       previewView.alpha = 1
       previewEngine.play()
       return
     }
     attachPreview(cell)
     cell.setPreviewProgress(0)
+    cell.showPreviewLoading()
     previewView.alpha = 0
     previewToken += 1
     let token = previewToken
@@ -559,13 +584,18 @@ final class FeedViewController: UIViewController,
     previewSource = nil
     previewItemKey = ""
     previewEngine.stop()
-    BiliAPI.shared.playLow(item) { [weak self] result in
+    BiliAPI.shared.playQuality(item, qn: ThemeManager.shared.quality) {
+      [weak self] result in
       guard let self = self, token == self.previewToken,
             !self.previewSuspended else { return }
-      guard case .success(let source) = result else { return }
       guard let current = self.table.cellForRow(at: IndexPath(row: bestRow, section: 0)) as? HomeCardCell else {
         return
       }
+      guard case .success(let source) = result else {
+        current.hidePreviewLoading()
+        return
+      }
+      current.showPreviewLoading()
       self.previewSource = source
       self.previewItemKey = "\(item.bvid)-\(item.cid)"
       self.attachPreview(current)
@@ -590,8 +620,10 @@ final class FeedViewController: UIViewController,
 
   func suspendPreview() {
     previewSuspended = true
+    previewScrubbing = false
     previewEngine.pause()
     previewView.alpha = 0
+    previewCell?.hidePreviewLoading()
     previewCell?.setPreviewProgress(nil)
   }
 
