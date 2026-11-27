@@ -554,7 +554,10 @@ private final class PanelCommentCell: UITableViewCell {
     super.init(style: style, reuseIdentifier: reuseIdentifier)
     backgroundColor = .clear
     contentView.backgroundColor = .clear
-    selectionStyle = .none
+    selectionStyle = .default
+    let selection = UIView()
+    selection.backgroundColor = .clear
+    selectedBackgroundView = selection
 
     avatar.contentMode = .scaleAspectFill
     avatar.clipsToBounds = true
@@ -588,7 +591,7 @@ private final class PanelCommentCell: UITableViewCell {
     message.lineBreakMode = .byWordWrapping
 
     likes.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
-    likes.textColor = NativeTheme.accent
+    likes.textColor = NativeTheme.secondary
 
     replies.font = UIFont.systemFont(ofSize: 11.5, weight: .semibold)
     replies.textColor = NativeTheme.navBlue
@@ -655,7 +658,19 @@ private final class PanelCommentCell: UITableViewCell {
     name.text = item.name.isEmpty ? "用户" : item.name
     time.text = NativeTheme.timeAgo(Int64(item.time))
     setMessage(item.message)
-    likes.text = "♥ \(item.likes)"
+    let likeText = NSMutableAttributedString(
+      string: "♥",
+      attributes: [
+        .font: UIFont.systemFont(ofSize: 12.5, weight: .semibold),
+        .foregroundColor: NativeTheme.accent,
+      ])
+    likeText.append(NSAttributedString(
+      string: " \(item.likes)",
+      attributes: [
+        .font: UIFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium),
+        .foregroundColor: NativeTheme.tertiary,
+      ]))
+    likes.attributedText = likeText
     let hasReplies = item.replies > 0 || !items.isEmpty
     replies.isHidden = !hasReplies
     replies.text = "\(max(item.replies, items.count)) 条回复"
