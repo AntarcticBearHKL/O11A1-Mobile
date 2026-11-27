@@ -133,6 +133,8 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
         height: buttonHeight
       )
     }
+    tabDock.setNeedsLayout()
+    tabDock.layoutIfNeeded()
     for child in [detail?.view, comments?.view, related?.view] {
       child?.frame = host.bounds
     }
