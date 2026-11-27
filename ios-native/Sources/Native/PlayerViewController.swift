@@ -1520,12 +1520,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             }
           } else {
             panDirectionDecided = true
-            if landscapeControl == .none {
-              landscapeDrag = true
-            } else {
+            if landscapeControl != .none {
               landscapeAdjusting = true
               hideControls()
             }
+            // Landscape middle has no vertical close gesture.
           }
         }
       }
