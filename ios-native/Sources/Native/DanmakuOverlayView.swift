@@ -20,6 +20,15 @@ final class DanmakuOverlayView: UIView {
   private let pendingLifetime: Double = 1.6
   private let maxPending = 80
 
+  private struct LaneLayout {
+    let font: UIFont
+    let alpha: CGFloat
+    let laneHeight: CGFloat
+    let step: Int
+    let lanes: Int
+    let speedFactor: Double
+  }
+
   override init(frame: CGRect) {
     super.init(frame: frame)
     backgroundColor = .clear
@@ -115,18 +124,14 @@ final class DanmakuOverlayView: UIView {
       ? true : defaults.bool(forKey: "danmaku_enabled")
     setEnabled(isOn)
     guard isOn else { return }
-    let sizePercent = defaults.object(forKey: "danmaku_size") == nil
-      ? 100.0 : Double(defaults.float(forKey: "danmaku_size"))
-    let opacityPercent = defaults.object(forKey: "danmaku_opacity") == nil
-      ? 88.0 : Double(defaults.float(forKey: "danmaku_opacity"))
-    let font = UIFont.systemFont(
-      ofSize: max(8, 13 * CGFloat(sizePercent / 100)), weight: .medium)
-    let alpha = CGFloat(max(0.1, min(1, opacityPercent / 100)))
+    let layout = laneLayout()
     for case let label as UILabel in subviews {
-      label.font = font
-      label.alpha = alpha
+      label.font = layout.font
+      label.alpha = layout.alpha
       label.sizeToFit()
     }
+    syncLaneCount(layout.lanes, laneHeight: layout.laneHeight,
+                  step: layout.step)
   }
 
   private func resetPlayback(clearLabels: Bool) {
@@ -144,31 +149,13 @@ final class DanmakuOverlayView: UIView {
   @discardableResult
   private func spawn(_ item: DanmakuItem, now: CFTimeInterval) -> Bool {
     guard bounds.width > 1, bounds.height > topInset else { return false }
-    let defaults = UserDefaults.standard
-    let sizePercent = defaults.object(forKey: "danmaku_size") == nil
-      ? 100.0 : Double(defaults.float(forKey: "danmaku_size"))
-    let opacityPercent = defaults.object(forKey: "danmaku_opacity") == nil
-      ? 88.0 : Double(defaults.float(forKey: "danmaku_opacity"))
-    let speedPercent = defaults.object(forKey: "danmaku_speed") == nil
-      ? 100.0 : Double(defaults.float(forKey: "danmaku_speed"))
-    let area = defaults.string(forKey: "danmaku_area") ?? "全屏"
-    let dense = defaults.object(forKey: "danmaku_density") == nil
-      ? true : defaults.bool(forKey: "danmaku_density")
-
-    let font = UIFont.systemFont(
-      ofSize: max(8, 13 * CGFloat(sizePercent / 100)), weight: .medium)
-    let alpha = CGFloat(max(0.1, min(1, opacityPercent / 100)))
-    let laneHeight = max(24, ceil(font.lineHeight) + 6)
-    let fraction: CGFloat = area == "1/3 屏" ? 0.33 : (area == "1/2 屏" ? 0.5 : 0.78)
-    let step = dense ? 1 : 2
-    let available = max(0, bounds.height - topInset)
-    let lanes = max(1, Int(available * fraction /
-      (laneHeight * CGFloat(step))))
-    syncLaneCount(lanes, laneHeight: laneHeight, step: step)
+    let layout = laneLayout()
+    syncLaneCount(layout.lanes, laneHeight: layout.laneHeight,
+                  step: layout.step)
 
     var chosen = -1
     var oldestFree = CFTimeInterval.greatestFiniteMagnitude
-    for lane in 0..<lanes where laneFreeAt[lane] <= now {
+    for lane in 0..<layout.lanes where laneFreeAt[lane] <= now {
       if laneFreeAt[lane] < oldestFree {
         oldestFree = laneFreeAt[lane]
         chosen = lane
@@ -178,14 +165,14 @@ final class DanmakuOverlayView: UIView {
 
     let label = UILabel()
     label.text = item.text
-    label.font = font
+    label.font = layout.font
     label.textColor = item.color == 0 ? .white : UIColor(
       red: CGFloat((item.color >> 16) & 0xFF) / 255,
       green: CGFloat((item.color >> 8) & 0xFF) / 255,
       blue: CGFloat(item.color & 0xFF) / 255,
       alpha: 1
     )
-    label.alpha = alpha
+    label.alpha = layout.alpha
     label.layer.shadowColor = UIColor.black.cgColor
     label.layer.shadowOpacity = 0.85
     label.layer.shadowRadius = 2
@@ -194,15 +181,14 @@ final class DanmakuOverlayView: UIView {
 
     let startX = bounds.width + 8
     let endX = -label.bounds.width - 8
-    let y = topInset + CGFloat(chosen * step) * laneHeight
+    let y = topInset + CGFloat(chosen * layout.step) * layout.laneHeight
     label.frame = CGRect(x: startX, y: y,
                          width: label.bounds.width, height: label.bounds.height)
     addSubview(label)
 
-    let speedFactor = max(0.5, speedPercent / 100)
-    let pointsPerSecond = 105.0 * speedFactor
+    let pointsPerSecond = 105.0 * layout.speedFactor
     let distance = startX - endX
-    let duration = max(3.5, Double(distance / 105.0) / speedFactor)
+    let duration = max(3.5, Double(distance / 105.0) / layout.speedFactor)
     laneFreeAt[chosen] = now + Double(label.bounds.width + laneGap) /
       pointsPerSecond
 
@@ -213,6 +199,32 @@ final class DanmakuOverlayView: UIView {
       label.removeFromSuperview()
     }
     return true
+  }
+
+  private func laneLayout() -> LaneLayout {
+    let defaults = UserDefaults.standard
+    let sizePercent = defaults.object(forKey: "danmaku_size") == nil
+      ? 100.0 : Double(defaults.float(forKey: "danmaku_size"))
+    let opacityPercent = defaults.object(forKey: "danmaku_opacity") == nil
+      ? 88.0 : Double(defaults.float(forKey: "danmaku_opacity"))
+    let speedPercent = defaults.object(forKey: "danmaku_speed") == nil
+      ? 100.0 : Double(defaults.float(forKey: "danmaku_speed"))
+    let dense = defaults.object(forKey: "danmaku_density") == nil
+      ? true : defaults.bool(forKey: "danmaku_density")
+    let areaPercent = DanmakuSettings.areaPercent(defaults: defaults)
+
+    let font = UIFont.systemFont(
+      ofSize: max(8, 13 * CGFloat(sizePercent / 100)), weight: .medium)
+    let alpha = CGFloat(max(0.1, min(1, opacityPercent / 100)))
+    let laneHeight = max(24, ceil(font.lineHeight) + 6)
+    let step = dense ? 1 : 2
+    let fraction = CGFloat(areaPercent / 100)
+    let available = max(0, bounds.height - topInset)
+    let lanes = max(1, Int(available * fraction /
+      (laneHeight * CGFloat(step))))
+    return LaneLayout(font: font, alpha: alpha, laneHeight: laneHeight,
+                      step: step, lanes: lanes,
+                      speedFactor: max(0.5, speedPercent / 100))
   }
 
   private func syncLaneCount(_ count: Int, laneHeight: CGFloat, step: Int) {

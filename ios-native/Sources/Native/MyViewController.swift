@@ -347,22 +347,25 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     })
     rows.append(.slider(label: "不透明度", min: 0, max: 100,
                         value: storedFloat("danmaku_opacity", 88),
-                        unit: "%", format: nil) { value in
+                        unit: "%", step: 1, format: nil) { value in
       defaults.set(value, forKey: "danmaku_opacity")
     })
     rows.append(.slider(label: "字号", min: 50, max: 150,
                         value: storedFloat("danmaku_size", 100),
-                        unit: "%", format: nil) { value in
+                        unit: "%", step: 1, format: nil) { value in
       defaults.set(value, forKey: "danmaku_size")
     })
     rows.append(.slider(label: "速度", min: 50, max: 200,
                         value: storedFloat("danmaku_speed", 100),
-                        unit: "", format: { String(format: "%.1f×", Double($0) / 100.0) }) { value in
+                        unit: "", step: 1, format: { String(format: "%.1f×", Double($0) / 100.0) }) { value in
       defaults.set(value, forKey: "danmaku_speed")
     })
-    rows.append(.choices(label: "显示区域", options: ["全屏", "1/2 屏", "1/3 屏"],
-                         selected: defaults.string(forKey: "danmaku_area") ?? "全屏") { value in
-      defaults.set(value, forKey: "danmaku_area")
+    rows.append(.slider(label: "显示区域", min: DanmakuSettings.areaMinimum,
+                        max: DanmakuSettings.areaMaximum,
+                        value: DanmakuSettings.areaPercent(),
+                        unit: "%", step: DanmakuSettings.areaStep,
+                        format: nil) { value in
+      DanmakuSettings.setAreaPercent(value)
     })
     rows.append(.toggle(label: "分布密度", detail: nil,
                         isOn: storedBool("danmaku_density", true)) { value in
@@ -385,7 +388,7 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     })
     rows.append(.slider(label: "玻璃模糊", min: 0, max: 100,
                         value: storedFloat("o11a1.glassBlur", 100),
-                        unit: "%", format: nil) { value in
+                        unit: "%", step: 1, format: nil) { value in
       UserDefaults.standard.set(value, forKey: "o11a1.glassBlur")
     })
     rows.append(.value(label: "圆角", value: "18 / 24 / 27"))
@@ -422,7 +425,7 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     })
     rows.append(.slider(label: "AI 等级", min: 0, max: 10,
                         value: storedFloat("o11a1.cloudLevel", 5),
-                        unit: "", format: nil) { value in
+                        unit: "", step: 1, format: nil) { value in
       defaults.set(value, forKey: "o11a1.cloudLevel")
     })
     rows.append(.action(label: "立即同步", value: "", run: { [weak self] in

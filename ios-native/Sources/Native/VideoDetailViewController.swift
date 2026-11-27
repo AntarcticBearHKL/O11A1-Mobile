@@ -56,8 +56,9 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private let danmakuPanel = UIStackView()
   private var danmakuValueLabels: [UILabel] = []
   private var danmakuSliders: [UISlider] = []
-  private var danmakuAreaButtons: [UIButton] = []
-  private var danmakuArea = "全屏"
+  private var danmakuAreaPercent = DanmakuSettings.defaultAreaPercent
+  private var danmakuAreaSlider: UISlider?
+  private var danmakuAreaValueLabel: UILabel?
   private var danmakuOpacity: Float = 88
   private var danmakuSize: Float = 100
   private var danmakuSpeed: Float = 100
@@ -299,7 +300,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       ? 100 : defaults.float(forKey: "danmaku_size")
     danmakuSpeed = defaults.object(forKey: "danmaku_speed") == nil
       ? 100 : defaults.float(forKey: "danmaku_speed")
-    danmakuArea = defaults.string(forKey: "danmaku_area") ?? "全屏"
+    danmakuAreaPercent = DanmakuSettings.areaPercent(defaults: defaults)
     danmakuDensity = defaults.object(forKey: "danmaku_density") == nil
       ? true : defaults.bool(forKey: "danmaku_density")
 
@@ -544,41 +545,42 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
 
   private func makeDanmakuAreaRow() -> UIView {
     let row = UIView()
-    row.heightAnchor.constraint(equalToConstant: 52).isActive = true
+    row.heightAnchor.constraint(equalToConstant: 64).isActive = true
     let label = UILabel()
     label.text = "显示区域"
     label.font = UIFont.systemFont(ofSize: 12.5, weight: .medium)
     label.textColor = NativeTheme.foreground
     row.addSubview(label)
     label.translatesAutoresizingMaskIntoConstraints = false
-    let chips = UIStackView()
-    chips.axis = .horizontal
-    chips.alignment = .center
-    chips.spacing = 6
-    row.addSubview(chips)
-    chips.translatesAutoresizingMaskIntoConstraints = false
-    for (index, title) in ["全屏", "1/2 屏", "1/3 屏"].enumerated() {
-      let button = UIButton(type: .custom)
-      button.tag = index
-      button.setTitle(title, for: .normal)
-      button.titleLabel?.font = UIFont.systemFont(ofSize: 10, weight: .bold)
-      button.layer.cornerRadius = NativeTheme.cornerRadius
-      button.layer.cornerCurve = .continuous
-      button.layer.borderWidth = 1
-      button.contentEdgeInsets = UIEdgeInsets(top: 5, left: 9, bottom: 5, right: 9)
-      button.heightAnchor.constraint(equalToConstant: 26).isActive = true
-      button.addTarget(self, action: #selector(danmakuAreaTapped(_:)), for: .touchUpInside)
-      danmakuAreaButtons.append(button)
-      chips.addArrangedSubview(button)
-    }
+    let valueLabel = UILabel()
+    valueLabel.text = "\(Int(danmakuAreaPercent))%"
+    valueLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .medium)
+    valueLabel.textColor = NativeTheme.secondary
+    valueLabel.textAlignment = .right
+    row.addSubview(valueLabel)
+    valueLabel.translatesAutoresizingMaskIntoConstraints = false
+    let slider = UISlider()
+    slider.minimumValue = DanmakuSettings.areaMinimum
+    slider.maximumValue = DanmakuSettings.areaMaximum
+    slider.value = danmakuAreaPercent
+    slider.minimumTrackTintColor = NativeTheme.navBlue
+    slider.maximumTrackTintColor = NativeTheme.hairline
+    slider.addTarget(self, action: #selector(danmakuAreaSliderChanged(_:)),
+                     for: .valueChanged)
+    row.addSubview(slider)
+    slider.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
       label.leadingAnchor.constraint(equalTo: row.leadingAnchor),
-      label.centerYAnchor.constraint(equalTo: row.centerYAnchor),
-      chips.trailingAnchor.constraint(equalTo: row.trailingAnchor),
-      chips.centerYAnchor.constraint(equalTo: row.centerYAnchor),
-      chips.leadingAnchor.constraint(greaterThanOrEqualTo: label.trailingAnchor, constant: 8),
+      label.topAnchor.constraint(equalTo: row.topAnchor, constant: 8),
+      valueLabel.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+      valueLabel.centerYAnchor.constraint(equalTo: label.centerYAnchor),
+      slider.leadingAnchor.constraint(equalTo: row.leadingAnchor),
+      slider.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+      slider.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 2),
+      slider.bottomAnchor.constraint(equalTo: row.bottomAnchor, constant: -4),
     ])
-    updateDanmakuArea()
+    danmakuAreaSlider = slider
+    danmakuAreaValueLabel = valueLabel
     return row
   }
 
@@ -589,19 +591,6 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       danmakuValueLabels[tag].text = "\(Int(value))%"
     default:
       danmakuValueLabels[tag].text = String(format: "%.1f×", Double(value) / 100.0)
-    }
-  }
-
-  private func updateDanmakuArea() {
-    let titles = ["全屏", "1/2 屏", "1/3 屏"]
-    for (index, button) in danmakuAreaButtons.enumerated() {
-      let on = titles[index] == danmakuArea
-      button.backgroundColor = on ? NativeTheme.navSoft : .clear
-      button.setTitleColor(on ? NativeTheme.navBlue : NativeTheme.secondary,
-                           for: .normal)
-      button.layer.borderColor = on
-        ? NativeTheme.navBlue.withAlphaComponent(0.4).cgColor
-        : NativeTheme.hairline.cgColor
     }
   }
 
@@ -639,12 +628,16 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     onDanmakuSettingsChanged?()
   }
 
-  @objc private func danmakuAreaTapped(_ sender: UIButton) {
-    let titles = ["全屏", "1/2 屏", "1/3 屏"]
-    guard sender.tag < titles.count else { return }
-    danmakuArea = titles[sender.tag]
-    UserDefaults.standard.set(danmakuArea, forKey: "danmaku_area")
-    updateDanmakuArea()
+  @objc private func danmakuAreaSliderChanged(_ sender: UISlider) {
+    let snapped = DanmakuSettings.snapArea(sender.value)
+    if abs(snapped - sender.value) > 0.01 {
+      sender.value = snapped
+      UISelectionFeedbackGenerator().selectionChanged()
+    }
+    guard abs(snapped - danmakuAreaPercent) > 0.01 else { return }
+    danmakuAreaPercent = snapped
+    DanmakuSettings.setAreaPercent(snapped)
+    danmakuAreaValueLabel?.text = "\(Int(snapped))%"
     onDanmakuSettingsChanged?()
   }
 

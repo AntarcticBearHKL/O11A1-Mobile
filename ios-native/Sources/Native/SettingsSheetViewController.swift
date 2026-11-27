@@ -5,7 +5,7 @@ enum SettingsSheetRow {
   case action(label: String, value: String, run: () -> Void)
   case toggle(label: String, detail: String?, isOn: Bool, onChange: (Bool) -> Void)
   case slider(label: String, min: Float, max: Float, value: Float, unit: String,
-              format: ((Float) -> String)?, onChange: (Float) -> Void)
+              step: Float, format: ((Float) -> String)?, onChange: (Float) -> Void)
   case choices(label: String, options: [String], selected: String, onChange: (String) -> Void)
   case section(String)
   case note(String)
@@ -240,8 +240,9 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
       body.addArrangedSubview(makeActionRow(label, value, run))
     case .toggle(let label, let detail, let isOn, let onChange):
       body.addArrangedSubview(makeToggleRow(label, detail, isOn, onChange))
-    case .slider(let label, let min, let max, let value, let unit, let format, let onChange):
-      body.addArrangedSubview(makeSliderRow(label, min, max, value, unit, format, onChange))
+    case .slider(let label, let min, let max, let value, let unit, let step, let format, let onChange):
+      body.addArrangedSubview(
+        makeSliderRow(label, min, max, value, unit, step, format, onChange))
     case .choices(let label, let options, let selected, let onChange):
       body.addArrangedSubview(makeChoiceRow(label, options, selected, onChange))
     case .section(let text):
@@ -316,7 +317,7 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
   }
 
   private func makeSliderRow(_ label: String, _ minValue: Float, _ maxValue: Float,
-                             _ value: Float, _ unit: String,
+                             _ value: Float, _ unit: String, _ step: Float,
                              _ format: ((Float) -> String)?,
                              _ onChange: @escaping (Float) -> Void) -> UIView {
     let wrap = UIView()
@@ -331,7 +332,9 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
     let slider = UISlider()
     slider.minimumValue = minValue
     slider.maximumValue = maxValue
-    slider.value = value
+    slider.value = step > 0
+      ? min(maxValue, max(minValue, (value / step).rounded() * step))
+      : value
     slider.minimumTrackTintColor = NativeTheme.navBlue
     slider.maximumTrackTintColor = NativeTheme.foreground.withAlphaComponent(0.12)
     let update: () -> Void = {
@@ -340,6 +343,14 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
     }
     update()
     slider.addAction(UIAction { _ in
+      if step > 0 {
+        let snapped = min(maxValue,
+                          max(minValue, (slider.value / step).rounded() * step))
+        if abs(snapped - slider.value) > 0.01 {
+          slider.value = snapped
+          UISelectionFeedbackGenerator().selectionChanged()
+        }
+      }
       update()
       onChange(slider.value)
     }, for: .valueChanged)
