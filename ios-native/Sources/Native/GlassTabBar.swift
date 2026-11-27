@@ -500,7 +500,7 @@ private final class TabItemView: UIControl {
       y: compactIcon.y + (rowIcon.y - compactIcon.y) * m
     )
 
-    let fontSize = 10 + 5 * m
+    let fontSize: CGFloat = 15
     label.font = UIFont.systemFont(ofSize: fontSize,
                                    weight: active ? .semibold : .medium)
     let activeColor = NativeTheme.tabActive
@@ -513,15 +513,15 @@ private final class TabItemView: UIControl {
     label.textColor = active ? activeColor : labelInactive
     iconView.tintColor = active ? activeColor : iconInactive
 
-    let sideInset = 8 + 50 * m
-    let available = max(0, bounds.width - sideInset * 2)
-    let textWidth = min(max(0, label.intrinsicContentSize.width), available)
+    let textWidth = max(1, label.intrinsicContentSize.width)
     let compactX = bounds.midX - textWidth / 2
     let rowX: CGFloat = 58
     let x = compactX + (rowX - compactX) * m
     let compactY: CGFloat = 53
     let y = compactY + (bounds.midY - compactY) * m
     label.frame = CGRect(x: x, y: y - 10, width: textWidth, height: 20)
+    let scale = 10.0 / fontSize + (1 - 10.0 / fontSize) * m
+    label.transform = CGAffineTransform(scaleX: scale, y: scale)
     accessibilityTraits = active ? [.button, .selected] : .button
   }
 
