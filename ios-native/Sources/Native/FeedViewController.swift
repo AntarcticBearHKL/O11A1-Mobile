@@ -228,7 +228,7 @@ final class FeedViewController: UIViewController,
       hasMore = homeSource != "none" && homeSource != "dynamic" && homeSource != "fish"
     }
     if homeSource == "none" {
-      showEmpty("所有主页模块已关闭\n在「主页模块」中启用")
+      showEmpty("暂时没有内容\n下拉刷新试试")
       return
     }
     if homeSource == "dynamic" {

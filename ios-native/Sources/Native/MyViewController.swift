@@ -4,7 +4,6 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
   var onOpenModule: ((ModuleListViewController.Mode, Int64, String) -> Void)?
   var onFish: (() -> Void)?
   var onSettings: (() -> Void)?
-  var onHomeModule: ((String, String) -> Void)?
 
   private let scroll = UIScrollView()
   private let list = UIStackView()
@@ -132,9 +131,8 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
       list.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -36),
     ])
 
-    addRow("主页模块", "自定义首页内容", #selector(showHomeModules))
     addRow("首页布局", "单列大卡 / 双列瀑布", #selector(showFeedLayout))
-    addRow("播放", "画质 / 硬解 / 默认", #selector(showPlayback))
+    addRow("播放", "默认画质 / 当前画质", #selector(showPlayback))
     addRow("弹幕", "显示 / 字号 / 速度 / 屏蔽", #selector(showDanmaku))
     addRow("外观", "主题 / 透明度 / 模糊", #selector(showAppearance))
     addRow("屏蔽", "关键词 / 正则 / 用户", #selector(showBlock))
@@ -266,29 +264,6 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     }
   }
 
-  @objc private func showHomeModules() {
-    var rows: [SettingsSheetRow] = []
-    for group in ["首页", "内容", "社区"] {
-      rows.append(.section(group))
-      for module in HomeModules.all where module.group == group {
-        let on = HomeModules.states[module.id] == true
-        rows.append(.toggle(label: module.name, detail: module.desc, isOn: on) {
-          [weak self] value in
-          let changed = HomeModules.setOn(module.id, value)
-          guard changed, let self = self else { return }
-          if let current = HomeModules.currentDef {
-            self.onHomeModule?(current.source, current.name)
-          } else {
-            self.onHomeModule?("none", "主页模块")
-          }
-        })
-      }
-    }
-    rows.append(.note("关闭当前模块后会自动切换到下一个已启用模块。"))
-    presentSheet(SettingsSheetViewController(
-      title: "主页模块", subtitle: "选择要在首页显示的模块", rows: rows))
-  }
-
   @objc private func showFeedLayout() {
     let options = ["单列大卡", "双列瀑布"]
     let selected = HomeFeedLayout.isGrid ? options[1] : options[0]
@@ -306,35 +281,23 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     let defaults = UserDefaults.standard
     let options = ["最高", "4K", "1080P60", "1080P+", "1080P", "720P60", "720P", "480P", "360P"]
     var rows: [SettingsSheetRow] = []
-    rows.append(.choices(label: "默认画质", options: options, selected: defaultQualityName()) {
+    rows.append(.gridChoices(label: "默认画质", options: options,
+                             selected: defaultQualityName()) {
       [weak self] name in
       defaults.set(name, forKey: "o11a1.defaultQuality")
       if let self = self {
         ThemeManager.shared.quality = self.qualityValue(name)
       }
     })
-    rows.append(.choices(label: "当前画质", options: options,
-                         selected: qualityName(ThemeManager.shared.quality)) {
+    rows.append(.gridChoices(label: "当前画质", options: options,
+                             selected: qualityName(ThemeManager.shared.quality)) {
       [weak self] name in
       guard let self = self else { return }
       ThemeManager.shared.quality = self.qualityValue(name)
     })
-    rows.append(.toggle(label: "陀螺仪自动横屏", detail: nil,
-                        isOn: defaults.bool(forKey: "o11a1.autoLandscape")) { value in
-      defaults.set(value, forKey: "o11a1.autoLandscape")
-    })
-    rows.append(.toggle(label: "视频调试 HUD", detail: nil,
-                        isOn: defaults.bool(forKey: "o11a1.debugHud")) { value in
-      defaults.set(value, forKey: "o11a1.debugHud")
-    })
-    rows.append(.toggle(label: "视频流刷新率", detail: nil,
-                        isOn: defaults.bool(forKey: "o11a1.feedDebug")) { value in
-      defaults.set(value, forKey: "o11a1.feedDebug")
-    })
-    rows.append(.value(label: "解码策略", value: "系统硬解 · 渐进优先 · 60Hz"))
     presentSheet(SettingsSheetViewController(
       title: "播放",
-      subtitle: "默认播放视频支持的最高画质；也可固定默认画质，高画质需大会员",
+      subtitle: "默认画质用于新播放，当前画质立即应用；高画质需大会员",
       rows: rows))
   }
 
@@ -371,7 +334,6 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
                         isOn: storedBool("danmaku_density", true)) { value in
       defaults.set(value, forKey: "danmaku_density")
     })
-    rows.append(.value(label: "弹幕节拍", value: "原生动画 · 跟随显示刷新"))
     presentSheet(SettingsSheetViewController(
       title: "弹幕",
       subtitle: "实时生效，现有弹幕不清空；屏蔽规则在「我的 → 屏蔽」",

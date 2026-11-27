@@ -7,11 +7,13 @@ enum SettingsSheetRow {
   case slider(label: String, min: Float, max: Float, value: Float, unit: String,
               step: Float, format: ((Float) -> String)?, onChange: (Float) -> Void)
   case choices(label: String, options: [String], selected: String, onChange: (String) -> Void)
+  case gridChoices(label: String, options: [String], selected: String, onChange: (String) -> Void)
   case section(String)
   case note(String)
 }
 
-final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDelegate {
+final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDelegate,
+                                        UIScrollViewDelegate {
   private let sheetTitle: String
   private let sheetSubtitle: String
   private let rows: [SettingsSheetRow]
@@ -126,6 +128,7 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
 
     scroll.alwaysBounceVertical = true
     scroll.showsVerticalScrollIndicator = false
+    scroll.delegate = self
     card.addSubview(scroll)
     scroll.translatesAutoresizingMaskIntoConstraints = false
 
@@ -245,6 +248,8 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
         makeSliderRow(label, min, max, value, unit, step, format, onChange))
     case .choices(let label, let options, let selected, let onChange):
       body.addArrangedSubview(makeChoiceRow(label, options, selected, onChange))
+    case .gridChoices(let label, let options, let selected, let onChange):
+      body.addArrangedSubview(makeGridChoiceRow(label, options, selected, onChange))
     case .section(let text):
       let label = UILabel()
       label.text = text
@@ -451,6 +456,87 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
     return separator(after: wrap)
   }
 
+  private func makeGridChoiceRow(_ label: String, _ options: [String],
+                                 _ selected: String,
+                                 _ onChange: @escaping (String) -> Void) -> UIView {
+    let wrap = UIView()
+    let labelView = UILabel()
+    labelView.text = label
+    labelView.font = NativeTheme.bodyFont(13)
+    labelView.textColor = NativeTheme.foreground
+    wrap.addSubview(labelView)
+
+    let grid = UIStackView()
+    grid.axis = .vertical
+    grid.spacing = 6
+    grid.alignment = .fill
+    wrap.addSubview(grid)
+
+    var buttons: [UIButton] = []
+    var index = 0
+    while index < options.count {
+      let end = min(index + 3, options.count)
+      let row = UIStackView()
+      row.axis = .horizontal
+      row.spacing = 6
+      row.distribution = .fillEqually
+      row.alignment = .fill
+      for option in options[index..<end] {
+        let button = UIButton(type: .custom)
+        button.setTitle(option, for: .normal)
+        button.titleLabel?.font = UIFont.systemFont(ofSize: 12.5, weight: .semibold)
+        button.layer.cornerRadius = NativeTheme.cornerRadius
+        button.layer.cornerCurve = .continuous
+        button.layer.borderWidth = 1
+        button.heightAnchor.constraint(equalToConstant: 46).isActive = true
+        button.addAction(UIAction { _ in
+          for (idx, other) in buttons.enumerated() {
+            let active = idx == (options.firstIndex(of: option) ?? 0)
+            other.backgroundColor = active ? NativeTheme.navSoft : .clear
+            other.setTitleColor(active ? NativeTheme.navBlue : NativeTheme.secondary,
+                                for: .normal)
+            other.layer.borderColor = active
+              ? NativeTheme.navBlue.withAlphaComponent(0.4).cgColor
+              : NativeTheme.hairline.cgColor
+          }
+          onChange(option)
+        }, for: .touchUpInside)
+        buttons.append(button)
+        row.addArrangedSubview(button)
+      }
+      if end - index < 3 {
+        for _ in (end - index)..<3 {
+          let spacer = UIView()
+          spacer.isUserInteractionEnabled = false
+          row.addArrangedSubview(spacer)
+        }
+      }
+      grid.addArrangedSubview(row)
+      index = end
+    }
+    for (idx, button) in buttons.enumerated() {
+      let active = options[idx] == selected
+      button.backgroundColor = active ? NativeTheme.navSoft : .clear
+      button.setTitleColor(active ? NativeTheme.navBlue : NativeTheme.secondary,
+                           for: .normal)
+      button.layer.borderColor = active
+        ? NativeTheme.navBlue.withAlphaComponent(0.4).cgColor
+        : NativeTheme.hairline.cgColor
+    }
+
+    [labelView, grid].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
+    NSLayoutConstraint.activate([
+      labelView.leadingAnchor.constraint(equalTo: wrap.leadingAnchor),
+      labelView.trailingAnchor.constraint(equalTo: wrap.trailingAnchor),
+      labelView.topAnchor.constraint(equalTo: wrap.topAnchor, constant: 10),
+      grid.leadingAnchor.constraint(equalTo: wrap.leadingAnchor),
+      grid.trailingAnchor.constraint(equalTo: wrap.trailingAnchor),
+      grid.topAnchor.constraint(equalTo: labelView.bottomAnchor, constant: 8),
+      grid.bottomAnchor.constraint(equalTo: wrap.bottomAnchor, constant: -10),
+    ])
+    return separator(after: wrap)
+  }
+
   private func makeBaseRow(label: String, detail: String?) -> (view: UIView, content: UIStackView) {
     let wrap = UIView()
     let content = UIStackView()
@@ -512,6 +598,16 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
       line.heightAnchor.constraint(equalToConstant: 0.5),
     ])
     return holder
+  }
+
+  func scrollViewWillEndDragging(_ scrollView: UIScrollView,
+                                 withVelocity velocity: CGPoint,
+                                 targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+    guard scrollView === scroll, !closing else { return }
+    let pull = max(0, -scrollView.contentOffset.y)
+    if pull > 80 || (pull > 10 && velocity.y > 0.5) {
+      close()
+    }
   }
 
   @objc private func close() {

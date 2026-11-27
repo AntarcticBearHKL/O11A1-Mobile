@@ -286,8 +286,6 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     }
     if let module = HomeModules.currentDef, module.source != "recommend" {
       controller.initialSource = (module.source, module.name)
-    } else if HomeModules.enabledCount == 0 {
-      controller.initialSource = ("none", "主页模块")
     }
     feed = controller
     return controller
@@ -784,9 +782,6 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     my.onOpenModule = { [weak self, weak my] mode, target, title in
       guard let self = self, let host = my else { return }
       self.presentModule(from: host, mode: mode, target: target, title: title)
-    }
-    my.onHomeModule = { [weak self] source, title in
-      self?.feed?.setSource(source, title: title)
     }
     present(my, animated: false)
     my.view.transform = CGAffineTransform(translationX: -view.bounds.width, y: 0)
