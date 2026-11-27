@@ -28,7 +28,7 @@ final class MiniVideoCardView: UIView {
   override init(frame: CGRect) {
     super.init(frame: frame)
     clipsToBounds = true
-    layer.cornerRadius = NativeTheme.cornerRadius
+    layer.cornerRadius = 6
     layer.cornerCurve = .continuous
     layer.borderWidth = 0.5
     layer.borderColor = NativeTheme.hairline.cgColor
@@ -295,14 +295,14 @@ final class HomeGridCell: UITableViewCell {
     row.axis = .horizontal
     row.distribution = .fillEqually
     row.alignment = .fill
-    row.spacing = 12
+    row.spacing = 5
     contentView.addSubview(row)
     row.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      row.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12),
-      row.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),
-      row.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 9),
-      row.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -9),
+      row.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 6),
+      row.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -6),
+      row.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 3),
+      row.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -3),
     ])
 
     leftCard.onOpen = { [weak self] in

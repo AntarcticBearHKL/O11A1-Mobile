@@ -1,36 +1,43 @@
 import UIKit
 
-final class GlassTabBar: UIView {
+/// Bottom navigation that unfolds into one continuous list. The four tabs are
+/// the first four rows; the four utility entries follow. The compact bar and
+/// the list share the same views, so nothing is cross-faded or replaced.
+final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
   var onSelect: ((Int) -> Void)?
   var onReselect: (() -> Void)?
   var onMenu: ((Int) -> Void)?
 
   private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let tint = UIView()
+  private let contentClip = UIView()
   private let pill = UIView()
-  private let stack = UIStackView()
-  private let menuClip = UIView()
-  private let menuStack = UIStackView()
-  private let rowLine = UIView()
-  private var buttons: [UIButton] = []
-  private var menuButtons: [UIButton] = []
-  private let titles = ["推荐", "关注", "动态", "养鱼"]
-  private let symbols = ["house", "person.badge.plus", "waveform", "fish"]
+  private var items: [TabItemView] = []
+  private var separators: [UIView] = []
+
+  private let tabTitles = ["推荐", "关注", "动态", "养鱼"]
+  private let tabSymbols = ["house", "person.badge.plus", "waveform", "fish"]
   private let menuTitles = ["直播", "番剧", "消息", "历史"]
   private let menuSymbols = ["play.rectangle", "rectangle.split.3x1",
                              "text.bubble", "clock.arrow.circlepath"]
+
   private(set) var selectedIndex = 0
   private(set) var barHidden = false
   private let selectionFeedback = UISelectionFeedbackGenerator()
   private let barRadius: CGFloat = NativeTheme.cornerRadius
-  private var pillAnimating = false
-  private let rowHeight: CGFloat = 72
-  private let menuRowHeight: CGFloat = 60
-  private var menuListHeight: CGFloat { menuRowHeight * CGFloat(menuTitles.count) }
-  private var barHeight: NSLayoutConstraint?
-  private var menuHeight: NSLayoutConstraint?
+  private let compactHeight: CGFloat = 72
+  private let listRowHeight: CGFloat = 52
+  private let expansionDuration: CFTimeInterval = 0.52
+  private var expandedHeight: CGFloat { listRowHeight * CGFloat(items.count) }
+
+  private var heightConstraint: NSLayoutConstraint?
   private var expansion: CGFloat = 0
   private var dragStartExpansion: CGFloat = 0
+  private var pillAnimating = false
+  private var displayLink: CADisplayLink?
+  private var animationStart: CFTimeInterval = 0
+  private var animationFrom: CGFloat = 0
+  private var animationTo: CGFloat = 0
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -43,8 +50,8 @@ final class GlassTabBar: UIView {
     layer.shadowOpacity = 0.12
     layer.shadowRadius = 18
     layer.shadowOffset = CGSize(width: 0, height: 8)
-    barHeight = heightAnchor.constraint(equalToConstant: rowHeight)
-    barHeight?.isActive = true
+    heightConstraint = heightAnchor.constraint(equalToConstant: compactHeight)
+    heightConstraint?.isActive = true
 
     blur.layer.cornerRadius = barRadius
     blur.layer.cornerCurve = .continuous
@@ -72,163 +79,74 @@ final class GlassTabBar: UIView {
       tint.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
 
+    contentClip.layer.cornerRadius = barRadius
+    contentClip.layer.cornerCurve = .continuous
+    contentClip.clipsToBounds = true
+    addSubview(contentClip)
+    contentClip.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      contentClip.leadingAnchor.constraint(equalTo: leadingAnchor),
+      contentClip.trailingAnchor.constraint(equalTo: trailingAnchor),
+      contentClip.topAnchor.constraint(equalTo: topAnchor),
+      contentClip.bottomAnchor.constraint(equalTo: bottomAnchor),
+    ])
+
     pill.backgroundColor = NativeTheme.navPill
     pill.layer.cornerRadius = barRadius
     pill.layer.cornerCurve = .continuous
     pill.isUserInteractionEnabled = false
-    addSubview(pill)
+    contentClip.addSubview(pill)
 
-    stack.axis = .horizontal
-    stack.distribution = .fillEqually
-    stack.alignment = .fill
-    stack.spacing = 0
-    addSubview(stack)
-    stack.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: leadingAnchor),
-      stack.trailingAnchor.constraint(equalTo: trailingAnchor),
-      stack.bottomAnchor.constraint(equalTo: bottomAnchor),
-      stack.heightAnchor.constraint(equalToConstant: rowHeight),
-    ])
-
-    menuClip.clipsToBounds = true
-    addSubview(menuClip)
-    menuClip.translatesAutoresizingMaskIntoConstraints = false
-    menuHeight = menuClip.heightAnchor.constraint(equalToConstant: 0)
-    NSLayoutConstraint.activate([
-      menuClip.leadingAnchor.constraint(equalTo: leadingAnchor),
-      menuClip.trailingAnchor.constraint(equalTo: trailingAnchor),
-      menuClip.bottomAnchor.constraint(equalTo: stack.topAnchor),
-      menuHeight!,
-    ])
-
-    menuStack.axis = .vertical
-    menuStack.distribution = .fillEqually
-    menuStack.alignment = .fill
-    menuStack.spacing = 0
-    menuClip.addSubview(menuStack)
-    menuStack.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      menuStack.leadingAnchor.constraint(equalTo: menuClip.leadingAnchor),
-      menuStack.trailingAnchor.constraint(equalTo: menuClip.trailingAnchor),
-      menuStack.topAnchor.constraint(equalTo: menuClip.topAnchor),
-      menuStack.heightAnchor.constraint(equalToConstant: menuListHeight),
-    ])
-
-    rowLine.backgroundColor = NativeTheme.hairline
-    rowLine.alpha = 0
-    addSubview(rowLine)
-    rowLine.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      rowLine.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 18),
-      rowLine.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -18),
-      rowLine.bottomAnchor.constraint(equalTo: stack.topAnchor),
-      rowLine.heightAnchor.constraint(equalToConstant: 0.5),
-    ])
-
-    for index in 0..<titles.count {
-      let button = UIButton(type: .custom)
-      button.tag = index
-      button.titleLabel?.font = UIFont.systemFont(ofSize: 10, weight: .medium)
-      button.setTitleColor(NativeTheme.tertiary, for: .normal)
-      let config = UIImage.SymbolConfiguration(pointSize: 19, weight: .regular)
-      button.setImage(UIImage(systemName: symbols[index], withConfiguration: config), for: .normal)
-      button.tintColor = NativeTheme.tertiary
-      button.setTitle(titles[index], for: .normal)
-      button.alignImageAndTitleVertically(gap: 2)
-      button.addTarget(self, action: #selector(tap(_:)), for: .touchUpInside)
-      buttons.append(button)
-      stack.addArrangedSubview(button)
-    }
-
-    for index in 0..<menuTitles.count {
-      let button = UIButton(type: .custom)
-      button.tag = index
-      button.accessibilityLabel = menuTitles[index]
-      button.addTarget(self, action: #selector(menuTap(_:)), for: .touchUpInside)
-
-      let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .regular)
-      let icon = UIImageView(image: UIImage(systemName: menuSymbols[index],
-                                             withConfiguration: config))
-      icon.tintColor = NativeTheme.tabInactive
-      icon.contentMode = .scaleAspectFit
-      icon.isUserInteractionEnabled = false
-      button.addSubview(icon)
-      icon.translatesAutoresizingMaskIntoConstraints = false
-
-      let label = UILabel()
-      label.text = menuTitles[index]
-      label.font = UIFont.systemFont(ofSize: 15, weight: .medium)
-      label.textColor = NativeTheme.foreground
-      label.isUserInteractionEnabled = false
-      button.addSubview(label)
-      label.translatesAutoresizingMaskIntoConstraints = false
-
+    for _ in 0..<7 {
       let line = UIView()
       line.backgroundColor = NativeTheme.hairline
+      line.alpha = 0
       line.isUserInteractionEnabled = false
-      button.addSubview(line)
-      line.translatesAutoresizingMaskIntoConstraints = false
+      contentClip.addSubview(line)
+      separators.append(line)
+    }
 
-      NSLayoutConstraint.activate([
-        icon.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 22),
-        icon.centerYAnchor.constraint(equalTo: button.centerYAnchor),
-        icon.widthAnchor.constraint(equalToConstant: 24),
-        icon.heightAnchor.constraint(equalToConstant: 24),
-        label.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 16),
-        label.trailingAnchor.constraint(lessThanOrEqualTo: button.trailingAnchor, constant: -22),
-        label.centerYAnchor.constraint(equalTo: button.centerYAnchor),
-        line.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 22),
-        line.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -22),
-        line.bottomAnchor.constraint(equalTo: button.bottomAnchor),
-        line.heightAnchor.constraint(equalToConstant: 0.5),
-      ])
-      if index == menuTitles.count - 1 {
-        line.isHidden = true
-      }
-      menuButtons.append(button)
-      menuStack.addArrangedSubview(button)
+    let allTitles = tabTitles + menuTitles
+    let allSymbols = tabSymbols + menuSymbols
+    for index in 0..<allTitles.count {
+      let item = TabItemView()
+      item.tag = index
+      item.configure(title: allTitles[index], symbol: allSymbols[index],
+                     menu: index >= tabTitles.count)
+      item.addTarget(self, action: #selector(itemTapped(_:)), for: .touchUpInside)
+      contentClip.addSubview(item)
+      items.append(item)
     }
 
     let expandPan = UIPanGestureRecognizer(target: self, action: #selector(handleExpandPan(_:)))
     expandPan.cancelsTouchesInView = true
+    expandPan.delegate = self
     addGestureRecognizer(expandPan)
 
     selectionFeedback.prepare()
     select(index: 0, notify: false)
+    applyExpansion(0)
   }
 
   required init?(coder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
   }
 
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    stack.layoutIfNeeded()
-    guard !pillAnimating else { return }
-    updateColors()
-    layoutPill(animated: false)
+  deinit {
+    displayLink?.invalidate()
   }
 
-  private func layoutPill(animated: Bool) {
-    guard selectedIndex >= 0 && selectedIndex < buttons.count else { return }
-    let button = buttons[selectedIndex]
-    let target = button.convert(button.bounds, to: self)
-    if animated {
-      pillAnimating = true
-      pill.layer.removeAllAnimations()
-      UIView.animate(withDuration: 0.42, delay: 0,
-                     usingSpringWithDamping: 0.68,
-                     initialSpringVelocity: 0.65,
-                     options: [.allowUserInteraction, .beginFromCurrentState]) {
-        self.pill.frame = target
-      } completion: { _ in
-        self.pillAnimating = false
-        self.pill.frame = target
-      }
-    } else {
-      pill.frame = target
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    if window == nil {
+      displayLink?.invalidate()
+      displayLink = nil
     }
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    layoutItems(expansion)
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -236,99 +154,238 @@ final class GlassTabBar: UIView {
     layer.borderColor = NativeTheme.barBorder.cgColor
     tint.backgroundColor = NativeTheme.barGlass
     pill.backgroundColor = NativeTheme.navPill
-    updateColors()
+    for item in items {
+      item.setNeedsLayout()
+    }
+    setNeedsLayout()
   }
 
-  @objc private func tap(_ sender: UIButton) {
-    guard sender.tag != selectedIndex else {
-      bounce(sender)
-      onReselect?()
+  private func layoutItems(_ value: CGFloat) {
+    let p = max(0, min(1, value))
+    let width = contentClip.bounds.width > 1 ? contentClip.bounds.width : bounds.width
+    guard width > 1 else { return }
+    let half = width / CGFloat(tabTitles.count)
+
+    for (index, item) in items.enumerated() {
+      let targetRowY = CGFloat(index) * listRowHeight
+      let compactX: CGFloat
+      let compactY: CGFloat
+      let compactW: CGFloat
+      let compactH: CGFloat
+      if index < tabTitles.count {
+        compactX = CGFloat(index) * half
+        compactY = 0
+        compactW = half
+        compactH = compactHeight
+      } else {
+        compactX = 0
+        compactY = compactHeight
+        compactW = width
+        compactH = listRowHeight
+      }
+      item.frame = CGRect(
+        x: compactX + (0 - compactX) * p,
+        y: compactY + (targetRowY - compactY) * p,
+        width: compactW + (width - compactW) * p,
+        height: compactH + (listRowHeight - compactH) * p
+      )
+      item.morph = p
+      if index >= tabTitles.count {
+        let reveal = min(1, max(0, (p - 0.02) / 0.55))
+        item.alpha = reveal * reveal * (3 - 2 * reveal)
+        item.isUserInteractionEnabled = p > 0.16
+      } else {
+        item.alpha = 1
+        item.isUserInteractionEnabled = true
+      }
+      item.layoutIfNeeded()
+    }
+
+    for (index, line) in separators.enumerated() {
+      line.frame = CGRect(x: 18, y: CGFloat(index + 1) * listRowHeight,
+                          width: max(0, width - 36), height: 0.5)
+      line.alpha = p
+    }
+
+    if !pillAnimating {
+      pill.frame = pillFrame(for: selectedIndex, morph: p, width: width)
+      pill.layer.cornerRadius = barRadius + (12 - barRadius) * p
+    }
+  }
+
+  private func pillFrame(for index: Int, morph: CGFloat, width: CGFloat) -> CGRect {
+    let p = max(0, min(1, morph))
+    let half = width / CGFloat(tabTitles.count)
+    let compact = CGRect(x: CGFloat(index) * half, y: 0,
+                         width: half, height: compactHeight)
+    let row = CGRect(x: 6, y: CGFloat(index) * listRowHeight + 2,
+                     width: max(0, width - 12),
+                     height: listRowHeight - 4)
+    return CGRect(
+      x: compact.minX + (row.minX - compact.minX) * p,
+      y: compact.minY + (row.minY - compact.minY) * p,
+      width: compact.width + (row.width - compact.width) * p,
+      height: compact.height + (row.height - compact.height) * p
+    )
+  }
+
+  private func applyExpansion(_ value: CGFloat) {
+    if pillAnimating {
+      pillAnimating = false
+      pill.layer.removeAllAnimations()
+    }
+    expansion = max(0, min(1, value))
+    let height = compactHeight + (expandedHeight - compactHeight) * expansion
+    if let constraint = heightConstraint, abs(constraint.constant - height) > 0.01 {
+      constraint.constant = height
+      superview?.layoutIfNeeded()
+    }
+    layoutItems(expansion)
+  }
+
+  private func setExpansion(_ value: CGFloat, animated: Bool = false) {
+    let target = max(0, min(1, value))
+    displayLink?.invalidate()
+    displayLink = nil
+    guard animated, abs(target - expansion) > 0.001 else {
+      applyExpansion(target)
       return
     }
-    select(index: sender.tag, notify: true)
+    animationFrom = expansion
+    animationTo = target
+    animationStart = CACurrentMediaTime()
+    let link = CADisplayLink(target: self, selector: #selector(expansionStep(_:)))
+    link.add(to: .main, forMode: .common)
+    displayLink = link
   }
 
-  @objc private func menuTap(_ sender: UIButton) {
-    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-    onMenu?(sender.tag)
-  }
-
-  @objc private func handleExpandPan(_ gesture: UIPanGestureRecognizer) {
-    let translation = gesture.translation(in: self).y
-    switch gesture.state {
-    case .began:
-      dragStartExpansion = expansion
-    case .changed:
-      let value = min(1, max(0, dragStartExpansion - translation / menuListHeight))
-      setExpansion(value)
-    case .ended, .cancelled:
-      let velocity = gesture.velocity(in: self).y
-      var open = expansion > 0.38 || velocity < -260
-      if velocity > 340 { open = false }
-      setExpansion(open ? 1 : 0, animated: true)
-    default:
-      break
+  @objc private func expansionStep(_ link: CADisplayLink) {
+    let elapsed = CACurrentMediaTime() - animationStart
+    let t = max(0, min(1, elapsed / expansionDuration))
+    let eased = springCurve(t)
+    let value = animationFrom + (animationTo - animationFrom) * eased
+    applyExpansion(value)
+    if t >= 1 {
+      link.invalidate()
+      displayLink = nil
+      applyExpansion(animationTo)
     }
+  }
+
+  private func springCurve(_ t: CGFloat) -> CGFloat {
+    let zeta: Double = 0.78
+    let omega: Double = 14.0
+    let damped = omega * sqrt(1 - zeta * zeta)
+    let time = Double(max(0, min(1, t)))
+    let decay = exp(-zeta * omega * time)
+    let value = 1 - decay * (cos(damped * time)
+      + (zeta * omega / damped) * sin(damped * time))
+    return CGFloat(value)
   }
 
   func setExpanded(_ expanded: Bool, animated: Bool) {
     setExpansion(expanded ? 1 : 0, animated: animated)
   }
 
-  private func setExpansion(_ value: CGFloat, animated: Bool = false) {
-    expansion = value
-    let update = {
-      self.barHeight?.constant = self.rowHeight + self.menuListHeight * value
-      self.menuHeight?.constant = self.menuListHeight * value
-      self.menuStack.alpha = min(1, value * 1.8)
-      self.rowLine.alpha = value
-      self.superview?.layoutIfNeeded()
-      self.layoutIfNeeded()
-    }
-    if animated {
-      UIView.animate(withDuration: 0.38, delay: 0,
-                     usingSpringWithDamping: 0.82, initialSpringVelocity: 0.4,
-                     options: [.allowUserInteraction, .beginFromCurrentState],
-                     animations: update)
-    } else {
-      update()
-    }
-  }
-
   func select(index: Int, notify: Bool) {
-    guard index >= 0 && index < buttons.count else { return }
+    guard index >= 0 && index < tabTitles.count else { return }
     let changed = index != selectedIndex
     selectedIndex = index
+    updateColors()
     if changed {
-      UIView.transition(with: self, duration: 0.24, options: [.transitionCrossDissolve, .allowUserInteraction]) {
-        self.updateColors()
-      }
       layoutPill(animated: true)
-      bounce(buttons[index])
+      bounce(items[index])
       selectionFeedback.selectionChanged()
       selectionFeedback.prepare()
     } else {
-      updateColors()
-      stack.layoutIfNeeded()
-      layoutPill(animated: false)
+      layoutItems(expansion)
     }
     if notify { onSelect?(index) }
   }
 
-  private func updateColors() {
-    for (i, button) in buttons.enumerated() {
-      let active = i == selectedIndex
-      let color = active ? NativeTheme.tabActive : NativeTheme.tabInactive
-      button.tintColor = color
-      button.setTitleColor(color, for: .normal)
-      button.titleLabel?.font = UIFont.systemFont(ofSize: 10, weight: active ? .bold : .medium)
-      button.backgroundColor = .clear
-      button.alpha = 1
+  private func layoutPill(animated: Bool) {
+    let target = pillFrame(for: selectedIndex, morph: expansion,
+                           width: contentClip.bounds.width)
+    let radius = barRadius + (12 - barRadius) * expansion
+    if animated && displayLink == nil {
+      pillAnimating = true
+      pill.layer.removeAllAnimations()
+      UIView.animate(withDuration: 0.38, delay: 0,
+                     usingSpringWithDamping: 0.82,
+                     initialSpringVelocity: 0.5,
+                     options: [.allowUserInteraction, .beginFromCurrentState]) {
+        self.pill.frame = target
+        self.pill.layer.cornerRadius = radius
+      } completion: { _ in
+        self.pillAnimating = false
+        self.pill.frame = target
+        self.pill.layer.cornerRadius = radius
+      }
+    } else {
+      pill.frame = target
+      pill.layer.cornerRadius = radius
     }
   }
 
-  private func bounce(_ button: UIButton) {
-    guard let icon = button.imageView else { return }
+  private func updateColors() {
+    for (index, item) in items.enumerated() {
+      item.active = index == selectedIndex && index < tabTitles.count
+    }
+  }
+
+  @objc private func itemTapped(_ sender: UIControl) {
+    guard let item = sender as? TabItemView else { return }
+    let index = item.tag
+    if index < tabTitles.count {
+      if index == selectedIndex {
+        bounce(item)
+        onReselect?()
+      } else {
+        select(index: index, notify: true)
+      }
+      if expansion > 0.01 {
+        setExpansion(0, animated: true)
+      }
+    } else {
+      UIImpactFeedbackGenerator(style: .light).impactOccurred()
+      onMenu?(index - tabTitles.count)
+      if expansion > 0.01 {
+        setExpansion(0, animated: true)
+      }
+    }
+  }
+
+  @objc private func handleExpandPan(_ gesture: UIPanGestureRecognizer) {
+    let translation = gesture.translation(in: self).y
+    switch gesture.state {
+    case .began:
+      displayLink?.invalidate()
+      displayLink = nil
+      dragStartExpansion = expansion
+    case .changed:
+      let travel = max(1, expandedHeight - compactHeight)
+      let value = min(1, max(0, dragStartExpansion - translation / travel))
+      applyExpansion(value)
+    case .ended, .cancelled:
+      let velocity = gesture.velocity(in: self).y
+      var open = expansion > 0.34 || velocity < -260
+      if velocity > 320 { open = false }
+      setExpansion(open ? 1 : 0, animated: true)
+    default:
+      break
+    }
+  }
+
+  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+    let velocity = pan.velocity(in: self)
+    let translation = pan.translation(in: self)
+    return abs(translation.y) > abs(translation.x) * 1.15
+      || abs(velocity.y) > abs(velocity.x) * 1.15
+  }
+
+  private func bounce(_ item: TabItemView) {
+    let icon = item.iconView
     UIView.animate(withDuration: 0.11, delay: 0, options: [.curveEaseOut]) {
       icon.transform = CGAffineTransform(scaleX: 0.82, y: 0.82)
     } completion: { _ in
@@ -344,7 +401,12 @@ final class GlassTabBar: UIView {
   func setHidden(_ shouldHide: Bool, animated: Bool) {
     guard shouldHide != barHidden else { return }
     barHidden = shouldHide
-    let distance = bounds.height + 28
+    if shouldHide {
+      displayLink?.invalidate()
+      displayLink = nil
+      applyExpansion(0)
+    }
+    let distance = compactHeight + 28
     let transform = shouldHide ? CGAffineTransform(translationX: 0, y: distance) : .identity
     let alpha: CGFloat = shouldHide ? 0 : 1
     if animated {
@@ -374,23 +436,102 @@ final class GlassTabBar: UIView {
   }
 }
 
-private extension UIButton {
-  func alignImageAndTitleVertically(gap: CGFloat) {
-    guard let image = imageView?.image, let title = titleLabel?.text else { return }
-    let imageSize = image.size
-    let titleSize = (title as NSString).size(withAttributes: [.font: titleLabel?.font ?? UIFont.systemFont(ofSize: 10)])
-    let totalHeight = imageSize.height + gap + titleSize.height
-    imageEdgeInsets = UIEdgeInsets(
-      top: -(totalHeight - imageSize.height),
-      left: 0,
-      bottom: 0,
-      right: -titleSize.width
+/// One icon + label pair shared by the compact bar and the expanded list.
+private final class TabItemView: UIControl {
+  let iconView = UIImageView()
+  let label = UILabel()
+  private var menuRow = false
+  var morph: CGFloat = 0 {
+    didSet { setNeedsLayout() }
+  }
+  var active = false {
+    didSet { setNeedsLayout() }
+  }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    clipsToBounds = false
+    iconView.contentMode = .scaleAspectFit
+    iconView.isUserInteractionEnabled = false
+    addSubview(iconView)
+    label.textAlignment = .left
+    label.isUserInteractionEnabled = false
+    addSubview(label)
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  func configure(title: String, symbol: String, menu: Bool) {
+    menuRow = menu
+    let config = UIImage.SymbolConfiguration(pointSize: 21, weight: .regular)
+    iconView.image = UIImage(systemName: symbol, withConfiguration: config)
+    label.text = title
+    isAccessibilityElement = true
+    accessibilityLabel = title
+    accessibilityTraits = .button
+    setNeedsLayout()
+  }
+
+  override var isHighlighted: Bool {
+    didSet { alpha = isHighlighted ? 0.68 : 1 }
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    setNeedsLayout()
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    guard bounds.width > 1, bounds.height > 1 else { return }
+    let m = max(0, min(1, morph))
+    let iconSize = 19 + 3 * m
+    let compactIcon = CGPoint(x: bounds.midX, y: 26)
+    let rowIcon = CGPoint(x: 33, y: bounds.midY)
+    iconView.bounds = CGRect(x: 0, y: 0, width: iconSize, height: iconSize)
+    iconView.center = CGPoint(
+      x: compactIcon.x + (rowIcon.x - compactIcon.x) * m,
+      y: compactIcon.y + (rowIcon.y - compactIcon.y) * m
     )
-    titleEdgeInsets = UIEdgeInsets(
-      top: 0,
-      left: -imageSize.width,
-      bottom: -(totalHeight - titleSize.height),
-      right: 0
-    )
+
+    let fontSize = 10 + 5 * m
+    label.font = UIFont.systemFont(ofSize: fontSize,
+                                   weight: active ? .semibold : .medium)
+    let activeColor = NativeTheme.tabActive
+    let labelInactive = menuRow
+      ? NativeTheme.foreground
+      : blend(NativeTheme.tabInactive, NativeTheme.foreground, m)
+    let iconInactive = menuRow
+      ? NativeTheme.tabInactive
+      : blend(NativeTheme.tabInactive, NativeTheme.secondary, m)
+    label.textColor = active ? activeColor : labelInactive
+    iconView.tintColor = active ? activeColor : iconInactive
+
+    let sideInset = 8 + 50 * m
+    let available = max(0, bounds.width - sideInset * 2)
+    let textWidth = min(max(0, label.intrinsicContentSize.width), available)
+    let compactX = bounds.midX - textWidth / 2
+    let rowX: CGFloat = 58
+    let x = compactX + (rowX - compactX) * m
+    let compactY: CGFloat = 53
+    let y = compactY + (bounds.midY - compactY) * m
+    label.frame = CGRect(x: x, y: y - 10, width: textWidth, height: 20)
+    accessibilityTraits = active ? [.button, .selected] : .button
+  }
+
+  private func blend(_ from: UIColor, _ to: UIColor, _ amount: CGFloat) -> UIColor {
+    let a = from.resolvedColor(with: traitCollection)
+    let b = to.resolvedColor(with: traitCollection)
+    var ar: CGFloat = 0, ag: CGFloat = 0, ab: CGFloat = 0, aa: CGFloat = 0
+    var br: CGFloat = 0, bg: CGFloat = 0, bb: CGFloat = 0, ba: CGFloat = 0
+    a.getRed(&ar, green: &ag, blue: &ab, alpha: &aa)
+    b.getRed(&br, green: &bg, blue: &bb, alpha: &ba)
+    let t = max(0, min(1, amount))
+    return UIColor(red: ar + (br - ar) * t,
+                   green: ag + (bg - ag) * t,
+                   blue: ab + (bb - ab) * t,
+                   alpha: aa + (ba - aa) * t)
   }
 }
