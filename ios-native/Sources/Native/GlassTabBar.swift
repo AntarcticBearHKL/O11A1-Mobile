@@ -26,7 +26,7 @@ final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
   private let selectionFeedback = UISelectionFeedbackGenerator()
   private let barRadius: CGFloat = NativeTheme.cornerRadius
   private let compactHeight: CGFloat = 72
-  private let listRowHeight: CGFloat = 52
+  private let listRowHeight: CGFloat = 60
   private let expansionDuration: CFTimeInterval = 0.52
   private var expandedHeight: CGFloat { listRowHeight * CGFloat(items.count) }
 
@@ -491,18 +491,21 @@ private final class TabItemView: UIControl {
     super.layoutSubviews()
     guard bounds.width > 1, bounds.height > 1 else { return }
     let m = max(0, min(1, morph))
-    let iconSize = 19 + 3 * m
-    let compactIcon = CGPoint(x: bounds.midX, y: 26)
-    let rowIcon = CGPoint(x: 33, y: bounds.midY)
+    let iconSize: CGFloat = 24
+    let gap: CGFloat = 10
+    label.font = UIFont.systemFont(ofSize: 18,
+                                   weight: active ? .semibold : .medium)
+    let textWidth = max(1, label.intrinsicContentSize.width)
+    let groupWidth = iconSize + gap + textWidth
+    let groupX = max(0, (bounds.width - groupWidth) / 2)
+    let compactIcon = CGPoint(x: bounds.midX, y: bounds.midY)
+    let rowIcon = CGPoint(x: groupX + iconSize / 2, y: bounds.midY)
     iconView.bounds = CGRect(x: 0, y: 0, width: iconSize, height: iconSize)
     iconView.center = CGPoint(
       x: compactIcon.x + (rowIcon.x - compactIcon.x) * m,
       y: compactIcon.y + (rowIcon.y - compactIcon.y) * m
     )
 
-    let fontSize: CGFloat = 15
-    label.font = UIFont.systemFont(ofSize: fontSize,
-                                   weight: active ? .semibold : .medium)
     let activeColor = NativeTheme.tabActive
     let labelInactive = menuRow
       ? NativeTheme.foreground
@@ -513,14 +516,13 @@ private final class TabItemView: UIControl {
     label.textColor = active ? activeColor : labelInactive
     iconView.tintColor = active ? activeColor : iconInactive
 
-    let textWidth = max(1, label.intrinsicContentSize.width)
-    let compactX = bounds.midX - textWidth / 2
-    let rowX: CGFloat = 58
-    let x = compactX + (rowX - compactX) * m
-    let compactY: CGFloat = 53
-    let y = compactY + (bounds.midY - compactY) * m
-    label.frame = CGRect(x: x, y: y - 10, width: textWidth, height: 20)
-    let scale = 10.0 / fontSize + (1 - 10.0 / fontSize) * m
+    label.textAlignment = .center
+    label.frame = CGRect(x: groupX + iconSize + gap,
+                         y: bounds.midY - 11,
+                         width: textWidth, height: 22)
+    let reveal = max(0, min(1, (m - 0.08) / 0.6))
+    label.alpha = reveal * reveal * (3 - 2 * reveal)
+    let scale = 0.9 + 0.1 * m
     label.transform = CGAffineTransform(scaleX: scale, y: scale)
     accessibilityTraits = active ? [.button, .selected] : .button
   }
