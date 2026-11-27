@@ -171,7 +171,7 @@ final class MiniVideoCardView: UIView {
       info.trailingAnchor.constraint(equalTo: trailingAnchor),
       info.topAnchor.constraint(equalTo: mediaHost.bottomAnchor),
       info.bottomAnchor.constraint(equalTo: bottomAnchor),
-      info.heightAnchor.constraint(equalToConstant: 76),
+      info.heightAnchor.constraint(equalToConstant: HomeGridCell.infoHeight),
 
       avatar.leadingAnchor.constraint(equalTo: info.leadingAnchor, constant: 9),
       avatar.centerYAnchor.constraint(equalTo: info.centerYAnchor),
@@ -276,6 +276,10 @@ final class MiniVideoCardView: UIView {
 
 final class HomeGridCell: UITableViewCell {
   static let reuseID = "HomeGridCell"
+  static let sideInset: CGFloat = 4
+  static let columnSpacing: CGFloat = 4
+  static let verticalInset: CGFloat = 2
+  static let infoHeight: CGFloat = 76
 
   let leftCard = MiniVideoCardView()
   private let rightCard = MiniVideoCardView()
@@ -295,14 +299,14 @@ final class HomeGridCell: UITableViewCell {
     row.axis = .horizontal
     row.distribution = .fillEqually
     row.alignment = .fill
-    row.spacing = 4
+    row.spacing = HomeGridCell.columnSpacing
     contentView.addSubview(row)
     row.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      row.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 4),
-      row.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -4),
-      row.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 2),
-      row.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -2),
+      row.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: HomeGridCell.sideInset),
+      row.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -HomeGridCell.sideInset),
+      row.topAnchor.constraint(equalTo: contentView.topAnchor, constant: HomeGridCell.verticalInset),
+      row.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -HomeGridCell.verticalInset),
     ])
 
     leftCard.onOpen = { [weak self] in

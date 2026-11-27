@@ -295,6 +295,7 @@ final class FeedViewController: UIViewController,
   }
 
   private func finish(_ values: [VideoItem], reset: Bool) {
+    let oldCount = items.count
     if reset {
       items = values
     } else {
@@ -311,10 +312,65 @@ final class FeedViewController: UIViewController,
       statusLabel.text = "\(sourceTitle)暂时没有内容\n轻触屏幕重试"
       statusLabel.isHidden = false
     }
-    table.reloadData()
+    if reset {
+      table.reloadData()
+    } else if items.count != oldCount {
+      appendLoadedRows(from: oldCount)
+    }
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
       self.startPreviewIfNeeded()
+      self.loadMoreIfNeeded()
     }
+  }
+
+  /// Appending a page keeps every visible cell alive and only touches the rows
+  /// the new items belong to, so the grid grows without a table-wide reload.
+  private func appendLoadedRows(from oldCount: Int) {
+    let newCount = items.count
+    guard newCount > oldCount else { return }
+    if HomeFeedLayout.isGrid {
+      let oldRows = (oldCount + 1) / 2
+      let newRows = (newCount + 1) / 2
+      guard oldRows > 0 else {
+        table.reloadData()
+        return
+      }
+      var reloadPaths: [IndexPath] = []
+      if oldCount % 2 == 1 {
+        reloadPaths.append(IndexPath(row: oldRows - 1, section: 0))
+      }
+      var insertPaths: [IndexPath] = []
+      if newRows > oldRows {
+        for row in oldRows..<newRows {
+          insertPaths.append(IndexPath(row: row, section: 0))
+        }
+      }
+      guard !reloadPaths.isEmpty || !insertPaths.isEmpty else { return }
+      table.performBatchUpdates {
+        if !reloadPaths.isEmpty {
+          self.table.reloadRows(at: reloadPaths, with: .none)
+        }
+        if !insertPaths.isEmpty {
+          self.table.insertRows(at: insertPaths, with: .none)
+        }
+      }
+    } else {
+      var insertPaths: [IndexPath] = []
+      for row in oldCount..<newCount {
+        insertPaths.append(IndexPath(row: row, section: 0))
+      }
+      guard !insertPaths.isEmpty else { return }
+      table.performBatchUpdates {
+        self.table.insertRows(at: insertPaths, with: .none)
+      }
+    }
+  }
+
+  private func loadMoreIfNeeded() {
+    guard !loading, hasMore, !searchOpen, !items.isEmpty else { return }
+    let threshold = table.contentSize.height - table.bounds.height * 2.2
+    guard table.contentOffset.y > threshold else { return }
+    load(reset: false)
   }
 
   private func showEmpty(_ text: String) {
@@ -340,8 +396,13 @@ final class FeedViewController: UIViewController,
 
   func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
     guard HomeFeedLayout.isGrid else { return UITableView.automaticDimension }
-    let cardWidth = max(1, tableView.bounds.width - 36) / 2
-    return 9 + cardWidth * 9.0 / 16.0 + 76 + 9
+    let available = tableView.bounds.width
+      - HomeGridCell.sideInset * 2
+      - HomeGridCell.columnSpacing
+    let cardWidth = max(1, available / 2)
+    return HomeGridCell.verticalInset * 2
+      + cardWidth * 9.0 / 16.0
+      + HomeGridCell.infoHeight
   }
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -395,6 +456,7 @@ final class FeedViewController: UIViewController,
     table.reloadData()
     table.layoutIfNeeded()
     startPreviewIfNeeded()
+    loadMoreIfNeeded()
   }
 
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -409,9 +471,7 @@ final class FeedViewController: UIViewController,
       }
     }
     lastOffset = scrollView.contentOffset.y
-    if scrollView.contentOffset.y > scrollView.contentSize.height - scrollView.bounds.height * 2.2 {
-      load(reset: false)
-    }
+    loadMoreIfNeeded()
   }
 
   func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
