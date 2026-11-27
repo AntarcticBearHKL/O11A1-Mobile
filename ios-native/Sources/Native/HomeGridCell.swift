@@ -295,14 +295,14 @@ final class HomeGridCell: UITableViewCell {
     row.axis = .horizontal
     row.distribution = .fillEqually
     row.alignment = .fill
-    row.spacing = 5
+    row.spacing = 4
     contentView.addSubview(row)
     row.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      row.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 6),
-      row.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -6),
-      row.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 3),
-      row.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -3),
+      row.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 4),
+      row.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -4),
+      row.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 2),
+      row.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -2),
     ])
 
     leftCard.onOpen = { [weak self] in
