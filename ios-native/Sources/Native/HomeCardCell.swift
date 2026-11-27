@@ -328,6 +328,25 @@ final class HomeCardCell: UITableViewCell {
   }
 
   func showPreviewLoading() {
+    previewLoadingLabel.text = "正在连接"
+    previewLoading.isHidden = false
+    previewSpinner.startAnimating()
+  }
+
+  func applyPreviewLoading(_ status: VideoLoadStatus) {
+    guard status.isActive else {
+      hidePreviewLoading()
+      return
+    }
+    switch status.phase {
+    case .connecting:
+      previewLoadingLabel.text = "正在连接"
+    case .buffering:
+      previewLoadingLabel.text = VideoLoadingView.speedText(status.bytesPerSecond)
+    case .playing, .idle:
+      hidePreviewLoading()
+      return
+    }
     previewLoading.isHidden = false
     previewSpinner.startAnimating()
   }

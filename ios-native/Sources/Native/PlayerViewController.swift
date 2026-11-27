@@ -19,6 +19,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let backdrop = UIImageView()
   private let backdropHost = UIView()
   private let backdropVideo = UIView()
+  private let loadingView = VideoLoadingView()
   private lazy var backdropLayer: AVPlayerLayer = {
     let layer = AVPlayerLayer(player: engine.player)
     layer.videoGravity = .resizeAspectFill
@@ -226,6 +227,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     pausedGradient.endPoint = CGPoint(x: 1, y: 1)
     pausedVeil.layer.addSublayer(pausedGradient)
     videoContainer.addSubview(pausedVeil)
+
+    loadingView.translatesAutoresizingMaskIntoConstraints = false
+    videoContainer.addSubview(loadingView)
+    NSLayoutConstraint.activate([
+      loadingView.centerXAnchor.constraint(equalTo: videoContainer.centerXAnchor),
+      loadingView.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor),
+    ])
 
     dim.backgroundColor = UIColor.black.withAlphaComponent(0.18)
     dim.isUserInteractionEnabled = false
@@ -568,6 +576,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     engine.onError = { [weak self] message in
       guard let self = self else { return }
+      self.loadingView.hide()
       self.handoffLowReady = true
       self.errorLabel.text = message
       self.errorLabel.isHidden = false
@@ -576,6 +585,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         self.prepareQualityUpgrade(source)
       }
     }
+    engine.onLoadStatus = { [weak self] status in
+      self?.applyLoadStatus(status)
+    }
+    engine.refreshLoadStatus()
     engine.onPipClose = { [weak self] in
       self?.closeFromPip()
     }
@@ -732,6 +745,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       stopProgressLink()
       progressTick()
     }
+  }
+
+  private func applyLoadStatus(_ status: VideoLoadStatus) {
+    guard status.isActive, !closing else {
+      loadingView.hide()
+      return
+    }
+    loadingView.apply(status)
   }
 
   private func startProgressLink() {
@@ -1162,6 +1183,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       upgradeGeneration += 1
       upgradeEngine?.stop()
     }
+    if !upgrade {
+      applyLoadStatus(VideoLoadStatus(phase: .connecting, bytesPerSecond: 0))
+    }
     if item.roomId > 0 {
       qualityLabel.text = "LIVE"
       wheel.isHidden = true
@@ -1187,6 +1211,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             loop: false
           )
         case .failure(let error):
+          self.loadingView.hide()
           self.errorLabel.text = error.localizedDescription
           self.errorLabel.isHidden = false
         }
@@ -1225,6 +1250,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         } else if qn > 32 {
           self.loadQuality(32)
         } else {
+          self.loadingView.hide()
           self.errorLabel.text = "无法获取播放地址"
           self.errorLabel.isHidden = false
         }
@@ -1298,6 +1324,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     previous.onPlaying = nil
     previous.onReady = nil
     previous.onError = nil
+    previous.onLoadStatus = nil
     previous.onPipClose = nil
     previous.onPipRestore = nil
     previous.pause()
@@ -1305,6 +1332,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     previous.stop()
     engine = upgrade
     upgrade.setLoop(loopOn)
+    upgrade.onLoadStatus = { [weak self] status in
+      self?.applyLoadStatus(status)
+    }
+    loadingView.hide()
     backdropLayer.player = upgrade.player
     poster.isHidden = true
     errorLabel.isHidden = true
@@ -1896,6 +1927,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     stopLiveChat()
     stopProgressLink()
     cancelUpgradePreload()
+    loadingView.hide()
     engine.stop()
     engine.stopPip()
     if animated {

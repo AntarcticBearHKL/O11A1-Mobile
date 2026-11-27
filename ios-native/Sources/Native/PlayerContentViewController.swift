@@ -119,13 +119,9 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     super.viewDidLayoutSubviews()
     host.frame = view.bounds
     let safeBottom = view.safeAreaInsets.bottom
-    let dockWidth: CGFloat = 304
-    tabDock.frame = CGRect(
-      x: (view.bounds.width - dockWidth) / 2,
-      y: view.bounds.height - safeBottom - 28 - 66,
-      width: dockWidth,
-      height: 66
-    )
+    let normalDock = dockFrame(safeBottom: safeBottom)
+    tabDock.bounds = CGRect(origin: .zero, size: normalDock.size)
+    tabDock.center = CGPoint(x: normalDock.midX, y: normalDock.midY)
     tabDock.layer.shadowPath = UIBezierPath(
       roundedRect: tabDock.bounds,
       cornerRadius: NativeTheme.cornerRadius).cgPath
@@ -144,6 +140,17 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     for child in [detail?.view, comments?.view, related?.view] {
       child?.frame = host.bounds
     }
+  }
+
+  private func dockFrame(safeBottom: CGFloat? = nil) -> CGRect {
+    let dockWidth: CGFloat = 304
+    let bottom = safeBottom ?? view.safeAreaInsets.bottom
+    return CGRect(
+      x: (view.bounds.width - dockWidth) / 2,
+      y: view.bounds.height - bottom - 28 - 66,
+      width: dockWidth,
+      height: 66
+    )
   }
 
   override func traitCollectionDidChange(_ previous: UITraitCollection?) {
@@ -340,18 +347,19 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
   private func setDockHidden(_ hidden: Bool, animated: Bool) {
     dockHidden = hidden
     tabDock.isUserInteractionEnabled = !hidden
-    let distance = tabDock.bounds.height + 28
+    tabDock.alpha = 1
+    let normal = dockFrame()
+    let distance = max(120, view.bounds.height - normal.minY + 16)
     let transform = hidden
       ? CGAffineTransform(translationX: 0, y: distance)
       : .identity
     let changes = {
       self.tabDock.transform = transform
-      self.tabDock.alpha = hidden ? 0 : 1
     }
     if animated {
-      UIView.animate(withDuration: 0.75, delay: 0,
-                     usingSpringWithDamping: 0.9,
-                     initialSpringVelocity: 0.2,
+      UIView.animate(withDuration: 0.5, delay: 0,
+                     usingSpringWithDamping: 0.92,
+                     initialSpringVelocity: 0.15,
                      options: [.allowUserInteraction, .beginFromCurrentState],
                      animations: changes)
     } else {

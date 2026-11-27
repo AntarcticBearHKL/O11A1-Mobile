@@ -469,6 +469,7 @@ final class FeedViewController: UIViewController,
     previewEngine.onPlaying = nil
     previewEngine.onReady = nil
     previewEngine.onError = nil
+    previewEngine.onLoadStatus = nil
     previewEngine.onPipClose = nil
     previewEngine.onPipRestore = nil
     return PreviewHandoff(
@@ -529,7 +530,6 @@ final class FeedViewController: UIViewController,
     previewEngine.playerLayer.videoGravity = .resizeAspectFill
     previewEngine.onReady = { [weak self] in
       guard let self = self, !self.previewSuspended else { return }
-      self.previewCell?.hidePreviewLoading()
       self.previewView.alpha = 1
       self.previewEngine.play()
     }
@@ -539,6 +539,10 @@ final class FeedViewController: UIViewController,
       self?.previewItemKey = ""
       self?.previewView.alpha = 0
       self?.previewCell?.setPreviewProgress(nil)
+    }
+    previewEngine.onLoadStatus = { [weak self] status in
+      guard let self = self, !self.previewSuspended else { return }
+      self.previewCell?.applyPreviewLoading(status)
     }
     previewEngine.onTime = { [weak self] seconds, duration in
       guard let self = self, !self.previewSuspended, !self.previewScrubbing,

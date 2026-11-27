@@ -1,6 +1,23 @@
 import AVFoundation
 import AVKit
+import QuartzCore
 import UIKit
+
+struct VideoLoadStatus {
+  enum Phase {
+    case connecting
+    case buffering
+    case playing
+    case idle
+  }
+
+  var phase: Phase
+  var bytesPerSecond: Double
+
+  var isActive: Bool {
+    phase == .connecting || phase == .buffering
+  }
+}
 
 final class VideoEngine: NSObject {
   let player = AVPlayer()
@@ -10,6 +27,7 @@ final class VideoEngine: NSObject {
   var onPlaying: ((Bool) -> Void)?
   var onReady: (() -> Void)?
   var onError: ((String) -> Void)?
+  var onLoadStatus: ((VideoLoadStatus) -> Void)?
   var onPipClose: (() -> Void)?
   var onPipRestore: (() -> Void)?
 
@@ -29,6 +47,12 @@ final class VideoEngine: NSObject {
   private var startAt: Double = 0
   private var headers: [String: String] = [:]
   private var restoringFromPip = false
+  private var loadPhase: VideoLoadStatus.Phase = .idle
+  private var speedTimer: Timer?
+  private var lastBytes: Double = 0
+  private var hasBytesSample = false
+  private var lastSpeedSample: CFTimeInterval = 0
+  private var smoothedSpeed: Double = 0
 
   override init() {
     playerLayer = AVPlayerLayer(player: player)
@@ -57,6 +81,7 @@ final class VideoEngine: NSObject {
     }
     statusObservation?.invalidate()
     rateObservation?.invalidate()
+    speedTimer?.invalidate()
   }
 
   var isPlaying: Bool {
@@ -111,6 +136,8 @@ final class VideoEngine: NSObject {
       NotificationCenter.default.removeObserver(observer)
       endObserver = nil
     }
+    resetSpeed()
+    publish(.connecting)
     let asset = AVURLAsset(url: mediaURL, options: [
       "AVURLAssetHTTPHeaderFieldsKey": headers,
       "AVURLAssetAllowsExpensiveNetworkAccess": true,
@@ -124,6 +151,7 @@ final class VideoEngine: NSObject {
       if observed.status == .readyToPlay {
         NSLog("[O11A1] media ready duration=%.1f", observed.duration.seconds)
         DispatchQueue.main.async {
+          self.publish(.buffering)
           self.onReady?()
           if self.startAt > 0 {
             self.player.seek(
@@ -140,6 +168,7 @@ final class VideoEngine: NSObject {
       } else if observed.status == .failed {
         NSLog("[O11A1] media failed %@", observed.error?.localizedDescription ?? "?")
         DispatchQueue.main.async {
+          self.publish(.idle)
           if !self.didRetryBackup, !self.backupURL.isEmpty, self.backupURL != self.loadedURL {
             self.didRetryBackup = true
             self.install(url: self.backupURL)
@@ -176,9 +205,96 @@ final class VideoEngine: NSObject {
     }
     rateObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
       DispatchQueue.main.async {
-        self?.onPlaying?(player.timeControlStatus == .playing)
+        guard let self = self else { return }
+        self.onPlaying?(player.timeControlStatus == .playing)
+        self.refreshLoadPhase()
       }
     }
+  }
+
+  func refreshLoadStatus() {
+    refreshLoadPhase()
+  }
+
+  private func refreshLoadPhase() {
+    guard let item = player.currentItem else {
+      if loadPhase != .idle { publish(.idle) }
+      return
+    }
+    switch player.timeControlStatus {
+    case .playing:
+      if loadPhase != .playing { publish(.playing) }
+    case .waitingToPlayAtSpecifiedRate:
+      publish(item.status == .readyToPlay ? .buffering : .connecting)
+    case .paused:
+      if item.status != .readyToPlay {
+        if loadPhase != .connecting { publish(.connecting) }
+      } else if loadPhase == .buffering || loadPhase == .connecting {
+        publish(.idle)
+      }
+    @unknown default:
+      break
+    }
+  }
+
+  private func publish(_ phase: VideoLoadStatus.Phase) {
+    loadPhase = phase
+    if phase == .buffering {
+      startSpeedTimer()
+    } else {
+      stopSpeedTimer()
+    }
+    let speed = phase == .buffering ? smoothedSpeed : 0
+    onLoadStatus?(VideoLoadStatus(phase: phase, bytesPerSecond: speed))
+  }
+
+  private func resetSpeed() {
+    stopSpeedTimer()
+    lastBytes = 0
+    hasBytesSample = false
+    lastSpeedSample = 0
+    smoothedSpeed = 0
+  }
+
+  private func startSpeedTimer() {
+    guard speedTimer == nil else { return }
+    let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
+      self?.sampleSpeed()
+    }
+    RunLoop.main.add(timer, forMode: .common)
+    speedTimer = timer
+    sampleSpeed()
+  }
+
+  private func stopSpeedTimer() {
+    speedTimer?.invalidate()
+    speedTimer = nil
+  }
+
+  private func sampleSpeed() {
+    guard loadPhase == .buffering, let item = player.currentItem else { return }
+    let now = CACurrentMediaTime()
+    var instant: Double = 0
+    if let event = item.accessLog()?.events.last {
+      let bytes = Double(event.numberOfBytesTransferred)
+      if bytes > 0 {
+        if hasBytesSample, now > lastSpeedSample, bytes >= lastBytes {
+          instant = (bytes - lastBytes) / (now - lastSpeedSample)
+        }
+        lastBytes = bytes
+        hasBytesSample = true
+      }
+      if instant <= 0, event.observedBitrate > 0 {
+        instant = Double(event.observedBitrate) / 8.0
+      }
+    }
+    lastSpeedSample = now
+    if instant > 0 {
+      smoothedSpeed = smoothedSpeed > 0
+        ? smoothedSpeed * 0.62 + instant * 0.38
+        : instant
+    }
+    onLoadStatus?(VideoLoadStatus(phase: loadPhase, bytesPerSecond: smoothedSpeed))
   }
 
   func play() {
@@ -259,6 +375,8 @@ final class VideoEngine: NSObject {
     player.pause()
     player.replaceCurrentItem(with: nil)
     shouldAutoplay = false
+    resetSpeed()
+    publish(.idle)
   }
 
   fileprivate func pipWillRestore() {
