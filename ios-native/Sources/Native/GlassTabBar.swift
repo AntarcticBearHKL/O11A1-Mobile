@@ -380,8 +380,12 @@ final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
     guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
     let velocity = pan.velocity(in: self)
     let translation = pan.translation(in: self)
-    return abs(translation.y) > abs(translation.x) * 1.15
-      || abs(velocity.y) > abs(velocity.x) * 1.15
+    let vertical = abs(translation.y)
+    let horizontal = abs(translation.x)
+    let verticalVelocity = abs(velocity.y)
+    let horizontalVelocity = abs(velocity.x)
+    guard vertical > 4 || verticalVelocity > 90 else { return false }
+    return vertical > horizontal * 1.15 || verticalVelocity > horizontalVelocity * 1.15
   }
 
   private func bounce(_ item: TabItemView) {

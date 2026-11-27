@@ -115,7 +115,7 @@ jobs:
           sleep 20
           xcrun simctl io "$DEVICE_ID" screenshot artifacts/ios-native-player.png
           xcrun simctl terminate "$DEVICE_ID" com.o11a1.videotest 2>/dev/null || true
-          for FLOW in my modules fish login; do
+          for FLOW in toolbar my modules fish login; do
             SIMCTL_CHILD_O11A1_TEST_FLOW="$FLOW" xcrun simctl launch "$DEVICE_ID" com.o11a1.videotest
             sleep 10
             xcrun simctl io "$DEVICE_ID" screenshot "artifacts/ios-$FLOW.png" || true
