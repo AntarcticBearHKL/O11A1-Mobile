@@ -45,12 +45,6 @@ final class ProgressWheel: UIControl {
     let total = max(0, durationSeconds)
     let centerTime = max(0, min(total, progress * total))
 
-    let chipColor = light
-      ? UIColor(white: 0, alpha: 0.063)
-      : UIColor(red: 42.0 / 255.0, green: 42.0 / 255.0, blue: 51.0 / 255.0, alpha: 1)
-    let borderColor = light
-      ? UIColor(white: 0, alpha: 0.12)
-      : UIColor(red: 58.0 / 255.0, green: 58.0 / 255.0, blue: 68.0 / 255.0, alpha: 0.80)
     let accentColor = light
       ? UIColor(red: 0.0 / 255.0, green: 95.0 / 255.0, blue: 184.0 / 255.0, alpha: 1)
       : UIColor(red: 62.0 / 255.0, green: 166.0 / 255.0, blue: 255.0 / 255.0, alpha: 1)
@@ -65,15 +59,6 @@ final class ProgressWheel: UIControl {
       : UIColor(red: 1.0, green: 112.0 / 255.0, blue: 102.0 / 255.0, alpha: 1)
 
     let outer = bounds
-    let card = UIBezierPath(roundedRect: outer, cornerRadius: 10)
-    chipColor.setFill()
-    card.fill()
-    let borderRect = outer.insetBy(dx: 0.5, dy: 0.5)
-    let border = UIBezierPath(roundedRect: borderRect, cornerRadius: 9.5)
-    borderColor.setStroke()
-    border.lineWidth = 1
-    border.stroke()
-
     let centreX = outer.midX
     let band = CGRect(x: centreX - 24, y: 2, width: 48, height: max(0, outer.height - 4))
     accentColor.withAlphaComponent(0.16).setFill()

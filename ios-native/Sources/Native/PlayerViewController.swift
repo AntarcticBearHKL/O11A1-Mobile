@@ -113,7 +113,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var controlsTimer: Timer?
   private var lastPlayingState = false
   private let panelSlideDistance: CGFloat = 28
-  private let playerPanelHeight: CGFloat = 112
+  private let playerPanelHeight: CGFloat = 88
   private let focusedPanelLift: CGFloat = 30
   private let panelShowDuration: TimeInterval = 0.26
   private let panelHideDuration: TimeInterval = 0.28
@@ -260,7 +260,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     playButton.addTarget(self, action: #selector(togglePlay), for: .touchUpInside)
     view.addSubview(playButton)
 
-    bottomPanel.layer.cornerRadius = NativeTheme.cornerRadius
+    bottomPanel.layer.cornerRadius = 2
     bottomPanel.layer.cornerCurve = .continuous
     bottomPanel.clipsToBounds = true
     bottomPanel.layer.borderWidth = 1
@@ -431,15 +431,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       ownerButton.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
       ownerButton.centerYAnchor.constraint(equalTo: ownerLabel.centerYAnchor),
 
-      wheel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
-      wheel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
-      wheel.topAnchor.constraint(equalTo: content.topAnchor, constant: 52),
-      wheel.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -12),
+      wheel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 6),
+      wheel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -6),
+      wheel.topAnchor.constraint(equalTo: content.topAnchor, constant: 32),
+      wheel.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -6),
 
-      grid.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
-      grid.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
-      grid.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
-      grid.heightAnchor.constraint(equalToConstant: 30),
+      grid.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 6),
+      grid.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -6),
+      grid.topAnchor.constraint(equalTo: content.topAnchor, constant: 6),
+      grid.heightAnchor.constraint(equalToConstant: 22),
 
       qualityLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
       qualityLabel.topAnchor.constraint(equalTo: wheel.bottomAnchor, constant: 2),
@@ -865,7 +865,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     danmakuOverlay.frame = lerpRect(full, videoRect, p)
 
     let panelHeight: CGFloat = playerPanelHeight
-    let panelWidth = max(1, full.width - 24)
+    let panelWidth = max(1, full.width)
     let centerPanelY = full.height - view.safeAreaInsets.bottom - panelHeight
       - 18 - focusedPanelLift
     let topPanelY = max(0, videoRect.maxY - panelHeight - 8)
@@ -1097,7 +1097,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       layoutVideoSubviews()
       danmakuOverlay.frame = full
       let panelHeight: CGFloat = playerPanelHeight
-      let panelWidth = min(560, full.width - 32)
+      let panelWidth = full.width
       let panelY = full.height - view.safeAreaInsets.bottom - panelHeight - 6
       bottomPanel.bounds = CGRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
       bottomPanel.center = CGPoint(x: full.midX, y: panelY + panelHeight / 2)
