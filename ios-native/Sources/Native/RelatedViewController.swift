@@ -14,6 +14,7 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
   private let table = UITableView(frame: .zero, style: .plain)
   private let headerTitle = UILabel()
   private let headerBar = UIView()
+  private let headerBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let status = UILabel()
   private var items: [VideoItem] = []
   private var dismissPan: UIPanGestureRecognizer?
@@ -66,7 +67,7 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
     ])
 
     if embedded {
-      headerBar.backgroundColor = NativeTheme.surface
+      headerBar.backgroundColor = .clear
       view.addSubview(headerBar)
       headerBar.translatesAutoresizingMaskIntoConstraints = false
       NSLayoutConstraint.activate([
@@ -74,6 +75,17 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
         headerBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         headerBar.topAnchor.constraint(equalTo: view.topAnchor),
         headerBar.heightAnchor.constraint(equalToConstant: 48),
+      ])
+      headerBlur.isUserInteractionEnabled = false
+      headerBlur.clipsToBounds = true
+      headerBlur.contentView.backgroundColor = NativeTheme.glassWhite
+      headerBar.addSubview(headerBlur)
+      headerBlur.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        headerBlur.leadingAnchor.constraint(equalTo: headerBar.leadingAnchor),
+        headerBlur.trailingAnchor.constraint(equalTo: headerBar.trailingAnchor),
+        headerBlur.topAnchor.constraint(equalTo: headerBar.topAnchor),
+        headerBlur.bottomAnchor.constraint(equalTo: headerBar.bottomAnchor),
       ])
       view.bringSubviewToFront(headerTitle)
     }

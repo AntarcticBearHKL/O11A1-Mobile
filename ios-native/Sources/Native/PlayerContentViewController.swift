@@ -78,6 +78,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     tabBlur.layer.cornerRadius = NativeTheme.cornerRadius
     tabBlur.layer.cornerCurve = .continuous
     tabBlur.clipsToBounds = true
+    tabBlur.contentView.backgroundColor = NativeTheme.glassWhite
     tabDock.addSubview(tabBlur)
     tabBlur.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
@@ -116,7 +117,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     let dockWidth: CGFloat = 304
     tabDock.frame = CGRect(
       x: (view.bounds.width - dockWidth) / 2,
-      y: view.bounds.height - safeBottom - 16 - 66,
+      y: view.bounds.height - safeBottom - 28 - 66,
       width: dockWidth,
       height: 66
     )

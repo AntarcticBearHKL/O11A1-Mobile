@@ -298,7 +298,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     searchButton.isHidden = false
     avatarButton.isHidden = false
     setTopChromeHidden(false, animated: true)
-    tabBar.select(index: index, notify: false)
+    if tabBar.selectedIndex != index {
+      tabBar.select(index: index, notify: false)
+    }
     let controller: UIViewController
     switch index {
     case 0:
@@ -328,7 +330,10 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       if fish == nil { fish = AIViewController() }
       controller = fish!
     }
-    showChild(controller)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+      guard let self = self, self.tabBar.selectedIndex == index else { return }
+      self.showChild(controller)
+    }
   }
 
   private func showChild(_ controller: UIViewController) {

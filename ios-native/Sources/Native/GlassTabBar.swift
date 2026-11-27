@@ -34,6 +34,7 @@ final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
   private var expansion: CGFloat = 0
   private var dragStartExpansion: CGFloat = 0
   private var pillAnimating = false
+  private var pillGeneration = 0
   private var displayLink: CADisplayLink?
   private var animationStart: CFTimeInterval = 0
   private var animationFrom: CGFloat = 0
@@ -231,6 +232,7 @@ final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
 
   private func applyExpansion(_ value: CGFloat) {
     if pillAnimating {
+      pillGeneration += 1
       pillAnimating = false
       pill.layer.removeAllAnimations()
     }
@@ -307,9 +309,13 @@ final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
     let target = pillFrame(for: selectedIndex, morph: expansion,
                            width: contentClip.bounds.width)
     let radius = barRadius + (12 - barRadius) * expansion
+    pillGeneration += 1
+    let generation = pillGeneration
     if animated && displayLink == nil {
       pillAnimating = true
+      let current = pill.layer.presentation()?.frame ?? pill.frame
       pill.layer.removeAllAnimations()
+      pill.frame = current
       UIView.animate(withDuration: 0.38, delay: 0,
                      usingSpringWithDamping: 0.82,
                      initialSpringVelocity: 0.5,
@@ -317,11 +323,14 @@ final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
         self.pill.frame = target
         self.pill.layer.cornerRadius = radius
       } completion: { _ in
+        guard generation == self.pillGeneration else { return }
         self.pillAnimating = false
         self.pill.frame = target
         self.pill.layer.cornerRadius = radius
       }
     } else {
+      pillAnimating = false
+      pill.layer.removeAllAnimations()
       pill.frame = target
       pill.layer.cornerRadius = radius
     }

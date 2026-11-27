@@ -113,6 +113,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
         headerBar.heightAnchor.constraint(equalToConstant: 56),
       ])
       headerBlur.isUserInteractionEnabled = false
+      headerBlur.contentView.backgroundColor = NativeTheme.glassWhite
       headerBar.addSubview(headerBlur)
       headerBlur.translatesAutoresizingMaskIntoConstraints = false
       NSLayoutConstraint.activate([
