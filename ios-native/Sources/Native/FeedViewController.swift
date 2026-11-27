@@ -95,7 +95,7 @@ final class FeedViewController: UIViewController,
 
     previewEngine.playerLayer.videoGravity = .resizeAspectFill
     previewEngine.onReady = { [weak self] in
-      guard let self = self else { return }
+      guard let self = self, !self.previewSuspended else { return }
       self.previewView.alpha = 1
       self.previewEngine.play()
     }
@@ -436,7 +436,7 @@ final class FeedViewController: UIViewController,
   // MARK: - preview
 
   private func startPreviewIfNeeded() {
-    guard !searchOpen, !items.isEmpty else { return }
+    guard !previewSuspended, !searchOpen, !items.isEmpty else { return }
     if HomeFeedLayout.isGrid {
       previewEngine.pause()
       previewView.alpha = 0
