@@ -79,6 +79,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let volumeView = MPVolumeView()
   private var volumeSlider: UISlider?
   private var progressLink: CADisplayLink?
+  private var contentClosePan: UIPanGestureRecognizer?
   private var previewHandoff: PreviewHandoff?
   private var upgradeEngine: VideoEngine?
   private var upgradeView: PlayerLayerView?
@@ -477,6 +478,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
     pan.delegate = self
     view.addGestureRecognizer(pan)
+
+    let closePan = UIPanGestureRecognizer(
+      target: self, action: #selector(handleContentClosePan(_:)))
+    closePan.delegate = self
+    closePan.cancelsTouchesInView = false
+    view.addGestureRecognizer(closePan)
+    contentClosePan = closePan
 
     longPressHost.backgroundColor = .clear
     view.insertSubview(longPressHost, belowSubview: bottomPanel)
@@ -958,14 +966,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     content.onPullDown = { [weak self] progress in self?.commentsPull(progress) }
     content.onPullDownEnded = { [weak self] complete in
       self?.commentsPullEnded(complete)
-    }
-    content.onSwipeRightToClose = { [weak self] in self?.closeFromRightSwipe() }
-    content.onSwipeRightBegan = { [weak self] in self?.beginHorizontalClose() }
-    content.onSwipeRightChanged = { [weak self] progress in
-      self?.updateHorizontalClose(progress)
-    }
-    content.onSwipeRightEnded = { [weak self] close in
-      self?.finishHorizontalClose(close)
     }
     addChild(content)
     content.view.frame = .zero
@@ -1463,6 +1463,23 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
   }
 
+  @objc private func handleContentClosePan(_ gesture: UIPanGestureRecognizer) {
+    let width = max(1, view.bounds.width)
+    let translation = gesture.translation(in: view)
+    switch gesture.state {
+    case .began:
+      beginHorizontalClose()
+    case .changed:
+      updateHorizontalClose(max(0, min(1, translation.x / width)))
+    case .ended, .cancelled:
+      guard horizontalCloseActive else { return }
+      let velocity = gesture.velocity(in: view).x
+      finishHorizontalClose(translation.x > width * 0.22 || velocity > 380)
+    default:
+      break
+    }
+  }
+
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
     if portraitShrinking { return }
     let reference = view.superview ?? view
@@ -1503,8 +1520,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       let velocity = gesture.velocity(in: videoContainer)
       if abs(velocity.x) > abs(velocity.y) && abs(velocity.x) > 80 {
         panDirectionDecided = true
-        closeSwipe = velocity.x > 0 && !isLandscapePlayer
-          && portraitStageIsTop && portraitTransition > 0.98
       }
     case .changed:
       if !panDirectionDecided {
@@ -1512,8 +1527,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         if abs(translation.x) > threshold || abs(translation.y) > threshold {
           if abs(translation.x) > abs(translation.y) * 1.15 {
             panDirectionDecided = true
-            closeSwipe = translation.x > 0 && !isLandscapePlayer
-              && portraitStageIsTop && portraitTransition > 0.98
           } else if !isLandscapePlayer {
             panDirectionDecided = true
             if portraitStageIsTop {
@@ -2000,6 +2013,18 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    if gestureRecognizer === contentClosePan {
+      guard !closing, !isLandscapePlayer, portraitStageIsTop,
+            portraitTransition > 0.98, !portraitShrinking,
+            let pan = gestureRecognizer as? UIPanGestureRecognizer else {
+        return false
+      }
+      let translation = pan.translation(in: view)
+      let velocity = pan.velocity(in: view)
+      guard translation.x > 2, velocity.x >= 0 else { return false }
+      return abs(translation.x) > abs(translation.y) * 1.15
+        || abs(velocity.x) > abs(velocity.y) * 1.15
+    }
     if let pan = gestureRecognizer as? UIPanGestureRecognizer {
       let velocity = pan.velocity(in: videoContainer)
       let translation = pan.translation(in: videoContainer)
@@ -2009,12 +2034,19 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     return true
   }
 
-  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldReceive touch: UITouch) -> Bool {
     if touch.view is UIControl { return false }
     if touch.view?.isDescendant(of: bottomPanel) == true { return false }
     if touch.view?.isDescendant(of: topBar) == true { return false }
-    if let content = contentController,
+    if gestureRecognizer !== contentClosePan,
+       let content = contentController,
        touch.view?.isDescendant(of: content.view) == true { return false }
     return true
+  }
+
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+    return gestureRecognizer === contentClosePan || other === contentClosePan
   }
 }
