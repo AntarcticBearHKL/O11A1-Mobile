@@ -110,6 +110,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let panelSlideDistance: CGFloat = 28
   private let playerPanelHeight: CGFloat = 88
   private let focusedPanelLift: CGFloat = 30
+  private let progressPanelSideInset: CGFloat = 10
   private let panelShowDuration: TimeInterval = 0.26
   private let panelHideDuration: TimeInterval = 0.28
   private let panelHideScale: Double =
@@ -854,7 +855,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     danmakuOverlay.frame = lerpRect(full, videoRect, p)
 
     let panelHeight: CGFloat = playerPanelHeight
-    let panelWidth = max(1, full.width)
+    let panelWidth = max(1, full.width - progressPanelSideInset * 2)
     let centerPanelY = full.height - view.safeAreaInsets.bottom - panelHeight
       - 18 - focusedPanelLift
     let topPanelY = max(0, videoRect.maxY - panelHeight - 8)
@@ -1086,7 +1087,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       layoutVideoSubviews()
       danmakuOverlay.frame = full
       let panelHeight: CGFloat = playerPanelHeight
-      let panelWidth = full.width
+      let panelWidth = max(1, full.width - progressPanelSideInset * 2)
       let panelY = full.height - view.safeAreaInsets.bottom - panelHeight - 6
       bottomPanel.bounds = CGRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
       bottomPanel.center = CGPoint(x: full.midX, y: panelY + panelHeight / 2)
