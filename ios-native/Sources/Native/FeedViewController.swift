@@ -805,6 +805,10 @@ final class FeedViewController: UIViewController,
     return searchOpen
   }
 
+  func setToolbarHidden(_ hidden: Bool) {
+    toolbarHidden = hidden
+  }
+
   func closeSearchFromHost() {
     closeSearch(animated: true)
   }

@@ -282,12 +282,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       }
     }
     controller.onToolbar = { [weak self] hidden in
-      guard let self = self else { return }
-      self.tabBar.setHidden(hidden, animated: true)
-      UIView.animate(withDuration: 0.35) {
-        self.searchButton.alpha = hidden ? 0 : 1
-        self.avatarButton.alpha = hidden ? 0 : 1
-      }
+      self?.setTopChromeHidden(hidden, animated: true)
     }
     if let module = HomeModules.currentDef, module.source != "recommend" {
       controller.initialSource = (module.source, module.name)
@@ -300,6 +295,11 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
 
   private func selectTab(_ index: Int, force: Bool = false) {
     closeMessages()
+    feed?.setToolbarHidden(false)
+    tabBar.isHidden = false
+    searchButton.isHidden = false
+    avatarButton.isHidden = false
+    setTopChromeHidden(false, animated: true)
     tabBar.select(index: index, notify: false)
     let controller: UIViewController
     switch index {
@@ -426,6 +426,21 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     }
   }
 
+  private func setTopChromeHidden(_ hidden: Bool, animated: Bool) {
+    tabBar.setHidden(hidden, animated: animated)
+    let alpha: CGFloat = hidden ? 0 : 1
+    if animated {
+      UIView.animate(withDuration: 0.35, delay: 0,
+                     options: [.allowUserInteraction, .beginFromCurrentState]) {
+        self.searchButton.alpha = alpha
+        self.avatarButton.alpha = alpha
+      }
+    } else {
+      searchButton.alpha = alpha
+      avatarButton.alpha = alpha
+    }
+  }
+
   private func closePlayer() {
     guard let controller = player else { return }
     controller.willMove(toParent: nil)
@@ -437,8 +452,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     tabBar.isHidden = false
     searchButton.isHidden = false
     avatarButton.isHidden = false
-    searchButton.alpha = 1
-    avatarButton.alpha = 1
+    let searchOpen = feed?.isSearchOpen() == true
+    feed?.setToolbarHidden(searchOpen)
+    setTopChromeHidden(searchOpen, animated: true)
     setPlayerOrientation(false)
     setNeedsStatusBarAppearanceUpdate()
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
