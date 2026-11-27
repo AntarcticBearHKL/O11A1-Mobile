@@ -114,10 +114,13 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       tabBar.bottomAnchor.constraint(equalTo: mainHost.bottomAnchor, constant: -24),
     ])
 
-    searchButton.setImage(UIImage(systemName: "magnifyingglass"), for: .normal)
+    searchButton.setImage(UIImage(
+      systemName: "magnifyingglass",
+      withConfiguration: UIImage.SymbolConfiguration(pointSize: 26, weight: .medium)),
+      for: .normal)
     searchButton.tintColor = NativeTheme.foreground
     searchButton.backgroundColor = NativeTheme.surface
-    searchButton.layer.cornerRadius = NativeTheme.cornerRadius
+    searchButton.layer.cornerRadius = 12
     searchButton.layer.cornerCurve = .continuous
     searchButton.layer.shadowColor = UIColor.black.cgColor
     searchButton.layer.shadowOpacity = 0.16
@@ -129,14 +132,17 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     NSLayoutConstraint.activate([
       searchButton.trailingAnchor.constraint(equalTo: mainHost.trailingAnchor, constant: -16),
       searchButton.topAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.topAnchor, constant: 6),
-      searchButton.widthAnchor.constraint(equalToConstant: 48),
-      searchButton.heightAnchor.constraint(equalToConstant: 48),
+      searchButton.widthAnchor.constraint(equalToConstant: 72),
+      searchButton.heightAnchor.constraint(equalToConstant: 72),
     ])
 
-    avatarButton.setImage(UIImage(systemName: "person.crop.circle"), for: .normal)
+    avatarButton.setImage(UIImage(
+      systemName: "person.crop.circle",
+      withConfiguration: UIImage.SymbolConfiguration(pointSize: 30, weight: .regular)),
+      for: .normal)
     avatarButton.tintColor = NativeTheme.foreground
     avatarButton.backgroundColor = NativeTheme.surface
-    avatarButton.layer.cornerRadius = NativeTheme.cornerRadius
+    avatarButton.layer.cornerRadius = 12
     avatarButton.layer.cornerCurve = .continuous
     avatarButton.layer.borderWidth = 0.5
     avatarButton.layer.borderColor = NativeTheme.hairline.cgColor
@@ -150,13 +156,13 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     NSLayoutConstraint.activate([
       avatarButton.leadingAnchor.constraint(equalTo: mainHost.leadingAnchor, constant: 16),
       avatarButton.topAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.topAnchor, constant: 6),
-      avatarButton.widthAnchor.constraint(equalToConstant: 48),
-      avatarButton.heightAnchor.constraint(equalToConstant: 48),
+      avatarButton.widthAnchor.constraint(equalToConstant: 72),
+      avatarButton.heightAnchor.constraint(equalToConstant: 72),
     ])
 
     topAvatar.contentMode = .scaleAspectFill
     topAvatar.clipsToBounds = true
-    topAvatar.layer.cornerRadius = NativeTheme.cornerRadius
+    topAvatar.layer.cornerRadius = 12
     topAvatar.layer.cornerCurve = .continuous
     topAvatar.isUserInteractionEnabled = false
     avatarButton.addSubview(topAvatar)
