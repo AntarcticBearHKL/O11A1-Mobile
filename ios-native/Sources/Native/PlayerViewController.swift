@@ -133,10 +133,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     fatalError("init(coder:) has not been implemented")
   }
 
-  deinit {
-    progressLink?.invalidate()
-  }
-
   override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
     return .allButUpsideDown
   }
@@ -1341,6 +1337,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   deinit {
+    progressLink?.invalidate()
     if let observer = activeObserver {
       NotificationCenter.default.removeObserver(observer)
     }
