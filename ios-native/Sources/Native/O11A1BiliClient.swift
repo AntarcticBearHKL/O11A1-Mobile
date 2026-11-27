@@ -108,13 +108,27 @@ final class O11A1BiliClient {
     apiConfig.requestCachePolicy = .reloadIgnoringLocalCacheData
     apiConfig.timeoutIntervalForRequest = 20
     apiConfig.timeoutIntervalForResource = 45
-    apiConfig.httpMaximumConnectionsPerHost = 8
+    apiConfig.httpMaximumConnectionsPerHost = 10
     apiConfig.waitsForConnectivity = true
     apiConfig.networkServiceType = .responsiveData
     apiSession = URLSession(configuration: apiConfig)
   }
 
   /* ---------- transport ---------- */
+
+  /// Warm DNS/TLS and the HTTP/2 connection while the first feed page is being
+  /// prepared. These requests have no payload and failures are ignored.
+  func prewarm() {
+    for host in ["https://api.bilibili.com/", "https://i0.hdslb.com/"] {
+      guard let url = URL(string: host) else { continue }
+      var request = URLRequest(url: url)
+      request.httpMethod = "HEAD"
+      request.timeoutInterval = 5
+      request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+      request.setValue("https://www.bilibili.com/", forHTTPHeaderField: "Referer")
+      apiSession.dataTask(with: request).resume()
+    }
+  }
 
   private func perform(_ request: URLRequest, session: URLSession) -> (Data, HTTPURLResponse)? {
     let box = O11A1Box<(Data, HTTPURLResponse)>()
@@ -577,6 +591,14 @@ final class O11A1BiliClient {
     let member = reply["member"] as? [String: Any]
     let content = reply["content"] as? [String: Any]
     let user = o11a1String(member?["uname"])
+    var emotes: [String: String] = [:]
+    if let map = content?["emote"] as? [String: Any] {
+      for (key, value) in map {
+        guard let value = value as? [String: Any],
+              let url = value["url"] as? String, !url.isEmpty else { continue }
+        emotes[key] = o11a1HTTPS(url)
+      }
+    }
     return [
       "rpid": o11a1Int64(reply["rpid"]),
       "root": o11a1Int64(reply["root"]),
@@ -584,7 +606,8 @@ final class O11A1BiliClient {
       "rcount": o11a1Int(reply["rcount"]),
       "user": user.isEmpty ? "用户" : user,
       "avatar": o11a1HTTPS(o11a1String(member?["avatar"])),
-      "message": o11a1String(content?["message"]),
+      "message": o11a1DecodeEntities(o11a1String(content?["message"])),
+      "emotes": emotes,
       "like": o11a1Int(reply["like"]),
       "time": o11a1Int64(reply["ctime"])
     ]

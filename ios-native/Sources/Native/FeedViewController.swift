@@ -178,8 +178,7 @@ final class FeedViewController: UIViewController,
   override func viewDidDisappear(_ animated: Bool) {
     super.viewDidDisappear(animated)
     previewSuspended = true
-    previewEngine.pause()
-    previewCell?.setPreviewProgress(nil)
+    unloadPreviewMedia()
   }
 
   // MARK: - data
@@ -279,6 +278,7 @@ final class FeedViewController: UIViewController,
         case .success(let feed):
           self.finish(feed.items, reset: reset)
           self.fresh += 1
+          BiliAPI.shared.prefetchRecommend(page: self.nextPage, fresh: self.fresh)
         }
       }
     }
@@ -307,9 +307,24 @@ final class FeedViewController: UIViewController,
     } else if items.count != oldCount {
       appendLoadedRows(from: oldCount)
     }
+    let warmStart = reset ? 0 : oldCount
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+      self?.prewarmCovers(from: warmStart, count: 6)
+    }
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
       self.startPreviewIfNeeded()
       self.loadMoreIfNeeded()
+    }
+  }
+
+  private func prewarmCovers(from start: Int, count: Int) {
+    guard !items.isEmpty else { return }
+    let first = max(0, min(items.count - 1, start))
+    let last = min(items.count, first + count)
+    guard first < last else { return }
+    for item in items[first..<last] {
+      guard !item.pic.isEmpty else { continue }
+      ImageLoader.shared.loadImage(item.pic) { _ in }
     }
   }
 
@@ -445,6 +460,16 @@ final class FeedViewController: UIViewController,
     return cell
   }
 
+  func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell,
+                 forRowAt indexPath: IndexPath) {
+    if let card = cell as? HomeCardCell {
+      if card === previewCell || previewView.superview === card.mediaHost { return }
+      card.unloadMedia()
+    } else if let grid = cell as? HomeGridCell {
+      grid.unloadMedia()
+    }
+  }
+
   private func open(_ item: VideoItem, source: UIView) {
     if item.seasonId > 0 || item.kind == "season" {
       onSeason?(item)
@@ -512,6 +537,9 @@ final class FeedViewController: UIViewController,
         onToolbar?(false)
       }
     }
+    if scrollView.isDragging || scrollView.isDecelerating {
+      unloadPreviewMedia()
+    }
     lastOffset = scrollView.contentOffset.y
     loadMoreIfNeeded()
   }
@@ -569,13 +597,9 @@ final class FeedViewController: UIViewController,
 
   private func startPreviewIfNeeded() {
     guard !previewSuspended, !searchOpen, !items.isEmpty else { return }
+    if table.isDragging || table.isDecelerating { return }
     if HomeFeedLayout.isGrid {
-      previewEngine.pause()
-      previewView.alpha = 0
-      previewCell?.hidePreviewLoading()
-      previewCell?.setPreviewProgress(nil)
-      previewCell = nil
-      previewIndex = -1
+      unloadPreviewMedia()
       return
     }
     let center = table.contentOffset.y + table.bounds.height / 2
@@ -610,6 +634,7 @@ final class FeedViewController: UIViewController,
     previewIndex = bestRow
     previewCell = cell
     previewSuspended = false
+    prewarmPreviewURLs(from: bestRow + 1, count: 3)
     if previewEngine.player.currentItem != nil, previewView.superview === cell.mediaHost {
       cell.hidePreviewLoading()
       previewView.alpha = 1
@@ -660,6 +685,37 @@ final class FeedViewController: UIViewController,
     cell.mediaHost.addSubview(previewView)
   }
 
+  /// Drop the visible preview's player item when the feed starts moving or
+  /// leaves the screen. Only the live row keeps a decoder; the covered row
+  /// stays on its cover image, and the next settle picks up the new centre.
+  private func unloadPreviewMedia() {
+    guard previewEngine.player.currentItem != nil || previewView.superview != nil else {
+      return
+    }
+    previewToken += 1
+    previewEngine.stop()
+    previewView.removeFromSuperview()
+    previewView.alpha = 0
+    previewCell?.hidePreviewLoading()
+    previewCell?.setPreviewProgress(nil)
+    previewCell = nil
+    previewIndex = -1
+    previewSource = nil
+    previewItemKey = ""
+    previewScrubbing = false
+  }
+
+  private func prewarmPreviewURLs(from start: Int, count: Int = 3) {
+    guard !HomeFeedLayout.isGrid, !items.isEmpty else { return }
+    let first = max(0, min(items.count - 1, start))
+    let last = min(items.count, first + count)
+    guard first < last else { return }
+    let qn = ThemeManager.shared.quality
+    for item in items[first..<last] {
+      BiliAPI.shared.prefetchPlayQuality(item, qn: qn)
+    }
+  }
+
   func suspendPreview() {
     previewSuspended = true
     previewScrubbing = false
@@ -700,8 +756,7 @@ final class FeedViewController: UIViewController,
         self?.openFirstForTest()
       }
       return
-    }
-    table.scrollToRow(at: IndexPath(row: 0, section: 0), at: .top, animated: false)
+    }    table.scrollToRow(at: IndexPath(row: 0, section: 0), at: .top, animated: false)
     table.layoutIfNeeded()
     let cell = table.cellForRow(at: IndexPath(row: 0, section: 0))
     if let home = cell as? HomeCardCell {
@@ -716,6 +771,11 @@ final class FeedViewController: UIViewController,
   }
 
   // MARK: - gestures
+
+  func cachedItem(bvid: String) -> VideoItem? {
+    guard !bvid.isEmpty else { return nil }
+    return items.first { $0.bvid == bvid }
+  }
 
   func isFeedScrolling() -> Bool {
     return table.isDragging || table.isDecelerating

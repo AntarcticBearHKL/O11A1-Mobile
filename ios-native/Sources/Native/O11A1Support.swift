@@ -54,9 +54,28 @@ func o11a1HTTPS(_ raw: String) -> String {
 
 func o11a1DecodeEntities(_ raw: String) -> String {
   var text = raw
+  let source = text as NSString
+  if let regex = try? NSRegularExpression(pattern: "&#(x?[0-9A-Fa-f]+);") {
+    let matches = regex.matches(in: text, range: NSRange(location: 0, length: source.length))
+    let decoded = NSMutableString(string: text)
+    for match in matches.reversed() {
+      guard match.numberOfRanges > 1 else { continue }
+      let token = source.substring(with: match.range(at: 1))
+      let value: UInt32?
+      if token.lowercased().hasPrefix("x") {
+        value = UInt32(token.dropFirst(), radix: 16)
+      } else {
+        value = UInt32(token)
+      }
+      guard let value = value, let scalar = UnicodeScalar(value) else { continue }
+      decoded.replaceCharacters(in: match.range, with: String(scalar))
+    }
+    text = decoded as String
+  }
   text = text.replacingOccurrences(of: "&lt;", with: "<")
   text = text.replacingOccurrences(of: "&gt;", with: ">")
   text = text.replacingOccurrences(of: "&quot;", with: "\"")
+  text = text.replacingOccurrences(of: "&apos;", with: "'")
   text = text.replacingOccurrences(of: "&#39;", with: "'")
   text = text.replacingOccurrences(of: "&nbsp;", with: " ")
   text = text.replacingOccurrences(of: "&amp;", with: "&")

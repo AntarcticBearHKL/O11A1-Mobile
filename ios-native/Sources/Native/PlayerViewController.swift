@@ -674,7 +674,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     bottomPanel.backgroundColor = .clear
     bottomTint.backgroundColor = light
       ? UIColor(white: 1, alpha: 0.55)
-      : UIColor(white: 1, alpha: 0.10)
+      : UIColor(white: 0, alpha: 0.38)
     bottomPanel.layer.borderColor = light
       ? UIColor(white: 0, alpha: 0.08).cgColor
       : UIColor(white: 1, alpha: 0.14).cgColor

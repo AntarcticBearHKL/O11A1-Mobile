@@ -195,9 +195,12 @@ final class MiniVideoCardView: UIView {
     cover.image = nil
   }
 
+  func unloadImage() {
+    cover.image = nil
+  }
+
   func configure(_ item: VideoItem) {
-    self.item = item
-    let paragraph = NSMutableParagraphStyle()
+    self.item = item    let paragraph = NSMutableParagraphStyle()
     paragraph.minimumLineHeight = 19
     paragraph.maximumLineHeight = 19
     paragraph.lineBreakMode = .byTruncatingTail
@@ -315,5 +318,10 @@ final class HomeGridCell: UITableViewCell {
       rightCard.alpha = 0
       rightCard.isUserInteractionEnabled = false
     }
+  }
+
+  func unloadMedia() {
+    leftCard.unloadImage()
+    rightCard.unloadImage()
   }
 }

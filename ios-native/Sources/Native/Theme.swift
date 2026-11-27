@@ -114,7 +114,7 @@ enum NativeTheme {
   static var barGlass: UIColor {
     UIColor { trait in
       trait.userInterfaceStyle == .dark
-        ? UIColor(red: 10.0 / 255.0, green: 10.0 / 255.0, blue: 12.0 / 255.0, alpha: 0.84)
+        ? UIColor(white: 0, alpha: 0.88)
         : UIColor(white: 1.0, alpha: 0.72)
     }
   }
@@ -122,7 +122,7 @@ enum NativeTheme {
   static var glassWhite: UIColor {
     UIColor { trait in
       trait.userInterfaceStyle == .dark
-        ? UIColor(white: 1, alpha: 0.10)
+        ? UIColor(white: 0, alpha: 0.58)
         : UIColor(white: 1, alpha: 0.34)
     }
   }

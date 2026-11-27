@@ -278,7 +278,9 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   private func applyGlass() {
     let light = traitCollection.userInterfaceStyle == .light
     blur.isHidden = true
-    tint.backgroundColor = NativeTheme.surface
+    tint.backgroundColor = light
+      ? NativeTheme.surface
+      : UIColor(white: 0, alpha: 0.93)
     card.layer.borderWidth = 0.5
     card.layer.borderColor = NativeTheme.hairline.cgColor
     sortBlur.isHidden = true
@@ -292,7 +294,9 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
         ? UIColor(white: 0, alpha: 0.08).cgColor
         : UIColor(white: 1, alpha: 0.12).cgColor
       sortDock.layer.shadowOpacity = 0.18
-      sortDock.backgroundColor = NativeTheme.surface
+      sortDock.backgroundColor = light
+        ? NativeTheme.surface
+        : UIColor(white: 0, alpha: 0.82)
     }
   }
 
@@ -586,7 +590,7 @@ private final class PanelCommentCell: UITableViewCell {
   private let likes = UILabel()
   private let repliesCount = UILabel()
   private let time = UILabel()
-  private let message = UILabel()
+  private let message = CommentMessageLabel()
   private let repliesStack = UIStackView()
   private let separator = UIView()
 
@@ -712,7 +716,7 @@ private final class PanelCommentCell: UITableViewCell {
         .foregroundColor: NativeTheme.freshnessColor(Int64(item.time)),
         .kern: 0.2,
       ])
-    setMessage(item.message)
+    setMessage(item.message, emotes: item.emotes)
 
     likes.attributedText = metric(icon: "heart.fill",
                                   tint: NativeTheme.accent,
@@ -741,25 +745,21 @@ private final class PanelCommentCell: UITableViewCell {
     }
   }
 
-  private func setMessage(_ text: String) {
-    let style = NSMutableParagraphStyle()
-    style.minimumLineHeight = 28
-    style.maximumLineHeight = 28
-    style.lineBreakMode = .byWordWrapping
-    style.paragraphSpacing = 6
-    message.attributedText = NSAttributedString(
-      string: text,
-      attributes: [
-        .font: UIFont.systemFont(ofSize: 16.5, weight: .regular),
-        .foregroundColor: NativeTheme.foreground.withAlphaComponent(0.9),
-        .kern: 0.15,
-        .paragraphStyle: style,
-      ]
+  private func setMessage(_ text: String, emotes: [String: String]) {
+    message.configure(
+      text: text,
+      emotes: emotes,
+      font: UIFont.systemFont(ofSize: 16.5, weight: .regular),
+      color: NativeTheme.foreground.withAlphaComponent(0.9),
+      lineHeight: 28,
+      tracking: 0.15,
+      emoteSize: 20,
+      paragraphSpacing: 6
     )
   }
 
   private func metric(icon: String, tint: UIColor, value: Int) -> NSAttributedString {
-    let result = NSMutableAttributedString()
+    let result = NSMutableAttributedString(string: "")
     let configuration = UIImage.SymbolConfiguration(pointSize: 9.5, weight: .semibold)
     if let base = UIImage(systemName: icon, withConfiguration: configuration) {
       let symbol = base.withTintColor(tint, renderingMode: .alwaysOriginal)
@@ -800,21 +800,16 @@ private final class PanelCommentCell: UITableViewCell {
         .kern: 0.2,
       ])
 
-    let replyMessage = UILabel()
-    replyMessage.numberOfLines = 0
-    let style = NSMutableParagraphStyle()
-    style.minimumLineHeight = 22
-    style.maximumLineHeight = 22
-    style.lineBreakMode = .byWordWrapping
-    style.paragraphSpacing = 4
-    replyMessage.attributedText = NSAttributedString(
-      string: item.message,
-      attributes: [
-        .font: UIFont.systemFont(ofSize: 14.5, weight: .regular),
-        .foregroundColor: NativeTheme.foreground.withAlphaComponent(0.86),
-        .kern: 0.1,
-        .paragraphStyle: style,
-      ]
+    let replyMessage = CommentMessageLabel()
+    replyMessage.configure(
+      text: item.message,
+      emotes: item.emotes,
+      font: UIFont.systemFont(ofSize: 14.5, weight: .regular),
+      color: NativeTheme.foreground.withAlphaComponent(0.86),
+      lineHeight: 22,
+      tracking: 0.1,
+      emoteSize: 18,
+      paragraphSpacing: 4
     )
 
     let copy = UIStackView(arrangedSubviews: [replyName, replyMessage])

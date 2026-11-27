@@ -8,9 +8,9 @@ struct BiliShareTarget {
 }
 
 /// Watches the pasteboard for Bilibili share text and reports the video it
-/// points at. Mirrors the desktop parser: full/mobile video links, b23.tv and
-/// bili2233.cn short links (with or without https), bvid query links, bare
-/// BV/av ids, wrapped in 【title】 text, with ?p= and ?t= support.
+/// points at. Full/mobile video links, b23.tv and bili2233.cn short links (with
+/// or without https), bvid query links and bare BV/av ids are accepted, wrapped
+/// in 【title…】 text or not, with ?p= and ?t= support.
 final class ClipboardShareWatcher {
   static let shared = ClipboardShareWatcher()
   var onOpen: ((BiliShareTarget) -> Void)?
@@ -18,6 +18,8 @@ final class ClipboardShareWatcher {
   private var started = false
   private var resolving = false
   private var lastText = ""
+  private var retryText = ""
+  private var retryScheduled = false
 
   func start() {
     guard !started else { return }
@@ -41,18 +43,63 @@ final class ClipboardShareWatcher {
       .trimmingCharacters(in: .whitespacesAndNewlines),
       !raw.isEmpty, raw != lastText,
       let parsed = Self.parse(raw) else { return }
-    lastText = raw
-    if let short = parsed.shortURL {
-      resolving = true
-      ShortShareResolver.shared.resolve(short) { [weak self] resolved in
-        guard let self = self else { return }
-        self.resolving = false
-        if let resolved = resolved, let target = Self.parse(resolved)?.target {
-          DispatchQueue.main.async { self.onOpen?(target) }
-        }
+    if let target = parsed.target {
+      lastText = raw
+      retryText = ""
+      DispatchQueue.main.async { [weak self] in self?.onOpen?(target) }
+      return
+    }
+    guard let short = parsed.shortURL else { return }
+    resolving = true
+    resolveShort(short, raw: raw, depth: 0) { [weak self] target in
+      guard let self = self else { return }
+      self.resolving = false
+      if let target = target {
+        self.lastText = raw
+        self.retryText = ""
+        DispatchQueue.main.async { self.onOpen?(target) }
+      } else {
+        self.scheduleRetry(raw)
       }
-    } else if let target = parsed.target {
-      onOpen?(target)
+    }
+  }
+
+  private func resolveShort(_ url: URL, raw: String, depth: Int,
+                            completion: @escaping (BiliShareTarget?) -> Void) {
+    ShortShareResolver.shared.resolve(url) { [weak self] resolved in
+      guard let self = self, let resolved = resolved,
+            let parsed = Self.parse(resolved) else {
+        completion(nil)
+        return
+      }
+      if let target = parsed.target {
+        completion(target)
+        return
+      }
+      if depth < 2, let next = parsed.shortURL, next != url {
+        self.resolveShort(next, raw: raw, depth: depth + 1, completion: completion)
+      } else {
+        completion(nil)
+      }
+    }
+  }
+
+  /// A short link occasionally fails on the first wake because the network is
+  /// still coming up. Retry the same text once, then stop so the paste prompt
+  /// cannot loop forever.
+  private func scheduleRetry(_ raw: String) {
+    if retryText == raw {
+      lastText = raw
+      retryText = ""
+      return
+    }
+    guard !retryScheduled else { return }
+    retryText = raw
+    retryScheduled = true
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+      guard let self = self else { return }
+      self.retryScheduled = false
+      self.check()
     }
   }
 
@@ -193,47 +240,120 @@ final class ClipboardShareWatcher {
   }
 }
 
-/// Resolves a b23.tv / bili2233.cn short link by reading its first redirect
-/// without downloading the video page.
-final class ShortShareResolver: NSObject, URLSessionTaskDelegate {
+/// Resolves b23.tv / bili2233.cn short links. It follows the redirect with a
+/// tiny ranged GET, returns the final video URL, and falls back to the HTML
+/// jump page used by some links. Results are cached for ten minutes, matching
+/// the desktop shell's resolver.
+final class ShortShareResolver: NSObject, URLSessionDataDelegate {
   static let shared = ShortShareResolver()
+
   private var completion: ((String?) -> Void)?
+  private var requestedURL: URL?
+  private var finalURL: URL?
+  private var buffer = Data()
   private var session: URLSession!
+  private var cache: [String: (value: String, at: Date)] = [:]
+  private let maxBytes = 32 * 1024
+  private let cacheTTL: TimeInterval = 10 * 60
 
   override init() {
     super.init()
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.timeoutIntervalForRequest = 10
-    session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+    let config = URLSessionConfiguration.ephemeral
+    config.timeoutIntervalForRequest = 9
+    config.timeoutIntervalForResource = 12
+    config.httpMaximumConnectionsPerHost = 2
+    config.requestCachePolicy = .reloadIgnoringLocalCacheData
+    session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
   }
 
   func resolve(_ url: URL, completion: @escaping (String?) -> Void) {
+    let key = url.absoluteString
+    if let hit = cache[key], Date().timeIntervalSince(hit.at) < cacheTTL {
+      completion(hit.value)
+      return
+    }
+    guard self.completion == nil else {
+      completion(nil)
+      return
+    }
     self.completion = completion
+    requestedURL = url
+    finalURL = nil
+    buffer.removeAll(keepingCapacity: true)
+
     var request = URLRequest(url: url)
-    request.httpMethod = "HEAD"
-    request.timeoutInterval = 10
-    request.setValue(
-      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-        + "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-      forHTTPHeaderField: "User-Agent")
+    request.httpMethod = "GET"
+    request.timeoutInterval = 9
+    request.setValue("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                     forHTTPHeaderField: "Accept")
+    request.setValue("https://www.bilibili.com/", forHTTPHeaderField: "Referer")
+    request.setValue(O11A1BiliClient.desktopUserAgent,
+                     forHTTPHeaderField: "User-Agent")
     session.dataTask(with: request).resume()
   }
 
-  func urlSession(_ session: URLSession, task: URLSessionTask,
-                  willPerformHTTPRedirection response: HTTPURLResponse,
-                  newRequest request: URLRequest,
-                  completionHandler: @escaping (URLRequest?) -> Void) {
-    let block = completion
-    completion = nil
-    block?(request.url?.absoluteString)
-    completionHandler(nil)
+  func urlSession(_ session: URLSession, dataTask: URLSessionDataTask,
+                  didReceive response: URLResponse,
+                  completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+    finalURL = response.url
+    completionHandler(.allow)
+  }
+
+  func urlSession(_ session: URLSession, dataTask: URLSessionDataTask,
+                  didReceive data: Data) {
+    buffer.append(data)
+    if buffer.count >= maxBytes {
+      dataTask.cancel()
+    }
   }
 
   func urlSession(_ session: URLSession, task: URLSessionTask,
                   didCompleteWithError error: Error?) {
     guard let block = completion else { return }
     completion = nil
-    block(task.currentRequest?.url?.absoluteString
-      ?? task.originalRequest?.url?.absoluteString)
+    let rawURL = finalURL?.absoluteString
+      ?? task.currentRequest?.url?.absoluteString
+      ?? requestedURL?.absoluteString
+      ?? ""
+    let body = String(data: buffer, encoding: .utf8)
+      ?? String(data: buffer, encoding: .isoLatin1)
+      ?? ""
+    let unescaped = body.replacingOccurrences(of: "\\/", with: "/")
+    let bodyCandidate = Self.videoURL(in: unescaped)
+    let rawCandidate = Self.videoURL(in: rawURL)
+    let candidate: String?
+    if let rawCandidate = rawCandidate, Self.isDirectVideo(rawCandidate) {
+      candidate = rawCandidate
+    } else if let bodyCandidate = bodyCandidate {
+      candidate = bodyCandidate
+    } else {
+      candidate = rawCandidate
+    }
+    if let candidate = candidate, let requestedURL = requestedURL {
+      cache[requestedURL.absoluteString] = (candidate, Date())
+      block(candidate)
+    } else {
+      block(nil)
+    }
+  }
+
+  private static let videoPattern = try! NSRegularExpression(
+    pattern: "https?://[^\\s\"'<>\\\\]*(?:bilibili\\.com/video/(?:BV[0-9A-Za-z]{10}|av\\d+)|(?:b23\\.tv|bili2233\\.cn)/[A-Za-z0-9]+)[^\\s\"'<>\\\\]*",
+    options: [.caseInsensitive])
+  private static let directPattern = try! NSRegularExpression(
+    pattern: "bilibili\\.com/video/(?:BV[0-9A-Za-z]{10}|av\\d+)",
+    options: [.caseInsensitive])
+
+  private static func isDirectVideo(_ text: String) -> Bool {
+    let range = NSRange(text.startIndex..<text.endIndex, in: text)
+    return directPattern.firstMatch(in: text, options: [], range: range) != nil
+  }
+
+  private static func videoURL(in text: String) -> String? {
+    guard !text.isEmpty else { return nil }
+    let range = NSRange(text.startIndex..<text.endIndex, in: text)
+    guard let match = videoPattern.firstMatch(in: text, options: [], range: range),
+          let part = Range(match.range, in: text) else { return nil }
+    return String(text[part])
   }
 }

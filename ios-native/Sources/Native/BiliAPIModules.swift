@@ -92,7 +92,7 @@ extension BiliAPI {
 
   func playPgc(epId: Int64, bvid: String, cid: Int64, qn: Int, completion: @escaping (Result<PlaySource, Error>) -> Void) {
     run({ self.client.playPgc(epId: epId, bvid: bvid, cid: cid, qn: qn) }) { result in
-      self.finishPlay(result, completion)
+      self.finishPlay(result, cacheKey: nil, completion)
     }
   }
 

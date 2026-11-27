@@ -70,6 +70,54 @@ final class ImageLoader {
     }.resume()
   }
 
+  func cachedImage(_ urlString: String) -> UIImage? {
+    guard !urlString.isEmpty else { return nil }
+    return cache.object(forKey: urlString as NSString)
+  }
+
+  /// Load an image without binding it to a view. Used by inline comment
+  /// emotes, which need a `UIImage` for an NSTextAttachment.
+  func loadImage(_ urlString: String, completion: @escaping (UIImage?) -> Void) {
+    guard !urlString.isEmpty else {
+      DispatchQueue.main.async { completion(nil) }
+      return
+    }
+    let key = urlString as NSString
+    if let cached = cache.object(forKey: key) {
+      DispatchQueue.main.async { completion(cached) }
+      return
+    }
+    if let diskURL = diskURL(for: urlString) {
+      diskQueue.async { [weak self] in
+        guard let self = self,
+              let data = try? Data(contentsOf: diskURL),
+              let image = UIImage(data: data) else { return }
+        self.cache.setObject(image, forKey: key, cost: data.count)
+        DispatchQueue.main.async { completion(image) }
+      }
+    }
+    guard let url = URL(string: urlString) else {
+      DispatchQueue.main.async { completion(nil) }
+      return
+    }
+    var request = URLRequest(url: url)
+    request.setValue("https://www.bilibili.com/", forHTTPHeaderField: "Referer")
+    request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
+    session.dataTask(with: request) { [weak self] data, _, _ in
+      guard let self = self, let data = data, let image = UIImage(data: data) else {
+        DispatchQueue.main.async { completion(nil) }
+        return
+      }
+      self.cache.setObject(image, forKey: key, cost: data.count)
+      if let diskURL = self.diskURL(for: urlString) {
+        self.diskQueue.async {
+          try? data.write(to: diskURL, options: .atomic)
+        }
+      }
+      DispatchQueue.main.async { completion(image) }
+    }.resume()
+  }
+
   private func diskURL(for urlString: String) -> URL? {
     guard let directory = diskDirectory else { return nil }
     var hash: UInt64 = 1469598103934665603

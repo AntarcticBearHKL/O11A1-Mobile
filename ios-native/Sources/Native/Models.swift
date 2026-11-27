@@ -151,6 +151,7 @@ struct CommentItem {
   var likes = 0
   var time = 0
   var replies = 0
+  var emotes: [String: String] = [:]
 }
 
 struct LiveSource {

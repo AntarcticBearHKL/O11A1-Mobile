@@ -356,6 +356,14 @@ final class HomeCardCell: UITableViewCell {
     previewSpinner.stopAnimating()
   }
 
+  /// Drop the full-resolution cover for a row that has scrolled far away.
+  /// The image cache keeps the bytes, so returning to the row is a cheap hit.
+  func unloadMedia() {
+    cover.image = nil
+    hidePreviewLoading()
+    previewBar.isHidden = true
+  }
+
   func configure(_ item: VideoItem) {
     self.item = item
     hidePreviewLoading()

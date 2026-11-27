@@ -3,6 +3,7 @@ import UIKit
 final class VideoLoadingView: UIView {
   private let spinner = UIActivityIndicatorView(style: .medium)
   private let label = UILabel()
+  private var pendingShow: DispatchWorkItem?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -54,7 +55,13 @@ final class VideoLoadingView: UIView {
       return
     }
     if isHidden {
-      show(text)
+      pendingShow?.cancel()
+      let item = DispatchWorkItem { [weak self] in
+        guard let self = self, self.isHidden else { return }
+        self.show(text)
+      }
+      pendingShow = item
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: item)
     } else {
       setText(text)
     }
@@ -70,6 +77,8 @@ final class VideoLoadingView: UIView {
   }
 
   func show(_ text: String = "正在连接") {
+    pendingShow?.cancel()
+    pendingShow = nil
     label.text = text
     isHidden = false
     spinner.startAnimating()
@@ -81,6 +90,8 @@ final class VideoLoadingView: UIView {
   }
 
   func hide() {
+    pendingShow?.cancel()
+    pendingShow = nil
     isHidden = true
     spinner.stopAnimating()
   }

@@ -202,6 +202,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     view.addGestureRecognizer(settings)
     settingsPan = settings
 
+    BiliAPI.shared.client.prewarm()
     selectTab(0, force: true)
   }
 
@@ -429,6 +430,13 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       profileCoveredByPlayer = true
     }
     controller.start()
+    let warmBvid = item.bvid
+    if !warmBvid.isEmpty {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+        BiliAPI.shared.prefetchVideoInfo(bvid: warmBvid)
+        BiliAPI.shared.prefetchRelated(warmBvid)
+      }
+    }
     if #available(iOS 16.0, *) {
       setNeedsUpdateOfSupportedInterfaceOrientations()
     } else {
@@ -788,6 +796,11 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   }
 
   private func openShared(_ target: BiliShareTarget) {
+    if target.part <= 1, !target.bvid.isEmpty,
+       let cached = feed?.cachedItem(bvid: target.bvid) {
+      openPlayer(cached, from: nil, startAt: target.startSeconds)
+      return
+    }
     let apply: ([String: Any]) -> Void = { [weak self] json in
       guard let self = self else { return }
       var dict = json
@@ -805,13 +818,31 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
         self.openPlayer(item, from: nil, startAt: target.startSeconds)
       }
     }
+    let fallback: () -> Void = { [weak self] in
+      guard let self = self, !target.bvid.isEmpty else { return }
+      var item = VideoItem()
+      item.bvid = target.bvid
+      item.aid = target.aid
+      item.title = target.bvid
+      item.owner = "B站视频"
+      item.kind = "video"
+      DispatchQueue.main.async {
+        self.openPlayer(item, from: nil, startAt: target.startSeconds)
+      }
+    }
     if !target.bvid.isEmpty {
       BiliAPI.shared.videoInfo(target.bvid) { result in
-        if case .success(let json) = result { apply(json) }
+        switch result {
+        case .success(let json): apply(json)
+        case .failure: fallback()
+        }
       }
     } else if target.aid > 0 {
       BiliAPI.shared.videoInfo(aid: target.aid) { result in
-        if case .success(let json) = result { apply(json) }
+        switch result {
+        case .success(let json): apply(json)
+        case .failure: break
+        }
       }
     }
   }

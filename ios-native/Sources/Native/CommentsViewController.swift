@@ -197,7 +197,7 @@ private final class CommentCell: UITableViewCell {
 
   private let avatar = UIImageView()
   private let name = UILabel()
-  private let message = UILabel()
+  private let message = CommentMessageLabel()
   private let meta = UILabel()
   private let replies = UIButton(type: .system)
   private var repliesHeight: NSLayoutConstraint?
@@ -268,7 +268,16 @@ private final class CommentCell: UITableViewCell {
 
   func configure(_ item: CommentItem) {
     name.text = item.name
-    message.text = item.message
+    message.configure(
+      text: item.message,
+      emotes: item.emotes,
+      font: NativeTheme.bodyFont(14),
+      color: NativeTheme.foreground,
+      lineHeight: 22,
+      tracking: 0.1,
+      emoteSize: 18,
+      paragraphSpacing: 4
+    )
     meta.text = "赞 \(item.likes)"
     let hasReplies = item.replies > 0 && onReplies != nil
     replies.setTitle(hasReplies ? "\(item.replies) 条回复" : "", for: .normal)

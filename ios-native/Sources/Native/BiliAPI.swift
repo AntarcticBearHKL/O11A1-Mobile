@@ -5,6 +5,13 @@ final class BiliAPI {
 
   let client = O11A1BiliClient()
   private let queue = DispatchQueue(label: "o11a1.api", qos: .userInitiated, attributes: .concurrent)
+  private let playCache = O11A1TTLCache<String, PlaySource>(ttl: 300, limit: 48)
+  private let infoCache = O11A1TTLCache<String, [String: Any]>(ttl: 600, limit: 64)
+  private let relatedCache = O11A1TTLCache<String, [VideoItem]>(ttl: 300, limit: 32)
+  private let commentsCache = O11A1TTLCache<String, [CommentItem]>(ttl: 120, limit: 24)
+  private let feedCache = O11A1TTLCache<String, FeedResult>(ttl: 180, limit: 16)
+  private let prefetchLock = NSLock()
+  private var prefetching = Set<String>()
 
   var isLoggedIn: Bool { client.hasSession() }
   var mediaHeaders: [String: String] { client.mediaHeaders() }
@@ -34,6 +41,11 @@ final class BiliAPI {
   }
 
   func recommend(page: Int, fresh: Int, completion: @escaping (Result<FeedResult, Error>) -> Void) {
+    let key = "recommend:\(page):\(fresh)"
+    if let cached = feedCache.get(key) {
+      DispatchQueue.main.async { completion(.success(cached)) }
+      return
+    }
     run({ self.client.recommend(page: page, ps: 20, fresh: fresh) }) { result in
       switch result {
       case .failure(let error):
@@ -43,8 +55,27 @@ final class BiliAPI {
         feed.items = nativeItems(json)
         feed.page = o11a1Int(json["page"])
         feed.fresh = o11a1Int(json["fresh"])
+        self.feedCache.set(key, feed)
         completion(.success(feed))
       }
+    }
+  }
+
+  func prefetchRecommend(page: Int, fresh: Int) {
+    let key = "recommend:\(page):\(fresh)"
+    if feedCache.get(key) != nil { return }
+    prefetchLock.lock()
+    if prefetching.contains(key) {
+      prefetchLock.unlock()
+      return
+    }
+    prefetching.insert(key)
+    prefetchLock.unlock()
+    recommend(page: page, fresh: fresh) { [weak self] _ in
+      guard let self = self else { return }
+      self.prefetchLock.lock()
+      self.prefetching.remove(key)
+      self.prefetchLock.unlock()
     }
   }
 
@@ -81,20 +112,57 @@ final class BiliAPI {
     }
   }
 
+  private func playKey(_ item: VideoItem, qn: Int) -> String {
+    return "\(item.bvid):\(item.cid):\(qn)"
+  }
+
   func playLow(_ item: VideoItem, completion: @escaping (Result<PlaySource, Error>) -> Void) {
+    let key = playKey(item, qn: 16)
+    if let cached = playCache.get(key) {
+      DispatchQueue.main.async { completion(.success(cached)) }
+      return
+    }
     run({ self.client.playLow(bvid: item.bvid, cid: item.cid) }) { result in
-      self.finishPlay(result, completion)
+      self.finishPlay(result, cacheKey: key, completion)
     }
   }
 
   func playQuality(_ item: VideoItem, qn: Int, completion: @escaping (Result<PlaySource, Error>) -> Void) {
+    let key = playKey(item, qn: qn)
+    if let cached = playCache.get(key) {
+      DispatchQueue.main.async { completion(.success(cached)) }
+      return
+    }
     run({ self.client.playQuality(bvid: item.bvid, cid: item.cid, qn: qn) }) { result in
-      self.finishPlay(result, completion)
+      self.finishPlay(result, cacheKey: key, completion)
+    }
+  }
+
+  /// Warm a signed play URL in the background. The feed calls this for the
+  /// rows just below the viewport, so both the next preview and the player's
+  /// full-quality request can skip the playurl round-trip.
+  func prefetchPlayQuality(_ item: VideoItem, qn: Int) {
+    guard !item.bvid.isEmpty else { return }
+    let key = playKey(item, qn: qn)
+    if playCache.get(key) != nil { return }
+    prefetchLock.lock()
+    if prefetching.contains(key) {
+      prefetchLock.unlock()
+      return
+    }
+    prefetching.insert(key)
+    prefetchLock.unlock()
+    playQuality(item, qn: qn) { [weak self] _ in
+      guard let self = self else { return }
+      self.prefetchLock.lock()
+      self.prefetching.remove(key)
+      self.prefetchLock.unlock()
     }
   }
 
   func finishPlay(
     _ result: Result<[String: Any], Error>,
+    cacheKey: String? = nil,
     _ completion: @escaping (Result<PlaySource, Error>) -> Void
   ) {
     switch result {
@@ -110,6 +178,9 @@ final class BiliAPI {
       if source.url.isEmpty {
         completion(.failure(NativeError.message("没有可播放地址")))
       } else {
+        if let cacheKey = cacheKey {
+          playCache.set(cacheKey, source)
+        }
         completion(.success(source))
       }
     }
@@ -137,19 +208,85 @@ final class BiliAPI {
   }
 
   func videoInfo(_ bvid: String, completion: @escaping (Result<[String: Any], Error>) -> Void) {
-    run({ self.client.videoInfo(bvid: bvid) }, completion)
+    let key = "bvid:\(bvid)"
+    if let cached = infoCache.get(key) {
+      DispatchQueue.main.async { completion(.success(cached)) }
+      return
+    }
+    run({ self.client.videoInfo(bvid: bvid) }) { result in
+      if case .success(let json) = result {
+        self.infoCache.set(key, json)
+      }
+      completion(result)
+    }
   }
 
   func videoInfo(aid: Int64, completion: @escaping (Result<[String: Any], Error>) -> Void) {
-    run({ self.client.videoInfo(aid: aid) }, completion)
+    let key = "aid:\(aid)"
+    if let cached = infoCache.get(key) {
+      DispatchQueue.main.async { completion(.success(cached)) }
+      return
+    }
+    run({ self.client.videoInfo(aid: aid) }) { result in
+      if case .success(let json) = result {
+        self.infoCache.set(key, json)
+      }
+      completion(result)
+    }
+  }
+
+  func prefetchVideoInfo(bvid: String) {
+    guard !bvid.isEmpty else { return }
+    let key = "bvid:\(bvid)"
+    if infoCache.get(key) != nil { return }
+    prefetchLock.lock()
+    if prefetching.contains(key) {
+      prefetchLock.unlock()
+      return
+    }
+    prefetching.insert(key)
+    prefetchLock.unlock()
+    videoInfo(bvid) { [weak self] _ in
+      guard let self = self else { return }
+      self.prefetchLock.lock()
+      self.prefetching.remove(key)
+      self.prefetchLock.unlock()
+    }
   }
 
   func related(_ bvid: String, completion: @escaping (Result<[VideoItem], Error>) -> Void) {
+    let key = "related:\(bvid)"
+    if let cached = relatedCache.get(key) {
+      DispatchQueue.main.async { completion(.success(cached)) }
+      return
+    }
     run({ self.client.related(bvid: bvid) }) { result in
       switch result {
       case .failure(let error): completion(.failure(error))
-      case .success(let json): completion(.success(nativeItems(json)))
+      case .success(let json):
+        let items = nativeItems(json)
+        self.relatedCache.set(key, items)
+        completion(.success(items))
       }
+    }
+  }
+
+  func prefetchRelated(_ bvid: String) {
+    guard !bvid.isEmpty else { return }
+    let key = "related:\(bvid)"
+    if relatedCache.get(key) != nil { return }
+    prefetchLock.lock()
+    if prefetching.contains(key) {
+      prefetchLock.unlock()
+      return
+    }
+    prefetching.insert(key)
+    prefetchLock.unlock()
+    related(bvid) { [weak self] _ in
+      guard let self = self else { return }
+      self.prefetchLock.lock()
+      self.prefetching.remove(key)
+      self.prefetchLock.unlock()
     }
   }
 
@@ -276,10 +413,18 @@ final class BiliAPI {
 
   func comments(aid: Int64, page: Int, sort: Int = 2,
                 completion: @escaping (Result<[CommentItem], Error>) -> Void) {
+    let key = "comments:\(aid):\(page):\(sort)"
+    if let cached = commentsCache.get(key) {
+      DispatchQueue.main.async { completion(.success(cached)) }
+      return
+    }
     run({ self.client.comments(aid: aid, page: page, sort: sort) }) { result in
       switch result {
       case .failure(let error): completion(.failure(error))
-      case .success(let json): completion(.success(self.commentItems(json)))
+      case .success(let json):
+        let items = self.commentItems(json)
+        self.commentsCache.set(key, items)
+        completion(.success(items))
       }
     }
   }
@@ -302,6 +447,13 @@ final class BiliAPI {
       item.name = o11a1String(row["user"])
       item.face = o11a1HTTPS(o11a1String(row["avatar"]))
       item.message = o11a1String(row["message"])
+      if let map = row["emotes"] as? [String: Any] {
+        for (key, value) in map {
+          if let url = value as? String, !url.isEmpty {
+            item.emotes[key] = url
+          }
+        }
+      }
       item.likes = o11a1Int(row["like"])
       item.time = o11a1Int(row["time"])
       item.replies = o11a1Int(row["rcount"])
@@ -336,7 +488,12 @@ final class BiliAPI {
 
   func sendComment(aid: Int64, message: String, completion: ((Bool) -> Void)? = nil) {
     run({ self.client.sendComment(aid: aid, message: message) }) { result in
-      if case .failure = result { completion?(false) } else { completion?(true) }
+      if case .failure = result {
+        completion?(false)
+      } else {
+        self.commentsCache.removeAll()
+        completion?(true)
+      }
     }
   }
 
