@@ -82,9 +82,6 @@ final class DanmakuOverlayView: UIView {
   }
 
   private func spawn(_ item: DanmakuItem) {
-    if subviews.count > 42, let first = subviews.first {
-      first.removeFromSuperview()
-    }
     let defaults = UserDefaults.standard
     let sizePercent = defaults.object(forKey: "danmaku_size") == nil
       ? 100.0 : Double(defaults.float(forKey: "danmaku_size"))
@@ -119,13 +116,16 @@ final class DanmakuOverlayView: UIView {
     let lanes = max(1, Int((available * fraction) / (laneHeight * CGFloat(step))))
     let y = topInset + CGFloat((lane / step) % lanes) * laneHeight * CGFloat(step)
     lane += 1
-    label.frame.origin = CGPoint(x: bounds.width + 8, y: y)
+    let startX = bounds.width + 8
+    let endX = -label.bounds.width - 8
+    label.frame = CGRect(x: startX, y: y,
+                         width: label.bounds.width, height: label.bounds.height)
     addSubview(label)
-    let distance = bounds.width + label.bounds.width + 24
+    let distance = startX - endX
     let speed = max(0.5, speedPercent / 100)
     let duration = max(3.5, Double(distance / 105.0) / speed)
     UIView.animate(withDuration: duration, delay: 0, options: [.curveLinear]) {
-      label.transform = CGAffineTransform(translationX: -distance, y: 0)
+      label.frame.origin.x = endX
     } completion: { _ in
       label.removeFromSuperview()
     }
