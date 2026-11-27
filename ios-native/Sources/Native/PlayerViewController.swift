@@ -92,6 +92,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var upgradeGeneration = 0
   private var portraitUpDrag = false
   private var portraitRestoreDrag = false
+  private var portraitDownClose = false
   private var portraitDragActive = false
   private var portraitSettling = false
   private var portraitShrinking = false
@@ -1472,6 +1473,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       landscapeControl = .none
       portraitUpDrag = false
       portraitRestoreDrag = false
+      portraitDownClose = false
       panDirectionDecided = false
       portraitDragActive = true
       panStartFrame = videoContainer.frame
@@ -1508,6 +1510,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
               if translation.y > 0 {
                 portraitRestoreDrag = true
               }
+            } else if translation.y > 0, portraitCloseReady {
+              portraitDownClose = true
+              beginHorizontalClose()
             } else if translation.y < 0 {
               portraitUpDrag = true
             }
@@ -1532,6 +1537,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       if isLandscapePlayer && landscapeAdjusting {
         applyVerticalControl(translation, control: landscapeControl,
                              base: landscapeStartValue)
+        return
+      }
+      if portraitDownClose {
+        let height = max(1, view.bounds.height)
+        updateHorizontalClose(max(0, min(1, translation.y / (height * 0.58))))
         return
       }
       guard !isLandscapePlayer || landscapeDrag else { return }
@@ -1588,6 +1598,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         landscapeDrag = false
         panDirectionDecided = false
         portraitDragActive = false
+        return
+      }
+      if portraitDownClose {
+        portraitDownClose = false
+        panDirectionDecided = false
+        portraitDragActive = false
+        let shouldClose = translation.y > 120 || endVelocity.y > 700
+        finishHorizontalClose(shouldClose)
         return
       }
       if isLandscapePlayer && !landscapeDrag {
