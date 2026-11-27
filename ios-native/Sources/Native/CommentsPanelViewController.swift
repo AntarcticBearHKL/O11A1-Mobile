@@ -14,6 +14,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   private let table = UITableView(frame: .zero, style: .plain)
   private let status = UILabel()
   private let headerTitle = UILabel()
+  private let headerBar = UIView()
   private let sortDock = UIView()
   private let sortBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let latestButton = UIButton(type: .custom)
@@ -94,6 +95,18 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
       table.topAnchor.constraint(equalTo: card.topAnchor),
       table.bottomAnchor.constraint(equalTo: card.bottomAnchor),
     ])
+
+    if embedded {
+      headerBar.backgroundColor = NativeTheme.surface
+      card.addSubview(headerBar)
+      headerBar.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        headerBar.leadingAnchor.constraint(equalTo: card.leadingAnchor),
+        headerBar.trailingAnchor.constraint(equalTo: card.trailingAnchor),
+        headerBar.topAnchor.constraint(equalTo: card.topAnchor),
+        headerBar.heightAnchor.constraint(equalToConstant: 56),
+      ])
+    }
 
     status.font = NativeTheme.bodyFont(13)
     status.textColor = NativeTheme.secondary

@@ -10,6 +10,7 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
   private let bvid: String
   private let table = UITableView(frame: .zero, style: .plain)
   private let headerTitle = UILabel()
+  private let headerBar = UIView()
   private let status = UILabel()
   private var items: [VideoItem] = []
   private var dismissPan: UIPanGestureRecognizer?
@@ -60,6 +61,19 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
       table.bottomAnchor.constraint(equalTo: view.bottomAnchor),
     ])
 
+    if embedded {
+      headerBar.backgroundColor = NativeTheme.surface
+      view.addSubview(headerBar)
+      headerBar.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        headerBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+        headerBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+        headerBar.topAnchor.constraint(equalTo: view.topAnchor),
+        headerBar.heightAnchor.constraint(equalToConstant: 48),
+      ])
+      view.bringSubviewToFront(headerTitle)
+    }
+
     status.font = NativeTheme.bodyFont(13)
     status.textColor = NativeTheme.secondary
     status.textAlignment = .center
@@ -93,8 +107,8 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    let top = embedded ? 48 : view.safeAreaInsets.top
-    let bottom = embedded ? 84 : 18
+    let top: CGFloat = embedded ? 48 : view.safeAreaInsets.top
+    let bottom: CGFloat = embedded ? 84 : 18
     table.contentInset = UIEdgeInsets(top: top, left: 0,
                                       bottom: view.safeAreaInsets.bottom + bottom, right: 0)
   }
