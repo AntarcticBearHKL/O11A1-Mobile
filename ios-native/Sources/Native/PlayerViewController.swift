@@ -1,7 +1,14 @@
 import AVKit
+import MediaPlayer
 import UIKit
 
 final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
+  private enum LandscapeVerticalControl {
+    case none
+    case brightness
+    case volume
+  }
+
   var item: VideoItem
   var onClose: (() -> Void)?
   var onProfile: ((Int64) -> Void)?
@@ -64,6 +71,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var closeSwipe = false
   private var portraitDismissDrag = false
   private var landscapeDrag = false
+  private var landscapeControl: LandscapeVerticalControl = .none
+  private var landscapeAdjusting = false
+  private var landscapeStartValue: Float = 0
+  private let volumeView = MPVolumeView()
+  private var volumeSlider: UISlider?
+  private var progressLink: CADisplayLink?
   private var portraitUpDrag = false
   private var portraitRestoreDrag = false
   private var portraitDragActive = false
@@ -105,6 +118,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   required init?(coder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
+  }
+
+  deinit {
+    progressLink?.invalidate()
   }
 
   override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
@@ -328,6 +345,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     errorLabel.isHidden = true
     view.addSubview(errorLabel)
 
+    volumeView.frame = CGRect(x: -60, y: -60, width: 40, height: 40)
+    volumeView.alpha = 0.01
+    volumeView.showsRouteButton = false
+    view.addSubview(volumeView)
+    volumeView.layoutIfNeeded()
+    volumeSlider = findVolumeSlider(in: volumeView)
+
     [backButton, titleLabel, playButton, ownerLabel, ownerButton, wheel, grid,
      qualityLabel, speedLabel, commentsButton, likeButton, coinButton, favButton,
      followButton, danmakuToggle, danmakuSend, errorLabel].forEach {
@@ -438,6 +462,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     tap.cancelsTouchesInView = false
     view.addGestureRecognizer(tap)
 
+    let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap))
+    doubleTap.numberOfTapsRequired = 2
+    doubleTap.delegate = self
+    doubleTap.cancelsTouchesInView = false
+    view.addGestureRecognizer(doubleTap)
+    tap.require(toFail: doubleTap)
+
     engine.onTime = { [weak self] seconds, duration in
       guard let self = self, !self.isScrubbing else { return }
       self.danmakuOverlay.setTime(seconds)
@@ -453,6 +484,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self.playButton.setImage(UIImage(systemName: playing ? "pause.fill" : "play.fill"), for: .normal)
       self.pausedVeil.isHidden = playing
       self.videoContainer.backgroundColor = .clear
+      if playing {
+        self.startProgressLink()
+      } else {
+        self.stopProgressLink()
+        self.progressTick()
+      }
       let changed = playing != self.lastPlayingState
       self.lastPlayingState = playing
       if playing && changed && self.controlsVisible {
@@ -568,6 +605,57 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       sourceFrame = .zero
     } else if !isLandscapePlayer {
       applyPortraitTransition(portraitTransition)
+    }
+  }
+
+  private func startProgressLink() {
+    guard progressLink == nil else { return }
+    let link = CADisplayLink(target: self, selector: #selector(progressTick))
+    link.preferredFramesPerSecond = 60
+    link.add(to: .main, forMode: .common)
+    progressLink = link
+  }
+
+  private func stopProgressLink() {
+    progressLink?.invalidate()
+    progressLink = nil
+  }
+
+  @objc private func progressTick() {
+    guard !isScrubbing else { return }
+    let duration = engine.duration
+    let seconds = engine.currentTime
+    let safeDuration = duration > 0 ? duration : 1
+    wheel.durationSeconds = duration
+    wheel.progress = max(0, min(1, seconds / safeDuration))
+    grid.progress = max(0, min(1, seconds / safeDuration))
+    wheel.currentText = format(seconds)
+    wheel.durationText = format(duration)
+  }
+
+  private func findVolumeSlider(in view: UIView) -> UISlider? {
+    if let slider = view as? UISlider { return slider }
+    for subview in view.subviews {
+      if let slider = findVolumeSlider(in: subview) { return slider }
+    }
+    return nil
+  }
+
+  private func applyLandscapeControl(_ translation: CGPoint) {
+    guard landscapeControl != .none else { return }
+    let height = max(1, view.bounds.height)
+    let delta = Float(-translation.y / height) * 1.15
+    let value = max(0, min(1, landscapeStartValue + delta))
+    switch landscapeControl {
+    case .brightness:
+      UIScreen.main.brightness = CGFloat(value)
+    case .volume:
+      if volumeSlider == nil {
+        volumeSlider = findVolumeSlider(in: volumeView)
+      }
+      volumeSlider?.value = value
+    case .none:
+      break
     }
   }
 
@@ -1008,6 +1096,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   @objc private func handleSingleTap() {
+    if !isLandscapePlayer && portraitStageIsTop {
+      if bottomPanel.alpha > 0.01 {
+        hideControls()
+      }
+      return
+    }
     let visible = bottomPanel.alpha > 0.5 && !bottomPanel.isHidden
     if visible {
       hideControls()
@@ -1017,12 +1111,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   @objc private func handleDoubleTap() {
-    let wasHidden = !controlsVisible
-    togglePlay()
-    if wasHidden || engine.isPlaying {
-      showControls()
+    if engine.isPlaying {
+      engine.pause()
     } else {
-      controlsTimer?.invalidate()
+      engine.play()
     }
   }
 
@@ -1085,6 +1177,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     case .began:
       closeSwipe = false
       landscapeDrag = false
+      landscapeAdjusting = false
+      landscapeControl = .none
       portraitDismissDrag = false
       portraitUpDrag = false
       portraitRestoreDrag = false
@@ -1098,6 +1192,20 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       panRestorePlayAlpha = playButton.alpha
       view.transform = .identity
       view.layer.cornerRadius = 0
+      if isLandscapePlayer {
+        let x = gesture.location(in: view).x
+        let width = max(1, view.bounds.width)
+        if x < width / 3.0 {
+          landscapeControl = .brightness
+          landscapeStartValue = Float(UIScreen.main.brightness)
+        } else if x > width * 2.0 / 3.0 {
+          landscapeControl = .volume
+          if volumeSlider == nil {
+            volumeSlider = findVolumeSlider(in: volumeView)
+          }
+          landscapeStartValue = volumeSlider?.value ?? 0.5
+        }
+      }
       let velocity = gesture.velocity(in: videoContainer)
       if abs(velocity.x) > abs(velocity.y) && abs(velocity.x) > 80 {
         panDirectionDecided = true
@@ -1127,11 +1235,20 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             }
           } else {
             panDirectionDecided = true
-            landscapeDrag = true
+            if landscapeControl == .none {
+              landscapeDrag = true
+            } else {
+              landscapeAdjusting = true
+              hideControls()
+            }
           }
         }
       }
       guard !closeSwipe else { return }
+      if isLandscapePlayer && landscapeAdjusting {
+        applyLandscapeControl(translation)
+        return
+      }
       guard !isLandscapePlayer || landscapeDrag else { return }
       if !isLandscapePlayer {
         let rects = portraitVideoRects()
@@ -1183,13 +1300,23 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         }
         return
       }
-      if isLandscapePlayer && !landscapeDrag {
+      if landscapeAdjusting {
+        landscapeAdjusting = false
+        landscapeControl = .none
         landscapeDrag = false
         panDirectionDecided = false
         portraitDragActive = false
         return
       }
+      if isLandscapePlayer && !landscapeDrag {
+        landscapeDrag = false
+        landscapeControl = .none
+        panDirectionDecided = false
+        portraitDragActive = false
+        return
+      }
       landscapeDrag = false
+      landscapeControl = .none
       if !isLandscapePlayer {
         let rects = portraitVideoRects()
         let distance = max(120, rects.center.minY - rects.top.minY)
@@ -1461,6 +1588,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         .iOS(interfaceOrientations: .portrait))
     }
     stopLiveChat()
+    stopProgressLink()
     engine.stop()
     engine.stopPip()
     if animated {
@@ -1477,6 +1605,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private func closeFromPip() {
     closing = true
     stopLiveChat()
+    stopProgressLink()
     engine.stop()
     onClose?()
   }
