@@ -7,6 +7,7 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
 
   private let scroll = UIScrollView()
   private let list = UIStackView()
+  private let closeShield = UIView()
   private let avatar = UIImageView()
   private let nameLabel = UILabel()
   private let metaLabel = UILabel()
@@ -22,7 +23,7 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     let dismissPan = UIPanGestureRecognizer(
       target: self, action: #selector(handleDismissPan(_:)))
     dismissPan.delegate = self
-    dismissPan.cancelsTouchesInView = false
+    dismissPan.cancelsTouchesInView = true
     view.addGestureRecognizer(dismissPan)
 
     let accountCard = UIView()
@@ -131,6 +132,17 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
       list.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -36),
     ])
 
+    closeShield.backgroundColor = .clear
+    closeShield.isHidden = true
+    view.addSubview(closeShield)
+    closeShield.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      closeShield.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      closeShield.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      closeShield.topAnchor.constraint(equalTo: view.topAnchor),
+      closeShield.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
+
     addRow("播放", #selector(showPlayback))
     addRow("弹幕", #selector(showDanmaku))
     addRow("外观", #selector(showAppearance))
@@ -189,6 +201,8 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     let width = max(1, view.bounds.width)
     let translation = min(0, gesture.translation(in: reference).x)
     switch gesture.state {
+    case .began:
+      closeShield.isHidden = false
     case .changed:
       view.transform = CGAffineTransform(translationX: translation, y: 0)
     case .ended, .cancelled:
@@ -199,6 +213,8 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
         UIView.animate(withDuration: 0.24, delay: 0,
                        options: [.curveEaseOut, .beginFromCurrentState]) {
           self.view.transform = .identity
+        } completion: { _ in
+          self.closeShield.isHidden = true
         }
       }
     default:
@@ -218,6 +234,7 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
   @objc private func close() {
     guard !closing else { return }
     closing = true
+    view.isUserInteractionEnabled = false
     UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseIn]) {
       self.view.transform = CGAffineTransform(translationX: -self.view.bounds.width, y: 0)
     } completion: { _ in
@@ -226,6 +243,7 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
   }
 
   @objc private func accountTapped() {
+    guard !closing, closeShield.isHidden else { return }
     if account.loggedIn {
       let vip = account.vip ? "大会员" : "未开通"
       let alert = UIAlertController(
@@ -364,6 +382,7 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
   }
 
   private func presentSheet(_ sheet: SettingsSheetViewController) {
+    guard !closing, closeShield.isHidden else { return }
     present(sheet, animated: false)
   }
 
