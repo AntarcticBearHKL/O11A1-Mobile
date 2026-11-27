@@ -40,7 +40,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     headMask.colors = [UIColor.black.cgColor,
                        UIColor.black.cgColor,
                        UIColor.clear.cgColor]
-    headMask.locations = [0, 0.55, 1]
+    headMask.locations = [0, 0.5, 0.82]
     blur.layer.mask = headMask
 
     fieldWrap.backgroundColor = NativeTheme.background

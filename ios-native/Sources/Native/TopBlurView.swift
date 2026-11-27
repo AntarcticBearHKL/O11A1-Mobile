@@ -8,7 +8,7 @@ final class TopBlurView: UIView {
   private let maskLayer = CAGradientLayer()
   private var heightConstraint: NSLayoutConstraint?
 
-  var blurExtraHeight: CGFloat = 22 {
+  var blurExtraHeight: CGFloat = 14 {
     didSet { updateHeight(safeAreaTop: lastSafeAreaTop) }
   }
   private var lastSafeAreaTop: CGFloat = 0
@@ -29,7 +29,7 @@ final class TopBlurView: UIView {
     maskLayer.colors = [UIColor.black.cgColor,
                         UIColor.black.cgColor,
                         UIColor.clear.cgColor]
-    maskLayer.locations = [0, 0.55, 1]
+    maskLayer.locations = [0, 0.5, 0.82]
     layer.mask = maskLayer
     heightConstraint = heightAnchor.constraint(equalToConstant: 60)
     heightConstraint?.isActive = true
