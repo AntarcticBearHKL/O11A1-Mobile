@@ -53,8 +53,6 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private var detailBvid = ""
   private let descLabel = UILabel()
   private let descCard = UIView()
-  private var descCardHeight: NSLayoutConstraint?
-  private let descToggle = UIButton(type: .system)
   private let qualitySetting = UILabel()
   private let danmakuSetting = UILabel()
   private let loopSetting = UILabel()
@@ -73,7 +71,6 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private var danmakuSize: Float = 100
   private var danmakuSpeed: Float = 100
   private var danmakuDensity = true
-  private var descExpanded = false
   private var detailMid: Int64 = 0
   private var dismissPan: UIPanGestureRecognizer?
   private var closeSwipePan: UIPanGestureRecognizer?
@@ -288,28 +285,16 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     descCard.clipsToBounds = true
     stack.addArrangedSubview(descCard)
 
-    descLabel.font = NativeTheme.bodyFont(12)
-    descLabel.textColor = NativeTheme.secondary
-    descLabel.numberOfLines = 3
-    descLabel.text = item.desc.isEmpty ? "暂无简介" : item.desc
+    descLabel.numberOfLines = 0
     descCard.addSubview(descLabel)
     descLabel.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
       descLabel.leadingAnchor.constraint(equalTo: descCard.leadingAnchor, constant: 14),
       descLabel.trailingAnchor.constraint(equalTo: descCard.trailingAnchor, constant: -14),
-      descLabel.topAnchor.constraint(equalTo: descCard.topAnchor, constant: 12),
-      descLabel.bottomAnchor.constraint(equalTo: descCard.bottomAnchor, constant: -12),
+      descLabel.topAnchor.constraint(equalTo: descCard.topAnchor, constant: 14),
+      descLabel.bottomAnchor.constraint(equalTo: descCard.bottomAnchor, constant: -14),
     ])
-    descCardHeight = descCard.heightAnchor.constraint(equalToConstant: detailCardHeight)
-    descCardHeight?.isActive = true
-
-    descToggle.setTitle("展开简介", for: .normal)
-    descToggle.titleLabel?.font = NativeTheme.bodyFont(12)
-    descToggle.setTitleColor(NativeTheme.navBlue, for: .normal)
-    descToggle.contentHorizontalAlignment = .left
-    descToggle.addTarget(self, action: #selector(toggleDesc), for: .touchUpInside)
-    stack.addArrangedSubview(descToggle)
-    descToggle.isHidden = item.desc.count <= 60
+    setDescription(item.desc)
 
     qualityValue = initialQuality
     danmakuOn = initialDanmakuOn
@@ -914,8 +899,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       if !title.isEmpty { self.titleLabel.text = title }
       let desc = o11a1String(json["desc"])
       if !desc.isEmpty {
-        self.descLabel.text = desc
-        self.descToggle.isHidden = desc.count <= 60
+        self.setDescription(desc)
       }
       let pic = o11a1HTTPS(o11a1String(json["pic"]))
       if !pic.isEmpty { ImageLoader.shared.load(pic, into: self.cover) }
@@ -963,11 +947,17 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     onProfile?(mid)
   }
 
-  @objc private func toggleDesc() {
-    descExpanded.toggle()
-    descLabel.numberOfLines = descExpanded ? 0 : 3
-    descCardHeight?.isActive = !descExpanded
-    descToggle.setTitle(descExpanded ? "收起简介" : "展开简介", for: .normal)
+  private func setDescription(_ text: String) {
+    let style = NSMutableParagraphStyle()
+    style.lineSpacing = 5
+    style.lineBreakMode = .byWordWrapping
+    descLabel.attributedText = NSAttributedString(
+      string: text.isEmpty ? "暂无简介" : text,
+      attributes: [
+        .font: NativeTheme.bodyFont(13),
+        .foregroundColor: NativeTheme.secondary,
+        .paragraphStyle: style,
+      ])
   }
 
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {

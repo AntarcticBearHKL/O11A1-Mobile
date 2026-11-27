@@ -16,10 +16,10 @@ final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
   private var separators: [UIView] = []
 
   private let tabTitles = ["推荐", "关注", "动态", "养鱼"]
-  private let tabSymbols = ["house", "person.badge.plus", "waveform", "fish"]
+  private let tabSymbols = ["house.fill", "person.2.fill", "waveform", "fish.fill"]
   private let menuTitles = ["直播", "番剧", "消息", "历史"]
-  private let menuSymbols = ["play.rectangle", "rectangle.split.3x1",
-                             "text.bubble", "clock.arrow.circlepath"]
+  private let menuSymbols = ["play.rectangle.fill", "rectangle.split.3x1",
+                             "text.bubble.fill", "clock.arrow.circlepath"]
 
   private(set) var selectedIndex = 0
   private(set) var barHidden = false
@@ -478,8 +478,11 @@ private final class TabItemView: UIControl {
 
   func configure(title: String, symbol: String, menu: Bool) {
     menuRow = menu
-    let config = UIImage.SymbolConfiguration(pointSize: 21, weight: .regular)
-    iconView.image = UIImage(systemName: symbol, withConfiguration: config)
+    let config = UIImage.SymbolConfiguration(pointSize: 21, weight: .bold)
+    let plain = symbol.replacingOccurrences(of: ".fill", with: "")
+    let image = UIImage(systemName: symbol, withConfiguration: config)
+      ?? UIImage(systemName: plain, withConfiguration: config)
+    iconView.image = image?.withRenderingMode(.alwaysTemplate)
     label.text = title
     isAccessibilityElement = true
     accessibilityLabel = title

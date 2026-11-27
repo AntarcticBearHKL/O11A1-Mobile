@@ -173,11 +173,15 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     view.isUserInteractionEnabled = reveal > 0.01
   }
 
-  func update(item: VideoItem, quality: Int, danmaku: Bool, loop: Bool) {
+  func update(item: VideoItem, quality: Int, danmaku: Bool, loop: Bool,
+              select tab: Tab? = nil) {
     self.item = item
     initialQuality = quality
     initialDanmakuOn = danmaku
     initialLoopOn = loop
+    if let tab = tab {
+      selected = tab
+    }
     clearContent()
     show(selected)
   }

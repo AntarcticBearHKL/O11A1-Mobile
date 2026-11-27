@@ -4,6 +4,7 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
   var onOpenModule: ((ModuleListViewController.Mode, Int64, String) -> Void)?
   var onFish: (() -> Void)?
   var onSettings: (() -> Void)?
+  var onClose: (() -> Void)?
 
   private let scroll = UIScrollView()
   private let list = UIStackView()
@@ -238,7 +239,11 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseIn]) {
       self.view.transform = CGAffineTransform(translationX: -self.view.bounds.width, y: 0)
     } completion: { _ in
-      self.dismiss(animated: false)
+      if let onClose = self.onClose {
+        onClose()
+      } else {
+        self.dismiss(animated: false)
+      }
     }
   }
 

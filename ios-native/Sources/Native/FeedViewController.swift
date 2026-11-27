@@ -54,7 +54,7 @@ final class FeedViewController: UIViewController,
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    view.backgroundColor = NativeTheme.background
+    applyFeedBackground()
 
     table.backgroundColor = .clear
     table.separatorStyle = .none
@@ -131,9 +131,8 @@ final class FeedViewController: UIViewController,
 
     let sidebar = UIPanGestureRecognizer(target: self, action: #selector(handleSidebarPan(_:)))
     sidebar.delegate = self
-    view.addGestureRecognizer(sidebar)
+    sidebar.isEnabled = false
     sidebarPan = sidebar
-    table.panGestureRecognizer.require(toFail: sidebar)
 
     if let initial = initialSource {
       homeSource = initial.source
@@ -484,6 +483,7 @@ final class FeedViewController: UIViewController,
   }
 
   @objc private func feedLayoutChanged() {
+    applyFeedBackground()
     previewEngine.pause()
     previewView.alpha = 0
     previewCell?.setPreviewProgress(nil)
@@ -493,6 +493,12 @@ final class FeedViewController: UIViewController,
     table.layoutIfNeeded()
     startPreviewIfNeeded()
     loadMoreIfNeeded()
+  }
+
+  private func applyFeedBackground() {
+    view.backgroundColor = HomeFeedLayout.isGrid
+      ? NativeTheme.feedBackground
+      : NativeTheme.background
   }
 
   func scrollViewDidScroll(_ scrollView: UIScrollView) {

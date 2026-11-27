@@ -21,6 +21,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   private var sidebarDragStartProgress: CGFloat = 0
   private var sidebarEdgePan: UIScreenEdgePanGestureRecognizer?
   private var sidebarClosePan: UIPanGestureRecognizer?
+  private var settingsPan: UIPanGestureRecognizer?
+  private var settingsPanStartX: CGFloat = 0
+  private var myController: MyViewController?
   private var feedScrollingAtEdgeTouch = false
   private var orientationObserver: NSObjectProtocol?
   private var testFlowTriggered = false
@@ -114,7 +117,10 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       tabBar.bottomAnchor.constraint(equalTo: mainHost.bottomAnchor, constant: -24),
     ])
 
-    searchButton.setImage(UIImage(systemName: "magnifyingglass"), for: .normal)
+    let topIconConfig = UIImage.SymbolConfiguration(pointSize: 19, weight: .bold)
+    searchButton.setImage(
+      UIImage(systemName: "magnifyingglass", withConfiguration: topIconConfig),
+      for: .normal)
     searchButton.tintColor = NativeTheme.foreground
     searchButton.backgroundColor = NativeTheme.surface
     searchButton.layer.cornerRadius = 12
@@ -133,7 +139,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       searchButton.heightAnchor.constraint(equalToConstant: 48),
     ])
 
-    avatarButton.setImage(UIImage(systemName: "person.crop.circle"), for: .normal)
+    avatarButton.setImage(
+      UIImage(systemName: "person.crop.circle.fill", withConfiguration: topIconConfig),
+      for: .normal)
     avatarButton.tintColor = NativeTheme.foreground
     avatarButton.backgroundColor = NativeTheme.surface
     avatarButton.layer.cornerRadius = 12
@@ -186,6 +194,13 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     closePan.cancelsTouchesInView = true
     view.addGestureRecognizer(closePan)
     sidebarClosePan = closePan
+
+    let settings = UIPanGestureRecognizer(
+      target: self, action: #selector(handleSettingsPan(_:)))
+    settings.delegate = self
+    settings.cancelsTouchesInView = true
+    view.addGestureRecognizer(settings)
+    settingsPan = settings
 
     selectTab(0, force: true)
   }
@@ -355,9 +370,20 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     contentView.addSubview(controller.view)
     controller.didMove(toParent: self)
     currentChild = controller
+    installSettingsPanDependency(in: controller.view)
     mainHost.bringSubviewToFront(tabBar)
     mainHost.bringSubviewToFront(searchButton)
     mainHost.bringSubviewToFront(avatarButton)
+  }
+
+  private func installSettingsPanDependency(in root: UIView) {
+    guard let settingsPan = settingsPan else { return }
+    if let scroll = root as? UIScrollView {
+      scroll.panGestureRecognizer.require(toFail: settingsPan)
+    }
+    for child in root.subviews {
+      installSettingsPanDependency(in: child)
+    }
   }
 
   private func openPlayer(_ item: VideoItem, from source: UIView?,
@@ -688,10 +714,32 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     if gestureRecognizer === sidebarEdgePan {
       feedScrollingAtEdgeTouch = feed?.isFeedScrolling() ?? false
     }
+    if gestureRecognizer === settingsPan {
+      if touch.view?.isDescendant(of: tabBar) == true { return false }
+      if touch.view?.isDescendant(of: searchButton) == true { return false }
+      if touch.view?.isDescendant(of: avatarButton) == true { return false }
+      settingsPanStartX = touch.location(in: view).x
+    }
     return true
   }
 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    if gestureRecognizer === settingsPan {
+      guard player == nil, presentedViewController == nil,
+            myController == nil, sidebar?.superview == nil,
+            feed?.isSearchOpen() != true,
+            feed?.isFeedScrolling() != true,
+            let pan = gestureRecognizer as? UIPanGestureRecognizer else {
+        return false
+      }
+      guard settingsPanStartX <= view.bounds.width / 3.0 else { return false }
+      let translation = pan.translation(in: view)
+      let velocity = pan.velocity(in: view)
+      let movingRight = translation.x > 2 || velocity.x > 80
+      let horizontal = abs(translation.x) > abs(translation.y) * 1.6
+        || abs(velocity.x) > abs(velocity.y) * 1.6
+      return movingRight && horizontal
+    }
     if gestureRecognizer === sidebarEdgePan {
       guard player == nil, presentedViewController == nil,
             feed?.isSearchOpen() != true, sidebar?.superview == nil,
@@ -783,22 +831,132 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   }
 
   @objc private func openMy() {
-    let my = MyViewController()
-    my.modalPresentationStyle = .overFullScreen
-    my.onFish = { [weak self, weak my] in
-      my?.dismiss(animated: false) { self?.selectTab(3) }
+    guard myController == nil else { return }
+    if let feed = feed, currentChild === feed {
+      feed.suspendPreview()
     }
-    my.onSettings = { [weak self, weak my] in
-      my?.dismiss(animated: false) { self?.openSettings() }
+    let my = makeMyController()
+    addChild(my)
+    my.view.frame = view.bounds
+    my.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    view.addSubview(my.view)
+    my.didMove(toParent: self)
+    myController = my
+    my.view.transform = CGAffineTransform(translationX: -view.bounds.width, y: 0)
+    setRecedeProgress(0)
+    finishMyOpen()
+  }
+
+  private func makeMyController() -> MyViewController {
+    let my = MyViewController()
+    my.onClose = { [weak self] in self?.removeMyController() }
+    my.onFish = { [weak self] in
+      self?.closeMy { [weak self] in self?.selectTab(3) }
+    }
+    my.onSettings = { [weak self] in
+      self?.closeMy { [weak self] in self?.openSettings() }
     }
     my.onOpenModule = { [weak self, weak my] mode, target, title in
-      guard let self = self, let host = my else { return }
-      self.presentModule(from: host, mode: mode, target: target, title: title)
+      guard let self = self, let my = my else { return }
+      self.presentModule(from: my, mode: mode, target: target, title: title)
     }
-    present(my, animated: false)
+    return my
+  }
+
+  private func beginMyDrag() {
+    guard myController == nil else { return }
+    if let feed = feed, currentChild === feed {
+      feed.suspendPreview()
+    }
+    let my = makeMyController()
+    addChild(my)
+    my.view.frame = view.bounds
+    my.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    view.addSubview(my.view)
+    my.didMove(toParent: self)
+    myController = my
     my.view.transform = CGAffineTransform(translationX: -view.bounds.width, y: 0)
-    UIView.animate(withDuration: 0.24, delay: 0, options: [.curveEaseOut]) {
+    setRecedeProgress(0)
+  }
+
+  private func setMyProgress(_ value: CGFloat) {
+    guard let my = myController else { return }
+    let p = max(0, min(1, value))
+    let width = max(1, view.bounds.width)
+    my.view.transform = CGAffineTransform(
+      translationX: -width * (1 - p), y: 0)
+    setRecedeProgress(p)
+  }
+
+  private func finishMyOpen() {
+    guard let my = myController else { return }
+    UIView.animate(withDuration: 0.34, delay: 0,
+                   usingSpringWithDamping: 0.9,
+                   initialSpringVelocity: 0.25,
+                   options: [.beginFromCurrentState, .allowUserInteraction]) {
       my.view.transform = .identity
+      self.setRecedeProgress(1)
+    }
+  }
+
+  private func closeMy(then action: @escaping () -> Void) {
+    guard let my = myController else {
+      action()
+      return
+    }
+    myController = nil
+    settingsPan?.isEnabled = false
+    UIView.animate(withDuration: 0.24, delay: 0,
+                   options: [.curveEaseIn, .beginFromCurrentState]) {
+      my.view.transform = CGAffineTransform(
+        translationX: -self.view.bounds.width, y: 0)
+      self.setRecedeProgress(0)
+    } completion: { _ in
+      my.willMove(toParent: nil)
+      my.view.removeFromSuperview()
+      my.removeFromParent()
+      self.settingsPan?.isEnabled = true
+      if let feed = self.feed, self.currentChild === feed {
+        feed.resumePreview()
+      }
+      action()
+    }
+  }
+
+  private func removeMyController() {
+    guard let my = myController else { return }
+    myController = nil
+    my.willMove(toParent: nil)
+    my.view.removeFromSuperview()
+    my.removeFromParent()
+    if let feed = feed, currentChild === feed {
+      feed.resumePreview()
+    }
+    animateRecede(to: 0)
+  }
+
+  @objc private func handleSettingsPan(_ gesture: UIPanGestureRecognizer) {
+    let width = max(1, view.bounds.width)
+    switch gesture.state {
+    case .began:
+      beginMyDrag()
+    case .changed:
+      guard myController != nil else { return }
+      let translation = max(0, gesture.translation(in: view).x)
+      setMyProgress(translation / width)
+    case .ended, .cancelled:
+      guard myController != nil else { return }
+      let translation = max(0, gesture.translation(in: view).x)
+      let velocity = gesture.velocity(in: view).x
+      let progress = translation / width
+      let open = (progress > 0.28 && velocity > -450) || velocity > 550
+      if open {
+        finishMyOpen()
+      } else {
+        closeMy {}
+      }
+    default:
+      break
     }
   }
 

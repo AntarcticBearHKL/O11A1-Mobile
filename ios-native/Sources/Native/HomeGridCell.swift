@@ -6,7 +6,7 @@ final class MiniVideoCardView: UIView {
   private static let cardSurface = UIColor { trait in
     trait.userInterfaceStyle == .dark
       ? UIColor(red: 28.0 / 255.0, green: 28.0 / 255.0, blue: 30.0 / 255.0, alpha: 1)
-      : UIColor(red: 242.0 / 255.0, green: 242.0 / 255.0, blue: 242.0 / 255.0, alpha: 1)
+      : .white
   }
 
   let mediaHost = UIView()

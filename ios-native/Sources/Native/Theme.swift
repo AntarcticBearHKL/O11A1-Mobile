@@ -13,6 +13,22 @@ enum NativeTheme {
     }
   }
 
+  static var feedBackground: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? .black
+        : UIColor(white: 0.925, alpha: 1)
+    }
+  }
+
+  static var feedCard: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(white: 0.10, alpha: 1)
+        : .white
+    }
+  }
+
   static var foreground: UIColor {
     UIColor { trait in trait.userInterfaceStyle == .dark ? .white : .black }
   }

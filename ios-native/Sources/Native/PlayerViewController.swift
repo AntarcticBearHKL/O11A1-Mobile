@@ -72,6 +72,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var closeSwipe = false
   private var horizontalCloseActive = false
   private var horizontalCloseProgress: CGFloat = 0
+  private var horizontalSlideRight = false
   private var landscapeDrag = false
   private var landscapeControl: LandscapeVerticalControl = .none
   private var landscapeAdjusting = false
@@ -1029,13 +1030,20 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     horizontalCloseProgress = 0
     portraitDragActive = true
     hideControls()
-    collapseBackdrop(animated: true)
+    if !horizontalSlideRight {
+      collapseBackdrop(animated: true)
+    }
   }
 
   private func updateHorizontalClose(_ progress: CGFloat) {
     guard horizontalCloseActive else { return }
     let p = max(0, min(1, progress))
     horizontalCloseProgress = p
+    if horizontalSlideRight {
+      let width = max(1, view.bounds.width)
+      view.transform = CGAffineTransform(translationX: width * p, y: 0)
+      return
+    }
     let height = max(1, view.bounds.height)
     let down = height * 0.58 * p
     view.bringSubviewToFront(videoContainer)
@@ -1053,6 +1061,31 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private func finishHorizontalClose(_ shouldClose: Bool) {
     guard horizontalCloseActive else {
       if shouldClose { closeFromRightSwipe() }
+      return
+    }
+    if horizontalSlideRight {
+      let width = max(1, view.bounds.width)
+      if shouldClose {
+        UIView.animate(withDuration: 0.24, delay: 0,
+                       options: [.curveEaseIn, .beginFromCurrentState]) {
+          self.view.transform = CGAffineTransform(translationX: width, y: 0)
+        } completion: { _ in
+          self.horizontalCloseActive = false
+          self.horizontalSlideRight = false
+          self.closePlayer(animated: false)
+        }
+      } else {
+        UIView.animate(withDuration: 0.36, delay: 0,
+                       usingSpringWithDamping: 0.9,
+                       initialSpringVelocity: 0.25,
+                       options: [.beginFromCurrentState, .allowUserInteraction]) {
+          self.view.transform = .identity
+        } completion: { _ in
+          self.horizontalCloseActive = false
+          self.portraitDragActive = false
+          self.horizontalSlideRight = false
+        }
+      }
       return
     }
     let height = max(1, view.bounds.height)
@@ -1098,6 +1131,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private func closeFromRightSwipe() {
     guard !closing, !portraitShrinking, !isLandscapePlayer,
           portraitCloseReady else { return }
+    horizontalSlideRight = true
     beginHorizontalClose()
     finishHorizontalClose(true)
   }
@@ -1520,16 +1554,19 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   @objc private func handleContentClosePan(_ gesture: UIPanGestureRecognizer) {
+    let reference = view.superview ?? view
     let width = max(1, view.bounds.width)
-    let translation = gesture.translation(in: view)
+    let translation = gesture.translation(in: reference)
     switch gesture.state {
     case .began:
+      horizontalSlideRight = true
+      view.transform = .identity
       beginHorizontalClose()
     case .changed:
       updateHorizontalClose(max(0, min(1, translation.x / width)))
     case .ended, .cancelled:
       guard horizontalCloseActive else { return }
-      let velocity = gesture.velocity(in: view).x
+      let velocity = gesture.velocity(in: reference).x
       finishHorizontalClose(translation.x > width * 0.22 || velocity > 380)
     default:
       break
@@ -1538,6 +1575,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
     if portraitShrinking { return }
+    if horizontalCloseActive && horizontalSlideRight { return }
     let reference = view.superview ?? view
     let translation = gesture.translation(in: reference)
     switch gesture.state {
@@ -1587,6 +1625,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
               }
             } else if translation.y > 0, portraitCloseReady {
               portraitDownClose = true
+              horizontalSlideRight = false
               beginHorizontalClose()
             } else if translation.y < 0 {
               portraitUpDrag = true
@@ -1603,6 +1642,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       }
       if closeSwipe {
         if !horizontalCloseActive {
+          horizontalSlideRight = true
           beginHorizontalClose()
         }
         let width = max(1, view.bounds.width)
@@ -1774,7 +1814,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       item: value,
       quality: currentQuality,
       danmaku: danmakuOverlay.enabled,
-      loop: loopOn
+      loop: loopOn,
+      select: .comments
     )
     view.setNeedsLayout()
     loadQuality(currentQuality)
