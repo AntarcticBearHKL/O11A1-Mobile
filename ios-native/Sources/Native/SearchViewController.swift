@@ -15,7 +15,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   }
 
   private let head = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
-  private let headGradient = CAGradientLayer()
+  private let headMask = CAGradientLayer()
   private let fieldWrap = UIView()
   private let field = UITextField()
   private let table = UITableView(frame: .zero, style: .plain)
@@ -37,18 +37,18 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     blur.clipsToBounds = true
     view.addSubview(blur)
     blur.translatesAutoresizingMaskIntoConstraints = false
-    headGradient.colors = [NativeTheme.searchHeadTop.cgColor,
-                           NativeTheme.searchHeadBottom.cgColor]
-    headGradient.startPoint = CGPoint(x: 0.5, y: 0)
-    headGradient.endPoint = CGPoint(x: 0.5, y: 1)
-    blur.contentView.layer.addSublayer(headGradient)
+    headMask.colors = [UIColor.black.cgColor,
+                       UIColor.black.cgColor,
+                       UIColor.clear.cgColor]
+    headMask.locations = [0, 0.55, 1]
+    blur.layer.mask = headMask
 
     fieldWrap.backgroundColor = NativeTheme.background
     fieldWrap.layer.cornerRadius = NativeTheme.cornerRadius
     fieldWrap.layer.cornerCurve = .continuous
     fieldWrap.layer.borderWidth = 1
     fieldWrap.layer.borderColor = NativeTheme.hairline.cgColor
-    blur.contentView.addSubview(fieldWrap)
+    view.addSubview(fieldWrap)
     fieldWrap.translatesAutoresizingMaskIntoConstraints = false
 
     let iconWrap = UIView(frame: CGRect(x: 0, y: 0, width: 38, height: 24))
@@ -107,8 +107,8 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
       blur.topAnchor.constraint(equalTo: view.topAnchor),
       blur.bottomAnchor.constraint(equalTo: fieldWrap.bottomAnchor, constant: 12),
 
-      fieldWrap.leadingAnchor.constraint(equalTo: blur.contentView.leadingAnchor, constant: 18),
-      fieldWrap.trailingAnchor.constraint(equalTo: blur.contentView.trailingAnchor, constant: -18),
+      fieldWrap.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 18),
+      fieldWrap.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -18),
       fieldWrap.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
       fieldWrap.heightAnchor.constraint(equalToConstant: 48),
 
@@ -141,7 +141,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     super.viewDidLayoutSubviews()
     CATransaction.begin()
     CATransaction.setDisableActions(true)
-    headGradient.frame = head.bounds
+    headMask.frame = head.bounds
     CATransaction.commit()
     table.contentInset = UIEdgeInsets(top: mode == .hot ? 8 : 0, left: 0,
                                       bottom: 24 + view.safeAreaInsets.bottom, right: 0)
@@ -158,8 +158,6 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
-    headGradient.colors = [NativeTheme.searchHeadTop.cgColor,
-                           NativeTheme.searchHeadBottom.cgColor]
     fieldWrap.layer.borderColor = NativeTheme.hairline.cgColor
     fieldWrap.backgroundColor = NativeTheme.background
   }

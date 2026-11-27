@@ -19,8 +19,7 @@ final class FeedViewController: UIViewController,
   private(set) var items: [VideoItem] = []
   private let table = UITableView(frame: .zero, style: .plain)
   private let statusLabel = UILabel()
-  private let topFade = UIView()
-  private var topFadeHeight: NSLayoutConstraint?
+  private let topFade = TopBlurView()
   private let previewEngine = VideoEngine()
   private lazy var previewView = PlayerLayerView(playerLayer: previewEngine.playerLayer)
   private var previewCell: HomeCardCell?
@@ -73,19 +72,11 @@ final class FeedViewController: UIViewController,
     topFade.isUserInteractionEnabled = false
     view.addSubview(topFade)
     topFade.translatesAutoresizingMaskIntoConstraints = false
-    topFadeHeight = topFade.heightAnchor.constraint(equalToConstant: 42)
     NSLayoutConstraint.activate([
       topFade.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       topFade.trailingAnchor.constraint(equalTo: view.trailingAnchor),
       topFade.topAnchor.constraint(equalTo: view.topAnchor),
-      topFadeHeight!,
     ])
-    let gradient = CAGradientLayer()
-    gradient.colors = [NativeTheme.background.cgColor,
-                       NativeTheme.background.withAlphaComponent(0).cgColor]
-    gradient.locations = [0, 1]
-    topFade.layer.addSublayer(gradient)
-    topFade.layer.name = "feedTopFade"
 
     statusLabel.font = NativeTheme.bodyFont(14)
     statusLabel.textColor = NativeTheme.secondary
@@ -169,15 +160,12 @@ final class FeedViewController: UIViewController,
     table.contentInset = UIEdgeInsets(top: insets.top, left: 0,
                                       bottom: 122 + insets.bottom, right: 0)
     table.verticalScrollIndicatorInsets.top = insets.top
-    topFadeHeight?.constant = (insets.top + 18) * 2.0 / 3.0
+    topFade.updateHeight(safeAreaTop: insets.top)
   }
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     updateInsets()
-    if let gradient = topFade.layer.sublayers?.first as? CAGradientLayer {
-      gradient.frame = topFade.bounds
-    }
     if let search = searchController {
       let width = max(1, view.bounds.width)
       let progress = max(0, min(1, searchProgress))

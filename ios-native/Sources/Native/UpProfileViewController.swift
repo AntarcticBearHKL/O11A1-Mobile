@@ -11,9 +11,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   private let mid: Int64
   private let table = UITableView(frame: .zero, style: .plain)
   private let statusLabel = UILabel()
-  private let topBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
-  private let topBlurMask = CAGradientLayer()
-  private var topBlurHeight: NSLayoutConstraint?
+  private let topBlur = TopBlurView()
   private let bottomCard = UIView()
   private let cardBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let avatar = UIImageView()
@@ -68,11 +66,6 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     topBlur.isUserInteractionEnabled = false
     view.addSubview(topBlur)
     topBlur.translatesAutoresizingMaskIntoConstraints = false
-    topBlurMask.colors = [UIColor.black.cgColor,
-                          UIColor.black.cgColor,
-                          UIColor.clear.cgColor]
-    topBlurMask.locations = [0, 0.55, 1]
-    topBlur.layer.mask = topBlurMask
 
     statusLabel.font = NativeTheme.bodyFont(13)
     statusLabel.textColor = NativeTheme.secondary
@@ -169,12 +162,10 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     table.topAnchor.constraint(equalTo: view.topAnchor).isActive = true
     table.bottomAnchor.constraint(equalTo: bottomCard.topAnchor).isActive = true
 
-    topBlurHeight = topBlur.heightAnchor.constraint(equalToConstant: 60)
     NSLayoutConstraint.activate([
       topBlur.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       topBlur.trailingAnchor.constraint(equalTo: view.trailingAnchor),
       topBlur.topAnchor.constraint(equalTo: view.topAnchor),
-      topBlurHeight!,
     ])
 
     statusLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
@@ -244,8 +235,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     table.contentInset = UIEdgeInsets(top: top, left: 0, bottom: 78, right: 0)
     table.verticalScrollIndicatorInsets = UIEdgeInsets(top: view.safeAreaInsets.top,
                                                        left: 0, bottom: 0, right: 0)
-    topBlurHeight?.constant = view.safeAreaInsets.top + 22
-    topBlurMask.frame = topBlur.bounds
+    topBlur.updateHeight(safeAreaTop: view.safeAreaInsets.top)
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
