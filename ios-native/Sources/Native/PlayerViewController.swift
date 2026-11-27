@@ -71,11 +71,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var closeSwipe = false
   private var horizontalCloseActive = false
   private var horizontalCloseProgress: CGFloat = 0
-  private var portraitDismissDrag = false
   private var landscapeDrag = false
   private var landscapeControl: LandscapeVerticalControl = .none
   private var landscapeAdjusting = false
   private var landscapeStartValue: Float = 0
+  private var portraitControl: LandscapeVerticalControl = .none
+  private var portraitAdjusting = false
+  private var portraitStartValue: Float = 0
   private let volumeView = MPVolumeView()
   private var volumeSlider: UISlider?
   private var progressLink: CADisplayLink?
@@ -110,10 +112,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var controlsVisible = true
   private var controlsTimer: Timer?
   private var lastPlayingState = false
-  private var panRestoreTopAlpha: CGFloat = 0
-  private var panRestorePanelAlpha: CGFloat = 0
-  private var panRestoreDimAlpha: CGFloat = 1
-  private var panRestorePlayAlpha: CGFloat = 1
   private let panelSlideDistance: CGFloat = 28
   private let playerPanelHeight: CGFloat = 112
   private let panelShowDuration: TimeInterval = 0.26
@@ -742,12 +740,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     return nil
   }
 
-  private func applyLandscapeControl(_ translation: CGPoint) {
-    guard landscapeControl != .none else { return }
+  private func applyVerticalControl(_ translation: CGPoint,
+                                    control: LandscapeVerticalControl,
+                                    base: Float) {
+    guard control != .none else { return }
     let height = max(1, view.bounds.height)
     let delta = Float(-translation.y / height) * 1.15
-    let value = max(0, min(1, landscapeStartValue + delta))
-    switch landscapeControl {
+    let value = max(0, min(1, base + delta))
+    switch control {
     case .brightness:
       UIScreen.main.brightness = CGFloat(value)
     case .volume:
@@ -810,19 +810,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     } else {
       changes()
     }
-  }
-
-  private func applyDismissProgress(_ down: CGFloat) {
-    let height = max(1, view.bounds.height)
-    let progress = min(1, max(0, down / (height * 0.55)))
-    videoContainer.transform = CGAffineTransform(translationX: 0, y: down)
-    videoContainer.alpha = max(0, 1 - progress * 0.85)
-    backdropHost.transform = CGAffineTransform(translationX: 0, y: down)
-    backdropHost.alpha = max(0, 1 - progress * 0.15)
-    topBar.alpha = panRestoreTopAlpha * (1 - progress)
-    bottomPanel.alpha = panRestorePanelAlpha * (1 - progress)
-    dim.alpha = panRestoreDimAlpha * (1 - progress)
-    playButton.alpha = panRestorePlayAlpha * (1 - progress)
   }
 
   private func portraitVideoRects() -> (center: CGRect, top: CGRect) {
@@ -978,10 +965,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     return content
   }
 
+  private var portraitCloseReady: Bool {
+    if portraitStageIsTop { return portraitTransition > 0.98 }
+    return portraitTransition < 0.02
+  }
+
   private func beginHorizontalClose() {
     guard !closing, !portraitShrinking, !isLandscapePlayer,
-          portraitStageIsTop, portraitTransition > 0.98,
-          !horizontalCloseActive else { return }
+          portraitCloseReady, !horizontalCloseActive else { return }
     horizontalCloseActive = true
     horizontalCloseProgress = 0
     portraitDragActive = true
@@ -1054,7 +1045,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   private func closeFromRightSwipe() {
     guard !closing, !portraitShrinking, !isLandscapePlayer,
-          portraitStageIsTop, portraitTransition > 0.98 else { return }
+          portraitCloseReady else { return }
     beginHorizontalClose()
     finishHorizontalClose(true)
   }
@@ -1499,17 +1490,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       landscapeDrag = false
       landscapeAdjusting = false
       landscapeControl = .none
-      portraitDismissDrag = false
+      portraitControl = .none
+      portraitAdjusting = false
       portraitUpDrag = false
       portraitRestoreDrag = false
       panDirectionDecided = false
       portraitDragActive = true
       panStartFrame = videoContainer.frame
       panProgress = 0
-      panRestoreTopAlpha = topBar.alpha
-      panRestorePanelAlpha = bottomPanel.alpha
-      panRestoreDimAlpha = dim.alpha
-      panRestorePlayAlpha = playButton.alpha
       view.transform = .identity
       view.layer.cornerRadius = 0
       if isLandscapePlayer {
@@ -1524,6 +1512,19 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             volumeSlider = findVolumeSlider(in: volumeView)
           }
           landscapeStartValue = volumeSlider?.value ?? 0.5
+        }
+      } else if !portraitStageIsTop && portraitTransition < 0.02 {
+        let x = gesture.location(in: view).x
+        let width = max(1, view.bounds.width)
+        if x < width / 3.0 {
+          portraitControl = .brightness
+          portraitStartValue = Float(UIScreen.main.brightness)
+        } else if x > width * 2.0 / 3.0 {
+          portraitControl = .volume
+          if volumeSlider == nil {
+            volumeSlider = findVolumeSlider(in: volumeView)
+          }
+          portraitStartValue = volumeSlider?.value ?? 0.5
         }
       }
       let velocity = gesture.velocity(in: videoContainer)
@@ -1542,10 +1543,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
               if translation.y > 0 {
                 portraitRestoreDrag = true
               }
-            } else if translation.y > 0 {
-              portraitDismissDrag = true
-              view.transform = .identity
-              collapseBackdrop()
+            } else if portraitControl != .none {
+              portraitAdjusting = true
+              hideControls()
             } else if translation.y < 0 {
               portraitUpDrag = true
             }
@@ -1568,7 +1568,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         return
       }
       if isLandscapePlayer && landscapeAdjusting {
-        applyLandscapeControl(translation)
+        applyVerticalControl(translation, control: landscapeControl,
+                             base: landscapeStartValue)
+        return
+      }
+      if !isLandscapePlayer && portraitAdjusting {
+        applyVerticalControl(translation, control: portraitControl,
+                             base: portraitStartValue)
         return
       }
       guard !isLandscapePlayer || landscapeDrag else { return }
@@ -1581,9 +1587,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         } else if portraitRestoreDrag {
           let p = 1 - min(1, max(0, translation.y / distance))
           applyPortraitTransition(p)
-        } else if portraitDismissDrag {
-          let down = max(0, translation.y)
-          applyDismissProgress(down)
         }
         return
       }
@@ -1630,6 +1633,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         portraitDragActive = false
         return
       }
+      if portraitAdjusting {
+        portraitAdjusting = false
+        portraitControl = .none
+        panDirectionDecided = false
+        portraitDragActive = false
+        return
+      }
       if isLandscapePlayer && !landscapeDrag {
         landscapeDrag = false
         landscapeControl = .none
@@ -1639,6 +1649,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       }
       landscapeDrag = false
       landscapeControl = .none
+      portraitControl = .none
       if !isLandscapePlayer {
         let rects = portraitVideoRects()
         let distance = max(120, rects.center.minY - rects.top.minY)
@@ -1654,30 +1665,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
           panDirectionDecided = false
           let p = 1 - min(1, max(0, translation.y / distance))
           settlePortrait(top: !(p < 0.72 || endVelocity.y > 420), animated: true)
-          return
-        }
-        if portraitDismissDrag {
-          portraitDismissDrag = false
-          panDirectionDecided = false
-          if translation.y > 120 || endVelocity.y > 700 {
-            closePortraitWithShrink()
-          } else {
-            UIView.animate(withDuration: 0.34, delay: 0,
-                           usingSpringWithDamping: 0.9, initialSpringVelocity: 0.3,
-                           options: [.beginFromCurrentState]) {
-              self.videoContainer.transform = .identity
-              self.videoContainer.alpha = 1
-              self.backdropHost.transform = .identity
-              self.backdropHost.alpha = 1
-              self.topBar.alpha = self.panRestoreTopAlpha
-              self.bottomPanel.alpha = self.panRestorePanelAlpha
-              self.dim.alpha = self.panRestoreDimAlpha
-              self.playButton.alpha = self.panRestorePlayAlpha
-            } completion: { _ in
-              self.expandBackdrop(animated: true)
-            }
-          }
-          portraitDragActive = false
           return
         }
         panDirectionDecided = false
@@ -1701,31 +1688,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       }
     default:
       break
-    }
-  }
-
-  private func closePortraitWithShrink() {
-    guard !closing && !portraitShrinking else { return }
-    portraitShrinking = true
-    portraitDragActive = false
-    let height = max(1, view.bounds.height)
-    let finalDown = height * 0.58
-    UIView.animate(withDuration: 0.30, delay: 0,
-                   options: [.curveEaseIn, .beginFromCurrentState]) {
-      self.videoContainer.transform = CGAffineTransform(
-        translationX: 0, y: finalDown)
-      self.videoContainer.alpha = 0
-      self.backdropHost.transform = CGAffineTransform(
-        translationX: 0, y: finalDown)
-      self.backdropHost.alpha = 0
-      self.contentController?.view.alpha = 0
-      self.topBar.alpha = 0
-      self.bottomPanel.alpha = 0
-      self.dim.alpha = 0
-      self.playButton.alpha = 0
-    } completion: { _ in
-      self.portraitShrinking = false
-      self.closePlayer(animated: false)
     }
   }
 
@@ -2023,12 +1985,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     if gestureRecognizer === contentClosePan {
-      guard !closing, !isLandscapePlayer, portraitStageIsTop,
-            portraitTransition > 0.98, !portraitShrinking,
+      guard !closing, !isLandscapePlayer, portraitCloseReady,
+            !portraitShrinking, !horizontalCloseActive,
             let pan = gestureRecognizer as? UIPanGestureRecognizer else {
         return false
       }
-      guard contentCloseStartX < view.bounds.width / 3.0 else { return false }
+      if portraitStageIsTop && contentCloseStartX >= view.bounds.width / 3.0 {
+        return false
+      }
       let translation = pan.translation(in: view)
       let velocity = pan.velocity(in: view)
       guard translation.x > 2, velocity.x >= 0 else { return false }
