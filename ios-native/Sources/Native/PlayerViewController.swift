@@ -651,6 +651,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       UIScreen.main.brightness = CGFloat(value)
     case .volume:
       if volumeSlider == nil {
+        volumeView.layoutIfNeeded()
         volumeSlider = findVolumeSlider(in: volumeView)
       }
       volumeSlider?.value = value
@@ -931,6 +932,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     bottomPanel.layoutIfNeeded()
     grid.setNeedsDisplay()
+    if volumeSlider == nil {
+      volumeSlider = findVolumeSlider(in: volumeView)
+    }
   }
 
   private func loadQuality(_ qn: Int) {
