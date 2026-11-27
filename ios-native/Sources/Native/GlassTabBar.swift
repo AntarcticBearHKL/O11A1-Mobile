@@ -181,7 +181,7 @@ final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
         compactX = 0
         compactY = compactHeight
         compactW = width
-        compactH = listRowHeight
+        compactH = compactHeight
       }
       item.frame = CGRect(
         x: compactX + (0 - compactX) * p,
@@ -376,7 +376,7 @@ final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
     }
   }
 
-  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+  override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
     let velocity = pan.velocity(in: self)
     let translation = pan.translation(in: self)
