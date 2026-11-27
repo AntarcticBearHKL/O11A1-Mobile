@@ -992,14 +992,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     guard horizontalCloseActive else { return }
     let p = max(0, min(1, progress))
     horizontalCloseProgress = p
-    let width = max(1, view.bounds.width)
-    let x = width * p * 0.92
-    let scale = 1 - 0.05 * p
-    videoContainer.transform = CGAffineTransform(translationX: x, y: 0)
-      .scaledBy(x: scale, y: scale)
-    videoContainer.alpha = max(0, 1 - p * 0.8)
+    let height = max(1, view.bounds.height)
+    let down = height * 0.58 * p
+    view.bringSubviewToFront(videoContainer)
+    videoContainer.transform = CGAffineTransform(translationX: 0, y: down)
+    videoContainer.alpha = max(0, 1 - p * 0.9)
+    backdropHost.transform = CGAffineTransform(translationX: 0, y: down)
+    backdropHost.alpha = max(0, 1 - p * 0.7)
     contentController?.view.alpha = max(0, 1 - p * 1.5)
-    backdropHost.alpha = max(0, 1 - p * 0.85)
     topBar.alpha = 0
     bottomPanel.alpha = 0
     dim.alpha = max(0, 1 - p * 0.9)
@@ -1011,15 +1011,18 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       if shouldClose { closeFromRightSwipe() }
       return
     }
-    let width = max(1, view.bounds.width)
+    let height = max(1, view.bounds.height)
     if shouldClose {
+      let finalDown = height * 0.58
       UIView.animate(withDuration: 0.30, delay: 0,
                      options: [.curveEaseIn, .beginFromCurrentState]) {
         self.videoContainer.transform = CGAffineTransform(
-          translationX: width * 1.05, y: 0)
+          translationX: 0, y: finalDown)
         self.videoContainer.alpha = 0
-        self.contentController?.view.alpha = 0
+        self.backdropHost.transform = CGAffineTransform(
+          translationX: 0, y: finalDown)
         self.backdropHost.alpha = 0
+        self.contentController?.view.alpha = 0
         self.dim.alpha = 0
         self.topBar.alpha = 0
         self.bottomPanel.alpha = 0
@@ -1035,8 +1038,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
                      options: [.beginFromCurrentState, .allowUserInteraction]) {
         self.videoContainer.transform = .identity
         self.videoContainer.alpha = 1
-        self.contentController?.view.alpha = 1
+        self.backdropHost.transform = .identity
         self.backdropHost.alpha = 1
+        self.contentController?.view.alpha = 1
         self.dim.alpha = 1
       } completion: { _ in
         self.horizontalCloseActive = false
