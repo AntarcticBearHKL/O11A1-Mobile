@@ -211,16 +211,15 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
 
   private func applyGlass() {
     let light = traitCollection.userInterfaceStyle == .light
-    tint.backgroundColor = light
-      ? UIColor(white: 1, alpha: 0.66)
-      : UIColor(red: 10.0 / 255.0, green: 12.0 / 255.0, blue: 18.0 / 255.0, alpha: 0.84)
+    blur.isHidden = true
+    tint.backgroundColor = NativeTheme.background
+    card.layer.borderWidth = 0.5
+    card.layer.borderColor = NativeTheme.hairline.cgColor
     sortDock.layer.borderColor = light
-      ? UIColor(white: 1, alpha: 0.62).cgColor
-      : UIColor(white: 1, alpha: 0.10).cgColor
-    sortDock.backgroundColor = light
-      ? UIColor(white: 1, alpha: 0.86)
-      : UIColor(red: 20.0 / 255.0, green: 24.0 / 255.0, blue: 32.0 / 255.0, alpha: 0.86)
-    sortBlur.alpha = light ? 0.7 : 0.5
+      ? UIColor(white: 0, alpha: 0.08).cgColor
+      : UIColor(white: 1, alpha: 0.12).cgColor
+    sortBlur.isHidden = true
+    sortDock.backgroundColor = NativeTheme.background
   }
 
   private func updateSort() {

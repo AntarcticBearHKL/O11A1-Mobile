@@ -64,7 +64,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     super.viewDidLoad()
     view.backgroundColor = .clear
 
-    card.backgroundColor = NativeTheme.background.withAlphaComponent(0.98)
+    card.backgroundColor = NativeTheme.background
     card.layer.cornerRadius = NativeTheme.cornerRadius
     card.layer.cornerCurve = .continuous
     card.clipsToBounds = true
@@ -759,7 +759,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
-    card.backgroundColor = NativeTheme.background.withAlphaComponent(0.98)
+    card.backgroundColor = NativeTheme.background
     authorButton.superview?.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
     descLabel.textColor = NativeTheme.secondary
   }

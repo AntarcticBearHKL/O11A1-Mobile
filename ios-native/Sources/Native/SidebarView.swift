@@ -42,6 +42,7 @@ final class SidebarView: UIView {
     ])
 
     let bg = UIView()
+    bg.backgroundColor = NativeTheme.background
     bg.layer.cornerRadius = NativeTheme.cornerRadius
     bg.layer.cornerCurve = .continuous
     bg.layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
@@ -69,6 +70,7 @@ final class SidebarView: UIView {
     blur.layer.cornerCurve = .continuous
     blur.layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
     blur.clipsToBounds = true
+    blur.isHidden = true
     bg.addSubview(blur)
     blur.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([

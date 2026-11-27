@@ -287,21 +287,20 @@ final class HomeCardCell: UITableViewCell {
     let dark = traitCollection.userInterfaceStyle == .dark
     glossLayer.colors = dark
       ? [
-          UIColor(red: 44.0 / 255.0, green: 53.0 / 255.0, blue: 66.0 / 255.0, alpha: 0.95).cgColor,
-          UIColor(red: 23.0 / 255.0, green: 28.0 / 255.0, blue: 36.0 / 255.0, alpha: 0.97).cgColor,
+          UIColor(white: 5.0 / 255.0, alpha: 1).cgColor,
+          UIColor(white: 17.0 / 255.0, alpha: 1).cgColor,
         ]
       : [
-          UIColor(white: 1, alpha: 0.97).cgColor,
-          UIColor(red: 247.0 / 255.0, green: 249.0 / 255.0, blue: 252.0 / 255.0, alpha: 0.93).cgColor,
-          UIColor(red: 231.0 / 255.0, green: 236.0 / 255.0, blue: 244.0 / 255.0, alpha: 0.90).cgColor,
+          UIColor.white.cgColor,
+          UIColor(white: 242.0 / 255.0, alpha: 1).cgColor,
         ]
-    glossLayer.locations = dark ? [0, 1] : [0, 0.52, 1]
+    glossLayer.locations = [0, 1]
     sheenLayer.colors = dark
-      ? [UIColor(white: 1, alpha: 0.14).cgColor, UIColor(white: 1, alpha: 0).cgColor]
+      ? [UIColor(white: 1, alpha: 0.12).cgColor, UIColor(white: 1, alpha: 0).cgColor]
       : [UIColor(white: 1, alpha: 0.62).cgColor, UIColor(white: 1, alpha: 0).cgColor]
     copyView.layer.borderColor = dark
       ? UIColor(white: 1, alpha: 0.16).cgColor
-      : UIColor(white: 1, alpha: 0.92).cgColor
+      : UIColor(white: 0, alpha: 0.06).cgColor
     topHighlight?.backgroundColor = dark
       ? UIColor(white: 1, alpha: 0.22)
       : UIColor(white: 1, alpha: 0.95)

@@ -6,6 +6,7 @@ final class DanmakuOverlayView: UIView {
   private var lastTime: Double = -1
   private var lane = 0
   private var cid: Int64 = 0
+  var topInset: CGFloat = 76
   private(set) var enabled = true
 
   override init(frame: CGRect) {
@@ -114,8 +115,9 @@ final class DanmakuOverlayView: UIView {
     let laneHeight: CGFloat = 24
     let fraction: CGFloat = area == "1/3 屏" ? 0.33 : (area == "1/2 屏" ? 0.5 : 0.78)
     let step = dense ? 1 : 2
-    let lanes = max(1, Int((bounds.height * fraction) / (laneHeight * CGFloat(step))))
-    let y = 76 + CGFloat((lane / step) % lanes) * laneHeight * CGFloat(step)
+    let available = max(0, bounds.height - topInset)
+    let lanes = max(1, Int((available * fraction) / (laneHeight * CGFloat(step))))
+    let y = topInset + CGFloat((lane / step) % lanes) * laneHeight * CGFloat(step)
     lane += 1
     label.frame.origin = CGPoint(x: bounds.width + 8, y: y)
     addSubview(label)
