@@ -27,6 +27,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   private var page = 1
   private var sort = 2
   private var loading = false
+  private var hasMore = true
   private var dismissPan: UIPanGestureRecognizer?
   private var embeddedSwipePan: UIPanGestureRecognizer?
   private var embeddedSwipeStartX: CGFloat = 0
@@ -328,9 +329,15 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     if reset {
       page = 1
       items = []
+      hasMore = true
       table.reloadData()
       status.text = "正在加载评论…"
       status.isHidden = false
+    } else {
+      guard hasMore else { return }
+      if !items.isEmpty {
+        status.isHidden = true
+      }
     }
     loading = true
     let pageValue = page
@@ -346,8 +353,16 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
       case .success(let values):
         self.items.append(contentsOf: values)
         self.page += 1
-        self.status.text = values.isEmpty ? "还没有评论" : nil
-        self.status.isHidden = !values.isEmpty
+        if values.count < 20 {
+          self.hasMore = false
+        }
+        if self.items.isEmpty {
+          self.status.text = "还没有评论"
+          self.status.isHidden = false
+        } else {
+          self.status.text = nil
+          self.status.isHidden = true
+        }
         self.table.reloadData()
       }
     }
@@ -428,7 +443,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   }
 
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
-    guard scrollView.contentSize.height > 0 else { return }
+    guard hasMore, !loading, scrollView.contentSize.height > 0 else { return }
     if scrollView.contentOffset.y > scrollView.contentSize.height - scrollView.bounds.height * 2 {
       load(reset: false)
     }
