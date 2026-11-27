@@ -6,6 +6,9 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
   var onSelect: ((VideoItem) -> Void)?
   var onClose: (() -> Void)?
   var onSwipeRight: (() -> Void)?
+  var onSwipeRightBegan: (() -> Void)?
+  var onSwipeRightChanged: ((CGFloat) -> Void)?
+  var onSwipeRightEnded: ((Bool) -> Void)?
 
   private let bvid: String
   private let table = UITableView(frame: .zero, style: .plain)
@@ -15,6 +18,7 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
   private var items: [VideoItem] = []
   private var dismissPan: UIPanGestureRecognizer?
   private var closeSwipePan: UIPanGestureRecognizer?
+  private var closeSwipeStarted = false
   private var loading = false
 
   init(bvid: String) {
@@ -147,11 +151,27 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
   }
 
   @objc private func handleCloseSwipe(_ gesture: UIPanGestureRecognizer) {
-    guard gesture.state == .ended || gesture.state == .cancelled else { return }
+    let width = max(1, view.bounds.width)
     let translation = gesture.translation(in: view).x
-    let velocity = gesture.velocity(in: view).x
-    if translation > 60 || velocity > 420 {
-      onSwipeRight?()
+    switch gesture.state {
+    case .began:
+      closeSwipeStarted = false
+    case .changed:
+      if translation > 4, !closeSwipeStarted {
+        closeSwipeStarted = true
+        onSwipeRightBegan?()
+      }
+      if closeSwipeStarted {
+        onSwipeRightChanged?(max(0, min(1, translation / width)))
+      }
+    case .ended, .cancelled:
+      let velocity = gesture.velocity(in: view).x
+      if closeSwipeStarted {
+        onSwipeRightEnded?(translation > width * 0.22 || velocity > 380)
+      }
+      closeSwipeStarted = false
+    default:
+      break
     }
   }
 

@@ -25,6 +25,9 @@ final class PlayerContentViewController: UIViewController {
   var onPullDown: ((CGFloat) -> Void)?
   var onPullDownEnded: ((Bool) -> Void)?
   var onSwipeRightToClose: (() -> Void)?
+  var onSwipeRightBegan: (() -> Void)?
+  var onSwipeRightChanged: ((CGFloat) -> Void)?
+  var onSwipeRightEnded: ((Bool) -> Void)?
 
   private let host = UIView()
   private let tabDock = UIView()
@@ -185,6 +188,13 @@ final class PlayerContentViewController: UIViewController {
     }
     controller.onLoop = { [weak self] on in self?.onLoop?(on) }
     controller.onSwipeRight = { [weak self] in self?.onSwipeRightToClose?() }
+    controller.onSwipeRightBegan = { [weak self] in self?.onSwipeRightBegan?() }
+    controller.onSwipeRightChanged = { [weak self] progress in
+      self?.onSwipeRightChanged?(progress)
+    }
+    controller.onSwipeRightEnded = { [weak self] close in
+      self?.onSwipeRightEnded?(close)
+    }
     addChild(controller)
     controller.view.frame = host.bounds
     controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -200,6 +210,13 @@ final class PlayerContentViewController: UIViewController {
     let controller = CommentsPanelViewController(aid: item.aid)
     controller.embedded = true
     controller.onSwipeRight = { [weak self] in self?.onSwipeRightToClose?() }
+    controller.onSwipeRightBegan = { [weak self] in self?.onSwipeRightBegan?() }
+    controller.onSwipeRightChanged = { [weak self] progress in
+      self?.onSwipeRightChanged?(progress)
+    }
+    controller.onSwipeRightEnded = { [weak self] close in
+      self?.onSwipeRightEnded?(close)
+    }
     controller.onPullDown = { [weak self] progress in self?.onPullDown?(progress) }
     controller.onPullDownEnded = { [weak self] complete in
       self?.onPullDownEnded?(complete)
@@ -220,6 +237,13 @@ final class PlayerContentViewController: UIViewController {
     controller.embedded = true
     controller.onSelect = { [weak self] value in self?.onSelectRelated?(value) }
     controller.onSwipeRight = { [weak self] in self?.onSwipeRightToClose?() }
+    controller.onSwipeRightBegan = { [weak self] in self?.onSwipeRightBegan?() }
+    controller.onSwipeRightChanged = { [weak self] progress in
+      self?.onSwipeRightChanged?(progress)
+    }
+    controller.onSwipeRightEnded = { [weak self] close in
+      self?.onSwipeRightEnded?(close)
+    }
     addChild(controller)
     controller.view.frame = host.bounds
     controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]

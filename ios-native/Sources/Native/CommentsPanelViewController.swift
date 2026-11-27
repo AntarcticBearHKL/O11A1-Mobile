@@ -5,6 +5,9 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   var embedded = false
   var onSwipeLeft: (() -> Void)?
   var onSwipeRight: (() -> Void)?
+  var onSwipeRightBegan: (() -> Void)?
+  var onSwipeRightChanged: ((CGFloat) -> Void)?
+  var onSwipeRightEnded: ((Bool) -> Void)?
   var onPullDown: ((CGFloat) -> Void)?
   var onPullDownEnded: ((Bool) -> Void)?
   private let aid: Int64
@@ -26,6 +29,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   private var dismissPan: UIPanGestureRecognizer?
   private var embeddedSwipePan: UIPanGestureRecognizer?
   private var embeddedSwipeStartX: CGFloat = 0
+  private var embeddedSwipeStarted = false
   private var pullDownPan: UIPanGestureRecognizer?
   private var pullDownArmed = false
   private var repliesCache: [Int64: [CommentItem]] = [:]
@@ -385,11 +389,28 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   }
 
   @objc private func handleEmbeddedSwipe(_ gesture: UIPanGestureRecognizer) {
-    guard gesture.state == .ended || gesture.state == .cancelled else { return }
+    let width = max(1, view.bounds.width)
     let translation = gesture.translation(in: view).x
-    let velocity = gesture.velocity(in: view).x
-    if translation > 60 || velocity > 420 {
-      onSwipeRight?()
+    switch gesture.state {
+    case .began:
+      embeddedSwipeStarted = false
+    case .changed:
+      if translation > 4, !embeddedSwipeStarted {
+        embeddedSwipeStarted = true
+        onSwipeRightBegan?()
+      }
+      if embeddedSwipeStarted {
+        onSwipeRightChanged?(max(0, min(1, translation / width)))
+      }
+    case .ended, .cancelled:
+      let velocity = gesture.velocity(in: view).x
+      if embeddedSwipeStarted {
+        let shouldClose = translation > width * 0.22 || velocity > 380
+        onSwipeRightEnded?(shouldClose)
+      }
+      embeddedSwipeStarted = false
+    default:
+      break
     }
   }
 

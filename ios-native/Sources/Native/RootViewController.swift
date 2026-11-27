@@ -441,7 +441,10 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     avatarButton.alpha = 1
     setPlayerOrientation(false)
     setNeedsStatusBarAppearanceUpdate()
-    feed?.resumePreview()
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+      guard let self = self, self.player == nil else { return }
+      self.feed?.resumePreview()
+    }
   }
 
   private func beginOrientationTracking() {

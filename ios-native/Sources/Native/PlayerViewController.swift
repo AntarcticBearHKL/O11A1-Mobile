@@ -69,6 +69,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var started = false
   private var speedIndex = 0
   private var closeSwipe = false
+  private var horizontalCloseActive = false
+  private var horizontalCloseProgress: CGFloat = 0
   private var portraitDismissDrag = false
   private var landscapeDrag = false
   private var landscapeControl: LandscapeVerticalControl = .none
@@ -769,7 +771,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     backdropCollapsed = true
     let full = view.bounds
     let fraction = max(0.05, min(1, videoContainer.bounds.height / max(1, full.height)))
-    let target = CGAffineTransform(scaleX: 1, y: fraction)
+    let delta = videoContainer.center.y - full.midY
+    let target = CGAffineTransform(translationX: 0, y: delta)
+      .scaledBy(x: 1, y: fraction)
     let changes = {
       for view in [self.backdrop, self.backdropVideo, self.backdropBlur, self.backdropDim] {
         view.transform = target
@@ -949,6 +953,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self?.commentsPullEnded(complete)
     }
     content.onSwipeRightToClose = { [weak self] in self?.closeFromRightSwipe() }
+    content.onSwipeRightBegan = { [weak self] in self?.beginHorizontalClose() }
+    content.onSwipeRightChanged = { [weak self] progress in
+      self?.updateHorizontalClose(progress)
+    }
+    content.onSwipeRightEnded = { [weak self] close in
+      self?.finishHorizontalClose(close)
+    }
     addChild(content)
     content.view.frame = .zero
     content.view.autoresizingMask = []
@@ -959,10 +970,81 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     return content
   }
 
+  private func beginHorizontalClose() {
+    guard !closing, !portraitShrinking, !isLandscapePlayer,
+          portraitStageIsTop, portraitTransition > 0.98,
+          !horizontalCloseActive else { return }
+    horizontalCloseActive = true
+    horizontalCloseProgress = 0
+    portraitDragActive = true
+    hideControls()
+    collapseBackdrop(animated: true)
+  }
+
+  private func updateHorizontalClose(_ progress: CGFloat) {
+    guard horizontalCloseActive else { return }
+    let p = max(0, min(1, progress))
+    horizontalCloseProgress = p
+    let width = max(1, view.bounds.width)
+    let x = width * p * 0.92
+    let scale = 1 - 0.05 * p
+    videoContainer.transform = CGAffineTransform(translationX: x, y: 0)
+      .scaledBy(x: scale, y: scale)
+    videoContainer.alpha = max(0, 1 - p * 0.8)
+    contentController?.view.alpha = max(0, 1 - p * 1.5)
+    backdropHost.alpha = max(0, 1 - p * 0.85)
+    topBar.alpha = 0
+    bottomPanel.alpha = 0
+    dim.alpha = max(0, 1 - p * 0.9)
+    playButton.alpha = 0
+  }
+
+  private func finishHorizontalClose(_ shouldClose: Bool) {
+    guard horizontalCloseActive else {
+      if shouldClose { closeFromRightSwipe() }
+      return
+    }
+    let width = max(1, view.bounds.width)
+    if shouldClose {
+      UIView.animate(withDuration: 0.30, delay: 0,
+                     options: [.curveEaseIn, .beginFromCurrentState]) {
+        self.videoContainer.transform = CGAffineTransform(
+          translationX: width * 1.05, y: 0)
+        self.videoContainer.alpha = 0
+        self.contentController?.view.alpha = 0
+        self.backdropHost.alpha = 0
+        self.dim.alpha = 0
+        self.topBar.alpha = 0
+        self.bottomPanel.alpha = 0
+        self.playButton.alpha = 0
+      } completion: { _ in
+        self.horizontalCloseActive = false
+        self.closePlayer(animated: false)
+      }
+    } else {
+      UIView.animate(withDuration: 0.42, delay: 0,
+                     usingSpringWithDamping: 0.88,
+                     initialSpringVelocity: 0.3,
+                     options: [.beginFromCurrentState, .allowUserInteraction]) {
+        self.videoContainer.transform = .identity
+        self.videoContainer.alpha = 1
+        self.contentController?.view.alpha = 1
+        self.backdropHost.alpha = 1
+        self.dim.alpha = 1
+      } completion: { _ in
+        self.horizontalCloseActive = false
+        self.portraitDragActive = false
+        self.expandBackdrop(animated: true)
+        self.applyPortraitTransition(self.portraitTransition)
+      }
+    }
+  }
+
   private func closeFromRightSwipe() {
     guard !closing, !portraitShrinking, !isLandscapePlayer,
           portraitStageIsTop, portraitTransition > 0.98 else { return }
-    closePortraitWithShrink()
+    beginHorizontalClose()
+    finishHorizontalClose(true)
   }
 
   override func viewWillTransition(to size: CGSize,
@@ -983,7 +1065,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       ? 0 : max(76, view.safeAreaInsets.top + 52)
     danmakuOverlay.setTopInset(danmakuInset, animated: true)
     view.backgroundColor = .clear
-    let backdropBusy = openingTransition || portraitDragActive || portraitShrinking
+    let backdropBusy = openingTransition || portraitDragActive
+      || portraitShrinking || horizontalCloseActive
     if !backdropBusy {
       backdropHost.frame = full
       backdrop.frame = backdropHost.bounds
@@ -1016,7 +1099,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       seekBubble.frame = CGRect(x: full.midX - 40, y: panelY - 27,
                                 width: 80, height: 21)
     } else {
-      if !portraitDragActive && !portraitSettling && !openingTransition {
+      if !portraitDragActive && !portraitSettling && !openingTransition
+        && !portraitShrinking && !horizontalCloseActive {
         applyPortraitTransition(portraitTransition)
       } else {
         layoutVideoSubviews()
@@ -1439,7 +1523,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
           }
         }
       }
-      guard !closeSwipe else { return }
+      if closeSwipe {
+        if !horizontalCloseActive {
+          beginHorizontalClose()
+        }
+        let width = max(1, view.bounds.width)
+        updateHorizontalClose(max(0, min(1, translation.x / width)))
+        return
+      }
       if isLandscapePlayer && landscapeAdjusting {
         applyLandscapeControl(translation)
         return
@@ -1490,9 +1581,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         closeSwipe = false
         panDirectionDecided = false
         portraitDragActive = false
-        if translation.x > 60 || endVelocity.x > 420 {
-          closePortraitWithShrink()
-        }
+        let width = max(1, view.bounds.width)
+        let shouldClose = translation.x > width * 0.22 || endVelocity.x > 380
+        finishHorizontalClose(shouldClose)
         return
       }
       if landscapeAdjusting {
@@ -1540,11 +1631,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
                            options: [.beginFromCurrentState]) {
               self.videoContainer.transform = .identity
               self.videoContainer.alpha = 1
-              self.applyBackdrop(transform: .identity, alpha: 1)
+              self.backdropHost.transform = .identity
+              self.backdropHost.alpha = 1
               self.topBar.alpha = self.panRestoreTopAlpha
               self.bottomPanel.alpha = self.panRestorePanelAlpha
               self.dim.alpha = self.panRestoreDimAlpha
               self.playButton.alpha = self.panRestorePlayAlpha
+            } completion: { _ in
+              self.expandBackdrop(animated: true)
             }
           }
           portraitDragActive = false
