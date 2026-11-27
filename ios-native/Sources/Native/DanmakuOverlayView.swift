@@ -6,7 +6,7 @@ final class DanmakuOverlayView: UIView {
   private var lastTime: Double = -1
   private var lane = 0
   private var cid: Int64 = 0
-  var topInset: CGFloat = 76
+  private(set) var topInset: CGFloat = 76
   private(set) var enabled = true
 
   override init(frame: CGRect) {
@@ -58,6 +58,31 @@ final class DanmakuOverlayView: UIView {
     isHidden = !enabled
     if !enabled {
       subviews.forEach { $0.removeFromSuperview() }
+    }
+  }
+
+  /// Changes the empty band above the first lane and carries any danmaku that
+  /// is already on screen to the new position. Portrait keeps a gap below the
+  /// status bar; landscape uses the very top of the screen.
+  func setTopInset(_ value: CGFloat, animated: Bool) {
+    let old = topInset
+    guard abs(value - old) > 0.5 else { return }
+    topInset = value
+    let delta = value - old
+    let labels = subviews.compactMap { $0 as? UILabel }
+    guard !labels.isEmpty else { return }
+    let move = {
+      for label in labels {
+        label.transform = label.transform.translatedBy(x: 0, y: delta)
+      }
+    }
+    if animated {
+      UIView.animate(withDuration: 0.30, delay: 0,
+                     options: [.curveEaseInOut, .allowUserInteraction,
+                               .beginFromCurrentState],
+                     animations: move)
+    } else {
+      move()
     }
   }
 

@@ -742,7 +742,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let full = view.bounds
     let landscape = full.width > full.height
     isLandscapePlayer = landscape
-    danmakuOverlay.topInset = landscape ? 0 : max(76, view.safeAreaInsets.top + 52)
+    let danmakuInset: CGFloat = landscape
+      ? 0 : max(76, view.safeAreaInsets.top + 52)
+    danmakuOverlay.setTopInset(danmakuInset, animated: true)
     view.backgroundColor = .clear
     let backdropBusy = openingTransition || portraitDragActive || portraitShrinking
     if !backdropBusy {
