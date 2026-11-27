@@ -701,12 +701,10 @@ private final class PanelCommentCell: UITableViewCell {
                                   tint: NativeTheme.accent,
                                   value: item.likes)
     let count = max(item.replies, items.count)
-    repliesCount.isHidden = count == 0
-    repliesCount.attributedText = count == 0
-      ? nil
-      : metric(icon: "bubble.left.fill",
-               tint: NativeTheme.navBlue,
-               value: count)
+    repliesCount.isHidden = false
+    repliesCount.attributedText = metric(icon: "bubble.left.fill",
+                                         tint: NativeTheme.navBlue,
+                                         value: count)
     separator.backgroundColor = NativeTheme.hairline
     ImageLoader.shared.load(item.face, into: avatar)
 
