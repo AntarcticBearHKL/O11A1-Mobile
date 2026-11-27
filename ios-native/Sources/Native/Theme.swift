@@ -5,6 +5,14 @@ enum NativeTheme {
     UIColor { trait in trait.userInterfaceStyle == .dark ? .black : .white }
   }
 
+  static var surface: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(white: 0.07, alpha: 1)
+        : UIColor(white: 0.95, alpha: 1)
+    }
+  }
+
   static var foreground: UIColor {
     UIColor { trait in trait.userInterfaceStyle == .dark ? .white : .black }
   }

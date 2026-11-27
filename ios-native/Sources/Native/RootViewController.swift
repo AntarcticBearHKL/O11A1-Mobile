@@ -116,7 +116,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
 
     searchButton.setImage(UIImage(systemName: "magnifyingglass"), for: .normal)
     searchButton.tintColor = NativeTheme.foreground
-    searchButton.backgroundColor = NativeTheme.glass
+    searchButton.backgroundColor = NativeTheme.surface
     searchButton.layer.cornerRadius = NativeTheme.cornerRadius
     searchButton.layer.cornerCurve = .continuous
     searchButton.layer.shadowColor = UIColor.black.cgColor
@@ -135,7 +135,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
 
     avatarButton.setImage(UIImage(systemName: "person.crop.circle"), for: .normal)
     avatarButton.tintColor = NativeTheme.foreground
-    avatarButton.backgroundColor = NativeTheme.glass
+    avatarButton.backgroundColor = NativeTheme.surface
     avatarButton.layer.cornerRadius = NativeTheme.cornerRadius
     avatarButton.layer.cornerCurve = .continuous
     avatarButton.layer.borderWidth = 0.5

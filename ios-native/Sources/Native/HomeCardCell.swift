@@ -16,8 +16,6 @@ final class HomeCardCell: UITableViewCell {
   private let progressFill = UIView()
   private var progressWidth: NSLayoutConstraint?
   private let previewBar = PreviewProgressBar()
-  private let glossLayer = CAGradientLayer()
-  private let sheenLayer = CAGradientLayer()
   private let avatar = UIImageView()
   private let avatarInitial = UILabel()
   private let avatarButton = UIButton(type: .custom)
@@ -28,7 +26,6 @@ final class HomeCardCell: UITableViewCell {
   private let dot = UILabel()
   private let metaStack = UIStackView()
   private let copyView = UIView()
-  private weak var topHighlight: UIView?
   private var item: VideoItem?
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
@@ -98,26 +95,18 @@ final class HomeCardCell: UITableViewCell {
     media.addSubview(previewBar)
     previewBar.translatesAutoresizingMaskIntoConstraints = false
 
-    copyView.backgroundColor = .clear
+    copyView.backgroundColor = NativeTheme.surface
     copyView.layer.cornerRadius = NativeTheme.cornerRadius
     copyView.layer.cornerCurve = .continuous
     copyView.layer.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
     copyView.clipsToBounds = true
-    copyView.layer.borderWidth = 0.8
-    glossLayer.startPoint = CGPoint(x: 0, y: 0)
-    glossLayer.endPoint = CGPoint(x: 1, y: 1)
-    sheenLayer.startPoint = CGPoint(x: 0.15, y: 0)
-    sheenLayer.endPoint = CGPoint(x: 0.85, y: 0.62)
-    copyView.layer.insertSublayer(glossLayer, at: 0)
-    copyView.layer.insertSublayer(sheenLayer, at: 1)
     contentView.addSubview(copyView)
     copyView.translatesAutoresizingMaskIntoConstraints = false
 
     let topLine = UIView()
-    topLine.backgroundColor = NativeTheme.homeRowLine
+    topLine.backgroundColor = NativeTheme.hairline
     copyView.addSubview(topLine)
     topLine.translatesAutoresizingMaskIntoConstraints = false
-    topHighlight = topLine
 
     avatar.contentMode = .scaleAspectFill
     avatar.clipsToBounds = true
@@ -277,41 +266,14 @@ final class HomeCardCell: UITableViewCell {
       byRoundingCorners: [.bottomLeft, .bottomRight],
       cornerRadii: CGSize(width: NativeTheme.cornerRadius, height: NativeTheme.cornerRadius)).cgPath
     contentView.layer.shadowOpacity =
-      traitCollection.userInterfaceStyle == .dark ? 0.40 : 0.16
-    glossLayer.frame = copyView.bounds
-    sheenLayer.frame = copyView.bounds
-    applyGlossColors()
+      traitCollection.userInterfaceStyle == .dark ? 0.40 : 0.12
     CATransaction.commit()
-  }
-
-  private func applyGlossColors() {
-    let dark = traitCollection.userInterfaceStyle == .dark
-    glossLayer.colors = dark
-      ? [
-          UIColor(white: 5.0 / 255.0, alpha: 1).cgColor,
-          UIColor(white: 17.0 / 255.0, alpha: 1).cgColor,
-        ]
-      : [
-          UIColor.white.cgColor,
-          UIColor(white: 242.0 / 255.0, alpha: 1).cgColor,
-        ]
-    glossLayer.locations = [0, 1]
-    sheenLayer.colors = dark
-      ? [UIColor(white: 1, alpha: 0.12).cgColor, UIColor(white: 1, alpha: 0).cgColor]
-      : [UIColor(white: 1, alpha: 0.62).cgColor, UIColor(white: 1, alpha: 0).cgColor]
-    copyView.layer.borderColor = dark
-      ? UIColor(white: 1, alpha: 0.16).cgColor
-      : UIColor(white: 0, alpha: 0.06).cgColor
-    topHighlight?.backgroundColor = dark
-      ? UIColor(white: 1, alpha: 0.22)
-      : UIColor(white: 1, alpha: 0.95)
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
     contentView.layer.shadowOpacity =
-      traitCollection.userInterfaceStyle == .dark ? 0.40 : 0.16
-    applyGlossColors()
+      traitCollection.userInterfaceStyle == .dark ? 0.40 : 0.12
   }
 
   override func prepareForReuse() {

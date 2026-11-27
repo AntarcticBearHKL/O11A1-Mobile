@@ -46,7 +46,7 @@ final class MyViewController: UIViewController {
     ])
 
     let accountCard = UIView()
-    accountCard.backgroundColor = NativeTheme.background
+    accountCard.backgroundColor = NativeTheme.surface
     view.addSubview(accountCard)
     accountCard.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([

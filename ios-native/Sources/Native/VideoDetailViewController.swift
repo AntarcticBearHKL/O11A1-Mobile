@@ -64,7 +64,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     super.viewDidLoad()
     view.backgroundColor = .clear
 
-    card.backgroundColor = NativeTheme.background
+    card.backgroundColor = NativeTheme.surface
     card.layer.cornerRadius = NativeTheme.cornerRadius
     card.layer.cornerCurve = .continuous
     card.clipsToBounds = true
@@ -157,7 +157,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     stack.addArrangedSubview(meta)
 
     let author = UIView()
-    author.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
+    author.backgroundColor = NativeTheme.background
     author.layer.cornerRadius = NativeTheme.cornerRadius
     author.layer.cornerCurve = .continuous
     stack.addArrangedSubview(author)
@@ -217,7 +217,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     stats.axis = .horizontal
     stats.distribution = .fillEqually
     stats.alignment = .fill
-    stats.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
+    stats.backgroundColor = NativeTheme.background
     stats.layer.cornerRadius = NativeTheme.cornerRadius
     stats.layer.cornerCurve = .continuous
     stats.isLayoutMarginsRelativeArrangement = true
@@ -276,7 +276,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     stack.addArrangedSubview(settingsTitle)
 
     let settingsTile = UIView()
-    settingsTile.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
+    settingsTile.backgroundColor = NativeTheme.background
     settingsTile.layer.cornerRadius = NativeTheme.cornerRadius
     settingsTile.layer.cornerCurve = .continuous
     stack.addArrangedSubview(settingsTile)
@@ -759,7 +759,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
-    card.backgroundColor = NativeTheme.background
+    card.backgroundColor = NativeTheme.surface
     authorButton.superview?.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.05)
     descLabel.textColor = NativeTheme.secondary
   }

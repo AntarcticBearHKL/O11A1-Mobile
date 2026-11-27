@@ -321,10 +321,10 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   private func updateSort() {
     for (index, button) in [latestButton, playButton].enumerated() {
       let on = (index == 0 && order == "pubdate") || (index == 1 && order == "click")
-      button.backgroundColor = on
-        ? NativeTheme.foreground
-        : NativeTheme.foreground.withAlphaComponent(0.08)
+      button.backgroundColor = on ? NativeTheme.foreground : NativeTheme.surface
       button.setTitleColor(on ? NativeTheme.background : NativeTheme.secondary, for: .normal)
+      button.layer.borderWidth = on ? 0 : 0.5
+      button.layer.borderColor = NativeTheme.hairline.cgColor
     }
   }
 

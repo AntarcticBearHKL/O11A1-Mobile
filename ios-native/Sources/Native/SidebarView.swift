@@ -42,7 +42,7 @@ final class SidebarView: UIView {
     ])
 
     let bg = UIView()
-    bg.backgroundColor = NativeTheme.background
+    bg.backgroundColor = NativeTheme.surface
     bg.layer.cornerRadius = NativeTheme.cornerRadius
     bg.layer.cornerCurve = .continuous
     bg.layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
