@@ -167,9 +167,12 @@ final class DanmakuOverlayView: UIView {
     syncLaneCount(lanes, laneHeight: laneHeight, step: step)
 
     var chosen = -1
+    var oldestFree = CFTimeInterval.greatestFiniteMagnitude
     for lane in 0..<lanes where laneFreeAt[lane] <= now {
-      chosen = lane
-      break
+      if laneFreeAt[lane] < oldestFree {
+        oldestFree = laneFreeAt[lane]
+        chosen = lane
+      }
     }
     guard chosen >= 0 else { return false }
 
