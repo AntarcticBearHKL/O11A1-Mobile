@@ -52,9 +52,9 @@ final class MiniVideoCardView: UIView {
     duration.font = NativeTheme.numberFont(9.5)
     duration.textColor = .white
     duration.textAlignment = .center
-    duration.backgroundColor = UIColor.black.withAlphaComponent(0.78)
-    duration.layer.cornerRadius = 9
-    duration.clipsToBounds = true
+    duration.backgroundColor = .clear
+    duration.shadowColor = UIColor.black.withAlphaComponent(0.85)
+    duration.shadowOffset = CGSize(width: 1, height: 1)
     mediaHost.addSubview(duration)
     duration.translatesAutoresizingMaskIntoConstraints = false
 

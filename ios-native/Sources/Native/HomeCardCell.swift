@@ -66,12 +66,11 @@ final class HomeCardCell: UITableViewCell {
     mediaHost.translatesAutoresizingMaskIntoConstraints = false
 
     duration.font = NativeTheme.numberFont(11)
-    duration.textColor = NativeTheme.background
+    duration.textColor = .white
     duration.textAlignment = .center
-    duration.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.78)
-    duration.layer.cornerRadius = NativeTheme.cornerRadius
-    duration.layer.cornerCurve = .continuous
-    duration.clipsToBounds = true
+    duration.backgroundColor = .clear
+    duration.shadowColor = UIColor.black.withAlphaComponent(0.85)
+    duration.shadowOffset = CGSize(width: 1, height: 1)
     media.addSubview(duration)
     duration.translatesAutoresizingMaskIntoConstraints = false
 
