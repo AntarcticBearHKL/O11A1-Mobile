@@ -51,7 +51,7 @@ final class MiniVideoCardView: UIView {
     mediaHost.addSubview(cover)
     cover.translatesAutoresizingMaskIntoConstraints = false
 
-    duration.font = NativeTheme.numberFont(9.5)
+    duration.font = NativeTheme.numberFont(12.5)
     duration.textColor = .white
     duration.textAlignment = .center
     duration.backgroundColor = .clear
@@ -61,11 +61,11 @@ final class MiniVideoCardView: UIView {
     duration.translatesAutoresizingMaskIntoConstraints = false
 
     live.text = "LIVE"
-    live.font = NativeTheme.titleFont(8)
+    live.font = NativeTheme.titleFont(10.5)
     live.textColor = .white
     live.textAlignment = .center
     live.backgroundColor = UIColor(red: 0.90, green: 0.24, blue: 0.24, alpha: 1)
-    live.layer.cornerRadius = 8
+    live.layer.cornerRadius = 11
     live.clipsToBounds = true
     live.isHidden = true
     mediaHost.addSubview(live)
@@ -82,14 +82,14 @@ final class MiniVideoCardView: UIView {
     addSubview(info)
     info.translatesAutoresizingMaskIntoConstraints = false
 
-    title.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+    title.font = UIFont.systemFont(ofSize: 17.5, weight: .bold)
     title.textColor = NativeTheme.foreground
     title.numberOfLines = 2
     title.lineBreakMode = .byTruncatingTail
     info.addSubview(title)
     title.translatesAutoresizingMaskIntoConstraints = false
 
-    owner.font = UIFont.systemFont(ofSize: 10.5, weight: .medium)
+    owner.font = UIFont.systemFont(ofSize: 14, weight: .medium)
     owner.textColor = NativeTheme.secondary
     owner.numberOfLines = 1
     owner.lineBreakMode = .byTruncatingTail
@@ -97,12 +97,12 @@ final class MiniVideoCardView: UIView {
     info.addSubview(owner)
     owner.translatesAutoresizingMaskIntoConstraints = false
 
-    play.font = UIFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .medium)
+    play.font = UIFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .medium)
     play.textAlignment = .right
     play.numberOfLines = 1
     play.setContentHuggingPriority(.required, for: .horizontal)
     play.setContentCompressionResistancePriority(.required, for: .horizontal)
-    time.font = UIFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .medium)
+    time.font = UIFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .medium)
     time.textColor = NativeTheme.tertiary
     time.textAlignment = .right
     time.numberOfLines = 1
@@ -112,7 +112,7 @@ final class MiniVideoCardView: UIView {
     stats.axis = .vertical
     stats.alignment = .trailing
     stats.distribution = .fill
-    stats.spacing = 1
+    stats.spacing = 1.5
     stats.addArrangedSubview(play)
     stats.addArrangedSubview(time)
     info.addSubview(stats)
@@ -127,27 +127,27 @@ final class MiniVideoCardView: UIView {
       mediaHost.leadingAnchor.constraint(equalTo: leadingAnchor),
       mediaHost.trailingAnchor.constraint(equalTo: trailingAnchor),
       mediaHost.topAnchor.constraint(equalTo: topAnchor),
-      mediaHost.heightAnchor.constraint(equalTo: mediaHost.widthAnchor, multiplier: 9.0 / 16.0),
+      mediaHost.heightAnchor.constraint(equalTo: mediaHost.widthAnchor, multiplier: 3.0 / 4.0),
 
       cover.leadingAnchor.constraint(equalTo: mediaHost.leadingAnchor),
       cover.trailingAnchor.constraint(equalTo: mediaHost.trailingAnchor),
       cover.topAnchor.constraint(equalTo: mediaHost.topAnchor),
       cover.bottomAnchor.constraint(equalTo: mediaHost.bottomAnchor),
 
-      duration.trailingAnchor.constraint(equalTo: mediaHost.trailingAnchor, constant: -6),
-      duration.bottomAnchor.constraint(equalTo: mediaHost.bottomAnchor, constant: -6),
-      duration.widthAnchor.constraint(greaterThanOrEqualToConstant: 32),
-      duration.heightAnchor.constraint(equalToConstant: 17),
+      duration.trailingAnchor.constraint(equalTo: mediaHost.trailingAnchor, constant: -8),
+      duration.bottomAnchor.constraint(equalTo: mediaHost.bottomAnchor, constant: -8),
+      duration.widthAnchor.constraint(greaterThanOrEqualToConstant: 42),
+      duration.heightAnchor.constraint(equalToConstant: 22),
 
-      live.leadingAnchor.constraint(equalTo: mediaHost.leadingAnchor, constant: 6),
-      live.topAnchor.constraint(equalTo: mediaHost.topAnchor, constant: 6),
-      live.widthAnchor.constraint(equalToConstant: 30),
-      live.heightAnchor.constraint(equalToConstant: 16),
+      live.leadingAnchor.constraint(equalTo: mediaHost.leadingAnchor, constant: 8),
+      live.topAnchor.constraint(equalTo: mediaHost.topAnchor, constant: 8),
+      live.widthAnchor.constraint(equalToConstant: 40),
+      live.heightAnchor.constraint(equalToConstant: 21),
 
       progressTrack.leadingAnchor.constraint(equalTo: mediaHost.leadingAnchor),
       progressTrack.trailingAnchor.constraint(equalTo: mediaHost.trailingAnchor),
       progressTrack.bottomAnchor.constraint(equalTo: mediaHost.bottomAnchor),
-      progressTrack.heightAnchor.constraint(equalToConstant: 2),
+      progressTrack.heightAnchor.constraint(equalToConstant: 3),
       progressFill.leadingAnchor.constraint(equalTo: progressTrack.leadingAnchor),
       progressFill.topAnchor.constraint(equalTo: progressTrack.topAnchor),
       progressFill.bottomAnchor.constraint(equalTo: progressTrack.bottomAnchor),
@@ -158,19 +158,19 @@ final class MiniVideoCardView: UIView {
       info.bottomAnchor.constraint(equalTo: bottomAnchor),
       info.heightAnchor.constraint(equalToConstant: HomeGridCell.infoHeight),
 
-      title.leadingAnchor.constraint(equalTo: info.leadingAnchor, constant: 9),
-      title.trailingAnchor.constraint(equalTo: info.trailingAnchor, constant: -9),
-      title.topAnchor.constraint(equalTo: info.topAnchor, constant: 7),
+      title.leadingAnchor.constraint(equalTo: info.leadingAnchor, constant: 12),
+      title.trailingAnchor.constraint(equalTo: info.trailingAnchor, constant: -12),
+      title.topAnchor.constraint(equalTo: info.topAnchor, constant: 9),
 
-      owner.leadingAnchor.constraint(equalTo: info.leadingAnchor, constant: 9),
-      owner.bottomAnchor.constraint(equalTo: info.bottomAnchor, constant: -8),
-      owner.trailingAnchor.constraint(lessThanOrEqualTo: stats.leadingAnchor, constant: -8),
+      owner.leadingAnchor.constraint(equalTo: info.leadingAnchor, constant: 12),
+      owner.bottomAnchor.constraint(equalTo: info.bottomAnchor, constant: -11),
+      owner.trailingAnchor.constraint(lessThanOrEqualTo: stats.leadingAnchor, constant: -10),
 
-      stats.trailingAnchor.constraint(equalTo: info.trailingAnchor, constant: -9),
-      stats.bottomAnchor.constraint(equalTo: info.bottomAnchor, constant: -8),
+      stats.trailingAnchor.constraint(equalTo: info.trailingAnchor, constant: -12),
+      stats.bottomAnchor.constraint(equalTo: info.bottomAnchor, constant: -11),
 
-      title.bottomAnchor.constraint(lessThanOrEqualTo: stats.topAnchor, constant: -4),
-      title.bottomAnchor.constraint(lessThanOrEqualTo: owner.topAnchor, constant: -4),
+      title.bottomAnchor.constraint(lessThanOrEqualTo: stats.topAnchor, constant: -5),
+      title.bottomAnchor.constraint(lessThanOrEqualTo: owner.topAnchor, constant: -5),
 
       tapButton.leadingAnchor.constraint(equalTo: leadingAnchor),
       tapButton.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -199,13 +199,13 @@ final class MiniVideoCardView: UIView {
   func configure(_ item: VideoItem) {
     self.item = item
     let paragraph = NSMutableParagraphStyle()
-    paragraph.minimumLineHeight = 16.5
-    paragraph.maximumLineHeight = 16.5
+    paragraph.minimumLineHeight = 22
+    paragraph.maximumLineHeight = 22
     paragraph.lineBreakMode = .byTruncatingTail
     title.attributedText = NSAttributedString(
       string: item.title,
       attributes: [
-        .font: UIFont.systemFont(ofSize: 13, weight: .bold),
+        .font: UIFont.systemFont(ofSize: 17.5, weight: .bold),
         .foregroundColor: NativeTheme.foreground,
         .paragraphStyle: paragraph,
       ])
@@ -251,7 +251,7 @@ final class HomeGridCell: UITableViewCell {
   static let sideInset: CGFloat = 4
   static let columnSpacing: CGFloat = 4
   static let verticalInset: CGFloat = 2
-  static let infoHeight: CGFloat = 76
+  static let infoHeight: CGFloat = 76 * 4 / 3
 
   let leftCard = MiniVideoCardView()
   private let rightCard = MiniVideoCardView()

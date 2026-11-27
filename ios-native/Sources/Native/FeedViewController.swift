@@ -406,7 +406,7 @@ final class FeedViewController: UIViewController,
       - HomeGridCell.columnSpacing
     let cardWidth = max(1, available / 2)
     return HomeGridCell.verticalInset * 2
-      + cardWidth * 9.0 / 16.0
+      + cardWidth * 3.0 / 4.0
       + HomeGridCell.infoHeight
   }
 
