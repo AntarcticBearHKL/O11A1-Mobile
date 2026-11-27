@@ -336,6 +336,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
       guard let self = self, self.tabBar.selectedIndex == index else { return }
       self.showChild(controller)
+      if index == 0 {
+        self.feed?.resumePreview()
+      }
     }
   }
 

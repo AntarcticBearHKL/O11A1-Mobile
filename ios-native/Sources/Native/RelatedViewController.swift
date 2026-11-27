@@ -11,6 +11,7 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
   var onSwipeRightEnded: ((Bool) -> Void)?
   var onPullDown: ((CGFloat) -> Void)?
   var onPullDownEnded: ((Bool) -> Void)?
+  var onScroll: ((CGFloat, CGFloat) -> Void)?
 
   private let bvid: String
   private let table = UITableView(frame: .zero, style: .plain)
@@ -24,6 +25,7 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
   private var closeSwipeStarted = false
   private var pullDownPan: UIPanGestureRecognizer?
   private var pullDownArmed = false
+  private var lastDockScrollPosition: CGFloat?
   private var loading = false
 
   init(bvid: String) {
@@ -137,6 +139,17 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
     let bottom: CGFloat = embedded ? 96 : 18
     table.contentInset = UIEdgeInsets(top: top, left: 0,
                                       bottom: view.safeAreaInsets.bottom + bottom, right: 0)
+  }
+
+  func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    let position = scrollView.contentOffset.y + scrollView.contentInset.top
+    if let last = lastDockScrollPosition {
+      let delta = position - last
+      if abs(delta) > 0.5 {
+        onScroll?(delta, position)
+      }
+    }
+    lastDockScrollPosition = position
   }
 
   private func load() {

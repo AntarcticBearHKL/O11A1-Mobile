@@ -1,6 +1,7 @@
 import UIKit
 
-final class VideoDetailViewController: UIViewController, UIGestureRecognizerDelegate {
+final class VideoDetailViewController: UIViewController, UIGestureRecognizerDelegate,
+  UIScrollViewDelegate {
   var onClose: (() -> Void)?
   var onProfile: ((Int64) -> Void)?
   var onQuality: ((Int) -> Void)?
@@ -14,6 +15,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   var onSwipeRightEnded: ((Bool) -> Void)?
   var onPullDown: ((CGFloat) -> Void)?
   var onPullDownEnded: ((Bool) -> Void)?
+  var onScroll: ((CGFloat, CGFloat) -> Void)?
   var initialQuality = 80
   var initialDanmakuOn = true
   var initialLoopOn = false
@@ -74,6 +76,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private var closeSwipeStarted = false
   private var pullDownPan: UIPanGestureRecognizer?
   private var pullDownArmed = false
+  private var lastDockScrollPosition: CGFloat?
 
   init(item: VideoItem) {
     self.item = item
@@ -103,6 +106,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
 
     scroll.alwaysBounceVertical = true
     scroll.showsVerticalScrollIndicator = false
+    scroll.delegate = self
     card.addSubview(scroll)
     scroll.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
@@ -379,6 +383,18 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       scroll.contentInset.bottom = 96 + view.safeAreaInsets.bottom
       scroll.verticalScrollIndicatorInsets.bottom = 60
     }
+  }
+
+  func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    guard scrollView === scroll else { return }
+    let position = scrollView.contentOffset.y + scrollView.contentInset.top
+    if let last = lastDockScrollPosition {
+      let delta = position - last
+      if abs(delta) > 0.5 {
+        onScroll?(delta, position)
+      }
+    }
+    lastDockScrollPosition = position
   }
 
   @objc private func handleCloseSwipe(_ gesture: UIPanGestureRecognizer) {

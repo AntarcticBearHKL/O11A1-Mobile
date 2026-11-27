@@ -38,6 +38,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
   private var related: RelatedViewController?
   private var tabSwipePan: UIPanGestureRecognizer?
   private var tabSwipeStartX: CGFloat = 0
+  private var dockHidden = false
 
   private let tabs: [(title: String, tab: Tab)] = [
     ("详情", .detail),
@@ -203,6 +204,9 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     controller.view.frame = host.bounds
     host.bringSubviewToFront(controller.view)
     view.bringSubviewToFront(tabDock)
+    if dockHidden {
+      setDockHidden(false, animated: false)
+    }
     updateTabs()
   }
 
@@ -232,6 +236,9 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     controller.onPullDownEnded = { [weak self] complete in
       self?.onPullDownEnded?(complete)
     }
+    controller.onScroll = { [weak self] delta, position in
+      self?.contentScrolled(delta: delta, position: position)
+    }
     addChild(controller)
     controller.view.frame = host.bounds
     controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -257,6 +264,9 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     controller.onPullDown = { [weak self] progress in self?.onPullDown?(progress) }
     controller.onPullDownEnded = { [weak self] complete in
       self?.onPullDownEnded?(complete)
+    }
+    controller.onScroll = { [weak self] delta, position in
+      self?.contentScrolled(delta: delta, position: position)
     }
     addChild(controller)
     controller.view.frame = host.bounds
@@ -284,6 +294,9 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     controller.onPullDown = { [weak self] progress in self?.onPullDown?(progress) }
     controller.onPullDownEnded = { [weak self] complete in
       self?.onPullDownEnded?(complete)
+    }
+    controller.onScroll = { [weak self] delta, position in
+      self?.contentScrolled(delta: delta, position: position)
     }
     addChild(controller)
     controller.view.frame = host.bounds
@@ -315,8 +328,41 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     }
   }
 
+  private func contentScrolled(delta: CGFloat, position: CGFloat) {
+    guard abs(delta) > 8 else { return }
+    if delta > 0, !dockHidden, position > 24 {
+      setDockHidden(true, animated: true)
+    } else if delta < 0, dockHidden {
+      setDockHidden(false, animated: true)
+    }
+  }
+
+  private func setDockHidden(_ hidden: Bool, animated: Bool) {
+    dockHidden = hidden
+    tabDock.isUserInteractionEnabled = !hidden
+    let distance = tabDock.bounds.height + 28
+    let transform = hidden
+      ? CGAffineTransform(translationX: 0, y: distance)
+      : .identity
+    let changes = {
+      self.tabDock.transform = transform
+      self.tabDock.alpha = hidden ? 0 : 1
+    }
+    if animated {
+      UIView.animate(withDuration: 0.75, delay: 0,
+                     usingSpringWithDamping: 0.9,
+                     initialSpringVelocity: 0.2,
+                     options: [.allowUserInteraction, .beginFromCurrentState],
+                     animations: changes)
+    } else {
+      changes()
+    }
+  }
+
   @objc private func tabTapped(_ sender: UIButton) {
     guard let tab = Tab(rawValue: sender.tag) else { return }
+    guard tab != selected else { return }
+    UIImpactFeedbackGenerator(style: .light).impactOccurred()
     select(tab)
   }
 

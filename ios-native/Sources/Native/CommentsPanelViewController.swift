@@ -10,6 +10,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   var onSwipeRightEnded: ((Bool) -> Void)?
   var onPullDown: ((CGFloat) -> Void)?
   var onPullDownEnded: ((Bool) -> Void)?
+  var onScroll: ((CGFloat, CGFloat) -> Void)?
   private let aid: Int64
   private let card = UIView()
   private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
@@ -37,6 +38,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   private var repliesCache: [Int64: [CommentItem]] = [:]
   private var expandedRoots: Set<Int64> = []
   private var loadingReplies: Set<Int64> = []
+  private var lastDockScrollPosition: CGFloat?
 
   init(aid: Int64) {
     self.aid = aid
@@ -444,7 +446,16 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   }
 
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
-    guard hasMore, !loading, scrollView.contentSize.height > 0 else { return }
+    guard scrollView.contentSize.height > 0 else { return }
+    let position = scrollView.contentOffset.y + scrollView.contentInset.top
+    if let last = lastDockScrollPosition {
+      let delta = position - last
+      if abs(delta) > 0.5 {
+        onScroll?(delta, position)
+      }
+    }
+    lastDockScrollPosition = position
+    guard hasMore, !loading else { return }
     if scrollView.contentOffset.y > scrollView.contentSize.height - scrollView.bounds.height * 2 {
       load(reset: false)
     }

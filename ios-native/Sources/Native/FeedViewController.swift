@@ -29,6 +29,7 @@ final class FeedViewController: UIViewController,
   private var previewSuspended = false
   private var previewScrubbing = false
   private var previewHandedOff = false
+  private var previewRetryScheduled = false
   private var previewSource: PlaySource?
   private var previewItemKey = ""
   private var nextPage = 1
@@ -568,6 +569,7 @@ final class FeedViewController: UIViewController,
       return
     }
     let center = table.contentOffset.y + table.bounds.height / 2
+    table.layoutIfNeeded()
     var bestRow = 0
     var bestDistance = CGFloat.greatestFiniteMagnitude
     for indexPath in table.indexPathsForVisibleRows ?? [] {
@@ -579,6 +581,15 @@ final class FeedViewController: UIViewController,
       }
     }
     guard let cell = table.cellForRow(at: IndexPath(row: bestRow, section: 0)) as? HomeCardCell else {
+      if !previewRetryScheduled {
+        previewRetryScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+          guard let self = self else { return }
+          self.previewRetryScheduled = false
+          guard !self.previewSuspended, !self.searchOpen else { return }
+          self.startPreviewIfNeeded()
+        }
+      }
       return
     }
     if previewCell !== cell {
