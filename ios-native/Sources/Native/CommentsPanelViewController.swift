@@ -413,8 +413,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     if gestureRecognizer === pullDownPan {
       let x = touch.location(in: view).x
       let width = max(1, view.bounds.width)
-      let sideColumn = x < width / 3.0 || x > width * 2.0 / 3.0
-      pullDownArmed = table.contentOffset.y <= 1 && sideColumn
+      pullDownArmed = x < width / 3.0 || x > width * 2.0 / 3.0
     }
     if gestureRecognizer === embeddedSwipePan {
       embeddedSwipeStartX = touch.location(in: view).x
