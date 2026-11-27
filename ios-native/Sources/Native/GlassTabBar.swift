@@ -237,6 +237,10 @@ final class GlassTabBar: UIView {
     }
   }
 
+  func setExpanded(_ expanded: Bool, animated: Bool) {
+    setExpansion(expanded ? 1 : 0, animated: animated)
+  }
+
   private func setExpansion(_ value: CGFloat, animated: Bool = false) {
     expansion = value
     let update = {

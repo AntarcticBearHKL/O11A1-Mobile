@@ -129,8 +129,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     NSLayoutConstraint.activate([
       searchButton.trailingAnchor.constraint(equalTo: mainHost.trailingAnchor, constant: -16),
       searchButton.topAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.topAnchor, constant: 6),
-      searchButton.widthAnchor.constraint(equalToConstant: 40),
-      searchButton.heightAnchor.constraint(equalToConstant: 40),
+      searchButton.widthAnchor.constraint(equalToConstant: 48),
+      searchButton.heightAnchor.constraint(equalToConstant: 48),
     ])
 
     avatarButton.setImage(UIImage(systemName: "person.crop.circle"), for: .normal)
@@ -150,8 +150,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     NSLayoutConstraint.activate([
       avatarButton.leadingAnchor.constraint(equalTo: mainHost.leadingAnchor, constant: 16),
       avatarButton.topAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.topAnchor, constant: 6),
-      avatarButton.widthAnchor.constraint(equalToConstant: 40),
-      avatarButton.heightAnchor.constraint(equalToConstant: 40),
+      avatarButton.widthAnchor.constraint(equalToConstant: 48),
+      avatarButton.heightAnchor.constraint(equalToConstant: 48),
     ])
 
     topAvatar.contentMode = .scaleAspectFill
@@ -216,6 +216,14 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     case "fish":
       DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
         self?.selectTab(3)
+      }
+    case "toolbar":
+      DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+        self?.tabBar.setExpanded(true, animated: true)
+      }
+    case "search":
+      DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        self?.feed?.openSearchFromHost()
       }
     case "login":
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
