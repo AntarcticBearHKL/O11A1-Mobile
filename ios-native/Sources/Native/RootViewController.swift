@@ -253,6 +253,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     controller.onOpen = { [weak self] item, cell in
       self?.openPlayer(item, from: cell)
     }
+    controller.onOpenPreview = { [weak self] item, cell, preview in
+      self?.openPlayer(item, from: cell, preview: preview)
+    }
     controller.onProfile = { [weak self] mid in
       self?.openProfile(mid)
     }
@@ -349,7 +352,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   }
 
   private func openPlayer(_ item: VideoItem, from source: UIView?,
-                          startAt: Double = 0) {
+                          startAt: Double = 0,
+                          preview: PreviewHandoff? = nil) {
     if let presented = presentedViewController {
       presented.dismiss(animated: false)
     }
@@ -367,7 +371,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     let sourceView = (source as? HomeCardCell)?.mediaHost
       ?? (source as? MiniVideoCardView)?.mediaHost
       ?? source
-    let controller = PlayerViewController(item: item, sourceView: sourceView)
+    let controller = PlayerViewController(
+      item: item, sourceView: sourceView, preview: preview)
     controller.pendingStartSeconds = startAt
     controller.onClose = { [weak self] in
       self?.closePlayer()

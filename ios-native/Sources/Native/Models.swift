@@ -120,6 +120,16 @@ struct PlaySource {
   var cid: Int64 = 0
 }
 
+/// A low-resolution stream that is already playing in the feed preview, handed
+/// to the player so it can start from the same frame while the full-quality
+/// stream is fetched and preloaded.
+struct PreviewHandoff {
+  var url = ""
+  var backup = ""
+  var seconds: Double = 0
+  var duration: Double = 0
+}
+
 struct AccountInfo {
   var loggedIn = false
   var name = ""

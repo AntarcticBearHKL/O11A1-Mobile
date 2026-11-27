@@ -6,6 +6,7 @@ final class FeedViewController: UIViewController,
   UIGestureRecognizerDelegate {
 
   var onOpen: ((VideoItem, UIView) -> Void)?
+  var onOpenPreview: ((VideoItem, UIView, PreviewHandoff) -> Void)?
   var onProfile: ((Int64) -> Void)?
   var onToolbar: ((Bool) -> Void)?
   var onSearchOpen: ((VideoItem) -> Void)?
@@ -26,6 +27,8 @@ final class FeedViewController: UIViewController,
   private var previewIndex = -1
   private var previewToken = 0
   private var previewSuspended = false
+  private var previewSource: PlaySource?
+  private var previewItemKey = ""
   private var nextPage = 1
   private var fresh = 1
   private var loading = false
@@ -100,6 +103,8 @@ final class FeedViewController: UIViewController,
       self.previewEngine.play()
     }
     previewEngine.onError = { [weak self] _ in
+      self?.previewSource = nil
+      self?.previewItemKey = ""
       self?.previewView.alpha = 0
       self?.previewCell?.setPreviewProgress(nil)
     }
@@ -444,7 +449,25 @@ final class FeedViewController: UIViewController,
       onSeason?(item)
       return
     }
+    if let cell = source as? HomeCardCell, previewCell === cell,
+       let handoff = previewHandoffFor(item),
+       let openPreview = onOpenPreview {
+      openPreview(item, source, handoff)
+      return
+    }
     onOpen?(item, source)
+  }
+
+  private func previewHandoffFor(_ item: VideoItem) -> PreviewHandoff? {
+    guard let source = previewSource, !source.url.isEmpty,
+          previewEngine.player.currentItem != nil,
+          previewItemKey == "\(item.bvid)-\(item.cid)" else { return nil }
+    return PreviewHandoff(
+      url: source.url,
+      backup: source.backup,
+      seconds: previewEngine.currentTime,
+      duration: previewEngine.duration
+    )
   }
 
   @objc private func feedLayoutChanged() {
@@ -536,13 +559,18 @@ final class FeedViewController: UIViewController,
     previewToken += 1
     let token = previewToken
     let item = items[bestRow]
+    previewSource = nil
+    previewItemKey = ""
     previewEngine.stop()
     BiliAPI.shared.playLow(item) { [weak self] result in
-      guard let self = self, token == self.previewToken else { return }
+      guard let self = self, token == self.previewToken,
+            !self.previewSuspended else { return }
       guard case .success(let source) = result else { return }
       guard let current = self.table.cellForRow(at: IndexPath(row: bestRow, section: 0)) as? HomeCardCell else {
         return
       }
+      self.previewSource = source
+      self.previewItemKey = "\(item.bvid)-\(item.cid)"
       self.attachPreview(current)
       self.previewEngine.load(
         url: source.url,

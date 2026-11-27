@@ -13,7 +13,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   var onClose: (() -> Void)?
   var onProfile: ((Int64) -> Void)?
 
-  private let engine = VideoEngine()
+  private var engine = VideoEngine()
   private lazy var playerView = PlayerLayerView(playerLayer: engine.playerLayer)
   private let speedFeedback = UIImpactFeedbackGenerator(style: .medium)
   private let backdrop = UIImageView()
@@ -77,6 +77,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let volumeView = MPVolumeView()
   private var volumeSlider: UISlider?
   private var progressLink: CADisplayLink?
+  private var previewHandoff: PreviewHandoff?
+  private var upgradeEngine: VideoEngine?
+  private var upgradeView: PlayerLayerView?
+  private var upgradePending = false
+  private var upgradeAdopted = false
+  private var pendingUpgradeLabel = ""
+  private var pendingUpgradeSource: PlaySource?
+  private var handoffLowReady = true
+  private var pendingHandoffStart: Double?
+  private var upgradeGeneration = 0
   private var portraitUpDrag = false
   private var portraitRestoreDrag = false
   private var portraitDragActive = false
@@ -107,8 +117,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let panelHideScale: Double =
     ProcessInfo.processInfo.environment["O11A1_SLOW_PANEL"] == "1" ? 20 : 1
 
-  init(item: VideoItem, sourceView: UIView?) {
+  init(item: VideoItem, sourceView: UIView?, preview: PreviewHandoff? = nil) {
     self.item = item
+    self.previewHandoff = preview
     super.init(nibName: nil, bundle: nil)
     modalPresentationStyle = .overFullScreen
     if let sourceView = sourceView, let window = sourceView.window {
@@ -172,6 +183,34 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     playerView.backgroundColor = .clear
     videoContainer.addSubview(playerView)
+
+    let upgrade = VideoEngine()
+    let upgradeLayer = PlayerLayerView(playerLayer: upgrade.playerLayer)
+    upgradeLayer.backgroundColor = .clear
+    upgradeLayer.alpha = 0
+    upgradeLayer.isUserInteractionEnabled = false
+    videoContainer.addSubview(upgradeLayer)
+    upgradeEngine = upgrade
+    upgradeView = upgradeLayer
+    upgrade.onReady = { [weak self] in self?.attemptUpgradeSwap() }
+    upgrade.onTime = { [weak self] seconds, duration in
+      guard let self = self, self.engine === self.upgradeEngine else { return }
+      self.applyPlaybackTime(seconds: seconds, duration: duration)
+    }
+    upgrade.onPlaying = { [weak self] playing in
+      guard let self = self, self.engine === self.upgradeEngine else { return }
+      self.applyPlaying(playing)
+    }
+    upgrade.onError = { [weak self] message in
+      guard let self = self, self.engine === self.upgradeEngine else { return }
+      self.errorLabel.text = message
+      self.errorLabel.isHidden = false
+    }
+    upgrade.onPipClose = { [weak self] in self?.closeFromPip() }
+    upgrade.onPipRestore = { [weak self] in
+      self?.closing = false
+      self?.videoContainer.isHidden = false
+    }
 
     pausedVeil.isUserInteractionEnabled = false
     pausedVeil.isHidden = true
@@ -470,34 +509,32 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     tap.require(toFail: doubleTap)
 
     engine.onTime = { [weak self] seconds, duration in
-      guard let self = self, !self.isScrubbing else { return }
-      self.danmakuOverlay.setTime(seconds)
-      let safeDuration = duration > 0 ? duration : 1
-      self.wheel.durationSeconds = duration
-      self.wheel.progress = max(0, min(1, seconds / safeDuration))
-      self.grid.progress = max(0, min(1, seconds / safeDuration))
-      self.wheel.currentText = self.format(seconds)
-      self.wheel.durationText = self.format(duration)
+      self?.applyPlaybackTime(seconds: seconds, duration: duration)
     }
     engine.onPlaying = { [weak self] playing in
-      guard let self = self else { return }
-      self.playButton.setImage(UIImage(systemName: playing ? "pause.fill" : "play.fill"), for: .normal)
-      self.pausedVeil.isHidden = playing
-      self.videoContainer.backgroundColor = .clear
-      if playing {
-        self.startProgressLink()
-      } else {
-        self.stopProgressLink()
-        self.progressTick()
-      }
-      let changed = playing != self.lastPlayingState
-      self.lastPlayingState = playing
-      if playing && changed && self.controlsVisible {
-        self.scheduleControlsHide()
-      }
+      self?.applyPlaying(playing)
     }
     engine.onReady = { [weak self] in
       guard let self = self else { return }
+      if let start = self.pendingHandoffStart {
+        self.pendingHandoffStart = nil
+        self.engine.seek(to: start, resume: false) { [weak self] in
+          DispatchQueue.main.async {
+            guard let self = self else { return }
+            self.handoffLowReady = true
+            self.poster.isHidden = true
+            self.errorLabel.isHidden = true
+            self.backdropVideo.alpha = 1
+            self.engine.play()
+            if let source = self.pendingUpgradeSource {
+              self.pendingUpgradeSource = nil
+              self.prepareQualityUpgrade(source)
+            }
+          }
+        }
+        return
+      }
+      self.handoffLowReady = true
       self.poster.isHidden = true
       self.errorLabel.isHidden = true
       self.backdropVideo.alpha = 1
@@ -507,11 +544,20 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         self.pendingStartSeconds = 0
         self.engine.seek(to: seconds, resume: true)
       }
+      if let source = self.pendingUpgradeSource {
+        self.pendingUpgradeSource = nil
+        self.prepareQualityUpgrade(source)
+      }
     }
     engine.onError = { [weak self] message in
       guard let self = self else { return }
+      self.handoffLowReady = true
       self.errorLabel.text = message
       self.errorLabel.isHidden = false
+      if let source = self.pendingUpgradeSource {
+        self.pendingUpgradeSource = nil
+        self.prepareQualityUpgrade(source)
+      }
     }
     engine.onPipClose = { [weak self] in
       self?.closeFromPip()
@@ -540,7 +586,25 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
      likeButton, coinButton, favButton].forEach { $0.removeFromSuperview() }
     _ = ensurePlayerContent()
     speedFeedback.prepare()
-    loadQuality(ThemeManager.shared.quality)
+    if let handoff = previewHandoff, !handoff.url.isEmpty, item.roomId == 0 {
+      handoffLowReady = false
+      let start = handoff.duration > 0
+        ? min(handoff.seconds, max(0, handoff.duration - 0.5))
+        : max(0, handoff.seconds)
+      engine.load(
+        url: handoff.url,
+        backup: handoff.backup,
+        headers: BiliAPI.shared.mediaHeaders,
+        autoplay: false,
+        muted: false,
+        loop: false,
+        startAt: 0
+      )
+      pendingHandoffStart = start
+      loadQuality(ThemeManager.shared.quality, upgrade: true)
+    } else {
+      loadQuality(ThemeManager.shared.quality)
+    }
     if item.roomId == 0, item.cid > 0 {
       danmakuOverlay.load(cid: item.cid)
     } else {
@@ -605,6 +669,34 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       sourceFrame = .zero
     } else if !isLandscapePlayer {
       applyPortraitTransition(portraitTransition)
+    }
+  }
+
+  private func applyPlaybackTime(seconds: Double, duration: Double) {
+    guard !isScrubbing else { return }
+    danmakuOverlay.setTime(seconds)
+    let safeDuration = duration > 0 ? duration : 1
+    wheel.durationSeconds = duration
+    wheel.progress = max(0, min(1, seconds / safeDuration))
+    grid.progress = max(0, min(1, seconds / safeDuration))
+    wheel.currentText = format(seconds)
+    wheel.durationText = format(duration)
+  }
+
+  private func applyPlaying(_ playing: Bool) {
+    playButton.setImage(UIImage(systemName: playing ? "pause.fill" : "play.fill"), for: .normal)
+    pausedVeil.isHidden = playing
+    videoContainer.backgroundColor = .clear
+    if playing {
+      startProgressLink()
+    } else {
+      stopProgressLink()
+      progressTick()
+    }
+    let changed = playing != lastPlayingState
+    lastPlayingState = playing
+    if playing && changed && controlsVisible {
+      scheduleControlsHide()
     }
   }
 
@@ -744,6 +836,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   private func layoutVideoSubviews() {
     playerView.frame = videoContainer.bounds
+    upgradeView?.frame = videoContainer.bounds
     poster.frame = videoContainer.bounds
     pausedVeil.frame = videoContainer.bounds
     pausedGradient.frame = pausedVeil.bounds
@@ -937,10 +1030,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
   }
 
-  private func loadQuality(_ qn: Int) {
+  private func loadQuality(_ qn: Int, upgrade: Bool = false) {
     currentQuality = qn
     loadToken += 1
     let token = loadToken
+    if !upgrade && !upgradeAdopted {
+      upgradePending = false
+      upgradeGeneration += 1
+      upgradeEngine?.stop()
+    }
     if item.roomId > 0 {
       qualityLabel.text = "LIVE"
       wheel.isHidden = true
@@ -977,16 +1075,28 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       switch result {
       case .success(let source):
         self.qualityLabel.text = source.qualityLabel.isEmpty ? "\(qn)P" : source.qualityLabel
-        self.engine.load(
-          url: source.url,
-          backup: source.backup,
-          headers: BiliAPI.shared.mediaHeaders,
-          autoplay: true,
-          muted: false,
-          loop: false,
-          startAt: Double(max(0, self.item.progress))
-        )
+        if upgrade {
+          self.prepareQualityUpgrade(source)
+        } else {
+          self.engine.load(
+            url: source.url,
+            backup: source.backup,
+            headers: BiliAPI.shared.mediaHeaders,
+            autoplay: true,
+            muted: false,
+            loop: false,
+            startAt: Double(max(0, self.item.progress))
+          )
+        }
       case .failure:
+        if upgrade {
+          if qn > 64 {
+            self.loadQuality(64, upgrade: true)
+          } else if qn > 32 {
+            self.loadQuality(32, upgrade: true)
+          }
+          return
+        }
         if qn > 64 {
           self.loadQuality(64)
         } else if qn > 32 {
@@ -1002,6 +1112,87 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     } else {
       BiliAPI.shared.playQuality(item, qn: qn, completion: completion)
     }
+  }
+
+  private func prepareQualityUpgrade(_ source: PlaySource) {
+    guard !upgradeAdopted, let upgrade = upgradeEngine else { return }
+    guard handoffLowReady else {
+      pendingUpgradeSource = source
+      return
+    }
+    pendingUpgradeLabel = qualityLabel.text ?? ""
+    upgradePending = true
+    upgradeGeneration += 1
+    upgrade.load(
+      url: source.url,
+      backup: source.backup,
+      headers: BiliAPI.shared.mediaHeaders,
+      autoplay: false,
+      muted: true,
+      loop: false,
+      startAt: 0
+    )
+  }
+
+  private func attemptUpgradeSwap() {
+    guard upgradePending, !upgradeAdopted, !closing,
+          let upgrade = upgradeEngine,
+          upgrade.player.currentItem != nil else { return }
+    upgradePending = false
+    seekUpgrade(upgrade, attempts: 0, generation: upgradeGeneration)
+  }
+
+  private func seekUpgrade(_ upgrade: VideoEngine, attempts: Int, generation: Int) {
+    guard !closing, !upgradeAdopted, generation == upgradeGeneration else { return }
+    let target = engine.currentTime
+    upgrade.seek(to: target, resume: false) { [weak self] in
+      DispatchQueue.main.async {
+        guard let self = self, !self.closing, !self.upgradeAdopted,
+              generation == self.upgradeGeneration else { return }
+        let live = self.engine.currentTime
+        if attempts < 1, abs(live - upgrade.currentTime) > 0.28 {
+          self.seekUpgrade(upgrade, attempts: attempts + 1, generation: generation)
+          return
+        }
+        self.adoptUpgrade(upgrade)
+      }
+    }
+  }
+
+  private func adoptUpgrade(_ upgrade: VideoEngine) {
+    guard !upgradeAdopted else { return }
+    upgradeAdopted = true
+    upgradePending = false
+    let previous = engine
+    let shouldPlay = previous.isPlaying
+    previous.onTime = nil
+    previous.onPlaying = nil
+    previous.onReady = nil
+    previous.onError = nil
+    previous.onPipClose = nil
+    previous.onPipRestore = nil
+    previous.pause()
+    previous.stopPip()
+    previous.stop()
+    engine = upgrade
+    upgrade.setLoop(loopOn)
+    backdropLayer.player = upgrade.player
+    poster.isHidden = true
+    errorLabel.isHidden = true
+    backdropVideo.alpha = 1
+    upgrade.player.isMuted = false
+    playerView.alpha = 0
+    upgradeView?.frame = videoContainer.bounds
+    upgradeView?.alpha = 1
+    if shouldPlay {
+      upgrade.play()
+      applyPlaying(true)
+    } else {
+      upgrade.pause()
+      applyPlaying(false)
+    }
+    upgrade.enablePiP()
+    qualityLabel.text = pendingUpgradeLabel
   }
 
   @objc private func cycleQuality() {
@@ -1422,6 +1613,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     guard value.bvid != item.bvid || value.roomId != item.roomId else { return }
     closeSettingsPanel()
     stopLiveChat()
+    cancelUpgradePreload()
     engine.stop()
     controlsTimer?.invalidate()
     controlsVisible = false
@@ -1584,6 +1776,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     closePlayer(animated: true)
   }
 
+  private func cancelUpgradePreload() {
+    upgradePending = false
+    upgradeGeneration += 1
+    if let upgrade = upgradeEngine, upgrade !== engine {
+      upgrade.stop()
+    }
+  }
+
   private func closePlayer(animated: Bool) {
     guard !closing else { return }
     closing = true
@@ -1593,6 +1793,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     stopLiveChat()
     stopProgressLink()
+    cancelUpgradePreload()
     engine.stop()
     engine.stopPip()
     if animated {
@@ -1610,6 +1811,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     closing = true
     stopLiveChat()
     stopProgressLink()
+    cancelUpgradePreload()
     engine.stop()
     onClose?()
   }

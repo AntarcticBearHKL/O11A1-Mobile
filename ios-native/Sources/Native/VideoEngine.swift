@@ -185,12 +185,18 @@ final class VideoEngine: NSObject {
     if isPlaying { pause() } else { play() }
   }
 
-  func seek(to seconds: Double, resume: Bool = true) {
+  func seek(to seconds: Double, resume: Bool = true, completion: (() -> Void)? = nil) {
     let target = CMTime(seconds: max(0, seconds), preferredTimescale: 600)
     let wasPlaying = isPlaying || player.rate > 0.01
     player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
-      guard let self = self, resume, wasPlaying else { return }
-      self.player.play()
+      guard let self = self else {
+        completion?()
+        return
+      }
+      if resume, wasPlaying {
+        self.player.play()
+      }
+      completion?()
     }
   }
 
