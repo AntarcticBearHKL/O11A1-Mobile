@@ -131,13 +131,11 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
       list.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -36),
     ])
 
-    addRow("首页布局", "单列大卡 / 双列瀑布", #selector(showFeedLayout))
-    addRow("播放", "默认画质 / 当前画质", #selector(showPlayback))
-    addRow("弹幕", "显示 / 字号 / 速度 / 屏蔽", #selector(showDanmaku))
-    addRow("外观", "主题 / 透明度 / 模糊", #selector(showAppearance))
-    addRow("屏蔽", "关键词 / 正则 / 用户", #selector(showBlock))
-    addRow("智能云屏蔽", "等级 / 同步", #selector(showCloud))
-    addRow("优化", "预加载 / 性能", #selector(showOptimize))
+    addRow("播放", #selector(showPlayback))
+    addRow("弹幕", #selector(showDanmaku))
+    addRow("外观", #selector(showAppearance))
+    addRow("屏蔽", #selector(showBlock))
+    addRow("智能云屏蔽", #selector(showCloud))
     if let last = list.arrangedSubviews.last {
       last.removeFromSuperview()
     }
@@ -152,7 +150,7 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     loadAccount()
   }
 
-  private func addRow(_ label: String, _ detail: String, _ action: Selector) {
+  private func addRow(_ label: String, _ action: Selector) {
     let row = UIButton(type: .custom)
     row.addTarget(self, action: action, for: .touchUpInside)
     row.heightAnchor.constraint(equalToConstant: 58).isActive = true
@@ -164,20 +162,10 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     row.addSubview(title)
     title.translatesAutoresizingMaskIntoConstraints = false
 
-    let hint = UILabel()
-    hint.text = detail
-    hint.font = NativeTheme.bodyFont(11)
-    hint.textColor = NativeTheme.tertiary
-    hint.textAlignment = .right
-    row.addSubview(hint)
-    hint.translatesAutoresizingMaskIntoConstraints = false
-
     NSLayoutConstraint.activate([
       title.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 2),
       title.centerYAnchor.constraint(equalTo: row.centerYAnchor),
-      hint.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -2),
-      hint.centerYAnchor.constraint(equalTo: row.centerYAnchor),
-      hint.leadingAnchor.constraint(greaterThanOrEqualTo: title.trailingAnchor, constant: 8),
+      title.trailingAnchor.constraint(lessThanOrEqualTo: row.trailingAnchor, constant: -2),
     ])
     list.addArrangedSubview(row)
 
@@ -264,25 +252,12 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     }
   }
 
-  @objc private func showFeedLayout() {
-    let options = ["单列大卡", "双列瀑布"]
-    let selected = HomeFeedLayout.isGrid ? options[1] : options[0]
-    var rows: [SettingsSheetRow] = []
-    rows.append(.choices(label: "布局", options: options, selected: selected) { value in
-      HomeFeedLayout.isGrid = (value == options[1])
-      NotificationCenter.default.post(name: HomeFeedLayout.changed, object: nil)
-    })
-    rows.append(.note("双列瀑布每行显示两个视频卡，标题和信息的字号会自动缩小。"))
-    presentSheet(SettingsSheetViewController(
-      title: "首页布局", subtitle: "选择主页信息流的排列方式", rows: rows))
-  }
-
   @objc private func showPlayback() {
     let defaults = UserDefaults.standard
     let options = ["最高", "4K", "1080P60", "1080P+", "1080P", "720P60", "720P", "480P", "360P"]
     var rows: [SettingsSheetRow] = []
     rows.append(.gridChoices(label: "默认画质", options: options,
-                             selected: defaultQualityName()) {
+                             selected: defaultQualityName(), columns: 3) {
       [weak self] name in
       defaults.set(name, forKey: "o11a1.defaultQuality")
       if let self = self {
@@ -290,15 +265,13 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
       }
     })
     rows.append(.gridChoices(label: "当前画质", options: options,
-                             selected: qualityName(ThemeManager.shared.quality)) {
+                             selected: qualityName(ThemeManager.shared.quality),
+                             columns: 3) {
       [weak self] name in
       guard let self = self else { return }
       ThemeManager.shared.quality = self.qualityValue(name)
     })
-    presentSheet(SettingsSheetViewController(
-      title: "播放",
-      subtitle: "默认画质用于新播放，当前画质立即应用；高画质需大会员",
-      rows: rows))
+    presentSheet(SettingsSheetViewController(title: "播放", rows: rows))
   }
 
   @objc private func showDanmaku() {
@@ -334,39 +307,34 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
                         isOn: storedBool("danmaku_density", true)) { value in
       defaults.set(value, forKey: "danmaku_density")
     })
-    presentSheet(SettingsSheetViewController(
-      title: "弹幕",
-      subtitle: "实时生效，现有弹幕不清空；屏蔽规则在「我的 → 屏蔽」",
-      rows: rows))
+    presentSheet(SettingsSheetViewController(title: "弹幕", rows: rows))
   }
 
   @objc private func showAppearance() {
     var rows: [SettingsSheetRow] = []
-    rows.append(.choices(label: "主题", options: AppTheme.allCases.map { $0.title },
-                         selected: ThemeManager.shared.theme.title) { value in
+    rows.append(.gridChoices(label: "主题",
+                             options: AppTheme.allCases.map { $0.title },
+                             selected: ThemeManager.shared.theme.title,
+                             columns: 3) { value in
       if let theme = AppTheme.allCases.first(where: { $0.title == value }) {
         ThemeManager.shared.theme = theme
       }
     })
-    rows.append(.slider(label: "玻璃模糊", min: 0, max: 100,
-                        value: storedFloat("o11a1.glassBlur", 100),
-                        unit: "%", step: 1, format: nil) { value in
-      UserDefaults.standard.set(value, forKey: "o11a1.glassBlur")
+    let layouts = ["单列大卡", "双列瀑布"]
+    rows.append(.gridChoices(label: "布局", options: layouts,
+                             selected: HomeFeedLayout.isGrid ? layouts[1] : layouts[0],
+                             columns: 2) { value in
+      HomeFeedLayout.isGrid = (value == layouts[1])
+      NotificationCenter.default.post(name: HomeFeedLayout.changed, object: nil)
     })
-    rows.append(.value(label: "圆角", value: "18 / 24 / 27"))
-    presentSheet(SettingsSheetViewController(
-      title: "外观",
-      subtitle: "浅色为纯白，深色为纯黑；玻璃模糊控制悬浮层质感",
-      rows: rows))
+    presentSheet(SettingsSheetViewController(title: "外观", rows: rows))
   }
 
   @objc private func showBlock() {
     let keywords = UserDefaults.standard.stringArray(forKey: "o11a1.block.keywords") ?? []
     var rows: [SettingsSheetRow] = []
     rows.append(.value(label: "关键词",
-                       value: keywords.isEmpty ? "未设置" : keywords.joined(separator: "、")))
-    rows.append(.value(label: "正则", value: "无"))
-    rows.append(.value(label: "用户", value: "未设置"))
+                       value: keywords.isEmpty ? "无" : keywords.joined(separator: "、")))
     rows.append(.action(label: "添加规则", value: "", run: { [weak self] in
       self?.addBlockRule()
     }))
@@ -374,8 +342,7 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
       UserDefaults.standard.removeObject(forKey: "o11a1.block.keywords")
       self?.showSheetInfo("屏蔽", "已清空本机关键词规则。")
     }))
-    presentSheet(SettingsSheetViewController(
-      title: "屏蔽", subtitle: "关键词 / 正则 / 用户；弹幕与评论共用规则", rows: rows))
+    presentSheet(SettingsSheetViewController(title: "屏蔽", rows: rows))
   }
 
   @objc private func showCloud() {
@@ -393,25 +360,7 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     rows.append(.action(label: "立即同步", value: "", run: { [weak self] in
       self?.showSheetInfo("智能云屏蔽", "已保存本地设置。")
     }))
-    presentSheet(SettingsSheetViewController(
-      title: "智能云屏蔽", subtitle: "服务端同步的 AI 屏蔽等级", rows: rows))
-  }
-
-  @objc private func showOptimize() {
-    let defaults = UserDefaults.standard
-    var rows: [SettingsSheetRow] = []
-    rows.append(.toggle(label: "后台预加载", detail: nil,
-                        isOn: storedBool("o11a1.preloadNext", true)) { value in
-      defaults.set(value, forKey: "o11a1.preloadNext")
-    })
-    rows.append(.toggle(label: "缓存下一批推荐", detail: nil,
-                        isOn: storedBool("o11a1.warmPages", true)) { value in
-      defaults.set(value, forKey: "o11a1.warmPages")
-    })
-    rows.append(.value(label: "硬件解码", value: "强制开启"))
-    rows.append(.value(label: "插帧管线", value: "原生媒体层"))
-    presentSheet(SettingsSheetViewController(
-      title: "优化", subtitle: "预加载与页面预热；硬件解码在移动端强制开启", rows: rows))
+    presentSheet(SettingsSheetViewController(title: "智能云屏蔽", rows: rows))
   }
 
   private func presentSheet(_ sheet: SettingsSheetViewController) {

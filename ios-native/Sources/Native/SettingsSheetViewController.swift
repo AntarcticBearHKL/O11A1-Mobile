@@ -7,15 +7,14 @@ enum SettingsSheetRow {
   case slider(label: String, min: Float, max: Float, value: Float, unit: String,
               step: Float, format: ((Float) -> String)?, onChange: (Float) -> Void)
   case choices(label: String, options: [String], selected: String, onChange: (String) -> Void)
-  case gridChoices(label: String, options: [String], selected: String, onChange: (String) -> Void)
+  case gridChoices(label: String, options: [String], selected: String, columns: Int,
+                   onChange: (String) -> Void)
   case section(String)
-  case note(String)
 }
 
 final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDelegate,
                                         UIScrollViewDelegate {
   private let sheetTitle: String
-  private let sheetSubtitle: String
   private let rows: [SettingsSheetRow]
   private let scrim = UIView()
   private let card = UIView()
@@ -28,9 +27,8 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
   private var dismissPan: UIPanGestureRecognizer?
   private var closing = false
 
-  init(title: String, subtitle: String, rows: [SettingsSheetRow]) {
+  init(title: String, rows: [SettingsSheetRow]) {
     sheetTitle = title
-    sheetSubtitle = subtitle
     self.rows = rows
     super.init(nibName: nil, bundle: nil)
     modalPresentationStyle = .overFullScreen
@@ -118,14 +116,6 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
     card.addSubview(title)
     title.translatesAutoresizingMaskIntoConstraints = false
 
-    let subtitle = UILabel()
-    subtitle.text = sheetSubtitle
-    subtitle.font = NativeTheme.bodyFont(10.5)
-    subtitle.textColor = NativeTheme.secondary
-    subtitle.numberOfLines = 0
-    card.addSubview(subtitle)
-    subtitle.translatesAutoresizingMaskIntoConstraints = false
-
     scroll.alwaysBounceVertical = true
     scroll.showsVerticalScrollIndicator = false
     scroll.delegate = self
@@ -159,13 +149,9 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
       title.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -18),
       title.topAnchor.constraint(equalTo: grab.bottomAnchor, constant: 15),
 
-      subtitle.leadingAnchor.constraint(equalTo: title.leadingAnchor),
-      subtitle.trailingAnchor.constraint(equalTo: title.trailingAnchor),
-      subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 3),
-
       scroll.leadingAnchor.constraint(equalTo: card.leadingAnchor),
       scroll.trailingAnchor.constraint(equalTo: card.trailingAnchor),
-      scroll.topAnchor.constraint(equalTo: subtitle.bottomAnchor, constant: 12),
+      scroll.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 12),
       scrollHeight!,
 
       body.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 18),
@@ -248,8 +234,9 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
         makeSliderRow(label, min, max, value, unit, step, format, onChange))
     case .choices(let label, let options, let selected, let onChange):
       body.addArrangedSubview(makeChoiceRow(label, options, selected, onChange))
-    case .gridChoices(let label, let options, let selected, let onChange):
-      body.addArrangedSubview(makeGridChoiceRow(label, options, selected, onChange))
+    case .gridChoices(let label, let options, let selected, let columns, let onChange):
+      body.addArrangedSubview(
+        makeGridChoiceRow(label, options, selected, columns, onChange))
     case .section(let text):
       let label = UILabel()
       label.text = text
@@ -257,23 +244,6 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
       label.textColor = NativeTheme.tertiary
       label.heightAnchor.constraint(equalToConstant: 28).isActive = true
       body.addArrangedSubview(label)
-    case .note(let text):
-      let label = UILabel()
-      label.text = text
-      label.font = NativeTheme.bodyFont(11)
-      label.textColor = NativeTheme.secondary
-      label.numberOfLines = 0
-      label.setContentCompressionResistancePriority(.required, for: .vertical)
-      let wrap = UIView()
-      wrap.addSubview(label)
-      label.translatesAutoresizingMaskIntoConstraints = false
-      NSLayoutConstraint.activate([
-        label.leadingAnchor.constraint(equalTo: wrap.leadingAnchor),
-        label.trailingAnchor.constraint(equalTo: wrap.trailingAnchor),
-        label.topAnchor.constraint(equalTo: wrap.topAnchor, constant: 4),
-        label.bottomAnchor.constraint(equalTo: wrap.bottomAnchor, constant: -10),
-      ])
-      body.addArrangedSubview(wrap)
     }
   }
 
@@ -457,8 +427,9 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
   }
 
   private func makeGridChoiceRow(_ label: String, _ options: [String],
-                                 _ selected: String,
+                                 _ selected: String, _ columns: Int,
                                  _ onChange: @escaping (String) -> Void) -> UIView {
+    let columnCount = max(1, columns)
     let wrap = UIView()
     let labelView = UILabel()
     labelView.text = label
@@ -475,7 +446,7 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
     var buttons: [UIButton] = []
     var index = 0
     while index < options.count {
-      let end = min(index + 3, options.count)
+      let end = min(index + columnCount, options.count)
       let row = UIStackView()
       row.axis = .horizontal
       row.spacing = 6
@@ -504,8 +475,8 @@ final class SettingsSheetViewController: UIViewController, UIGestureRecognizerDe
         buttons.append(button)
         row.addArrangedSubview(button)
       }
-      if end - index < 3 {
-        for _ in (end - index)..<3 {
+      if end - index < columnCount {
+        for _ in (end - index)..<columnCount {
           let spacer = UIView()
           spacer.isUserInteractionEnabled = false
           row.addArrangedSubview(spacer)
