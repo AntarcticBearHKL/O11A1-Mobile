@@ -239,7 +239,7 @@ final class HomeCardCell: UITableViewCell {
       topLine.heightAnchor.constraint(equalToConstant: 0.5),
 
       avatar.leadingAnchor.constraint(equalTo: copyView.leadingAnchor, constant: 16),
-      avatar.topAnchor.constraint(equalTo: copyView.topAnchor, constant: 16),
+      avatar.centerYAnchor.constraint(equalTo: copyView.centerYAnchor),
       avatar.widthAnchor.constraint(equalToConstant: 56),
       avatar.heightAnchor.constraint(equalToConstant: 56),
 
@@ -252,8 +252,8 @@ final class HomeCardCell: UITableViewCell {
       title.trailingAnchor.constraint(equalTo: copyView.trailingAnchor, constant: -16),
       title.topAnchor.constraint(equalTo: copyView.topAnchor, constant: 16),
 
-      metaStack.leadingAnchor.constraint(equalTo: copyView.leadingAnchor, constant: 16),
-      metaStack.trailingAnchor.constraint(equalTo: copyView.trailingAnchor, constant: -16),
+      metaStack.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+      metaStack.trailingAnchor.constraint(equalTo: title.trailingAnchor),
       metaStack.bottomAnchor.constraint(equalTo: copyView.bottomAnchor, constant: -16),
     ])
     progressWidth = progressFill.widthAnchor.constraint(equalToConstant: 0)

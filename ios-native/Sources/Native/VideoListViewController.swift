@@ -163,7 +163,9 @@ final class VideoRowCell: UITableViewCell {
   static let reuseID = "VideoRowCell"
   let cover = UIImageView()
   private let title = UILabel()
-  private let meta = UILabel()
+  private let metaLeft = UILabel()
+  private let metaRight = UILabel()
+  private let metaStack = UIStackView()
   private let duration = UILabel()
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
@@ -182,9 +184,26 @@ final class VideoRowCell: UITableViewCell {
     title.numberOfLines = 2
     contentView.addSubview(title)
 
-    meta.font = NativeTheme.bodyFont(12)
-    meta.textColor = NativeTheme.secondary
-    contentView.addSubview(meta)
+    metaLeft.font = NativeTheme.bodyFont(12)
+    metaLeft.textColor = NativeTheme.secondary
+    metaLeft.numberOfLines = 1
+    metaLeft.lineBreakMode = .byTruncatingTail
+    metaLeft.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    metaLeft.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+    metaRight.font = NativeTheme.bodyFont(12)
+    metaRight.textColor = NativeTheme.secondary
+    metaRight.textAlignment = .right
+    metaRight.numberOfLines = 1
+    metaRight.setContentCompressionResistancePriority(.required, for: .horizontal)
+    metaRight.setContentHuggingPriority(.required, for: .horizontal)
+
+    metaStack.axis = .horizontal
+    metaStack.alignment = .center
+    metaStack.spacing = 8
+    metaStack.addArrangedSubview(metaLeft)
+    metaStack.addArrangedSubview(metaRight)
+    contentView.addSubview(metaStack)
 
     duration.font = NativeTheme.numberFont(11)
     duration.textColor = .white
@@ -194,7 +213,7 @@ final class VideoRowCell: UITableViewCell {
     duration.textAlignment = .center
     contentView.addSubview(duration)
 
-    [cover, title, meta, duration].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
+    [cover, title, metaStack, duration].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
     NSLayoutConstraint.activate([
       cover.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
       cover.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
@@ -206,9 +225,9 @@ final class VideoRowCell: UITableViewCell {
       title.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
       title.topAnchor.constraint(equalTo: cover.topAnchor, constant: 2),
 
-      meta.leadingAnchor.constraint(equalTo: title.leadingAnchor),
-      meta.trailingAnchor.constraint(equalTo: title.trailingAnchor),
-      meta.bottomAnchor.constraint(equalTo: cover.bottomAnchor, constant: -2),
+      metaStack.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+      metaStack.trailingAnchor.constraint(equalTo: title.trailingAnchor),
+      metaStack.bottomAnchor.constraint(equalTo: cover.bottomAnchor, constant: -2),
 
       duration.trailingAnchor.constraint(equalTo: cover.trailingAnchor, constant: -4),
       duration.bottomAnchor.constraint(equalTo: cover.bottomAnchor, constant: -4),
@@ -224,14 +243,21 @@ final class VideoRowCell: UITableViewCell {
 
   func configure(_ item: VideoItem) {
     title.text = item.title
-    meta.text = "\(item.owner) · \(item.playText) 播放"
+    metaLeft.text = "\(item.owner) · \(item.playText) 播放"
+    metaLeft.textColor = NativeTheme.secondary
+    metaRight.text = nil
+    metaRight.isHidden = true
     duration.text = item.duration
     ImageLoader.shared.load(item.pic, into: cover)
   }
 
   func configureUp(_ item: VideoItem) {
     title.text = item.title
-    meta.text = "\(item.playText) 播放 · \(NativeTheme.freshness(item.pubdate))"
+    metaLeft.text = "\(item.playText) 播放"
+    metaLeft.textColor = NativeTheme.playCountColor(item.play)
+    metaRight.text = NativeTheme.freshness(item.pubdate)
+    metaRight.textColor = NativeTheme.freshnessColor(item.pubdate)
+    metaRight.isHidden = false
     duration.text = item.duration
     ImageLoader.shared.load(item.pic, into: cover)
   }

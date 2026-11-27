@@ -39,6 +39,8 @@ final class FeedViewController: UIViewController,
   private var sidebarPan: UIPanGestureRecognizer?
   private var searchOpen = false
   private var searchProgress: CGFloat = 0
+  private var searchPanStartX: CGFloat = 0
+  private var sidebarPanStartX: CGFloat = 0
   private var feedScrollingAtTouch = false
   private var homeSource = "recommend"
   private var sourceTitle = "推荐"
@@ -508,6 +510,12 @@ final class FeedViewController: UIViewController,
     if gestureRecognizer === searchPan || gestureRecognizer === sidebarPan {
       feedScrollingAtTouch = isFeedScrolling()
     }
+    if gestureRecognizer === searchPan {
+      searchPanStartX = touch.location(in: view).x
+    }
+    if gestureRecognizer === sidebarPan {
+      sidebarPanStartX = touch.location(in: view).x
+    }
     return true
   }
 
@@ -516,17 +524,20 @@ final class FeedViewController: UIViewController,
     if pan === searchPan || pan === sidebarPan {
       guard !feedScrollingAtTouch, !isFeedScrolling() else { return false }
     }
+    let width = max(1, view.bounds.width)
     let velocity = pan.velocity(in: view)
     let translation = pan.translation(in: view)
     let horizontal = abs(translation.x) > abs(translation.y) * 1.1
       || abs(velocity.x) > abs(velocity.y) * 1.1
     if pan === searchPan {
       guard !searchOpen else { return false }
+      guard searchPanStartX >= width * 2.0 / 3.0 else { return false }
       let movingLeft = translation.x < -1 || velocity.x < -1
       return horizontal && movingLeft
     }
     if pan === sidebarPan {
       guard !searchOpen else { return false }
+      guard sidebarPanStartX <= width / 3.0 else { return false }
       let movingRight = translation.x > 1 || velocity.x > 1
       return horizontal && movingRight
     }

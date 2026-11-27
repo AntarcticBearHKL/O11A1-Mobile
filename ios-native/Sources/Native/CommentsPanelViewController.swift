@@ -23,6 +23,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   private var loading = false
   private var dismissPan: UIPanGestureRecognizer?
   private var embeddedSwipePan: UIPanGestureRecognizer?
+  private var embeddedSwipeStartX: CGFloat = 0
   private var pullDownPan: UIPanGestureRecognizer?
   private var pullDownArmed = false
   private var repliesCache: [Int64: [CommentItem]] = [:]
@@ -352,9 +353,13 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     guard gesture.state == .ended || gesture.state == .cancelled else { return }
     let translation = gesture.translation(in: view).x
     if translation < -60 {
-      onSwipeLeft?()
+      if embeddedSwipeStartX >= view.bounds.width * 2.0 / 3.0 {
+        onSwipeLeft?()
+      }
     } else if translation > 60 {
-      onSwipeRight?()
+      if embeddedSwipeStartX <= view.bounds.width / 3.0 {
+        onSwipeRight?()
+      }
     }
   }
 
@@ -377,6 +382,9 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
                          shouldReceive touch: UITouch) -> Bool {
     if gestureRecognizer === pullDownPan {
       pullDownArmed = table.contentOffset.y <= 1
+    }
+    if gestureRecognizer === embeddedSwipePan {
+      embeddedSwipeStartX = touch.location(in: view).x
     }
     return true
   }

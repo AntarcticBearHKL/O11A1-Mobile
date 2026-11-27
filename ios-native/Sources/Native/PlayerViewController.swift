@@ -72,6 +72,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var portraitTransition: CGFloat = 0
   private var portraitStageIsTop = false
   private var panDirectionDecided = false
+  private var panStartX: CGFloat = 0
   private var detailPanel: VideoDetailViewController?
   private var relatedPanel: RelatedViewController?
   private var settingsPanel: PlayerSettingsViewController?
@@ -1033,12 +1034,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       panRestorePlayAlpha = playButton.alpha
       view.transform = .identity
       view.layer.cornerRadius = 0
+      panStartX = gesture.location(in: view).x
       let velocity = gesture.velocity(in: videoContainer)
       if abs(velocity.x) > abs(velocity.y) && abs(velocity.x) > 80 {
         panDirectionDecided = true
-        if velocity.x < 0 {
+        if velocity.x < 0, panStartX >= view.bounds.width * 2.0 / 3.0 {
           relatedSwipe = true
-        } else {
+        } else if velocity.x > 0, panStartX <= view.bounds.width / 3.0 {
           detailSwipe = true
         }
       }
@@ -1049,9 +1051,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
           if abs(translation.x) > abs(translation.y) * 1.15 {
             panDirectionDecided = true
             if translation.x < 0 {
-              relatedSwipe = true
+              if panStartX >= view.bounds.width * 2.0 / 3.0 {
+                relatedSwipe = true
+              }
             } else {
-              detailSwipe = true
+              if panStartX <= view.bounds.width / 3.0 {
+                detailSwipe = true
+              }
             }
           } else if !isLandscapePlayer {
             panDirectionDecided = true

@@ -12,7 +12,9 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   private let table = UITableView(frame: .zero, style: .plain)
   private let statusLabel = UILabel()
   private let backButton = UIButton(type: .system)
-  private let headerTitle = UILabel()
+  private let topBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+  private let topBlurMask = CAGradientLayer()
+  private var topBlurHeight: NSLayoutConstraint?
   private let bottomCard = UIView()
   private let cardBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let avatar = UIImageView()
@@ -20,7 +22,6 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   private let uidLabel = UILabel()
   private let followButton = UIButton(type: .custom)
   private let sortDock = UIView()
-  private let sortBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let latestButton = UIButton(type: .custom)
   private let playButton = UIButton(type: .custom)
   private var items: [VideoItem] = []
@@ -66,6 +67,15 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     view.addSubview(table)
     table.translatesAutoresizingMaskIntoConstraints = false
 
+    topBlur.isUserInteractionEnabled = false
+    view.addSubview(topBlur)
+    topBlur.translatesAutoresizingMaskIntoConstraints = false
+    topBlurMask.colors = [UIColor.black.cgColor,
+                          UIColor.black.cgColor,
+                          UIColor.clear.cgColor]
+    topBlurMask.locations = [0, 0.55, 1]
+    topBlur.layer.mask = topBlurMask
+
     statusLabel.font = NativeTheme.bodyFont(13)
     statusLabel.textColor = NativeTheme.secondary
     statusLabel.textAlignment = .center
@@ -84,13 +94,6 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     backButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
     view.addSubview(backButton)
     backButton.translatesAutoresizingMaskIntoConstraints = false
-
-    headerTitle.text = "UP 主页"
-    headerTitle.font = UIFont.systemFont(ofSize: 17, weight: .bold)
-    headerTitle.textColor = NativeTheme.foreground
-    headerTitle.numberOfLines = 1
-    view.addSubview(headerTitle)
-    headerTitle.translatesAutoresizingMaskIntoConstraints = false
 
     bottomCard.backgroundColor = .clear
     bottomCard.layer.cornerRadius = NativeTheme.cornerRadius
@@ -146,23 +149,10 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     followButton.translatesAutoresizingMaskIntoConstraints = false
     updateFollowButton()
 
-    sortDock.layer.cornerRadius = NativeTheme.cornerRadius
-    sortDock.layer.cornerCurve = .continuous
-    sortDock.layer.borderWidth = 0.5
-    sortDock.layer.borderColor = NativeTheme.hairline.cgColor
-    sortDock.layer.shadowColor = UIColor.black.cgColor
-    sortDock.layer.shadowOpacity = 0.16
-    sortDock.layer.shadowRadius = 15
-    sortDock.layer.shadowOffset = CGSize(width: 0, height: 6)
+    sortDock.backgroundColor = .clear
     sortDock.clipsToBounds = false
     view.addSubview(sortDock)
     sortDock.translatesAutoresizingMaskIntoConstraints = false
-
-    sortBlur.layer.cornerRadius = NativeTheme.cornerRadius
-    sortBlur.layer.cornerCurve = .continuous
-    sortBlur.clipsToBounds = true
-    sortDock.addSubview(sortBlur)
-    sortBlur.translatesAutoresizingMaskIntoConstraints = false
 
     for (index, button) in [latestButton, playButton].enumerated() {
       button.tag = index
@@ -189,8 +179,16 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
 
     table.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
     table.trailingAnchor.constraint(equalTo: view.trailingAnchor).isActive = true
-    table.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 8).isActive = true
-    table.bottomAnchor.constraint(equalTo: sortDock.topAnchor, constant: -8).isActive = true
+    table.topAnchor.constraint(equalTo: view.topAnchor).isActive = true
+    table.bottomAnchor.constraint(equalTo: bottomCard.topAnchor).isActive = true
+
+    topBlurHeight = topBlur.heightAnchor.constraint(equalToConstant: 60)
+    NSLayoutConstraint.activate([
+      topBlur.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      topBlur.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      topBlur.topAnchor.constraint(equalTo: view.topAnchor),
+      topBlurHeight!,
+    ])
 
     statusLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
     statusLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor).isActive = true
@@ -203,10 +201,6 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
       backButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
       backButton.widthAnchor.constraint(equalToConstant: 40),
       backButton.heightAnchor.constraint(equalToConstant: 40),
-
-      headerTitle.leadingAnchor.constraint(equalTo: backButton.trailingAnchor, constant: 12),
-      headerTitle.centerYAnchor.constraint(equalTo: backButton.centerYAnchor),
-      headerTitle.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -16),
     ])
 
     bottomCard.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
@@ -247,11 +241,6 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     sortDock.heightAnchor.constraint(equalToConstant: 52).isActive = true
     sortDock.widthAnchor.constraint(equalToConstant: 200).isActive = true
 
-    sortBlur.leadingAnchor.constraint(equalTo: sortDock.leadingAnchor).isActive = true
-    sortBlur.trailingAnchor.constraint(equalTo: sortDock.trailingAnchor).isActive = true
-    sortBlur.topAnchor.constraint(equalTo: sortDock.topAnchor).isActive = true
-    sortBlur.bottomAnchor.constraint(equalTo: sortDock.bottomAnchor).isActive = true
-
     let closePan = UIPanGestureRecognizer(target: self, action: #selector(handleDismissPan(_:)))
     closePan.delegate = self
     table.panGestureRecognizer.require(toFail: closePan)
@@ -272,8 +261,12 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   }
 
   private func updateInsets() {
-    table.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 8, right: 0)
-    table.verticalScrollIndicatorInsets = .zero
+    let top = view.safeAreaInsets.top + 8
+    table.contentInset = UIEdgeInsets(top: top, left: 0, bottom: 78, right: 0)
+    table.verticalScrollIndicatorInsets = UIEdgeInsets(top: view.safeAreaInsets.top,
+                                                       left: 0, bottom: 0, right: 0)
+    topBlurHeight?.constant = view.safeAreaInsets.top + 22
+    topBlurMask.frame = topBlur.bounds
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
