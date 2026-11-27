@@ -38,8 +38,8 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     view.addSubview(accountCard)
     accountCard.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      accountCard.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-      accountCard.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+      accountCard.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+      accountCard.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
       accountCard.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor,
                                        constant: 8),
       accountCard.heightAnchor.constraint(equalToConstant: 104),

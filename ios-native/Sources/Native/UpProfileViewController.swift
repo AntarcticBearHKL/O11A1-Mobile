@@ -194,8 +194,8 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     statusLabel.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 32).isActive = true
     statusLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -32).isActive = true
 
-    bottomCard.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16).isActive = true
-    bottomCard.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16).isActive = true
+    bottomCard.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10).isActive = true
+    bottomCard.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10).isActive = true
     bottomCard.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor,
                                     constant: 8).isActive = true
     bottomCard.heightAnchor.constraint(equalToConstant: 108).isActive = true

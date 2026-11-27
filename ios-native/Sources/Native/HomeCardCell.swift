@@ -1,9 +1,10 @@
 import UIKit
 
 /// Home feed card matching the original web layout: full-width 16:9 cover
-/// with a glass information row below it and 14pt bottom corners.
+/// with a glass information row below it and 4pt bottom corners.
 final class HomeCardCell: UITableViewCell {
   static let reuseID = "HomeCardCell"
+  private let cardBottomRadius: CGFloat = 4
 
   let mediaHost = UIView()
   var onOpen: (() -> Void)?
@@ -95,7 +96,7 @@ final class HomeCardCell: UITableViewCell {
     previewBar.translatesAutoresizingMaskIntoConstraints = false
 
     copyView.backgroundColor = NativeTheme.surface
-    copyView.layer.cornerRadius = NativeTheme.cornerRadius
+    copyView.layer.cornerRadius = cardBottomRadius
     copyView.layer.cornerCurve = .continuous
     copyView.layer.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
     copyView.clipsToBounds = true
@@ -263,7 +264,7 @@ final class HomeCardCell: UITableViewCell {
     contentView.layer.shadowPath = UIBezierPath(
       roundedRect: shadowRect,
       byRoundingCorners: [.bottomLeft, .bottomRight],
-      cornerRadii: CGSize(width: NativeTheme.cornerRadius, height: NativeTheme.cornerRadius)).cgPath
+      cornerRadii: CGSize(width: cardBottomRadius, height: cardBottomRadius)).cgPath
     contentView.layer.shadowOpacity =
       traitCollection.userInterfaceStyle == .dark ? 0.40 : 0.12
     CATransaction.commit()
