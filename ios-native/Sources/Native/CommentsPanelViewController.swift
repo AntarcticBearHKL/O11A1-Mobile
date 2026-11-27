@@ -218,6 +218,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     latestButton.setTitle("最新", for: .normal)
     hotButton.setTitle("最热", for: .normal)
     updateSort()
+    applyGlass()
 
     if !embedded {
       let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
