@@ -44,13 +44,13 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
 
     if embedded {
       headerTitle.text = "推荐"
-      headerTitle.font = UIFont.systemFont(ofSize: 15, weight: .bold)
+      headerTitle.font = UIFont.systemFont(ofSize: 16, weight: .bold)
       headerTitle.textColor = NativeTheme.foreground
       view.addSubview(headerTitle)
       headerTitle.translatesAutoresizingMaskIntoConstraints = false
       NSLayoutConstraint.activate([
         headerTitle.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 18),
-        headerTitle.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
+        headerTitle.centerYAnchor.constraint(equalTo: view.topAnchor, constant: 28),
       ])
     }
 
@@ -80,7 +80,7 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
         headerBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
         headerBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         headerBar.topAnchor.constraint(equalTo: view.topAnchor),
-        headerBar.heightAnchor.constraint(equalToConstant: 48),
+        headerBar.heightAnchor.constraint(equalToConstant: 56),
       ])
       headerBlur.isUserInteractionEnabled = false
       headerBlur.clipsToBounds = true
@@ -92,6 +92,17 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
         headerBlur.trailingAnchor.constraint(equalTo: headerBar.trailingAnchor),
         headerBlur.topAnchor.constraint(equalTo: headerBar.topAnchor),
         headerBlur.bottomAnchor.constraint(equalTo: headerBar.bottomAnchor),
+      ])
+      let headerLine = UIView()
+      headerLine.backgroundColor = NativeTheme.hairline
+      headerLine.isUserInteractionEnabled = false
+      headerBar.addSubview(headerLine)
+      headerLine.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        headerLine.leadingAnchor.constraint(equalTo: headerBar.leadingAnchor, constant: 18),
+        headerLine.trailingAnchor.constraint(equalTo: headerBar.trailingAnchor, constant: -18),
+        headerLine.bottomAnchor.constraint(equalTo: headerBar.bottomAnchor),
+        headerLine.heightAnchor.constraint(equalToConstant: 0.5),
       ])
       view.bringSubviewToFront(headerTitle)
     }
@@ -135,7 +146,7 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    let top: CGFloat = embedded ? 48 : view.safeAreaInsets.top
+    let top: CGFloat = embedded ? 56 : view.safeAreaInsets.top
     let bottom: CGFloat = embedded ? 96 : 18
     table.contentInset = UIEdgeInsets(top: top, left: 0,
                                       bottom: view.safeAreaInsets.bottom + bottom, right: 0)

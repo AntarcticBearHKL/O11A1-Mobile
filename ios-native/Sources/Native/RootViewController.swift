@@ -363,6 +363,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   private func openPlayer(_ item: VideoItem, from source: UIView?,
                           startAt: Double = 0,
                           preview: PreviewHandoff? = nil) {
+    UIImpactFeedbackGenerator(style: .light).impactOccurred()
     if let presented = presentedViewController {
       presented.dismiss(animated: false)
     }

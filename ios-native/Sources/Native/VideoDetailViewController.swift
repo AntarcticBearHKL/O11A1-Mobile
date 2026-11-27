@@ -21,6 +21,8 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   var initialLoopOn = false
 
   private let item: VideoItem
+  private let detailCardHeight: CGFloat = 80
+  private let detailCardRadius: CGFloat = 10
   private let scroll = UIScrollView()
   private let card = UIView()
   private let cover = UIImageView()
@@ -50,6 +52,8 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private var detailAid: Int64 = 0
   private var detailBvid = ""
   private let descLabel = UILabel()
+  private let descCard = UIView()
+  private var descCardHeight: NSLayoutConstraint?
   private let descToggle = UIButton(type: .system)
   private let qualitySetting = UILabel()
   private let danmakuSetting = UILabel()
@@ -187,9 +191,10 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
 
     let author = UIView()
     author.backgroundColor = NativeTheme.background
-    author.layer.cornerRadius = NativeTheme.cornerRadius
+    author.layer.cornerRadius = detailCardRadius
     author.layer.cornerCurve = .continuous
     stack.addArrangedSubview(author)
+    author.heightAnchor.constraint(equalToConstant: detailCardHeight).isActive = true
 
     avatar.contentMode = .scaleAspectFill
     avatar.clipsToBounds = true
@@ -202,12 +207,16 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     ownerName.font = UIFont.systemFont(ofSize: 16, weight: .bold)
     ownerName.textColor = NativeTheme.foreground
     ownerName.numberOfLines = 1
-    author.addSubview(ownerName)
 
     ownerMeta.text = item.mid > 0 ? "UID \(item.mid) · 点击进入主页" : "UP 主"
     ownerMeta.font = NativeTheme.bodyFont(10)
     ownerMeta.textColor = NativeTheme.secondary
-    author.addSubview(ownerMeta)
+
+    let identity = UIStackView(arrangedSubviews: [ownerName, ownerMeta])
+    identity.axis = .vertical
+    identity.alignment = .fill
+    identity.spacing = 3
+    author.addSubview(identity)
 
     let go = UILabel()
     go.text = "主页 ›"
@@ -219,22 +228,18 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     authorButton.addTarget(self, action: #selector(authorTapped), for: .touchUpInside)
     author.addSubview(authorButton)
 
-    [avatar, ownerName, ownerMeta, go, authorButton].forEach {
+    [avatar, identity, go, authorButton].forEach {
       $0.translatesAutoresizingMaskIntoConstraints = false
     }
     NSLayoutConstraint.activate([
-      avatar.leadingAnchor.constraint(equalTo: author.leadingAnchor, constant: 12),
-      avatar.topAnchor.constraint(equalTo: author.topAnchor, constant: 10),
-      avatar.bottomAnchor.constraint(equalTo: author.bottomAnchor, constant: -10),
+      avatar.leadingAnchor.constraint(equalTo: author.leadingAnchor, constant: 14),
+      avatar.centerYAnchor.constraint(equalTo: author.centerYAnchor),
       avatar.widthAnchor.constraint(equalToConstant: 42),
       avatar.heightAnchor.constraint(equalToConstant: 42),
-      ownerName.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 10),
-      ownerName.topAnchor.constraint(equalTo: author.topAnchor, constant: 12),
-      ownerName.trailingAnchor.constraint(lessThanOrEqualTo: go.leadingAnchor, constant: -8),
-      ownerMeta.leadingAnchor.constraint(equalTo: ownerName.leadingAnchor),
-      ownerMeta.topAnchor.constraint(equalTo: ownerName.bottomAnchor, constant: 3),
-      ownerMeta.trailingAnchor.constraint(lessThanOrEqualTo: go.leadingAnchor, constant: -8),
-      go.trailingAnchor.constraint(equalTo: author.trailingAnchor, constant: -12),
+      identity.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 10),
+      identity.trailingAnchor.constraint(lessThanOrEqualTo: go.leadingAnchor, constant: -8),
+      identity.centerYAnchor.constraint(equalTo: author.centerYAnchor),
+      go.trailingAnchor.constraint(equalTo: author.trailingAnchor, constant: -14),
       go.centerYAnchor.constraint(equalTo: author.centerYAnchor),
       authorButton.leadingAnchor.constraint(equalTo: author.leadingAnchor),
       authorButton.trailingAnchor.constraint(equalTo: author.trailingAnchor),
@@ -247,11 +252,12 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     actions.distribution = .fillEqually
     actions.alignment = .fill
     actions.backgroundColor = NativeTheme.background
-    actions.layer.cornerRadius = NativeTheme.cornerRadius
+    actions.layer.cornerRadius = detailCardRadius
     actions.layer.cornerCurve = .continuous
     actions.isLayoutMarginsRelativeArrangement = true
     actions.layoutMargins = UIEdgeInsets(top: 7, left: 4, bottom: 7, right: 4)
     stack.addArrangedSubview(actions)
+    actions.heightAnchor.constraint(equalToConstant: detailCardHeight).isActive = true
 
     shareTitle.text = "分享"
     shareTitle.font = UIFont.systemFont(ofSize: 11, weight: .medium)
@@ -276,11 +282,26 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       count: nil, action: #selector(shareTapped)))
     updateActions()
 
+    descCard.backgroundColor = NativeTheme.background
+    descCard.layer.cornerRadius = detailCardRadius
+    descCard.layer.cornerCurve = .continuous
+    descCard.clipsToBounds = true
+    stack.addArrangedSubview(descCard)
+
     descLabel.font = NativeTheme.bodyFont(12)
     descLabel.textColor = NativeTheme.secondary
     descLabel.numberOfLines = 3
     descLabel.text = item.desc.isEmpty ? "暂无简介" : item.desc
-    stack.addArrangedSubview(descLabel)
+    descCard.addSubview(descLabel)
+    descLabel.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      descLabel.leadingAnchor.constraint(equalTo: descCard.leadingAnchor, constant: 14),
+      descLabel.trailingAnchor.constraint(equalTo: descCard.trailingAnchor, constant: -14),
+      descLabel.topAnchor.constraint(equalTo: descCard.topAnchor, constant: 12),
+      descLabel.bottomAnchor.constraint(equalTo: descCard.bottomAnchor, constant: -12),
+    ])
+    descCardHeight = descCard.heightAnchor.constraint(equalToConstant: detailCardHeight)
+    descCardHeight?.isActive = true
 
     descToggle.setTitle("展开简介", for: .normal)
     descToggle.titleLabel?.font = NativeTheme.bodyFont(12)
@@ -793,8 +814,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     column.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
       column.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-      column.topAnchor.constraint(equalTo: container.topAnchor, constant: 2),
-      column.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -2),
+      column.centerYAnchor.constraint(equalTo: container.centerYAnchor),
       column.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor, constant: 2),
       column.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor, constant: -2),
     ])
@@ -946,6 +966,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   @objc private func toggleDesc() {
     descExpanded.toggle()
     descLabel.numberOfLines = descExpanded ? 0 : 3
+    descCardHeight?.isActive = !descExpanded
     descToggle.setTitle(descExpanded ? "收起简介" : "展开简介", for: .normal)
   }
 

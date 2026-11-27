@@ -35,9 +35,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let backButton = UIButton(type: .system)
   private let titleLabel = UILabel()
   private let playButton = UIButton(type: .system)
-  private let longPressHost = UIView()
   private let bottomPanel = UIView()
   private let bottomBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
+  private let bottomTint = UIView()
   private let ownerLabel = UILabel()
   private let ownerButton = UIButton(type: .system)
   private let wheel = ProgressWheel()
@@ -80,6 +80,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var progressLink: CADisplayLink?
   private var contentClosePan: UIPanGestureRecognizer?
   private var contentCloseStartX: CGFloat = 0
+  private var longPressRecognizer: UILongPressGestureRecognizer?
   private var previewHandoff: PreviewHandoff?
   private var upgradeEngine: VideoEngine?
   private var upgradeView: PlayerLayerView?
@@ -111,7 +112,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let panelSlideDistance: CGFloat = 28
   private let playerPanelHeight: CGFloat = 100
   private let focusedPanelLift: CGFloat = 60
-  private let portraitPanelWidthRatio: CGFloat = 0.8
+  private let portraitPanelWidthRatio: CGFloat = 0.9
   private let landscapePanelWidthRatio: CGFloat = 0.5
   private let panelShowDuration: TimeInterval = 0.26
   private let panelHideDuration: TimeInterval = 0.28
@@ -282,7 +283,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     bottomBlur.translatesAutoresizingMaskIntoConstraints = false
     bottomBlur.isUserInteractionEnabled = false
-    bottomBlur.alpha = 0.55
+    bottomBlur.alpha = 1
     bottomPanel.addSubview(bottomBlur)
     applyPlayerChrome()
     NSLayoutConstraint.activate([
@@ -290,6 +291,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       bottomBlur.trailingAnchor.constraint(equalTo: bottomPanel.trailingAnchor),
       bottomBlur.topAnchor.constraint(equalTo: bottomPanel.topAnchor),
       bottomBlur.bottomAnchor.constraint(equalTo: bottomPanel.bottomAnchor),
+    ])
+
+    bottomTint.isUserInteractionEnabled = false
+    bottomPanel.addSubview(bottomTint)
+    bottomTint.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      bottomTint.leadingAnchor.constraint(equalTo: bottomPanel.leadingAnchor),
+      bottomTint.trailingAnchor.constraint(equalTo: bottomPanel.trailingAnchor),
+      bottomTint.topAnchor.constraint(equalTo: bottomPanel.topAnchor),
+      bottomTint.bottomAnchor.constraint(equalTo: bottomPanel.bottomAnchor),
     ])
 
     let content = bottomPanel
@@ -491,32 +502,25 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     view.addGestureRecognizer(closePan)
     contentClosePan = closePan
 
-    longPressHost.backgroundColor = .clear
-    view.insertSubview(longPressHost, belowSubview: bottomPanel)
-    longPressHost.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      longPressHost.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-      longPressHost.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      longPressHost.topAnchor.constraint(equalTo: view.topAnchor),
-      longPressHost.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-    ])
-
     let longPress = UILongPressGestureRecognizer(target: self, action: #selector(longPress(_:)))
-    longPress.minimumPressDuration = 0.18
+    longPress.minimumPressDuration = 0.35
     longPress.delegate = self
     longPress.cancelsTouchesInView = false
-    longPressHost.addGestureRecognizer(longPress)
+    view.addGestureRecognizer(longPress)
+    longPressRecognizer = longPress
 
     let tap = UITapGestureRecognizer(target: self, action: #selector(handleSingleTap))
     tap.delegate = self
     tap.cancelsTouchesInView = false
     view.addGestureRecognizer(tap)
+    tap.require(toFail: longPress)
 
     let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap))
     doubleTap.numberOfTapsRequired = 2
     doubleTap.delegate = self
     doubleTap.cancelsTouchesInView = false
     view.addGestureRecognizer(doubleTap)
+    doubleTap.require(toFail: longPress)
     tap.require(toFail: doubleTap)
 
     engine.onTime = { [weak self] seconds, duration in
@@ -653,9 +657,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   private func applyPlayerChrome() {
     let light = traitCollection.userInterfaceStyle == .light
-    bottomPanel.backgroundColor = light
-      ? UIColor(white: 1, alpha: 0.90)
-      : UIColor(red: 29.0 / 255.0, green: 35.0 / 255.0, blue: 47.0 / 255.0, alpha: 0.84)
+    bottomPanel.backgroundColor = .clear
+    bottomTint.backgroundColor = light
+      ? UIColor(white: 1, alpha: 0.55)
+      : UIColor(white: 1, alpha: 0.10)
     bottomPanel.layer.borderColor = light
       ? UIColor(white: 0, alpha: 0.08).cgColor
       : UIColor(white: 1, alpha: 0.14).cgColor
@@ -913,6 +918,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   private func settlePortrait(top: Bool, animated: Bool) {
     guard !isLandscapePlayer else { return }
+    if top != portraitStageIsTop {
+      UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
     portraitStageIsTop = top
     portraitDragActive = false
     portraitSettling = animated
@@ -1086,7 +1094,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     super.viewDidLayoutSubviews()
     let full = view.bounds
     let landscape = full.width > full.height
+    let wasLandscape = isLandscapePlayer
     isLandscapePlayer = landscape
+    wheel.spacingScale = landscape ? 1.0 : 1.5
+    if landscape != wasLandscape {
+      hideControls()
+    }
     let danmakuInset: CGFloat = landscape
       ? 0 : max(76, view.safeAreaInsets.top + 52)
     danmakuOverlay.setTopInset(danmakuInset, animated: true)
@@ -1436,6 +1449,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func showControls() {
+    guard isLandscapePlayer || !portraitStageIsTop else { return }
     controlsVisible = true
     bottomPanel.isUserInteractionEnabled = true
     UIView.animate(withDuration: panelShowDuration, delay: 0,
@@ -1874,6 +1888,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private func closePlayer(animated: Bool) {
     guard !closing else { return }
     closing = true
+    UIImpactFeedbackGenerator(style: .light).impactOccurred()
     if #available(iOS 16.0, *) {
       view.window?.windowScene?.requestGeometryUpdate(
         .iOS(interfaceOrientations: .portrait))
@@ -1985,7 +2000,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             let pan = gestureRecognizer as? UIPanGestureRecognizer else {
         return false
       }
-      if portraitStageIsTop && contentCloseStartX >= view.bounds.width / 8.0 {
+      if portraitStageIsTop && contentCloseStartX >= view.bounds.width / 6.0 {
         return false
       }
       let translation = pan.translation(in: view)
@@ -2012,6 +2027,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     if touch.view?.isDescendant(of: bottomPanel) == true { return false }
     if touch.view?.isDescendant(of: topBar) == true { return false }
     if gestureRecognizer !== contentClosePan,
+       gestureRecognizer !== longPressRecognizer,
        let content = contentController,
        touch.view?.isDescendant(of: content.view) == true { return false }
     return true

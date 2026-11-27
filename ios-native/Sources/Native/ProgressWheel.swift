@@ -13,6 +13,9 @@ final class ProgressWheel: UIControl {
   var currentText: String = "00:00"
   var durationText: String = "00:00"
   var onScrub: ((Double, Bool) -> Void)?
+  var spacingScale: CGFloat = 1 {
+    didSet { setNeedsDisplay() }
+  }
 
   private let ridgeGap: CGFloat = 12
   private let tickStep: Double = 0.5
@@ -36,7 +39,7 @@ final class ProgressWheel: UIControl {
   }
 
   private var pxPerSecond: CGFloat {
-    return ridgeGap
+    return ridgeGap * spacingScale
   }
 
   override func draw(_ rect: CGRect) {

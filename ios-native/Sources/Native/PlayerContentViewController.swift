@@ -390,7 +390,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
           pan === tabSwipePan else { return true }
-    guard tabSwipeStartX >= view.bounds.width / 8.0 else { return false }
+    guard tabSwipeStartX >= view.bounds.width / 6.0 else { return false }
     let translation = pan.translation(in: view)
     let velocity = pan.velocity(in: view)
     return (abs(translation.x) > 8 && abs(translation.x) > abs(translation.y) * 1.2)
