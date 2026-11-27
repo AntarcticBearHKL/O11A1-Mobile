@@ -620,20 +620,25 @@ private final class PanelCommentCell: UITableViewCell {
 
     for metric in [likes, repliesCount] {
       metric.font = UIFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .medium)
+      metric.textAlignment = .left
       metric.setContentHuggingPriority(.required, for: .horizontal)
       metric.setContentCompressionResistancePriority(.required, for: .horizontal)
     }
+    likes.widthAnchor.constraint(equalToConstant: 60).isActive = true
+    repliesCount.widthAnchor.constraint(equalToConstant: 46).isActive = true
     repliesCount.isHidden = true
 
     time.font = UIFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .medium)
+    time.textAlignment = .left
     time.numberOfLines = 1
+    time.widthAnchor.constraint(equalToConstant: 54).isActive = true
     time.setContentHuggingPriority(.required, for: .horizontal)
     time.setContentCompressionResistancePriority(.required, for: .horizontal)
 
     let metaRow = UIStackView(arrangedSubviews: [likes, repliesCount, time])
     metaRow.axis = .horizontal
     metaRow.alignment = .center
-    metaRow.spacing = 12
+    metaRow.spacing = 10
     metaRow.setContentHuggingPriority(.required, for: .horizontal)
     metaRow.setContentCompressionResistancePriority(.required, for: .horizontal)
 

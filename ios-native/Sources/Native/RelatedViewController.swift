@@ -58,9 +58,9 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
     table.separatorStyle = .none
     table.dataSource = self
     table.delegate = self
-    table.register(HomeCardCell.self, forCellReuseIdentifier: HomeCardCell.reuseID)
+    table.register(VideoRowCell.self, forCellReuseIdentifier: VideoRowCell.reuseID)
     table.rowHeight = UITableView.automaticDimension
-    table.estimatedRowHeight = 320
+    table.estimatedRowHeight = 104
     table.contentInsetAdjustmentBehavior = .never
     table.showsVerticalScrollIndicator = false
     view.addSubview(table)
@@ -188,12 +188,17 @@ final class RelatedViewController: UIViewController, UITableViewDataSource,
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     let cell = tableView.dequeueReusableCell(
-      withIdentifier: HomeCardCell.reuseID, for: indexPath) as! HomeCardCell
+      withIdentifier: VideoRowCell.reuseID, for: indexPath) as! VideoRowCell
     let item = items[indexPath.row]
-    cell.configure(item)
-    cell.onOpen = { [weak self] in self?.onSelect?(item) }
-    cell.onAvatar = nil
+    cell.configureUp(item)
     return cell
+  }
+
+  func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    tableView.deselectRow(at: indexPath, animated: false)
+    guard items.indices.contains(indexPath.row) else { return }
+    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    onSelect?(items[indexPath.row])
   }
 
   @objc private func handleCloseSwipe(_ gesture: UIPanGestureRecognizer) {

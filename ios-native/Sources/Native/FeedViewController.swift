@@ -297,6 +297,7 @@ final class FeedViewController: UIViewController,
     }
     hasMore = !values.isEmpty
     nextPage += 1
+    WatchProgressStore.shared.mergeHistory(values)
     statusLabel.isHidden = !items.isEmpty
     if items.isEmpty {
       statusLabel.text = "\(sourceTitle)暂时没有内容\n轻触屏幕重试"
@@ -666,13 +667,16 @@ final class FeedViewController: UIViewController,
       self.previewSource = source
       self.previewItemKey = "\(item.bvid)-\(item.cid)"
       self.attachPreview(current)
+      let localResume = WatchProgressStore.shared.position(for: item.bvid)
+      let resume = localResume > 0 ? localResume : Double(max(0, item.progress))
       self.previewEngine.load(
         url: source.url,
         backup: source.backup,
         headers: BiliAPI.shared.mediaHeaders,
         autoplay: true,
         muted: false,
-        loop: true
+        loop: true,
+        startAt: resume
       )
     }
   }
@@ -844,6 +848,7 @@ final class FeedViewController: UIViewController,
     let translation = max(0, -gesture.translation(in: view).x)
     switch gesture.state {
     case .began:
+      UIImpactFeedbackGenerator(style: .light).impactOccurred()
       suspendPreview()
       beginSearchInteractive()
     case .changed:

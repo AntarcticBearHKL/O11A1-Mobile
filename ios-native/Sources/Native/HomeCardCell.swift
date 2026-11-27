@@ -407,7 +407,7 @@ final class HomeCardCell: UITableViewCell {
       avatarInitial.isHidden = true
       ImageLoader.shared.load(item.ownerFace, into: avatar, placeholder: nil)
     }
-    if item.progress > 0, item.durationSec > 0 {
+    if resumeSeconds() > 0, item.durationSec > 0 {
       applyWatchProgress()
     } else {
       progressTrack.isHidden = true
@@ -428,12 +428,18 @@ final class HomeCardCell: UITableViewCell {
       previewBar.isHidden = true
       previewBar.progress = 0
       duration.text = item?.duration ?? ""
-      guard let item = item, item.progress > 0, item.durationSec > 0 else {
+      guard let item = item, resumeSeconds() > 0, item.durationSec > 0 else {
         progressTrack.isHidden = true
         return
       }
       applyWatchProgress()
     }
+  }
+
+  private func resumeSeconds() -> Double {
+    guard let item = item else { return 0 }
+    if item.progress > 0 { return Double(item.progress) }
+    return WatchProgressStore.shared.position(for: item.bvid)
   }
 
   private func previewTime(_ value: Double) -> String {
@@ -446,12 +452,17 @@ final class HomeCardCell: UITableViewCell {
   }
 
   private func applyWatchProgress() {
-    guard let item = item, item.progress > 0, item.durationSec > 0 else {
+    guard let item = item, item.durationSec > 0 else {
+      progressTrack.isHidden = true
+      return
+    }
+    let seconds = resumeSeconds()
+    guard seconds > 0 else {
       progressTrack.isHidden = true
       return
     }
     progressTrack.isHidden = false
-    let ratio = min(1.0, Double(item.progress) / Double(item.durationSec))
+    let ratio = min(1.0, seconds / Double(item.durationSec))
     progressWidth?.isActive = false
     progressWidth = progressFill.widthAnchor.constraint(
       equalTo: progressTrack.widthAnchor, multiplier: CGFloat(ratio))

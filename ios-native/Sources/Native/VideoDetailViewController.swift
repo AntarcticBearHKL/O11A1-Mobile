@@ -24,6 +24,9 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private let detailCardHeight: CGFloat = 80
   private let detailCardRadius: CGFloat = 10
   private let scroll = UIScrollView()
+  private let headerTitle = UILabel()
+  private let headerBar = UIView()
+  private let headerBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let card = UIView()
   private let cover = UIImageView()
   private let durationChip = UILabel()
@@ -104,6 +107,50 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       card.topAnchor.constraint(equalTo: view.topAnchor),
       card.bottomAnchor.constraint(equalTo: view.bottomAnchor),
     ])
+
+    if embedded {
+      headerBar.backgroundColor = .clear
+      view.addSubview(headerBar)
+      headerBar.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        headerBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+        headerBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+        headerBar.topAnchor.constraint(equalTo: view.topAnchor),
+        headerBar.heightAnchor.constraint(equalToConstant: 56),
+      ])
+      headerBlur.isUserInteractionEnabled = false
+      headerBlur.clipsToBounds = true
+      headerBlur.contentView.backgroundColor = NativeTheme.glassWhite
+      headerBar.addSubview(headerBlur)
+      headerBlur.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        headerBlur.leadingAnchor.constraint(equalTo: headerBar.leadingAnchor),
+        headerBlur.trailingAnchor.constraint(equalTo: headerBar.trailingAnchor),
+        headerBlur.topAnchor.constraint(equalTo: headerBar.topAnchor),
+        headerBlur.bottomAnchor.constraint(equalTo: headerBar.bottomAnchor),
+      ])
+      let headerLine = UIView()
+      headerLine.backgroundColor = NativeTheme.hairline
+      headerLine.isUserInteractionEnabled = false
+      headerBar.addSubview(headerLine)
+      headerLine.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        headerLine.leadingAnchor.constraint(equalTo: headerBar.leadingAnchor, constant: 18),
+        headerLine.trailingAnchor.constraint(equalTo: headerBar.trailingAnchor, constant: -18),
+        headerLine.bottomAnchor.constraint(equalTo: headerBar.bottomAnchor),
+        headerLine.heightAnchor.constraint(equalToConstant: 0.5),
+      ])
+      headerTitle.text = "详情"
+      headerTitle.font = UIFont.systemFont(ofSize: 16, weight: .bold)
+      headerTitle.textColor = NativeTheme.foreground
+      view.addSubview(headerTitle)
+      headerTitle.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        headerTitle.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 18),
+        headerTitle.centerYAnchor.constraint(equalTo: view.topAnchor, constant: 28),
+      ])
+      view.bringSubviewToFront(headerTitle)
+    }
 
     scroll.alwaysBounceVertical = true
     scroll.showsVerticalScrollIndicator = false
@@ -386,7 +433,9 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     if embedded {
+      scroll.contentInset.top = 56
       scroll.contentInset.bottom = 96 + view.safeAreaInsets.bottom
+      scroll.verticalScrollIndicatorInsets.top = 56
       scroll.verticalScrollIndicatorInsets.bottom = 60
     }
   }

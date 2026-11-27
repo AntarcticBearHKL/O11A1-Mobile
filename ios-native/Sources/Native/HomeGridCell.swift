@@ -233,9 +233,12 @@ final class MiniVideoCardView: UIView {
     live.isHidden = !isLive
     ImageLoader.shared.load(item.pic, into: cover)
     progressWidth?.isActive = false
-    if item.progress > 0, item.durationSec > 0 {
+    let resume = item.progress > 0
+      ? Double(item.progress)
+      : WatchProgressStore.shared.position(for: item.bvid)
+    if resume > 0, item.durationSec > 0 {
       progressTrack.isHidden = false
-      let ratio = min(1.0, Double(item.progress) / Double(item.durationSec))
+      let ratio = min(1.0, resume / Double(item.durationSec))
       progressWidth = progressFill.widthAnchor.constraint(
         equalTo: progressTrack.widthAnchor, multiplier: CGFloat(ratio))
       progressWidth?.isActive = true

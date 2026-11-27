@@ -59,6 +59,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let errorLabel = UILabel()
   private var liveMessages: [LiveMessage] = []
   private var activeObserver: NSObjectProtocol?
+  private var backgroundWatchObserver: NSObjectProtocol?
+  private var lastProgressSave: CFTimeInterval = 0
   private var sourceFrame: CGRect = .zero
   private var panStartFrame: CGRect = .zero
   private var isScrubbing = false
@@ -605,6 +607,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       guard let self = self, self.engine.isPipActive else { return }
       self.engine.stopPipForRestore()
     }
+    backgroundWatchObserver = NotificationCenter.default.addObserver(
+      forName: UIApplication.didEnterBackgroundNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      self?.saveWatchProgress()
+    }
 
     topBar.isHidden = true
     playButton.isHidden = true
@@ -734,6 +743,28 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     grid.progress = max(0, min(1, seconds / safeDuration))
     wheel.currentText = format(seconds)
     wheel.durationText = format(duration)
+    guard item.roomId == 0, engine.isPlaying, seconds >= 1, duration > 0 else { return }
+    let now = CACurrentMediaTime()
+    if now - lastProgressSave >= 5 {
+      lastProgressSave = now
+      WatchProgressStore.shared.update(bvid: item.bvid, seconds: seconds,
+                                       duration: duration)
+    }
+  }
+
+  private func saveWatchProgress() {
+    guard item.roomId == 0, !item.bvid.isEmpty else { return }
+    let seconds = engine.currentTime
+    let duration = engine.duration
+    guard seconds >= 1, duration > 0 else { return }
+    WatchProgressStore.shared.update(bvid: item.bvid, seconds: seconds,
+                                     duration: duration)
+  }
+
+  private func resumePosition() -> Double {
+    let local = WatchProgressStore.shared.position(for: item.bvid)
+    if local > 0 { return local }
+    return Double(max(0, item.progress))
   }
 
   private func applyPlaying(_ playing: Bool) {
@@ -1267,7 +1298,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             autoplay: true,
             muted: false,
             loop: false,
-            startAt: Double(max(0, self.item.progress))
+            startAt: self.resumePosition()
           )
         }
       case .failure:
@@ -1436,6 +1467,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   deinit {
     progressLink?.invalidate()
     if let observer = activeObserver {
+      NotificationCenter.default.removeObserver(observer)
+    }
+    if let observer = backgroundWatchObserver {
       NotificationCenter.default.removeObserver(observer)
     }
   }
@@ -1788,12 +1822,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     closeSettingsPanel()
     stopLiveChat()
     cancelUpgradePreload()
+    saveWatchProgress()
     engine.stop()
     controlsVisible = false
     bottomPanel.alpha = 0
     bottomPanel.transform = CGAffineTransform(translationX: 0, y: panelSlideDistance)
     bottomPanel.isUserInteractionEnabled = false
     item = value
+    lastProgressSave = 0
     closing = false
     errorLabel.isHidden = true
     poster.isHidden = false
@@ -1969,6 +2005,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     stopProgressLink()
     cancelUpgradePreload()
     loadingView.hide()
+    saveWatchProgress()
     engine.stop()
     engine.stopPip()
     if animated {
@@ -1987,6 +2024,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     stopLiveChat()
     stopProgressLink()
     cancelUpgradePreload()
+    saveWatchProgress()
     engine.stop()
     onClose?()
   }

@@ -203,6 +203,13 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     settingsPan = settings
 
     BiliAPI.shared.client.prewarm()
+    if BiliAPI.shared.isLoggedIn {
+      BiliAPI.shared.history(page: 1) { result in
+        if case .success(let items) = result {
+          WatchProgressStore.shared.mergeHistory(items)
+        }
+      }
+    }
     selectTab(0, force: true)
   }
 
@@ -896,6 +903,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
 
   private func beginMyDrag() {
     guard myController == nil else { return }
+    UIImpactFeedbackGenerator(style: .light).impactOccurred()
     if let feed = feed, currentChild === feed {
       feed.suspendPreview()
     }

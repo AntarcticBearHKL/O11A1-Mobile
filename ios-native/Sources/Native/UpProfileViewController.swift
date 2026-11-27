@@ -22,6 +22,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   private let fansLabel = UILabel()
   private let followButton = UIButton(type: .custom)
   private let sortDock = UIView()
+  private let sortBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
   private let latestButton = UIButton(type: .custom)
   private let playButton = UIButton(type: .custom)
   private var items: [VideoItem] = []
@@ -33,6 +34,9 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   private var profile: BiliAPI.UpProfilePage?
   private var cachedProfile: CachedUpProfile?
   private var dismissPan: UIPanGestureRecognizer?
+  private var sortPan: UIPanGestureRecognizer?
+  private var dismissStartX: CGFloat = 0
+  private var sortStartX: CGFloat = 0
 
   init(mid: Int64) {
     self.mid = mid
@@ -143,7 +147,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     followButton.translatesAutoresizingMaskIntoConstraints = false
     updateFollowButton()
 
-    sortDock.backgroundColor = NativeTheme.surface
+    sortDock.backgroundColor = .clear
     sortDock.layer.cornerRadius = NativeTheme.cornerRadius
     sortDock.layer.cornerCurve = .continuous
     sortDock.layer.borderWidth = 1
@@ -156,18 +160,35 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     view.addSubview(sortDock)
     sortDock.translatesAutoresizingMaskIntoConstraints = false
 
+    sortBlur.isUserInteractionEnabled = false
+    sortBlur.layer.cornerRadius = NativeTheme.cornerRadius
+    sortBlur.layer.cornerCurve = .continuous
+    sortBlur.clipsToBounds = true
+    sortBlur.contentView.backgroundColor = UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(white: 0, alpha: 0.58)
+        : UIColor(white: 1, alpha: 0.88)
+    }
+    sortDock.addSubview(sortBlur)
+    sortBlur.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      sortBlur.leadingAnchor.constraint(equalTo: sortDock.leadingAnchor),
+      sortBlur.trailingAnchor.constraint(equalTo: sortDock.trailingAnchor),
+      sortBlur.topAnchor.constraint(equalTo: sortDock.topAnchor),
+      sortBlur.bottomAnchor.constraint(equalTo: sortDock.bottomAnchor),
+    ])
+
     for (index, button) in [latestButton, playButton].enumerated() {
       button.tag = index
-      button.titleLabel?.font = UIFont.systemFont(ofSize: 13.5, weight: .bold)
+      button.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .bold)
       button.layer.cornerRadius = NativeTheme.cornerRadius
       button.layer.cornerCurve = .continuous
-      button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 22, bottom: 0, right: 22)
-      button.widthAnchor.constraint(equalToConstant: 92).isActive = true
-      button.heightAnchor.constraint(equalToConstant: 42).isActive = true
       button.addTarget(self, action: #selector(sortTapped(_:)), for: .touchUpInside)
       sortDock.addSubview(button)
       button.translatesAutoresizingMaskIntoConstraints = false
       button.centerYAnchor.constraint(equalTo: sortDock.centerYAnchor).isActive = true
+      button.widthAnchor.constraint(equalToConstant: 96).isActive = true
+      button.heightAnchor.constraint(equalToConstant: 52).isActive = true
       if index == 0 {
         button.leadingAnchor.constraint(equalTo: sortDock.leadingAnchor, constant: 5).isActive = true
       } else {
@@ -238,14 +259,21 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     followButton.heightAnchor.constraint(equalToConstant: 34).isActive = true
 
     sortDock.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
-    sortDock.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16).isActive = true
-    sortDock.heightAnchor.constraint(equalToConstant: 52).isActive = true
+    sortDock.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -28).isActive = true
+    sortDock.heightAnchor.constraint(equalToConstant: 66).isActive = true
 
     let closePan = UIPanGestureRecognizer(target: self, action: #selector(handleDismissPan(_:)))
     closePan.delegate = self
     table.panGestureRecognizer.require(toFail: closePan)
     view.addGestureRecognizer(closePan)
     dismissPan = closePan
+
+    let sortPan = UIPanGestureRecognizer(target: self, action: #selector(handleSortSwipe(_:)))
+    sortPan.delegate = self
+    sortPan.cancelsTouchesInView = true
+    table.panGestureRecognizer.require(toFail: sortPan)
+    view.addGestureRecognizer(sortPan)
+    self.sortPan = sortPan
 
     applyCachedProfile()
     load(reset: true)
@@ -263,7 +291,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
 
   private func updateInsets() {
     table.contentInset = UIEdgeInsets(top: 0, left: 0,
-                                      bottom: 84 + view.safeAreaInsets.bottom,
+                                      bottom: 112 + view.safeAreaInsets.bottom,
                                       right: 0)
     table.verticalScrollIndicatorInsets = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
     topBlur.updateHeight(safeAreaTop: view.safeAreaInsets.top)
@@ -379,9 +407,13 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   }
 
   @objc private func sortTapped(_ sender: UIButton) {
-    let next = sender.tag == 0 ? "pubdate" : "click"
+    setOrder(sender.tag == 0 ? "pubdate" : "click")
+  }
+
+  private func setOrder(_ next: String) {
     guard next != order else { return }
     order = next
+    UIImpactFeedbackGenerator(style: .light).impactOccurred()
     updateSort()
     load(reset: true)
   }
@@ -415,6 +447,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     case .ended, .cancelled:
       let velocity = gesture.velocity(in: reference).x
       if translation > width * 0.24 || velocity > 350 {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         onClose?()
       } else {
         UIView.animate(withDuration: 0.24) { self.view.transform = .identity }
@@ -424,15 +457,45 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     }
   }
 
+  @objc private func handleSortSwipe(_ gesture: UIPanGestureRecognizer) {
+    guard gesture.state == .ended || gesture.state == .cancelled else { return }
+    let translation = gesture.translation(in: view).x
+    let velocity = gesture.velocity(in: view).x
+    let horizontal = abs(translation) > abs(gesture.translation(in: view).y) * 1.4
+      || abs(velocity) > abs(gesture.velocity(in: view).y) * 1.5
+    guard horizontal,
+          abs(translation) > 48 || abs(velocity) > 380 else { return }
+    setOrder(translation < 0 ? "click" : "pubdate")
+  }
+
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldReceive touch: UITouch) -> Bool {
+    if gestureRecognizer === dismissPan {
+      dismissStartX = touch.location(in: view).x
+    }
+    if gestureRecognizer === sortPan {
+      sortStartX = touch.location(in: view).x
+    }
+    return true
+  }
+
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-    guard let pan = gestureRecognizer as? UIPanGestureRecognizer, pan === dismissPan else {
+    guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+          pan === dismissPan || pan === sortPan else {
       return true
     }
+    let width = max(1, view.bounds.width)
     let velocity = pan.velocity(in: view)
     let translation = pan.translation(in: view)
-    return (translation.x > 1 || velocity.x > 1)
-      && (abs(translation.x) > abs(translation.y) * 1.1
-        || abs(velocity.x) > abs(velocity.y) * 1.1)
+    let horizontal = abs(translation.x) > abs(translation.y) * 1.4
+      || abs(velocity.x) > abs(velocity.y) * 1.4
+    guard horizontal else { return false }
+    if pan === dismissPan {
+      guard dismissStartX < width / 6.0 else { return false }
+      return translation.x > 1 || velocity.x > 1
+    }
+    guard sortStartX >= width / 6.0 else { return false }
+    return abs(translation.x) > 2 || abs(velocity.x) > 80
   }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {

@@ -40,6 +40,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
   private var tabSwipePan: UIPanGestureRecognizer?
   private var tabSwipeStartX: CGFloat = 0
   private var tabSwipeSuppressedUntil: CFTimeInterval = 0
+  private var transitionToken = 0
   private var dockHidden = false
 
   private let tabs: [(title: String, tab: Tab)] = [
@@ -63,6 +64,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     view.clipsToBounds = true
 
     host.backgroundColor = .clear
+    host.clipsToBounds = true
     view.addSubview(host)
 
     tabDock.backgroundColor = .clear
@@ -107,7 +109,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
       tabButtons.append(button)
     }
     updateTabs()
-    show(selected)
+    show(selected, animated: false)
 
     let swipe = UIPanGestureRecognizer(
       target: self, action: #selector(handleTabSwipe(_:)))
@@ -183,7 +185,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
       selected = tab
     }
     clearContent()
-    show(selected)
+    show(selected, animated: false)
   }
 
   func select(_ tab: Tab) {
@@ -200,7 +202,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     detail?.testExpandDanmaku()
   }
 
-  private func show(_ tab: Tab) {
+  private func show(_ tab: Tab, animated: Bool = true) {
     guard isViewLoaded else {
       selected = tab
       return
@@ -214,16 +216,66 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     case .related:
       controller = ensureRelated()
     }
-    detail?.view.isHidden = tab != .detail
-    comments?.view.isHidden = tab != .comments
-    related?.view.isHidden = tab != .related
+    let visible = [detail, comments, related]
+      .compactMap { $0 }
+      .first { $0.view.superview != nil && !$0.view.isHidden }
     controller.view.frame = host.bounds
+    controller.view.isHidden = false
     host.bringSubviewToFront(controller.view)
     view.bringSubviewToFront(tabDock)
     if dockHidden {
       setDockHidden(false, animated: false)
     }
     updateTabs()
+
+    guard animated, let old = visible, old !== controller else {
+      for child in [detail, comments, related] {
+        guard let child = child, child !== controller else { continue }
+        child.view.isHidden = true
+        child.view.alpha = 1
+        child.view.transform = .identity
+      }
+      controller.view.alpha = 1
+      controller.view.transform = .identity
+      return
+    }
+
+    let oldIndex: Int
+    if old === detail { oldIndex = 0 }
+    else if old === comments { oldIndex = 1 }
+    else { oldIndex = 2 }
+    let direction: CGFloat = tab.rawValue >= oldIndex ? 1 : -1
+    for child in [detail, comments, related] {
+      guard let child = child, child !== controller, child !== old else { continue }
+      child.view.isHidden = true
+      child.view.alpha = 1
+      child.view.transform = .identity
+    }
+    old.view.isHidden = false
+    old.view.alpha = 1
+    old.view.transform = .identity
+    controller.view.alpha = 0
+    controller.view.transform = CGAffineTransform(
+      translationX: 26 * direction, y: 0)
+    transitionToken += 1
+    let token = transitionToken
+    UIView.animate(withDuration: 0.26, delay: 0,
+                   options: [.curveEaseOut, .beginFromCurrentState,
+                             .allowUserInteraction]) {
+      old.view.alpha = 0
+      old.view.transform = CGAffineTransform(
+        translationX: -16 * direction, y: 0)
+      controller.view.alpha = 1
+      controller.view.transform = .identity
+    } completion: { _ in
+      guard token == self.transitionToken else { return }
+      for child in [self.detail, self.comments, self.related] {
+        guard let child = child, child !== controller else { continue }
+        child.view.isHidden = true
+        child.view.alpha = 1
+        child.view.transform = .identity
+      }
+    }
   }
 
   private func ensureDetail() -> VideoDetailViewController {
