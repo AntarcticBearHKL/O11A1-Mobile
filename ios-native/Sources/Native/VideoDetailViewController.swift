@@ -639,6 +639,10 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     }
   }
 
+  func testExpandDanmaku() {
+    if danmakuPanel.isHidden { toggleDanmakuSetting() }
+  }
+
   @objc private func toggleLoopSetting() {
     loopOn.toggle()
     updateSettingsLabels()

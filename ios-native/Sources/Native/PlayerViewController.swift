@@ -1352,6 +1352,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     openDetailPanel()
   }
 
+  func testOpenDanmakuSettings() {
+    openDetailPanel()
+    detailPanel?.testExpandDanmaku()
+  }
+
   func testOpenComments() {
     openCommentsPanel()
   }
