@@ -138,6 +138,13 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
       last.removeFromSuperview()
     }
 
+    if ProfileCache.loadAccount() == nil {
+      nameLabel.text = "加载中…"
+      metaLabel.text = "正在读取账号"
+      accountButton.setTitle("账户", for: .normal)
+      avatar.image = UIImage(systemName: "person.crop.circle.fill")
+    }
+    applyCachedAccount()
     loadAccount()
   }
 
@@ -235,6 +242,8 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
         preferredStyle: .actionSheet)
       alert.addAction(UIAlertAction(title: "退出登录", style: .destructive) { [weak self] _ in
         BiliAPI.shared.logout()
+        ProfileCache.clearAccount()
+        self?.showAccount(AccountInfo())
         self?.loadAccount()
       })
       alert.addAction(UIAlertAction(title: "取消", style: .cancel))
@@ -511,26 +520,54 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     host.present(alert, animated: true)
   }
 
+  private func applyCachedAccount() {
+    guard let cached = ProfileCache.loadAccount() else { return }
+    var info = AccountInfo()
+    info.loggedIn = cached.loggedIn
+    info.name = cached.name
+    info.face = cached.face
+    info.mid = cached.mid
+    info.level = cached.level
+    info.vip = cached.vip
+    info.sign = cached.sign
+    showAccount(info)
+  }
+
+  private func showAccount(_ info: AccountInfo) {
+    account = info
+    mid = info.mid
+    nameLabel.text = info.loggedIn ? (info.name.isEmpty ? "已登录" : info.name) : "未登录"
+    metaLabel.text = info.loggedIn
+      ? "UID \(info.mid) · Lv\(info.level)\(info.vip ? " · 大会员" : "")"
+      : "登录 B 站账号"
+    accountButton.setTitle(info.loggedIn ? (info.vip ? "大会员" : "账户") : "登录",
+                            for: .normal)
+    accountButton.backgroundColor = info.vip ? NativeTheme.navSoft : .clear
+    accountButton.layer.borderColor = info.vip
+      ? NativeTheme.navBlue.withAlphaComponent(0.35).cgColor
+      : NativeTheme.hairline.cgColor
+    if info.loggedIn, !info.face.isEmpty {
+      ImageLoader.shared.load(info.face, into: avatar)
+    } else {
+      avatar.image = UIImage(systemName: "person.crop.circle.fill")
+    }
+  }
+
   private func loadAccount() {
     BiliAPI.shared.account { [weak self] info in
       guard let self = self else { return }
-      self.account = info
-      self.mid = info.mid
-      self.nameLabel.text = info.loggedIn ? (info.name.isEmpty ? "已登录" : info.name) : "未登录"
-      self.metaLabel.text = info.loggedIn
-        ? "UID \(info.mid) · Lv\(info.level)\(info.vip ? " · 大会员" : "")"
-        : "登录 B 站账号"
-      self.accountButton.setTitle(info.loggedIn ? (info.vip ? "大会员" : "账户") : "登录",
-                                  for: .normal)
-      self.accountButton.backgroundColor = info.vip ? NativeTheme.navSoft : .clear
-      self.accountButton.layer.borderColor = info.vip
-        ? NativeTheme.navBlue.withAlphaComponent(0.35).cgColor
-        : NativeTheme.hairline.cgColor
-      if info.loggedIn, !info.face.isEmpty {
-        ImageLoader.shared.load(info.face, into: self.avatar)
-      } else {
-        self.avatar.image = UIImage(systemName: "person.crop.circle.fill")
-      }
+      let cached = CachedAccount(
+        loggedIn: info.loggedIn,
+        name: info.name,
+        face: info.face,
+        mid: info.mid,
+        level: info.level,
+        vip: info.vip,
+        sign: info.sign,
+        updatedAt: Date().timeIntervalSince1970
+      )
+      ProfileCache.saveAccount(cached)
+      self.showAccount(info)
     }
   }
 }

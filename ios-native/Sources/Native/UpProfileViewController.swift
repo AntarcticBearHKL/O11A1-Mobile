@@ -31,6 +31,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   private var hasMore = true
   private var following = false
   private var profile: BiliAPI.UpProfilePage?
+  private var cachedProfile: CachedUpProfile?
   private var dismissPan: UIPanGestureRecognizer?
 
   init(mid: Int64) {
@@ -246,6 +247,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     view.addGestureRecognizer(closePan)
     dismissPan = closePan
 
+    applyCachedProfile()
     load(reset: true)
   }
 
@@ -313,21 +315,42 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     }
   }
 
+  private func applyCachedProfile() {
+    guard let cached = ProfileCache.loadUp(mid: mid) else { return }
+    showProfile(cached)
+  }
+
   private func applyProfile(_ up: BiliAPI.UpProfilePage) {
     guard !up.name.isEmpty else { return }
-    nameLabel.text = up.name
-    if !up.face.isEmpty {
-      ImageLoader.shared.load(up.face, into: avatar)
+    let cached = CachedUpProfile(
+      mid: mid,
+      name: up.name,
+      face: up.face,
+      sign: up.sign,
+      follower: up.follower,
+      followed: up.followed,
+      updatedAt: Date().timeIntervalSince1970
+    )
+    ProfileCache.saveUp(cached)
+    showProfile(cached)
+  }
+
+  private func showProfile(_ cached: CachedUpProfile) {
+    cachedProfile = cached
+    nameLabel.text = cached.name
+    if !cached.face.isEmpty {
+      ImageLoader.shared.load(cached.face, into: avatar)
     }
-    if !up.sign.isEmpty {
-      signLabel.text = up.sign
-      signLabel.isHidden = false
-    }
-    if up.follower > 0 {
-      fansLabel.text = "\(o11a1Count(up.follower)) 粉丝"
+    signLabel.text = cached.sign
+    signLabel.isHidden = cached.sign.isEmpty
+    if cached.follower > 0 {
+      fansLabel.text = "\(o11a1Count(cached.follower)) 粉丝"
       fansLabel.isHidden = false
+    } else {
+      fansLabel.text = nil
+      fansLabel.isHidden = true
     }
-    following = up.followed
+    following = cached.followed
     updateFollowButton()
   }
 
@@ -372,6 +395,11 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
       if ok {
         self.following = next
         self.updateFollowButton()
+        if var cached = self.cachedProfile {
+          cached.followed = next
+          self.cachedProfile = cached
+          ProfileCache.saveUp(cached)
+        }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
       }
     }
