@@ -293,6 +293,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
 
   private func selectTab(_ index: Int, force: Bool = false) {
     closeMessages()
+    if index != 0 {
+      feed?.suspendPreview()
+    }
     feed?.setToolbarHidden(false)
     tabBar.isHidden = false
     searchButton.isHidden = false

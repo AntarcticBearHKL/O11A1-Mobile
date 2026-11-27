@@ -621,10 +621,16 @@ final class FeedViewController: UIViewController,
   func suspendPreview() {
     previewSuspended = true
     previewScrubbing = false
-    previewEngine.pause()
+    previewToken += 1
+    previewEngine.stop()
+    previewView.removeFromSuperview()
     previewView.alpha = 0
     previewCell?.hidePreviewLoading()
     previewCell?.setPreviewProgress(nil)
+    previewCell = nil
+    previewIndex = -1
+    previewSource = nil
+    previewItemKey = ""
   }
 
   func resumePreview() {
