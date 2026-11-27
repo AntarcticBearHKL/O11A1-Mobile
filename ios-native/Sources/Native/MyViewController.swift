@@ -27,38 +27,51 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     view.addGestureRecognizer(dismissPan)
 
     let accountCard = UIView()
-    accountCard.backgroundColor = NativeTheme.surface
+    accountCard.backgroundColor = .clear
+    accountCard.layer.cornerRadius = NativeTheme.cornerRadius
+    accountCard.layer.cornerCurve = .continuous
+    accountCard.clipsToBounds = false
+    accountCard.layer.shadowColor = UIColor.black.cgColor
+    accountCard.layer.shadowOpacity = 0.12
+    accountCard.layer.shadowRadius = 18
+    accountCard.layer.shadowOffset = CGSize(width: 0, height: 8)
     view.addSubview(accountCard)
     accountCard.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      accountCard.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-      accountCard.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      accountCard.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-      accountCard.heightAnchor.constraint(equalToConstant: 92),
+      accountCard.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+      accountCard.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+      accountCard.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor,
+                                       constant: 8),
+      accountCard.heightAnchor.constraint(equalToConstant: 104),
     ])
-    let topLine = UIView()
-    topLine.backgroundColor = NativeTheme.hairline
-    accountCard.addSubview(topLine)
-    topLine.translatesAutoresizingMaskIntoConstraints = false
+
+    let heroBackground = ProfileHeroBackground()
+    accountCard.addSubview(heroBackground)
+    heroBackground.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      topLine.leadingAnchor.constraint(equalTo: accountCard.leadingAnchor),
-      topLine.trailingAnchor.constraint(equalTo: accountCard.trailingAnchor),
-      topLine.topAnchor.constraint(equalTo: accountCard.topAnchor),
-      topLine.heightAnchor.constraint(equalToConstant: 0.5),
+      heroBackground.leadingAnchor.constraint(equalTo: accountCard.leadingAnchor),
+      heroBackground.trailingAnchor.constraint(equalTo: accountCard.trailingAnchor),
+      heroBackground.topAnchor.constraint(equalTo: accountCard.topAnchor),
+      heroBackground.bottomAnchor.constraint(equalTo: accountCard.bottomAnchor),
     ])
+
+    let avatarRing = ProfileAvatarRing()
+    avatarRing.isUserInteractionEnabled = false
+    accountCard.addSubview(avatarRing)
+    avatarRing.translatesAutoresizingMaskIntoConstraints = false
 
     avatar.contentMode = .scaleAspectFill
     avatar.clipsToBounds = true
-    avatar.layer.cornerRadius = 25
+    avatar.layer.cornerRadius = 27
     avatar.backgroundColor = UIColor(white: 0.9, alpha: 1)
     accountCard.addSubview(avatar)
     avatar.translatesAutoresizingMaskIntoConstraints = false
 
-    nameLabel.font = UIFont.systemFont(ofSize: 15.5, weight: .bold)
+    nameLabel.font = UIFont.systemFont(ofSize: 17, weight: .bold)
     nameLabel.textColor = NativeTheme.foreground
     accountCard.addSubview(nameLabel)
     nameLabel.translatesAutoresizingMaskIntoConstraints = false
-    metaLabel.font = NativeTheme.bodyFont(10)
+    metaLabel.font = NativeTheme.bodyFont(10.5)
     metaLabel.textColor = NativeTheme.secondary
     accountCard.addSubview(metaLabel)
     metaLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -75,17 +88,21 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     accountButton.translatesAutoresizingMaskIntoConstraints = false
 
     NSLayoutConstraint.activate([
-      avatar.leadingAnchor.constraint(equalTo: accountCard.leadingAnchor, constant: 18),
-      avatar.topAnchor.constraint(equalTo: accountCard.topAnchor, constant: 13),
-      avatar.widthAnchor.constraint(equalToConstant: 50),
-      avatar.heightAnchor.constraint(equalToConstant: 50),
-      nameLabel.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 12),
-      nameLabel.topAnchor.constraint(equalTo: avatar.topAnchor),
+      avatarRing.leadingAnchor.constraint(equalTo: accountCard.leadingAnchor, constant: 16),
+      avatarRing.centerYAnchor.constraint(equalTo: accountCard.centerYAnchor),
+      avatarRing.widthAnchor.constraint(equalToConstant: 60),
+      avatarRing.heightAnchor.constraint(equalToConstant: 60),
+      avatar.centerXAnchor.constraint(equalTo: avatarRing.centerXAnchor),
+      avatar.centerYAnchor.constraint(equalTo: avatarRing.centerYAnchor),
+      avatar.widthAnchor.constraint(equalToConstant: 54),
+      avatar.heightAnchor.constraint(equalToConstant: 54),
+      nameLabel.leadingAnchor.constraint(equalTo: avatarRing.trailingAnchor, constant: 12),
+      nameLabel.topAnchor.constraint(equalTo: accountCard.topAnchor, constant: 24),
       nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: accountButton.leadingAnchor, constant: -8),
       metaLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
       metaLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 3),
       metaLabel.trailingAnchor.constraint(lessThanOrEqualTo: accountButton.leadingAnchor, constant: -8),
-      accountButton.trailingAnchor.constraint(equalTo: accountCard.trailingAnchor, constant: -20),
+      accountButton.trailingAnchor.constraint(equalTo: accountCard.trailingAnchor, constant: -16),
       accountButton.centerYAnchor.constraint(equalTo: accountCard.centerYAnchor),
       accountButton.heightAnchor.constraint(equalToConstant: 34),
     ])
@@ -100,8 +117,8 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     NSLayoutConstraint.activate([
       scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-      scroll.bottomAnchor.constraint(equalTo: accountCard.topAnchor),
+      scroll.topAnchor.constraint(equalTo: accountCard.bottomAnchor, constant: 8),
+      scroll.bottomAnchor.constraint(equalTo: view.bottomAnchor),
       list.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 18),
       list.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -18),
       list.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),

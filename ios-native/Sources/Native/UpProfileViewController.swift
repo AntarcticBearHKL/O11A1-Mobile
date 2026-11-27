@@ -13,10 +13,13 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   private let statusLabel = UILabel()
   private let topBlur = TopBlurView()
   private let bottomCard = UIView()
-  private let cardBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+  private let heroBackground = ProfileHeroBackground()
+  private let avatarRing = ProfileAvatarRing()
   private let avatar = UIImageView()
   private let nameLabel = UILabel()
+  private let signLabel = UILabel()
   private let uidLabel = UILabel()
+  private let fansLabel = UILabel()
   private let followButton = UIButton(type: .custom)
   private let sortDock = UIView()
   private let latestButton = UIButton(type: .custom)
@@ -78,34 +81,30 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     bottomCard.backgroundColor = .clear
     bottomCard.layer.cornerRadius = NativeTheme.cornerRadius
     bottomCard.layer.cornerCurve = .continuous
-    bottomCard.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
-    bottomCard.clipsToBounds = true
+    bottomCard.clipsToBounds = false
+    bottomCard.layer.shadowColor = UIColor.black.cgColor
+    bottomCard.layer.shadowOpacity = 0.12
+    bottomCard.layer.shadowRadius = 18
+    bottomCard.layer.shadowOffset = CGSize(width: 0, height: 8)
     view.addSubview(bottomCard)
     bottomCard.translatesAutoresizingMaskIntoConstraints = false
 
-    cardBlur.isUserInteractionEnabled = false
-    cardBlur.contentView.backgroundColor = UIColor { trait in
-      trait.userInterfaceStyle == .dark
-        ? UIColor(white: 0.02, alpha: 0.30)
-        : UIColor(white: 1, alpha: 0.34)
-    }
-    bottomCard.addSubview(cardBlur)
-    cardBlur.translatesAutoresizingMaskIntoConstraints = false
+    bottomCard.addSubview(heroBackground)
+    heroBackground.translatesAutoresizingMaskIntoConstraints = false
 
-    let topLine = UIView()
-    topLine.backgroundColor = NativeTheme.hairline
-    bottomCard.addSubview(topLine)
-    topLine.translatesAutoresizingMaskIntoConstraints = false
+    avatarRing.isUserInteractionEnabled = false
+    bottomCard.addSubview(avatarRing)
+    avatarRing.translatesAutoresizingMaskIntoConstraints = false
 
     avatar.contentMode = .scaleAspectFill
     avatar.clipsToBounds = true
-    avatar.layer.cornerRadius = 21
+    avatar.layer.cornerRadius = 27
     avatar.layer.cornerCurve = .continuous
     avatar.backgroundColor = NativeTheme.tertiary.withAlphaComponent(0.16)
     bottomCard.addSubview(avatar)
     avatar.translatesAutoresizingMaskIntoConstraints = false
 
-    nameLabel.font = UIFont.systemFont(ofSize: 15.5, weight: .bold)
+    nameLabel.font = UIFont.systemFont(ofSize: 18, weight: .bold)
     nameLabel.textColor = NativeTheme.foreground
     nameLabel.numberOfLines = 1
     nameLabel.lineBreakMode = .byTruncatingTail
@@ -113,11 +112,25 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     bottomCard.addSubview(nameLabel)
     nameLabel.translatesAutoresizingMaskIntoConstraints = false
 
+    signLabel.font = NativeTheme.bodyFont(10.5)
+    signLabel.textColor = NativeTheme.secondary
+    signLabel.numberOfLines = 1
+    signLabel.lineBreakMode = .byTruncatingTail
+    signLabel.isHidden = true
+    bottomCard.addSubview(signLabel)
+    signLabel.translatesAutoresizingMaskIntoConstraints = false
+
     uidLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .regular)
     uidLabel.textColor = NativeTheme.secondary
     uidLabel.text = "UID \(mid)"
     bottomCard.addSubview(uidLabel)
     uidLabel.translatesAutoresizingMaskIntoConstraints = false
+
+    fansLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
+    fansLabel.textColor = NativeTheme.secondary
+    fansLabel.isHidden = true
+    bottomCard.addSubview(fansLabel)
+    fansLabel.translatesAutoresizingMaskIntoConstraints = false
 
     followButton.titleLabel?.font = UIFont.systemFont(ofSize: 11.5, weight: .bold)
     followButton.layer.cornerRadius = NativeTheme.cornerRadius
@@ -167,8 +180,8 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
 
     table.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
     table.trailingAnchor.constraint(equalTo: view.trailingAnchor).isActive = true
-    table.topAnchor.constraint(equalTo: view.topAnchor).isActive = true
-    table.bottomAnchor.constraint(equalTo: bottomCard.topAnchor).isActive = true
+    table.topAnchor.constraint(equalTo: sortDock.bottomAnchor, constant: 8).isActive = true
+    table.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true
 
     NSLayoutConstraint.activate([
       topBlur.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -181,41 +194,50 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     statusLabel.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 32).isActive = true
     statusLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -32).isActive = true
 
-    bottomCard.leadingAnchor.constraint(equalTo: view.leadingAnchor).isActive = true
-    bottomCard.trailingAnchor.constraint(equalTo: view.trailingAnchor).isActive = true
-    bottomCard.bottomAnchor.constraint(equalTo: view.bottomAnchor).isActive = true
+    bottomCard.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16).isActive = true
+    bottomCard.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16).isActive = true
+    bottomCard.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor,
+                                    constant: 8).isActive = true
+    bottomCard.heightAnchor.constraint(equalToConstant: 108).isActive = true
 
-    cardBlur.leadingAnchor.constraint(equalTo: bottomCard.leadingAnchor).isActive = true
-    cardBlur.trailingAnchor.constraint(equalTo: bottomCard.trailingAnchor).isActive = true
-    cardBlur.topAnchor.constraint(equalTo: bottomCard.topAnchor).isActive = true
-    cardBlur.bottomAnchor.constraint(equalTo: bottomCard.bottomAnchor).isActive = true
+    NSLayoutConstraint.activate([
+      heroBackground.leadingAnchor.constraint(equalTo: bottomCard.leadingAnchor),
+      heroBackground.trailingAnchor.constraint(equalTo: bottomCard.trailingAnchor),
+      heroBackground.topAnchor.constraint(equalTo: bottomCard.topAnchor),
+      heroBackground.bottomAnchor.constraint(equalTo: bottomCard.bottomAnchor),
+    ])
 
-    topLine.leadingAnchor.constraint(equalTo: bottomCard.leadingAnchor).isActive = true
-    topLine.trailingAnchor.constraint(equalTo: bottomCard.trailingAnchor).isActive = true
-    topLine.topAnchor.constraint(equalTo: bottomCard.topAnchor).isActive = true
-    topLine.heightAnchor.constraint(equalToConstant: 0.5).isActive = true
+    avatarRing.leadingAnchor.constraint(equalTo: bottomCard.leadingAnchor, constant: 16).isActive = true
+    avatarRing.centerYAnchor.constraint(equalTo: bottomCard.centerYAnchor).isActive = true
+    avatarRing.widthAnchor.constraint(equalToConstant: 60).isActive = true
+    avatarRing.heightAnchor.constraint(equalToConstant: 60).isActive = true
 
-    avatar.leadingAnchor.constraint(equalTo: bottomCard.leadingAnchor, constant: 20).isActive = true
-    avatar.topAnchor.constraint(equalTo: bottomCard.topAnchor, constant: 16).isActive = true
-    avatar.widthAnchor.constraint(equalToConstant: 42).isActive = true
-    avatar.heightAnchor.constraint(equalToConstant: 42).isActive = true
-    avatar.bottomAnchor.constraint(equalTo: bottomCard.safeAreaLayoutGuide.bottomAnchor,
-                                   constant: -14).isActive = true
+    avatar.centerXAnchor.constraint(equalTo: avatarRing.centerXAnchor).isActive = true
+    avatar.centerYAnchor.constraint(equalTo: avatarRing.centerYAnchor).isActive = true
+    avatar.widthAnchor.constraint(equalToConstant: 54).isActive = true
+    avatar.heightAnchor.constraint(equalToConstant: 54).isActive = true
 
-    nameLabel.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 12).isActive = true
+    nameLabel.leadingAnchor.constraint(equalTo: avatarRing.trailingAnchor, constant: 12).isActive = true
     nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: followButton.leadingAnchor, constant: -10).isActive = true
-    nameLabel.topAnchor.constraint(equalTo: bottomCard.topAnchor, constant: 18).isActive = true
+    nameLabel.topAnchor.constraint(equalTo: bottomCard.topAnchor, constant: 15).isActive = true
 
     uidLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor).isActive = true
     uidLabel.trailingAnchor.constraint(lessThanOrEqualTo: followButton.leadingAnchor, constant: -10).isActive = true
-    uidLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 2).isActive = true
+    uidLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 1).isActive = true
 
-    followButton.trailingAnchor.constraint(equalTo: bottomCard.trailingAnchor, constant: -20).isActive = true
-    followButton.centerYAnchor.constraint(equalTo: avatar.centerYAnchor).isActive = true
+    signLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor).isActive = true
+    signLabel.trailingAnchor.constraint(lessThanOrEqualTo: followButton.leadingAnchor, constant: -10).isActive = true
+    signLabel.topAnchor.constraint(equalTo: uidLabel.bottomAnchor, constant: 2).isActive = true
+
+    fansLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor).isActive = true
+    fansLabel.topAnchor.constraint(equalTo: signLabel.bottomAnchor, constant: 2).isActive = true
+
+    followButton.trailingAnchor.constraint(equalTo: bottomCard.trailingAnchor, constant: -16).isActive = true
+    followButton.centerYAnchor.constraint(equalTo: avatarRing.centerYAnchor).isActive = true
     followButton.heightAnchor.constraint(equalToConstant: 34).isActive = true
 
     sortDock.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
-    sortDock.bottomAnchor.constraint(equalTo: bottomCard.topAnchor, constant: -10).isActive = true
+    sortDock.topAnchor.constraint(equalTo: bottomCard.bottomAnchor, constant: 12).isActive = true
     sortDock.heightAnchor.constraint(equalToConstant: 52).isActive = true
 
     let closePan = UIPanGestureRecognizer(target: self, action: #selector(handleDismissPan(_:)))
@@ -238,10 +260,10 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   }
 
   private func updateInsets() {
-    let top = view.safeAreaInsets.top + 8
-    table.contentInset = UIEdgeInsets(top: top, left: 0, bottom: 78, right: 0)
-    table.verticalScrollIndicatorInsets = UIEdgeInsets(top: view.safeAreaInsets.top,
-                                                       left: 0, bottom: 0, right: 0)
+    table.contentInset = UIEdgeInsets(top: 0, left: 0,
+                                      bottom: 24 + view.safeAreaInsets.bottom,
+                                      right: 0)
+    table.verticalScrollIndicatorInsets = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
     topBlur.updateHeight(safeAreaTop: view.safeAreaInsets.top)
   }
 
@@ -296,6 +318,14 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     nameLabel.text = up.name
     if !up.face.isEmpty {
       ImageLoader.shared.load(up.face, into: avatar)
+    }
+    if !up.sign.isEmpty {
+      signLabel.text = up.sign
+      signLabel.isHidden = false
+    }
+    if up.follower > 0 {
+      fansLabel.text = "\(o11a1Count(up.follower)) 粉丝"
+      fansLabel.isHidden = false
     }
     following = up.followed
     updateFollowButton()
