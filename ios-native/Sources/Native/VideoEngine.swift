@@ -73,6 +73,14 @@ final class VideoEngine: NSObject {
     return value.isFinite ? value : 0
   }
 
+  var videoAspect: CGFloat {
+    guard let size = player.currentItem?.presentationSize,
+          size.width > 1, size.height > 1 else {
+      return 16.0 / 9.0
+    }
+    return size.width / size.height
+  }
+
   func load(
     url: String,
     backup: String = "",

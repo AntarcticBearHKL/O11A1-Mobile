@@ -528,6 +528,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             self.errorLabel.isHidden = true
             self.backdropVideo.alpha = 1
             self.engine.play()
+            self.view.setNeedsLayout()
             if let source = self.pendingUpgradeSource {
               self.pendingUpgradeSource = nil
               self.prepareQualityUpgrade(source)
@@ -541,6 +542,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self.errorLabel.isHidden = true
       self.backdropVideo.alpha = 1
       self.engine.play()
+      self.view.setNeedsLayout()
       if self.pendingStartSeconds > 0 {
         let seconds = self.pendingStartSeconds
         self.pendingStartSeconds = 0
@@ -820,11 +822,20 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   private func portraitVideoRects() -> (center: CGRect, top: CGRect) {
     let full = view.bounds
-    let height = full.width * 9.0 / 16.0
-    let center = CGRect(x: 0, y: full.midY - height / 2 + 2,
-                        width: full.width, height: height)
-    let top = CGRect(x: 0, y: view.safeAreaInsets.top,
-                     width: full.width, height: height)
+    let width = full.width
+    let topHeight = width * 9.0 / 16.0
+    let aspect = max(0.4, min(3.0, engine.videoAspect))
+    let naturalHeight = width / aspect
+    let safeTop = view.safeAreaInsets.top
+    let safeBottom = view.safeAreaInsets.bottom
+    let maxCenterHeight = max(topHeight, full.height - safeTop - safeBottom - 12)
+    let centerHeight = min(naturalHeight, maxCenterHeight)
+    let minY = safeTop + 6
+    let maxY = full.height - safeBottom - centerHeight - 6
+    let centerY = min(max(minY, full.midY - centerHeight / 2 + 2),
+                      max(minY, maxY))
+    let center = CGRect(x: 0, y: centerY, width: width, height: centerHeight)
+    let top = CGRect(x: 0, y: safeTop, width: width, height: topHeight)
     return (center, top)
   }
 
@@ -1283,6 +1294,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     upgrade.enablePiP()
     qualityLabel.text = pendingUpgradeLabel
+    view.setNeedsLayout()
   }
 
   @objc private func cycleQuality() {
