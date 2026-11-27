@@ -114,10 +114,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       tabBar.bottomAnchor.constraint(equalTo: mainHost.bottomAnchor, constant: -24),
     ])
 
-    searchButton.setImage(UIImage(
-      systemName: "magnifyingglass",
-      withConfiguration: UIImage.SymbolConfiguration(pointSize: 26, weight: .medium)),
-      for: .normal)
+    searchButton.setImage(UIImage(systemName: "magnifyingglass"), for: .normal)
     searchButton.tintColor = NativeTheme.foreground
     searchButton.backgroundColor = NativeTheme.surface
     searchButton.layer.cornerRadius = 12
@@ -132,14 +129,11 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     NSLayoutConstraint.activate([
       searchButton.trailingAnchor.constraint(equalTo: mainHost.trailingAnchor, constant: -16),
       searchButton.topAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.topAnchor, constant: 6),
-      searchButton.widthAnchor.constraint(equalToConstant: 72),
-      searchButton.heightAnchor.constraint(equalToConstant: 72),
+      searchButton.widthAnchor.constraint(equalToConstant: 48),
+      searchButton.heightAnchor.constraint(equalToConstant: 48),
     ])
 
-    avatarButton.setImage(UIImage(
-      systemName: "person.crop.circle",
-      withConfiguration: UIImage.SymbolConfiguration(pointSize: 30, weight: .regular)),
-      for: .normal)
+    avatarButton.setImage(UIImage(systemName: "person.crop.circle"), for: .normal)
     avatarButton.tintColor = NativeTheme.foreground
     avatarButton.backgroundColor = NativeTheme.surface
     avatarButton.layer.cornerRadius = 12
@@ -156,8 +150,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     NSLayoutConstraint.activate([
       avatarButton.leadingAnchor.constraint(equalTo: mainHost.leadingAnchor, constant: 16),
       avatarButton.topAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.topAnchor, constant: 6),
-      avatarButton.widthAnchor.constraint(equalToConstant: 72),
-      avatarButton.heightAnchor.constraint(equalToConstant: 72),
+      avatarButton.widthAnchor.constraint(equalToConstant: 48),
+      avatarButton.heightAnchor.constraint(equalToConstant: 48),
     ])
 
     topAvatar.contentMode = .scaleAspectFill
