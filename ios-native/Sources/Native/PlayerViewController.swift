@@ -10,6 +10,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private lazy var playerView = PlayerLayerView(playerLayer: engine.playerLayer)
   private let speedFeedback = UIImpactFeedbackGenerator(style: .medium)
   private let backdrop = UIImageView()
+  private let backdropHost = UIView()
   private let backdropVideo = UIView()
   private lazy var backdropLayer: AVPlayerLayer = {
     let layer = AVPlayerLayer(player: engine.player)
@@ -69,6 +70,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var portraitSettling = false
   private var portraitShrinking = false
   private var openingTransition = false
+  private var backdropCollapsed = false
   var pendingStartSeconds: Double = 0
   private var portraitTransition: CGFloat = 0
   private var portraitStageIsTop = false
@@ -123,24 +125,27 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     view.backgroundColor = .clear
     view.clipsToBounds = true
 
+    backdropHost.backgroundColor = .clear
+    view.addSubview(backdropHost)
+
     backdrop.contentMode = .scaleAspectFill
     backdrop.clipsToBounds = true
     backdrop.backgroundColor = .clear
     ImageLoader.shared.load(item.pic, into: backdrop)
-    view.addSubview(backdrop)
+    backdropHost.addSubview(backdrop)
 
     backdropVideo.backgroundColor = .clear
     backdropVideo.alpha = 0
     backdropVideo.isUserInteractionEnabled = false
     backdropVideo.layer.addSublayer(backdropLayer)
-    view.addSubview(backdropVideo)
+    backdropHost.addSubview(backdropVideo)
 
     backdropBlur.isUserInteractionEnabled = false
-    view.addSubview(backdropBlur)
+    backdropHost.addSubview(backdropBlur)
 
     backdropDim.backgroundColor = UIColor.black.withAlphaComponent(0.42)
     backdropDim.isUserInteractionEnabled = false
-    view.addSubview(backdropDim)
+    backdropHost.addSubview(backdropDim)
 
     videoContainer.backgroundColor = .clear
     videoContainer.clipsToBounds = true
@@ -568,33 +573,61 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func applyBackdrop(transform: CGAffineTransform, alpha: CGFloat) {
-    backdrop.transform = transform
-    backdrop.alpha = alpha
-    backdropBlur.transform = transform
-    backdropBlur.alpha = alpha
-    backdropDim.transform = transform
-    backdropDim.alpha = alpha
-    backdropVideo.transform = transform
-    if backdropVideo.alpha > 0 {
-      backdropVideo.alpha = alpha
+    backdropHost.transform = transform
+    backdropHost.alpha = alpha
+    for view in [backdrop, backdropVideo, backdropBlur, backdropDim] {
+      view.transform = .identity
+    }
+    backdrop.alpha = 1
+    backdropBlur.alpha = 1
+    backdropDim.alpha = 1
+    backdropCollapsed = false
+  }
+
+  private func collapseBackdrop(animated: Bool = true) {
+    guard !backdropCollapsed else { return }
+    backdropCollapsed = true
+    let full = view.bounds
+    let fraction = max(0.05, min(1, videoContainer.bounds.height / max(1, full.height)))
+    let target = CGAffineTransform(scaleX: 1, y: fraction)
+    let changes = {
+      for view in [self.backdrop, self.backdropVideo, self.backdropBlur, self.backdropDim] {
+        view.transform = target
+      }
+    }
+    if animated {
+      UIView.animate(withDuration: 0.45, delay: 0,
+                     options: [.curveEaseInOut, .beginFromCurrentState],
+                     animations: changes)
+    } else {
+      changes()
+    }
+  }
+
+  private func expandBackdrop(animated: Bool = true) {
+    guard backdropCollapsed else { return }
+    backdropCollapsed = false
+    let changes = {
+      for view in [self.backdrop, self.backdropVideo, self.backdropBlur, self.backdropDim] {
+        view.transform = .identity
+      }
+    }
+    if animated {
+      UIView.animate(withDuration: 0.45, delay: 0,
+                     options: [.curveEaseInOut, .beginFromCurrentState],
+                     animations: changes)
+    } else {
+      changes()
     }
   }
 
   private func applyDismissProgress(_ down: CGFloat) {
     let height = max(1, view.bounds.height)
-    let progress = min(1, max(0, down / (height * 0.62)))
+    let progress = min(1, max(0, down / (height * 0.55)))
     videoContainer.transform = CGAffineTransform(translationX: 0, y: down)
-    videoContainer.alpha = 1 - progress * 0.5
-    let full = view.bounds
-    let videoWidth = max(1, videoContainer.bounds.width)
-    let videoHeight = max(1, videoContainer.bounds.height)
-    let targetX = videoWidth / max(1, full.width)
-    let targetY = videoHeight / max(1, full.height)
-    let scaleX = 1 + (targetX - 1) * progress
-    let scaleY = 1 + (targetY - 1) * progress
-    let retreat = CGAffineTransform(translationX: 0, y: down)
-      .scaledBy(x: scaleX, y: scaleY)
-    applyBackdrop(transform: retreat, alpha: 1 - progress * 0.2)
+    videoContainer.alpha = max(0, 1 - progress * 0.85)
+    backdropHost.transform = CGAffineTransform(translationX: 0, y: down)
+    backdropHost.alpha = max(0, 1 - progress * 0.15)
     topBar.alpha = panRestoreTopAlpha * (1 - progress)
     bottomPanel.alpha = panRestorePanelAlpha * (1 - progress)
     dim.alpha = panRestoreDimAlpha * (1 - progress)
@@ -748,11 +781,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     view.backgroundColor = .clear
     let backdropBusy = openingTransition || portraitDragActive || portraitShrinking
     if !backdropBusy {
-      backdrop.frame = full
-      backdropVideo.frame = full
+      backdropHost.frame = full
+      backdrop.frame = backdropHost.bounds
+      backdropVideo.frame = backdropHost.bounds
       backdropLayer.frame = backdropVideo.bounds
-      backdropBlur.frame = full
-      backdropDim.frame = full
+      backdropBlur.frame = backdropHost.bounds
+      backdropDim.frame = backdropHost.bounds
     }
     backdrop.isHidden = false
     backdropVideo.isHidden = false
@@ -1083,6 +1117,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             } else if translation.y > 0 {
               portraitDismissDrag = true
               view.transform = .identity
+              collapseBackdrop()
             } else if translation.y < 0 {
               portraitUpDrag = true
             }
@@ -1218,17 +1253,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     portraitShrinking = true
     portraitDragActive = false
     let height = max(1, view.bounds.height)
-    let full = view.bounds
     let finalDown = height * 0.58
-    let target = CGAffineTransform(translationX: 0, y: finalDown)
-      .scaledBy(x: max(0.05, videoContainer.bounds.width / max(1, full.width)),
-                y: max(0.05, videoContainer.bounds.height / max(1, full.height)))
     UIView.animate(withDuration: 0.30, delay: 0,
                    options: [.curveEaseIn, .beginFromCurrentState]) {
       self.videoContainer.transform = CGAffineTransform(
         translationX: 0, y: finalDown)
       self.videoContainer.alpha = 0
-      self.applyBackdrop(transform: target, alpha: 0)
+      self.backdropHost.transform = CGAffineTransform(
+        translationX: 0, y: finalDown)
+      self.backdropHost.alpha = 0
       self.topBar.alpha = 0
       self.bottomPanel.alpha = 0
       self.dim.alpha = 0
