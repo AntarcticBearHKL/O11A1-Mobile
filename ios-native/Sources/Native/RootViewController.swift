@@ -4,8 +4,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   private let mainHost = UIView()
   private let contentView = UIView()
   private let tabBar = GlassTabBar()
-  private let settingsButton = UIButton(type: .system)
-  private let myButton = UIButton(type: .system)
+  private let searchButton = UIButton(type: .system)
+  private let avatarButton = UIButton(type: .system)
+  private let topAvatar = UIImageView()
   private var currentChild: UIViewController?
   private var player: PlayerViewController?
   private var upProfile: UpProfileViewController?
@@ -92,60 +93,90 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     tabBar.onReselect = { [weak self] in
       self?.closeMessages()
     }
+    tabBar.onMenu = { [weak self] index in
+      guard let self = self else { return }
+      switch index {
+      case 0:
+        self.presentModule(from: self, mode: .live, target: 0, title: "直播")
+      case 1:
+        self.presentModule(from: self, mode: .bangumi, target: 0, title: "番剧")
+      case 2:
+        self.openMessages()
+      default:
+        self.presentModule(from: self, mode: .history, target: 0, title: "历史")
+      }
+    }
     mainHost.addSubview(tabBar)
     tabBar.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
       tabBar.leadingAnchor.constraint(equalTo: mainHost.leadingAnchor, constant: 12),
       tabBar.trailingAnchor.constraint(equalTo: mainHost.trailingAnchor, constant: -12),
       tabBar.bottomAnchor.constraint(equalTo: mainHost.bottomAnchor, constant: -24),
-      tabBar.heightAnchor.constraint(equalToConstant: 72),
     ])
 
-    settingsButton.setImage(UIImage(systemName: "gearshape.fill"), for: .normal)
-    settingsButton.tintColor = NativeTheme.foreground
-    settingsButton.backgroundColor = NativeTheme.glass
-    settingsButton.layer.cornerRadius = 20
-    settingsButton.layer.shadowColor = UIColor.black.cgColor
-    settingsButton.layer.shadowOpacity = 0.16
-    settingsButton.layer.shadowRadius = 12
-    settingsButton.layer.shadowOffset = CGSize(width: 0, height: 4)
-    settingsButton.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
-    mainHost.addSubview(settingsButton)
-    settingsButton.translatesAutoresizingMaskIntoConstraints = false
+    searchButton.setImage(UIImage(systemName: "magnifyingglass"), for: .normal)
+    searchButton.tintColor = NativeTheme.foreground
+    searchButton.backgroundColor = NativeTheme.glass
+    searchButton.layer.cornerRadius = NativeTheme.cornerRadius
+    searchButton.layer.cornerCurve = .continuous
+    searchButton.layer.shadowColor = UIColor.black.cgColor
+    searchButton.layer.shadowOpacity = 0.16
+    searchButton.layer.shadowRadius = 12
+    searchButton.layer.shadowOffset = CGSize(width: 0, height: 4)
+    searchButton.addTarget(self, action: #selector(openSearchFromTop), for: .touchUpInside)
+    mainHost.addSubview(searchButton)
+    searchButton.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      settingsButton.trailingAnchor.constraint(equalTo: mainHost.trailingAnchor, constant: -16),
-      settingsButton.topAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.topAnchor, constant: 6),
-      settingsButton.widthAnchor.constraint(equalToConstant: 40),
-      settingsButton.heightAnchor.constraint(equalToConstant: 40),
+      searchButton.trailingAnchor.constraint(equalTo: mainHost.trailingAnchor, constant: -16),
+      searchButton.topAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.topAnchor, constant: 6),
+      searchButton.widthAnchor.constraint(equalToConstant: 40),
+      searchButton.heightAnchor.constraint(equalToConstant: 40),
     ])
 
-    myButton.setImage(UIImage(systemName: "person.crop.circle"), for: .normal)
-    myButton.tintColor = NativeTheme.foreground
-    myButton.backgroundColor = NativeTheme.glass
-    myButton.layer.cornerRadius = 20
-    myButton.layer.shadowColor = UIColor.black.cgColor
-    myButton.layer.shadowOpacity = 0.16
-    myButton.layer.shadowRadius = 12
-    myButton.layer.shadowOffset = CGSize(width: 0, height: 4)
-    myButton.addTarget(self, action: #selector(openMy), for: .touchUpInside)
-    mainHost.addSubview(myButton)
-    myButton.translatesAutoresizingMaskIntoConstraints = false
+    avatarButton.setImage(UIImage(systemName: "person.crop.circle"), for: .normal)
+    avatarButton.tintColor = NativeTheme.foreground
+    avatarButton.backgroundColor = NativeTheme.glass
+    avatarButton.layer.cornerRadius = NativeTheme.cornerRadius
+    avatarButton.layer.cornerCurve = .continuous
+    avatarButton.layer.borderWidth = 0.5
+    avatarButton.layer.borderColor = NativeTheme.hairline.cgColor
+    avatarButton.layer.shadowColor = UIColor.black.cgColor
+    avatarButton.layer.shadowOpacity = 0.16
+    avatarButton.layer.shadowRadius = 12
+    avatarButton.layer.shadowOffset = CGSize(width: 0, height: 4)
+    avatarButton.addTarget(self, action: #selector(openMy), for: .touchUpInside)
+    mainHost.addSubview(avatarButton)
+    avatarButton.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      myButton.leadingAnchor.constraint(equalTo: mainHost.leadingAnchor, constant: 16),
-      myButton.topAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.topAnchor, constant: 6),
-      myButton.widthAnchor.constraint(equalToConstant: 40),
-      myButton.heightAnchor.constraint(equalToConstant: 40),
+      avatarButton.leadingAnchor.constraint(equalTo: mainHost.leadingAnchor, constant: 16),
+      avatarButton.topAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.topAnchor, constant: 6),
+      avatarButton.widthAnchor.constraint(equalToConstant: 40),
+      avatarButton.heightAnchor.constraint(equalToConstant: 40),
     ])
 
-    // The original home has no top buttons; My and settings live in the
-    // left navigation drawer. Keep these views for compatibility only.
-    settingsButton.isHidden = true
-    myButton.isHidden = true
+    topAvatar.contentMode = .scaleAspectFill
+    topAvatar.clipsToBounds = true
+    topAvatar.layer.cornerRadius = NativeTheme.cornerRadius
+    topAvatar.layer.cornerCurve = .continuous
+    topAvatar.isUserInteractionEnabled = false
+    avatarButton.addSubview(topAvatar)
+    topAvatar.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      topAvatar.leadingAnchor.constraint(equalTo: avatarButton.leadingAnchor),
+      topAvatar.trailingAnchor.constraint(equalTo: avatarButton.trailingAnchor),
+      topAvatar.topAnchor.constraint(equalTo: avatarButton.topAnchor),
+      topAvatar.bottomAnchor.constraint(equalTo: avatarButton.bottomAnchor),
+    ])
+    topAvatar.isHidden = true
+
+    searchButton.isHidden = false
+    avatarButton.isHidden = false
 
     let edge = UIScreenEdgePanGestureRecognizer(
       target: self, action: #selector(handleSidebarEdge(_:)))
     edge.edges = .left
     edge.delegate = self
+    edge.isEnabled = false
     view.addGestureRecognizer(edge)
     sidebarEdgePan = edge
 
@@ -162,6 +193,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
     ThemeManager.shared.apply()
+    loadTopAvatar()
     guard !testFlowTriggered else { return }
     testFlowTriggered = true
     let flow = ProcessInfo.processInfo.environment["O11A1_TEST_FLOW"] ?? ""
@@ -221,32 +253,25 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       self.presentModule(from: self, mode: .season, target: item.seasonId, title: title)
     }
     controller.onSidebar = { [weak self] in
-      self?.openSidebar()
+      self?.openMy()
     }
-    controller.onSidebarPanBegan = { [weak self] in
-      guard let self = self, self.sidebar?.superview == nil else { return }
-      self.prepareSidebarForDrag()
-    }
-    controller.onSidebarPanChanged = { [weak self] progress in
-      guard let self = self, self.sidebar?.superview != nil else { return }
-      self.setSidebarProgress(progress)
-    }
+    controller.onSidebarPanBegan = { _ in }
+    controller.onSidebarPanChanged = { _ in }
     controller.onSidebarPanEnded = { [weak self] translation, velocity in
-      guard let self = self, self.sidebar?.superview != nil else { return }
+      guard let self = self else { return }
       let width = max(1, self.view.bounds.width)
       if translation > width * 0.22 || velocity > 350 {
-        self.finishSidebarOpen()
+        self.openMy()
       } else {
-        self.finishSidebarClose()
+        self.feed?.resumePreview()
       }
-      self.feed?.resumePreview()
     }
     controller.onToolbar = { [weak self] hidden in
       guard let self = self else { return }
       self.tabBar.setHidden(hidden, animated: true)
       UIView.animate(withDuration: 0.35) {
-        self.settingsButton.alpha = hidden ? 0 : 1
-        self.myButton.alpha = hidden ? 0 : 1
+        self.searchButton.alpha = hidden ? 0 : 1
+        self.avatarButton.alpha = hidden ? 0 : 1
       }
     }
     if let module = HomeModules.currentDef, module.source != "recommend" {
@@ -307,8 +332,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     controller.didMove(toParent: self)
     currentChild = controller
     mainHost.bringSubviewToFront(tabBar)
-    mainHost.bringSubviewToFront(settingsButton)
-    mainHost.bringSubviewToFront(myButton)
+    mainHost.bringSubviewToFront(searchButton)
+    mainHost.bringSubviewToFront(avatarButton)
   }
 
   private func openPlayer(_ item: VideoItem, from source: UIView?) {
@@ -338,8 +363,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     controller.didMove(toParent: self)
     player = controller
     tabBar.isHidden = true
-    settingsButton.isHidden = true
-    myButton.isHidden = true
+    searchButton.isHidden = true
+    avatarButton.isHidden = true
     if upProfile != nil {
       profileCoveredByPlayer = true
     }
@@ -385,6 +410,10 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     profileCoveredByPlayer = false
     endOrientationTracking()
     tabBar.isHidden = false
+    searchButton.isHidden = false
+    avatarButton.isHidden = false
+    searchButton.alpha = 1
+    avatarButton.alpha = 1
     setPlayerOrientation(false)
     setNeedsStatusBarAppearanceUpdate()
     feed?.resumePreview()
@@ -644,8 +673,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     controller.didMove(toParent: self)
     messages = controller
     mainHost.bringSubviewToFront(tabBar)
-    mainHost.bringSubviewToFront(settingsButton)
-    mainHost.bringSubviewToFront(myButton)
+    mainHost.bringSubviewToFront(searchButton)
+    mainHost.bringSubviewToFront(avatarButton)
   }
 
   private func closeMessages() {
@@ -654,6 +683,20 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     controller.view.removeFromSuperview()
     controller.removeFromParent()
     messages = nil
+  }
+
+  @objc private func openSearchFromTop() {
+    selectTab(0)
+    feed?.openSearchFromHost()
+  }
+
+  private func loadTopAvatar() {
+    BiliAPI.shared.account { [weak self] info in
+      guard let self = self, !info.face.isEmpty else { return }
+      ImageLoader.shared.load(info.face, into: self.topAvatar)
+      self.topAvatar.isHidden = false
+      self.avatarButton.setImage(nil, for: .normal)
+    }
   }
 
   @objc private func openMy() {

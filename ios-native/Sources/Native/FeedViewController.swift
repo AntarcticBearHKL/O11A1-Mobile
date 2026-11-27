@@ -600,11 +600,15 @@ final class FeedViewController: UIViewController,
     updateSearchProgress(0)
     toolbarWasHidden = toolbarHidden
     onToolbar?(true)
+    search.focusNow()
   }
 
   private func settleSearch(open: Bool) {
     guard let search = searchController else { return }
     searchOpen = open
+    if !open {
+      search.resignKeyboard()
+    }
     let changes = {
       self.updateSearchProgress(open ? 1 : 0)
     }

@@ -182,6 +182,16 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     }
   }
 
+  func focusNow() {
+    guard !field.isFirstResponder else { return }
+    field.becomeFirstResponder()
+  }
+
+  func resignKeyboard() {
+    guard field.isFirstResponder else { return }
+    field.resignFirstResponder()
+  }
+
   @objc private func textChanged() {
     workItem?.cancel()
     let term = (field.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -280,6 +290,8 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     let translation = max(0, gesture.translation(in: reference).x)
     let width = max(1, view.bounds.width)
     switch gesture.state {
+    case .began:
+      view.endEditing(true)
     case .changed:
       onInteractiveClose?(max(0, min(1, 1 - translation / width)))
     case .ended, .cancelled:
