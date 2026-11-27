@@ -5,7 +5,7 @@ final class FeedViewController: UIViewController,
   UITableViewDelegate,
   UIGestureRecognizerDelegate {
 
-  var onOpen: ((VideoItem, HomeCardCell) -> Void)?
+  var onOpen: ((VideoItem, UIView) -> Void)?
   var onProfile: ((Int64) -> Void)?
   var onToolbar: ((Bool) -> Void)?
   var onSearchOpen: ((VideoItem) -> Void)?
@@ -55,6 +55,7 @@ final class FeedViewController: UIViewController,
     table.dataSource = self
     table.delegate = self
     table.register(HomeCardCell.self, forCellReuseIdentifier: HomeCardCell.reuseID)
+    table.register(HomeGridCell.self, forCellReuseIdentifier: HomeGridCell.reuseID)
     table.rowHeight = UITableView.automaticDimension
     table.estimatedRowHeight = 360
     table.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 138, right: 0)
@@ -147,6 +148,9 @@ final class FeedViewController: UIViewController,
       homeSource = initial.source
       sourceTitle = initial.title
     }
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(feedLayoutChanged),
+      name: HomeFeedLayout.changed, object: nil)
     load(reset: true)
   }
 
@@ -331,16 +335,39 @@ final class FeedViewController: UIViewController,
   // MARK: - table
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-    return items.count
+    return HomeFeedLayout.isGrid ? (items.count + 1) / 2 : items.count
+  }
+
+  func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+    guard HomeFeedLayout.isGrid else { return UITableView.automaticDimension }
+    let cardWidth = max(1, tableView.bounds.width - 36) / 2
+    return 9 + cardWidth * 9.0 / 16.0 + 76 + 9
   }
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    if HomeFeedLayout.isGrid {
+      let cell = tableView.dequeueReusableCell(
+        withIdentifier: HomeGridCell.reuseID, for: indexPath) as! HomeGridCell
+      let leftIndex = indexPath.row * 2
+      guard leftIndex < items.count else { return cell }
+      let left = items[leftIndex]
+      let right = leftIndex + 1 < items.count ? items[leftIndex + 1] : nil
+      cell.configure(left, right)
+      cell.onOpen = { [weak self] item, card in
+        self?.open(item, source: card)
+      }
+      cell.onAvatar = { [weak self] mid in
+        self?.onProfile?(mid)
+      }
+      return cell
+    }
     let cell = tableView.dequeueReusableCell(
       withIdentifier: HomeCardCell.reuseID, for: indexPath) as! HomeCardCell
     let item = items[indexPath.row]
     cell.configure(item)
     cell.onOpen = { [weak self, weak cell] in
-      self?.open(item, cell: cell)
+      guard let self = self, let cell = cell else { return }
+      self.open(item, source: cell)
     }
     cell.onAvatar = { [weak self] in
       self?.onProfile?(item.mid)
@@ -351,13 +378,23 @@ final class FeedViewController: UIViewController,
     return cell
   }
 
-  private func open(_ item: VideoItem, cell: HomeCardCell?) {
+  private func open(_ item: VideoItem, source: UIView) {
     if item.seasonId > 0 || item.kind == "season" {
       onSeason?(item)
       return
     }
-    guard let cell = cell else { return }
-    onOpen?(item, cell)
+    onOpen?(item, source)
+  }
+
+  @objc private func feedLayoutChanged() {
+    previewEngine.pause()
+    previewView.alpha = 0
+    previewCell?.setPreviewProgress(nil)
+    previewCell = nil
+    previewIndex = -1
+    table.reloadData()
+    table.layoutIfNeeded()
+    startPreviewIfNeeded()
   }
 
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -400,6 +437,14 @@ final class FeedViewController: UIViewController,
 
   private func startPreviewIfNeeded() {
     guard !searchOpen, !items.isEmpty else { return }
+    if HomeFeedLayout.isGrid {
+      previewEngine.pause()
+      previewView.alpha = 0
+      previewCell?.setPreviewProgress(nil)
+      previewCell = nil
+      previewIndex = -1
+      return
+    }
     let center = table.contentOffset.y + table.bounds.height / 2
     var bestRow = 0
     var bestDistance = CGFloat.greatestFiniteMagnitude
@@ -480,13 +525,16 @@ final class FeedViewController: UIViewController,
     }
     table.scrollToRow(at: IndexPath(row: 0, section: 0), at: .top, animated: false)
     table.layoutIfNeeded()
-    guard let cell = table.cellForRow(at: IndexPath(row: 0, section: 0)) as? HomeCardCell else {
+    let cell = table.cellForRow(at: IndexPath(row: 0, section: 0))
+    if let home = cell as? HomeCardCell {
+      open(items[0], source: home)
+    } else if let grid = cell as? HomeGridCell {
+      open(items[0], source: grid.leftCard)
+    } else {
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
         self?.openFirstForTest()
       }
-      return
     }
-    onOpen?(items[0], cell)
   }
 
   // MARK: - gestures

@@ -110,6 +110,7 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     ])
 
     addRow("主页模块", "自定义首页内容", #selector(showHomeModules))
+    addRow("首页布局", "单列大卡 / 双列瀑布", #selector(showFeedLayout))
     addRow("播放", "画质 / 硬解 / 默认", #selector(showPlayback))
     addRow("弹幕", "显示 / 字号 / 速度 / 屏蔽", #selector(showDanmaku))
     addRow("外观", "主题 / 透明度 / 模糊", #selector(showAppearance))
@@ -254,6 +255,19 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
     rows.append(.note("关闭当前模块后会自动切换到下一个已启用模块。"))
     presentSheet(SettingsSheetViewController(
       title: "主页模块", subtitle: "选择要在首页显示的模块", rows: rows))
+  }
+
+  @objc private func showFeedLayout() {
+    let options = ["单列大卡", "双列瀑布"]
+    let selected = HomeFeedLayout.isGrid ? options[1] : options[0]
+    var rows: [SettingsSheetRow] = []
+    rows.append(.choices(label: "布局", options: options, selected: selected) { value in
+      HomeFeedLayout.isGrid = (value == options[1])
+      NotificationCenter.default.post(name: HomeFeedLayout.changed, object: nil)
+    })
+    rows.append(.note("双列瀑布每行显示两个视频卡，标题和信息的字号会自动缩小。"))
+    presentSheet(SettingsSheetViewController(
+      title: "首页布局", subtitle: "选择主页信息流的排列方式", rows: rows))
   }
 
   @objc private func showPlayback() {

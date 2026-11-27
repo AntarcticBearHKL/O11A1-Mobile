@@ -370,7 +370,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     }
     guard player == nil else { return }
     feed?.suspendPreview()
-    let sourceView = (source as? HomeCardCell)?.mediaHost ?? source
+    let sourceView = (source as? HomeCardCell)?.mediaHost
+      ?? (source as? MiniVideoCardView)?.mediaHost
+      ?? source
     let controller = PlayerViewController(item: item, sourceView: sourceView)
     controller.pendingStartSeconds = startAt
     controller.onClose = { [weak self] in
