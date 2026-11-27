@@ -255,7 +255,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     controller.onSidebar = { [weak self] in
       self?.openMy()
     }
-    controller.onSidebarPanBegan = { _ in }
+    controller.onSidebarPanBegan = {}
     controller.onSidebarPanChanged = { _ in }
     controller.onSidebarPanEnded = { [weak self] translation, velocity in
       guard let self = self else { return }
