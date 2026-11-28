@@ -406,7 +406,10 @@ final class FeedViewController: UIViewController,
       UIView.performWithoutAnimation {
         table.performBatchUpdates({
           self.table.insertRows(at: insertPaths, with: .none)
-        }, completion: { _ in restoreOffset() })
+        }, completion: { _ in
+          self.table.layoutIfNeeded()
+          restoreOffset()
+        })
       }
     } else {
       var insertPaths: [IndexPath] = []
@@ -417,7 +420,10 @@ final class FeedViewController: UIViewController,
       UIView.performWithoutAnimation {
         table.performBatchUpdates({
           self.table.insertRows(at: insertPaths, with: .none)
-        }, completion: { _ in restoreOffset() })
+        }, completion: { _ in
+          self.table.layoutIfNeeded()
+          restoreOffset()
+        })
       }
     }
   }
