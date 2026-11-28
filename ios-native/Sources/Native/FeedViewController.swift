@@ -307,26 +307,35 @@ final class FeedViewController: UIViewController,
   }
 
   private func finish(_ values: [VideoItem], reset: Bool) {
-    var appendStart = items.count
     if reset {
       unloadPreviewMedia()
       items = values
       previewSuspended = false
-      appendStart = 0
-    } else {
-      var existing = Set(items.map { "\($0.bvid)-\($0.roomId)" })
-      var incoming: [VideoItem] = []
-      for item in values where !existing.contains("\(item.bvid)-\(item.roomId)") {
-        incoming.append(item)
-        existing.insert("\(item.bvid)-\(item.roomId)")
-      }
-      let overflow = items.count + incoming.count - maxFeedItems
-      if overflow > 0 {
-        trimAboveVisible(overflow)
-      }
-      appendStart = items.count
-      items.append(contentsOf: incoming)
+      completeFinish(values: values, reset: true, appendStart: 0)
+      return
     }
+    var existing = Set(items.map { "\($0.bvid)-\($0.roomId)" })
+    var incoming: [VideoItem] = []
+    for item in values where !existing.contains("\(item.bvid)-\(item.roomId)") {
+      incoming.append(item)
+      existing.insert("\(item.bvid)-\(item.roomId)")
+    }
+    let overflow = items.count + incoming.count - maxFeedItems
+    let append = { [weak self] in
+      guard let self = self else { return }
+      let appendStart = self.items.count
+      self.items.append(contentsOf: incoming)
+      self.completeFinish(values: values, reset: false, appendStart: appendStart)
+    }
+    if overflow > 0 {
+      trimAboveVisible(overflow, completion: append)
+    } else {
+      append()
+    }
+  }
+
+  private func completeFinish(values: [VideoItem], reset: Bool,
+                              appendStart: Int) {
     hasMore = !values.isEmpty
     nextPage += 1
     WatchProgressStore.shared.mergeHistory(values)
@@ -356,22 +365,35 @@ final class FeedViewController: UIViewController,
   /// screen. The row under the user's eyes is the anchor: after the batch
   /// delete we put it back at exactly the same screen y. This releases old
   /// media without ever moving the item the user is currently watching.
-  private func trimAboveVisible(_ desired: Int) {
-    guard desired > 0, !items.isEmpty, table.window != nil else { return }
+  private func trimAboveVisible(_ desired: Int,
+                                completion: @escaping () -> Void) {
+    guard desired > 0, !items.isEmpty, table.window != nil else {
+      completion()
+      return
+    }
     let visible = (table.indexPathsForVisibleRows ?? []).sorted { $0.row < $1.row }
     guard let anchor = visible.first(where: {
       table.rectForRow(at: $0).maxY > table.contentOffset.y + 2
-    }) else { return }
+    }) else {
+      completion()
+      return
+    }
     let grid = HomeFeedLayout.isGrid
     let anchorRow = anchor.row
     var removeItems = min(desired, grid ? anchorRow * 2 : anchorRow)
     if grid {
       removeItems -= removeItems % 2
     }
-    guard removeItems > 0 else { return }
+    guard removeItems > 0 else {
+      completion()
+      return
+    }
     let removeRows = grid ? removeItems / 2 : removeItems
     let anchorItemIndex = grid ? anchorRow * 2 : anchorRow
-    guard anchorItemIndex < items.count else { return }
+    guard anchorItemIndex < items.count else {
+      completion()
+      return
+    }
     let anchorItem = items[anchorItemIndex]
     let anchorKey = "\(anchorItem.bvid)-\(anchorItem.roomId)"
     let anchorOffset = table.rectForRow(at: anchor).minY - table.contentOffset.y
@@ -403,6 +425,7 @@ final class FeedViewController: UIViewController,
           self.previewIndex -= removeItems
         }
         self.lastOffset = self.table.contentOffset.y
+        completion()
       })
     }
   }
