@@ -30,8 +30,10 @@ final class FeedViewController: UIViewController,
   private var previewScrubbing = false
   private var previewHandedOff = false
   private var previewRetryScheduled = false
+  private var previewFocusScheduled = false
   private var previewSource: PlaySource?
   private var previewItemKey = ""
+  private var previewPendingKey = ""
   private var nextPage = 1
   private var fresh = 1
   private var loading = false
@@ -364,9 +366,16 @@ final class FeedViewController: UIViewController,
 
   /// Appending a page keeps every visible cell alive and only touches the rows
   /// the new items belong to, so the grid grows without a table-wide reload.
+  /// The content offset is restored afterwards: even an implicit layout pass
+  /// must not move the card the user is looking at.
   private func appendLoadedRows(from oldCount: Int) {
     let newCount = items.count
     guard newCount > oldCount else { return }
+    let offsetBefore = table.contentOffset
+    let restoreOffset = {
+      guard self.table.contentOffset != offsetBefore else { return }
+      self.table.setContentOffset(offsetBefore, animated: false)
+    }
     if HomeFeedLayout.isGrid {
       let oldRows = (oldCount + 1) / 2
       let newRows = (newCount + 1) / 2
@@ -391,10 +400,13 @@ final class FeedViewController: UIViewController,
       }
       guard !insertPaths.isEmpty else {
         table.layoutIfNeeded()
+        restoreOffset()
         return
       }
-      table.performBatchUpdates {
-        self.table.insertRows(at: insertPaths, with: .none)
+      UIView.performWithoutAnimation {
+        table.performBatchUpdates({
+          self.table.insertRows(at: insertPaths, with: .none)
+        }, completion: { _ in restoreOffset() })
       }
     } else {
       var insertPaths: [IndexPath] = []
@@ -402,8 +414,10 @@ final class FeedViewController: UIViewController,
         insertPaths.append(IndexPath(row: row, section: 0))
       }
       guard !insertPaths.isEmpty else { return }
-      table.performBatchUpdates {
-        self.table.insertRows(at: insertPaths, with: .none)
+      UIView.performWithoutAnimation {
+        table.performBatchUpdates({
+          self.table.insertRows(at: insertPaths, with: .none)
+        }, completion: { _ in restoreOffset() })
       }
     }
   }
@@ -437,7 +451,11 @@ final class FeedViewController: UIViewController,
   }
 
   func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-    guard HomeFeedLayout.isGrid else { return UITableView.automaticDimension }
+    guard HomeFeedLayout.isGrid else {
+      // Exact height: a fixed value keeps table layout deterministic while
+      // new pages are appended, so the visible card never shifts.
+      return max(1, tableView.bounds.width) * 9.0 / 16.0 + 98 + 14
+    }
     let available = tableView.bounds.width
       - HomeGridCell.sideInset * 2
       - HomeGridCell.columnSpacing
@@ -499,12 +517,11 @@ final class FeedViewController: UIViewController,
 
   func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell,
                  forRowAt indexPath: IndexPath) {
-    if let card = cell as? HomeCardCell {
-      if card === previewCell || previewView.superview === card.mediaHost { return }
-      card.unloadMedia()
-    } else if let grid = cell as? HomeGridCell {
-      grid.unloadMedia()
-    }
+    guard let card = cell as? HomeCardCell else { return }
+    if card === previewCell || previewView.superview === card.mediaHost { return }
+    // The decoded cover lives in ImageLoader's cache anyway, so clearing the
+    // image here only produced grey rows when scrolling back. Keep it.
+    card.hidePreviewLoading()
   }
 
   private func open(_ item: VideoItem, source: UIView) {
@@ -570,8 +587,8 @@ final class FeedViewController: UIViewController,
         onToolbar?(false)
       }
     }
-    if scrollView.isDragging || scrollView.isDecelerating {
-      unloadPreviewMedia()
+    if !HomeFeedLayout.isGrid, !searchOpen {
+      schedulePreviewFocus()
     }
     lastOffset = scrollView.contentOffset.y
     loadMoreIfNeeded()
@@ -639,12 +656,22 @@ final class FeedViewController: UIViewController,
     }
   }
 
+  /// While a single-column feed is being dragged the centred card should
+  /// already play. Debounce a little so a fast fling does not request a new
+  /// stream for every row that passes the centre.
+  private func schedulePreviewFocus() {
+    guard !previewFocusScheduled, !previewSuspended else { return }
+    previewFocusScheduled = true
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) { [weak self] in
+      guard let self = self else { return }
+      self.previewFocusScheduled = false
+      guard !self.previewSuspended, !self.searchOpen else { return }
+      self.startPreviewIfNeeded()
+    }
+  }
+
   private func startPreviewIfNeeded() {
     guard !previewSuspended, !searchOpen, !items.isEmpty else { return }
-    if table.isDragging || table.isDecelerating {
-      schedulePreviewRetry(after: 0.18)
-      return
-    }
     if HomeFeedLayout.isGrid {
       unloadPreviewMedia()
       return
@@ -680,20 +707,33 @@ final class FeedViewController: UIViewController,
       previewEngine.play()
       return
     }
+    let item = items[bestRow]
+    let key = "\(item.bvid)-\(item.cid)"
+    if previewItemKey == key, previewEngine.player.currentItem != nil {
+      attachPreview(cell)
+      cell.hidePreviewLoading()
+      previewView.alpha = 1
+      previewEngine.play()
+      return
+    }
+    // A request for this very item is already in flight; another scroll
+    // callback must not cancel it and start over.
+    guard previewPendingKey != key else { return }
     attachPreview(cell)
     cell.setPreviewProgress(0)
     cell.showPreviewLoading()
     previewView.alpha = 0
     previewToken += 1
     let token = previewToken
-    let item = items[bestRow]
     previewSource = nil
     previewItemKey = ""
+    previewPendingKey = key
     previewEngine.stop()
     BiliAPI.shared.playQuality(item, qn: ThemeManager.shared.quality) {
       [weak self] result in
       guard let self = self, token == self.previewToken,
             !self.previewSuspended else { return }
+      self.previewPendingKey = ""
       guard let current = self.table.cellForRow(at: IndexPath(row: bestRow, section: 0)) as? HomeCardCell else {
         return
       }
@@ -744,6 +784,7 @@ final class FeedViewController: UIViewController,
     previewIndex = -1
     previewSource = nil
     previewItemKey = ""
+    previewPendingKey = ""
     previewScrubbing = false
   }
 
@@ -772,6 +813,7 @@ final class FeedViewController: UIViewController,
       previewIndex = -1
       previewSource = nil
       previewItemKey = ""
+      previewPendingKey = ""
       resetPreviewEngine()
       return
     }
@@ -784,6 +826,7 @@ final class FeedViewController: UIViewController,
     previewIndex = -1
     previewSource = nil
     previewItemKey = ""
+    previewPendingKey = ""
   }
 
   func resumePreview() {

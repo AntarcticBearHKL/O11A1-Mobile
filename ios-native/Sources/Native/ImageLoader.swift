@@ -62,9 +62,10 @@ final class ImageLoader {
     request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
     session.dataTask(with: request) { [weak self, weak imageView] data, _, _ in
       guard let self = self, let data = data, let image = UIImage(data: data) else {
-        guard let self = self, attempt < 2, let imageView = imageView,
-              imageView.accessibilityIdentifier == urlString else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+        guard let self = self, attempt < 3 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+          guard let imageView = imageView,
+                imageView.accessibilityIdentifier == urlString else { return }
           self.load(urlString, into: imageView, placeholder: placeholder,
                     attempt: attempt + 1)
         }
