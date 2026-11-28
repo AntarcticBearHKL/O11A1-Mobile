@@ -513,12 +513,12 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     }
     dockScrollAccumulator += delta
     if delta > 0, !dockHidden, position > 24,
-       dockScrollAccumulator > 20, now - dockLastChange > 0.24 {
+       dockScrollAccumulator > 44, now - dockLastChange > 0.24 {
       dockScrollAccumulator = 0
       dockLastChange = now
       setDockHidden(true, animated: true)
     } else if delta < 0, dockHidden,
-              dockScrollAccumulator < -26, now - dockLastChange > 0.32 {
+              dockScrollAccumulator < -16, now - dockLastChange > 0.18 {
       dockScrollAccumulator = 0
       dockLastChange = now
       setDockHidden(false, animated: true)
