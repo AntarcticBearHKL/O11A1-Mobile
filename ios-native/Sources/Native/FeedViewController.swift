@@ -306,7 +306,6 @@ final class FeedViewController: UIViewController,
   }
 
   private func finish(_ values: [VideoItem], reset: Bool) {
-    let maxFeedItems = 40
     var appendStart = items.count
     if reset {
       unloadPreviewMedia()
@@ -319,10 +318,6 @@ final class FeedViewController: UIViewController,
       for item in values where !existing.contains("\(item.bvid)-\(item.roomId)") {
         incoming.append(item)
         existing.insert("\(item.bvid)-\(item.roomId)")
-      }
-      let overflow = items.count + incoming.count - maxFeedItems
-      if overflow > 0 {
-        trimOldItems(overflow)
       }
       appendStart = items.count
       items.append(contentsOf: incoming)
@@ -352,26 +347,6 @@ final class FeedViewController: UIViewController,
     }
   }
 
-  /// Keep the live feed bounded. The stream is forward-only, so once a new
-  /// page arrives the oldest rows and their media can be released instead of
-  /// letting the list (and its image/player memory) grow forever.
-  private func trimOldItems(_ count: Int) {
-    guard count > 0, count < items.count else { return }
-    let beforeHeight = table.contentSize.height
-    let beforeOffset = table.contentOffset.y
-    unloadPreviewMedia()
-    items.removeFirst(count)
-    previewIndex = -1
-    table.reloadData()
-    table.layoutIfNeeded()
-    let removedHeight = beforeHeight - table.contentSize.height
-    if removedHeight > 0 {
-      table.setContentOffset(
-        CGPoint(x: 0, y: max(0, beforeOffset - removedHeight)), animated: false)
-    }
-    lastOffset = table.contentOffset.y
-  }
-
   private func prewarmCovers(from start: Int, count: Int) {
     guard !items.isEmpty else { return }
     let first = max(0, min(items.count - 1, start))
@@ -395,9 +370,14 @@ final class FeedViewController: UIViewController,
         table.reloadData()
         return
       }
-      var reloadPaths: [IndexPath] = []
-      if oldCount % 2 == 1 {
-        reloadPaths.append(IndexPath(row: oldRows - 1, section: 0))
+      if oldCount % 2 == 1, oldRows > 0,
+         let cell = table.cellForRow(
+           at: IndexPath(row: oldRows - 1, section: 0)) as? HomeGridCell {
+        let leftIndex = (oldRows - 1) * 2
+        let rightIndex = leftIndex + 1
+        if rightIndex < items.count {
+          cell.configure(items[leftIndex], items[rightIndex])
+        }
       }
       var insertPaths: [IndexPath] = []
       if newRows > oldRows {
@@ -405,14 +385,12 @@ final class FeedViewController: UIViewController,
           insertPaths.append(IndexPath(row: row, section: 0))
         }
       }
-      guard !reloadPaths.isEmpty || !insertPaths.isEmpty else { return }
+      guard !insertPaths.isEmpty else {
+        table.layoutIfNeeded()
+        return
+      }
       table.performBatchUpdates {
-        if !reloadPaths.isEmpty {
-          self.table.reloadRows(at: reloadPaths, with: .none)
-        }
-        if !insertPaths.isEmpty {
-          self.table.insertRows(at: insertPaths, with: .none)
-        }
+        self.table.insertRows(at: insertPaths, with: .none)
       }
     } else {
       var insertPaths: [IndexPath] = []
