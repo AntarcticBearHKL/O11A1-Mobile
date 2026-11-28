@@ -129,9 +129,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var contentReady = false
   private var panDirectionDecided = false
   private var contentController: PlayerContentViewController?
-  private var settingsPanel: PlayerSettingsViewController?
+  private var settingsPanel: SettingsSheetViewController?
   private var isLandscapePlayer = false
-  private var loopOn = false
+  private var loopMode = PlaybackLoopMode.stored
+  private var loopQueue: [VideoItem] = []
+  private var loopIndex = 0
+  private var loadingNextLoop = false
+  private var advancingLoop = false
   private var controlsVisible = true
   private let panelSlideDistance: CGFloat = 28
   private let playerPanelHeight: CGFloat = 100
@@ -631,6 +635,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self?.applyLoadStatus(status)
     }
     engine.refreshLoadStatus()
+    applyLoopMode()
     engine.onPipStart = { [weak self] in
       self?.systemPipDidStart()
     }
@@ -672,7 +677,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     if let handoff = previewHandoff, let adopted = handoff.engine {
       handoffLowReady = true
       adopted.playerLayer.videoGravity = .resizeAspect
-      adopted.setLoop(loopOn)
+      adopted.setLoop(loopMode == .single)
+      adopted.onEnd = { [weak self] in self?.handlePlaybackEnded() }
       if handoff.quality > 0 {
         currentQuality = handoff.quality
       }
@@ -698,7 +704,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         headers: BiliAPI.shared.mediaHeaders,
         autoplay: false,
         muted: false,
-        loop: false,
+        loop: loopMode == .single,
         startAt: 0
       )
       if userPaused { engine.pause() }
@@ -1353,7 +1359,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let content = PlayerContentViewController(item: item)
     content.initialQuality = currentQuality
     content.initialDanmakuOn = danmakuOverlay.enabled
-    content.initialLoopOn = loopOn
+    content.initialLoopOn = loopMode == .single
     content.onSelectRelated = { [weak self] value in self?.replace(with: value) }
     content.onSelectPage = { [weak self] page in self?.selectPage(page) }
     content.onProfile = { [weak self] mid in self?.onProfile?(mid) }
@@ -1374,9 +1380,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self.danmakuToggle.alpha = self.danmakuOverlay.enabled ? 1 : 0.45
     }
     content.onLoop = { [weak self] on in
-      guard let self = self else { return }
-      self.loopOn = on
-      self.engine.setLoop(on)
+      self?.setLoopMode(on ? .single : .off)
     }
     content.onPullDown = { [weak self] progress in self?.commentsPull(progress) }
     content.onPullDownEnded = { [weak self] complete in
@@ -1662,7 +1666,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             headers: BiliAPI.shared.mediaHeaders,
             autoplay: !self.userPaused,
             muted: false,
-            loop: false,
+            loop: self.loopMode == .single,
             startAt: startAt
           )
           if self.userPaused { self.engine.pause() }
@@ -1766,7 +1770,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     previous.stopPip()
     previous.stop()
     engine = upgrade
-    upgrade.setLoop(loopOn)
+    upgrade.setLoop(loopMode == .single)
     upgrade.onLoadStatus = { [weak self] status in
       self?.applyLoadStatus(status)
     }
@@ -1795,6 +1799,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self?.restoreFromSystemPiP(stopPip: false)
     }
     qualityLabel.text = pendingUpgradeLabel
+    applyLoopMode()
     view.setNeedsLayout()
   }
 
@@ -2233,6 +2238,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   private func replace(with value: VideoItem) {
     guard value.bvid != item.bvid || value.roomId != item.roomId else { return }
+    if !advancingLoop {
+      loopQueue = []
+      loopIndex = 0
+      loadingNextLoop = false
+    }
     closeSettingsPanel()
     stopLiveChat()
     cancelUpgradePreload()
@@ -2268,7 +2278,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       item: value,
       quality: currentQuality,
       danmaku: danmakuOverlay.enabled,
-      loop: loopOn,
+      loop: loopMode == .single,
       select: .comments
     )
     view.setNeedsLayout()
@@ -2292,51 +2302,144 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private func openSettingsPanel() {
     guard settingsPanel == nil else { return }
     hideControls()
-    let panel = PlayerSettingsViewController(
-      quality: currentQuality,
-      danmaku: danmakuOverlay.enabled,
-      loop: loopOn)
-    panel.onQuality = { [weak self] qn in
-      guard let self = self else { return }
-      self.currentQuality = qn
-      ThemeManager.shared.quality = qn
-      self.loadQuality(qn)
+    let panel = SettingsSheetViewController(
+      title: "播放设置", rows: playbackSettingsRows())
+    panel.onClose = { [weak self] in
+      self?.settingsPanel = nil
+      self?.setNeedsStatusBarAppearanceUpdate()
     }
-    panel.onDanmaku = { [weak self] on in
-      self?.danmakuOverlay.setEnabled(on)
-      UserDefaults.standard.set(on, forKey: "danmaku_enabled")
-      self?.danmakuToggle.alpha = on ? 1 : 0.45
-    }
-    panel.onLoop = { [weak self] on in
-      guard let self = self else { return }
-      self.loopOn = on
-      self.engine.setLoop(on)
-    }
-    panel.onClose = { [weak self] in self?.closeSettingsPanel() }
-    addChild(panel)
-    panel.view.frame = view.bounds
-    panel.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    view.addSubview(panel.view)
-    panel.didMove(toParent: self)
     settingsPanel = panel
+    present(panel, animated: false)
     setNeedsStatusBarAppearanceUpdate()
-    panel.view.alpha = 0
-    UIView.animate(withDuration: 0.3) {
-      panel.view.alpha = 1
-    }
   }
 
   private func closeSettingsPanel() {
     guard let panel = settingsPanel else { return }
     settingsPanel = nil
     setNeedsStatusBarAppearanceUpdate()
-    panel.willMove(toParent: nil)
-    UIView.animate(withDuration: 0.24) {
-      panel.view.alpha = 0
-    } completion: { _ in
-      panel.view.removeFromSuperview()
-      panel.removeFromParent()
+    panel.dismiss(animated: false)
+  }
+
+  private func playbackSettingsRows() -> [SettingsSheetRow] {
+    var rows: [SettingsSheetRow] = [.section("画质")]
+    rows.append(.gridChoices(
+      label: "当前画质", options: PlaybackSettings.qualityOptions,
+      selected: PlaybackSettings.qualityName(currentQuality), columns: 3) {
+      [weak self] name in
+      guard let self = self else { return }
+      let qn = PlaybackSettings.qualityValue(name)
+      self.currentQuality = qn
+      ThemeManager.shared.quality = qn
+      self.loadQuality(qn, fastStart: false)
+    })
+    rows.append(.gridChoices(
+      label: "默认画质", options: PlaybackSettings.qualityOptions,
+      selected: PlaybackSettings.defaultQualityName(), columns: 3) { name in
+      UserDefaults.standard.set(name, forKey: "o11a1.defaultQuality")
+    })
+    rows.append(.section("播放"))
+    rows.append(.gridChoices(
+      label: "循环模式", options: PlaybackSettings.loopOptions,
+      selected: loopMode.title, columns: 3) { [weak self] name in
+      self?.setLoopMode(PlaybackLoopMode.from(title: name))
+    })
+
+    let defaults = UserDefaults.standard
+    rows.append(.section("弹幕"))
+    rows.append(.toggle(
+      label: "弹幕显示", detail: nil, isOn: danmakuOverlay.enabled) {
+      [weak self] on in
+      self?.danmakuOverlay.setEnabled(on)
+      UserDefaults.standard.set(on, forKey: "danmaku_enabled")
+      self?.danmakuToggle.alpha = on ? 1 : 0.45
+    })
+    rows.append(.slider(
+      label: "不透明度", min: 0, max: 100,
+      value: defaults.object(forKey: "danmaku_opacity") == nil
+        ? 88 : defaults.float(forKey: "danmaku_opacity"),
+      unit: "%", step: 1, format: nil) { [weak self] value in
+      UserDefaults.standard.set(value, forKey: "danmaku_opacity")
+      self?.danmakuOverlay.applyStoredSettings()
+    })
+    rows.append(.slider(
+      label: "字号", min: 50, max: 150,
+      value: defaults.object(forKey: "danmaku_size") == nil
+        ? 100 : defaults.float(forKey: "danmaku_size"),
+      unit: "%", step: 1, format: nil) { [weak self] value in
+      UserDefaults.standard.set(value, forKey: "danmaku_size")
+      self?.danmakuOverlay.applyStoredSettings()
+    })
+    rows.append(.slider(
+      label: "速度", min: 50, max: 200,
+      value: defaults.object(forKey: "danmaku_speed") == nil
+        ? 100 : defaults.float(forKey: "danmaku_speed"),
+      unit: "", step: 1,
+      format: { String(format: "%.1f×", Double($0) / 100.0) }) {
+      [weak self] value in
+      UserDefaults.standard.set(value, forKey: "danmaku_speed")
+      self?.danmakuOverlay.applyStoredSettings()
+    })
+    rows.append(.slider(
+      label: "显示区域", min: DanmakuSettings.areaMinimum,
+      max: DanmakuSettings.areaMaximum,
+      value: DanmakuSettings.areaPercent(),
+      unit: "%", step: DanmakuSettings.areaStep, format: nil) {
+      [weak self] value in
+      DanmakuSettings.setAreaPercent(value)
+      self?.danmakuOverlay.applyStoredSettings()
+    })
+    rows.append(.toggle(
+      label: "分布密度", detail: nil,
+      isOn: defaults.object(forKey: "danmaku_density") == nil
+        ? true : defaults.bool(forKey: "danmaku_density")) {
+      [weak self] value in
+      UserDefaults.standard.set(value, forKey: "danmaku_density")
+      self?.danmakuOverlay.applyStoredSettings()
+    })
+    return rows
+  }
+
+  private func setLoopMode(_ mode: PlaybackLoopMode) {
+    loopMode = mode
+    mode.store()
+    applyLoopMode()
+  }
+
+  private func applyLoopMode() {
+    let single = loopMode == .single
+    engine.setLoop(single)
+    upgradeEngine?.setLoop(single)
+    engine.onEnd = { [weak self] in self?.handlePlaybackEnded() }
+    upgradeEngine?.onEnd = { [weak self] in self?.handlePlaybackEnded() }
+  }
+
+  private func handlePlaybackEnded() {
+    guard loopMode == .list, !closing, !loadingNextLoop else { return }
+    loadingNextLoop = true
+    if loopQueue.isEmpty {
+      BiliAPI.shared.related(item.bvid) { [weak self] result in
+        guard let self = self else { return }
+        self.loadingNextLoop = false
+        guard case .success(let values) = result else { return }
+        self.loopQueue = values.filter { $0.bvid != self.item.bvid }
+        self.loopIndex = 0
+        self.playNextLoopItem()
+      }
+    } else {
+      loadingNextLoop = false
+      playNextLoopItem()
     }
+  }
+
+  private func playNextLoopItem() {
+    guard loopMode == .list, !loopQueue.isEmpty else { return }
+    if loopIndex >= loopQueue.count { loopIndex = 0 }
+    let next = loopQueue[loopIndex]
+    loopIndex = (loopIndex + 1) % loopQueue.count
+    guard next.bvid != item.bvid else { return }
+    advancingLoop = true
+    replace(with: next)
+    advancingLoop = false
   }
 
   func testOpenDetail() {

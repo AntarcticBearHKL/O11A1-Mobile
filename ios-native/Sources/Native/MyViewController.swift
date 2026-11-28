@@ -287,12 +287,11 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
         ThemeManager.shared.quality = self.qualityValue(name)
       }
     })
-    rows.append(.gridChoices(label: "当前画质", options: options,
-                             selected: qualityName(ThemeManager.shared.quality),
-                             columns: 3) {
-      [weak self] name in
-      guard let self = self else { return }
-      ThemeManager.shared.quality = self.qualityValue(name)
+    rows.append(.gridChoices(label: "循环模式",
+                             options: PlaybackSettings.loopOptions,
+                             selected: PlaybackLoopMode.stored.title,
+                             columns: 3) { name in
+      PlaybackLoopMode.from(title: name).store()
     })
     presentSheet(SettingsSheetViewController(title: "播放", rows: rows))
   }

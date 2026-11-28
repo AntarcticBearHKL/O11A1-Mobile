@@ -33,6 +33,8 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private let titleLabel = UILabel()
   private let dateLabel = UILabel()
   private let bvidLabel = UILabel()
+  private let playLabel = UILabel()
+  private let copyButton = UIButton(type: .system)
   private let timeLabel = UILabel()
   private let avatar = UIImageView()
   private let ownerName = UILabel()
@@ -222,16 +224,47 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
 
     let meta = UIStackView()
     meta.axis = .horizontal
-    meta.spacing = 10
+    meta.spacing = 6
     meta.alignment = .center
-    [dateLabel, bvidLabel, timeLabel].forEach {
-      $0.font = NativeTheme.numberFont(10.5)
-      $0.textColor = NativeTheme.tertiary
+
+    bvidLabel.font = NativeTheme.numberFont(10.5)
+    bvidLabel.textColor = NativeTheme.tertiary
+    bvidLabel.text = item.bvid
+    bvidLabel.lineBreakMode = .byTruncatingTail
+
+    let copyConfig = UIImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+    copyButton.setImage(UIImage(systemName: "doc.on.doc", withConfiguration: copyConfig),
+                        for: .normal)
+    copyButton.tintColor = NativeTheme.tertiary
+    copyButton.addTarget(self, action: #selector(copyBvid), for: .touchUpInside)
+    copyButton.translatesAutoresizingMaskIntoConstraints = false
+    copyButton.widthAnchor.constraint(equalToConstant: 18).isActive = true
+    copyButton.heightAnchor.constraint(equalToConstant: 18).isActive = true
+
+    let bvidRow = UIStackView(arrangedSubviews: [bvidLabel, copyButton])
+    bvidRow.axis = .horizontal
+    bvidRow.spacing = 5
+    bvidRow.alignment = .center
+
+    playLabel.font = NativeTheme.numberFont(10.5)
+    playLabel.textColor = NativeTheme.playCountColor(item.play)
+    playLabel.text = (item.playText.isEmpty ? o11a1Count(item.play) : item.playText) + "播放"
+
+    dateLabel.font = NativeTheme.numberFont(10.5)
+    dateLabel.textColor = NativeTheme.freshnessColor(item.pubdate)
+    dateLabel.text = Self.dateText(item.pubdate)
+
+    let metaDot = UILabel()
+    metaDot.text = "·"
+    metaDot.font = NativeTheme.numberFont(10.5)
+    metaDot.textColor = NativeTheme.tertiary
+
+    let metaSpacer = UIView()
+    metaSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    metaSpacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    [bvidRow, metaSpacer, playLabel, metaDot, dateLabel].forEach {
       meta.addArrangedSubview($0)
     }
-    dateLabel.text = Self.dateText(item.pubdate)
-    bvidLabel.text = item.bvid.isEmpty ? "" : item.bvid
-    timeLabel.text = item.duration
     stack.addArrangedSubview(meta)
 
     let author = UIView()
@@ -246,46 +279,34 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     avatar.layer.cornerRadius = 21
     avatar.backgroundColor = NativeTheme.tertiary.withAlphaComponent(0.2)
     ImageLoader.shared.load(item.ownerFace, into: avatar, placeholder: nil)
-    author.addSubview(avatar)
+    avatar.translatesAutoresizingMaskIntoConstraints = false
+    avatar.widthAnchor.constraint(equalToConstant: 42).isActive = true
+    avatar.heightAnchor.constraint(equalToConstant: 42).isActive = true
 
     ownerName.text = item.owner
     ownerName.font = UIFont.systemFont(ofSize: 16, weight: .bold)
     ownerName.textColor = NativeTheme.foreground
     ownerName.numberOfLines = 1
+    ownerName.lineBreakMode = .byTruncatingTail
 
-    ownerMeta.text = item.mid > 0 ? "UID \(item.mid) · 点击进入主页" : "UP 主"
-    ownerMeta.font = NativeTheme.bodyFont(10)
-    ownerMeta.textColor = NativeTheme.secondary
-
-    let identity = UIStackView(arrangedSubviews: [ownerName, ownerMeta])
-    identity.axis = .vertical
-    identity.alignment = .fill
-    identity.spacing = 3
+    let identity = UIStackView(arrangedSubviews: [avatar, ownerName])
+    identity.axis = .horizontal
+    identity.alignment = .center
+    identity.spacing = 10
     author.addSubview(identity)
-
-    let go = UILabel()
-    go.text = "主页 ›"
-    go.font = NativeTheme.bodyFont(11)
-    go.textColor = NativeTheme.navBlue
-    author.addSubview(go)
 
     authorButton.backgroundColor = .clear
     authorButton.addTarget(self, action: #selector(authorTapped), for: .touchUpInside)
     author.addSubview(authorButton)
 
-    [avatar, identity, go, authorButton].forEach {
+    [identity, authorButton].forEach {
       $0.translatesAutoresizingMaskIntoConstraints = false
     }
     NSLayoutConstraint.activate([
-      avatar.leadingAnchor.constraint(equalTo: author.leadingAnchor, constant: 14),
-      avatar.centerYAnchor.constraint(equalTo: author.centerYAnchor),
-      avatar.widthAnchor.constraint(equalToConstant: 42),
-      avatar.heightAnchor.constraint(equalToConstant: 42),
-      identity.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 10),
-      identity.trailingAnchor.constraint(lessThanOrEqualTo: go.leadingAnchor, constant: -8),
+      identity.centerXAnchor.constraint(equalTo: author.centerXAnchor),
       identity.centerYAnchor.constraint(equalTo: author.centerYAnchor),
-      go.trailingAnchor.constraint(equalTo: author.trailingAnchor, constant: -14),
-      go.centerYAnchor.constraint(equalTo: author.centerYAnchor),
+      identity.leadingAnchor.constraint(greaterThanOrEqualTo: author.leadingAnchor, constant: 14),
+      identity.trailingAnchor.constraint(lessThanOrEqualTo: author.trailingAnchor, constant: -14),
       authorButton.leadingAnchor.constraint(equalTo: author.leadingAnchor),
       authorButton.trailingAnchor.constraint(equalTo: author.trailingAnchor),
       authorButton.topAnchor.constraint(equalTo: author.topAnchor),
@@ -305,10 +326,10 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     actions.heightAnchor.constraint(equalToConstant: detailCardHeight).isActive = true
 
     shareTitle.text = "分享"
-    shareTitle.font = UIFont.systemFont(ofSize: 11, weight: .medium)
+    shareTitle.font = UIFont.systemFont(ofSize: 11, weight: .semibold)
     shareTitle.textColor = NativeTheme.secondary
     for value in [likeValue, favoriteValue, coinValue] {
-      value.font = UIFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
+      value.font = UIFont.monospacedDigitSystemFont(ofSize: 10, weight: .semibold)
       value.textColor = NativeTheme.secondary
       value.textAlignment = .center
       value.text = "0"
@@ -402,10 +423,6 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       title: "弹幕设置", value: danmakuSetting, chevron: true,
       action: #selector(toggleDanmakuSetting)))
     settingsStack.addArrangedSubview(makeDanmakuPanel())
-    settingsStack.addArrangedSubview(settingsSeparator())
-    settingsStack.addArrangedSubview(makeSettingsRow(
-      title: "循环模式", value: loopSetting, chevron: false,
-      action: #selector(toggleLoopSetting)))
 
     updateSettingsLabels()
 
@@ -831,7 +848,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
                                count: UILabel?, action: Selector) -> UIView {
     let container = UIView()
     icon.image = UIImage(systemName: symbol, withConfiguration:
-      UIImage.SymbolConfiguration(pointSize: 21, weight: .regular))
+      UIImage.SymbolConfiguration(pointSize: 21, weight: .semibold))
     icon.tintColor = NativeTheme.foreground
     icon.contentMode = .scaleAspectFit
     icon.translatesAutoresizingMaskIntoConstraints = false
@@ -841,7 +858,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     let column = UIStackView()
     column.axis = .vertical
     column.alignment = .center
-    column.spacing = 1
+    column.spacing = 5
     column.addArrangedSubview(icon)
     if let title = title {
       column.addArrangedSubview(title)
@@ -875,7 +892,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   }
 
   private func updateActions() {
-    let config = UIImage.SymbolConfiguration(pointSize: 21, weight: .regular)
+    let config = UIImage.SymbolConfiguration(pointSize: 21, weight: .semibold)
     likeIcon.image = UIImage(systemName: liked ? "hand.thumbsup.fill" : "hand.thumbsup",
                              withConfiguration: config)
     likeIcon.tintColor = liked ? NativeTheme.warmOrange : NativeTheme.foreground
@@ -964,17 +981,26 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       self.detailMid = o11a1Int64(json["mid"])
       self.detailAid = o11a1Int64(json["aid"])
       self.detailBvid = o11a1String(json["bvid"])
-      if self.detailMid > 0 {
-        self.ownerMeta.text = "UID \(self.detailMid) · 点击进入主页"
+      if !self.detailBvid.isEmpty {
+        self.bvidLabel.text = self.detailBvid
       }
       let duration = o11a1String(json["duration"])
       if !duration.isEmpty {
         self.timeLabel.text = duration
         self.durationChip.text = duration
       }
-      let date = Self.dateText(o11a1Int64(json["pubdate"]))
-      if !date.isEmpty { self.dateLabel.text = date }
+      let pubdate = o11a1Int64(json["pubdate"])
+      let date = Self.dateText(pubdate)
+      if !date.isEmpty {
+        self.dateLabel.text = date
+        self.dateLabel.textColor = NativeTheme.freshnessColor(pubdate)
+      }
       if let stat = json["stat"] as? [String: Any] {
+        let views = o11a1Int64(stat["view"])
+        if views > 0 {
+          self.playLabel.text = o11a1Count(views) + "播放"
+          self.playLabel.textColor = NativeTheme.playCountColor(views)
+        }
         self.likeCount = o11a1Int64(stat["like"])
         self.favoriteCount = o11a1Int64(stat["favorite"])
         self.coinCount = o11a1Int64(stat["coin"])
@@ -991,7 +1017,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     let seconds = raw > 100_000_000_000 ? raw / 1000 : raw
     let date = Date(timeIntervalSince1970: TimeInterval(seconds))
     let formatter = DateFormatter()
-    formatter.dateFormat = "yyyy-MM-dd"
+    formatter.dateFormat = "yyyy年M月d日"
     return formatter.string(from: date)
   }
 
@@ -999,6 +1025,13 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     let mid = detailMid > 0 ? detailMid : item.mid
     guard mid > 0 else { return }
     onProfile?(mid)
+  }
+
+  @objc private func copyBvid() {
+    let bvid = detailBvid.isEmpty ? item.bvid : detailBvid
+    guard !bvid.isEmpty else { return }
+    UIPasteboard.general.string = bvid
+    UIImpactFeedbackGenerator(style: .light).impactOccurred()
   }
 
   private func setDescription(_ text: String) {

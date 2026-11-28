@@ -31,6 +31,7 @@ final class VideoEngine: NSObject {
   var onReady: (() -> Void)?
   var onError: ((String) -> Void)?
   var onLoadStatus: ((VideoLoadStatus) -> Void)?
+  var onEnd: (() -> Void)?
   var onPipStart: (() -> Void)?
   var onPipClose: (() -> Void)?
   var onPipRestore: (() -> Void)?
@@ -254,9 +255,13 @@ final class VideoEngine: NSObject {
       object: item,
       queue: .main
     ) { [weak self] _ in
-      guard let self = self, self.loop else { return }
-      self.player.seek(to: .zero)
-      self.player.play()
+      guard let self = self else { return }
+      if self.loop {
+        self.player.seek(to: .zero)
+        self.player.play()
+      } else {
+        self.onEnd?()
+      }
     }
     player.replaceCurrentItem(with: item)
     player.playImmediately(atRate: 1)
