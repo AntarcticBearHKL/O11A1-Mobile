@@ -1037,7 +1037,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func miniFrameInParent() -> CGRect {
-    let parent = view.superview ?? view
+    let parent: UIView = view.superview ?? view
     let bounds = parent.bounds
     let width = min(212, max(156, bounds.width * 0.5))
     let height = width * 9.0 / 16.0
@@ -1168,7 +1168,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     guard isMiniWindow else { return }
     isMiniWindow = false
     miniCloseButton.isHidden = true
-    let parent = view.superview ?? view
+    let parent: UIView = view.superview ?? view
     view.frame = parent.bounds
     view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     view.layer.cornerRadius = 0
