@@ -1,6 +1,7 @@
 import UIKit
 
-final class ModuleListViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
+final class ModuleListViewController: UIViewController, UITableViewDataSource, UITableViewDelegate,
+  UIGestureRecognizerDelegate {
   enum Mode {
     case hot, rank, bangumi, movie, live, zone, favorites, history, following, dynamic, messages, season, space
   }
@@ -26,6 +27,11 @@ final class ModuleListViewController: UIViewController, UITableViewDataSource, U
   private var filterIndex = 0
   private let filterLabels: [String]
   private let filterValues: [Int]
+  private var tableTopConstraint: NSLayoutConstraint?
+  private var closePan: UIPanGestureRecognizer?
+  private var closeStartX: CGFloat = 0
+  private var closeDirection: CGFloat = 1
+  private var interactiveClosing = false
 
   init(mode: Mode, targetId: Int64 = 0, title: String) {
     self.mode = mode
@@ -101,6 +107,8 @@ final class ModuleListViewController: UIViewController, UITableViewDataSource, U
     [backButton, titleLabel, filterStack, table, status, loginButton].forEach {
       $0.translatesAutoresizingMaskIntoConstraints = false
     }
+    let tableTop = table.topAnchor.constraint(equalTo: filterStack.bottomAnchor, constant: 4)
+    tableTopConstraint = tableTop
     NSLayoutConstraint.activate([
       backButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
       backButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 4),
@@ -118,7 +126,7 @@ final class ModuleListViewController: UIViewController, UITableViewDataSource, U
 
       table.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       table.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      table.topAnchor.constraint(equalTo: filterStack.bottomAnchor, constant: 4),
+      tableTop,
       table.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
       status.centerXAnchor.constraint(equalTo: view.centerXAnchor),
@@ -129,7 +137,86 @@ final class ModuleListViewController: UIViewController, UITableViewDataSource, U
       loginButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
       loginButton.topAnchor.constraint(equalTo: status.bottomAnchor, constant: 10),
     ])
+    if mode == .history {
+      configureHistoryPage()
+      let pan = UIPanGestureRecognizer(target: self,
+                                       action: #selector(handleHistoryClosePan(_:)))
+      pan.delegate = self
+      view.addGestureRecognizer(pan)
+      closePan = pan
+      table.panGestureRecognizer.require(toFail: pan)
+    }
     load(reset: true)
+  }
+
+  private func configureHistoryPage() {
+    backButton.isHidden = true
+    titleLabel.isHidden = true
+    filterStack.isHidden = true
+    tableTopConstraint?.isActive = false
+    table.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor).isActive = true
+    table.contentInsetAdjustmentBehavior = .never
+    table.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 12, right: 0)
+  }
+
+  @objc private func handleHistoryClosePan(_ gesture: UIPanGestureRecognizer) {
+    guard mode == .history, !interactiveClosing else { return }
+    let width = max(1, view.bounds.width)
+    let distance = closeDirection > 0
+      ? max(0, gesture.translation(in: view).x)
+      : max(0, -gesture.translation(in: view).x)
+    switch gesture.state {
+    case .changed:
+      view.transform = CGAffineTransform(translationX: closeDirection * distance, y: 0)
+    case .ended, .cancelled:
+      let velocity = gesture.velocity(in: view).x * closeDirection
+      if distance > width * 0.24 || velocity > 350 {
+        interactiveClosing = true
+        UIView.animate(withDuration: 0.24, delay: 0,
+                       options: [.curveEaseIn, .beginFromCurrentState]) {
+          self.view.transform = CGAffineTransform(
+            translationX: width * self.closeDirection, y: 0)
+        } completion: { _ in
+          self.view.isHidden = true
+          self.onClose?()
+        }
+      } else {
+        UIView.animate(withDuration: 0.24, delay: 0,
+                       options: [.curveEaseOut, .beginFromCurrentState]) {
+          self.view.transform = .identity
+        }
+      }
+    default:
+      break
+    }
+  }
+
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldReceive touch: UITouch) -> Bool {
+    if gestureRecognizer === closePan {
+      closeStartX = touch.location(in: view).x
+    }
+    return true
+  }
+
+  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+          pan === closePan else { return true }
+    let width = max(1, view.bounds.width)
+    let translation = pan.translation(in: view)
+    let velocity = pan.velocity(in: view)
+    let horizontal = abs(translation.x) > abs(translation.y) * 1.15
+      || abs(velocity.x) > abs(velocity.y) * 1.15
+    guard horizontal else { return false }
+    if closeStartX < width / 6.0 {
+      closeDirection = 1
+      return translation.x > 1 || velocity.x > 1
+    }
+    if closeStartX > width * 5.0 / 6.0 {
+      closeDirection = -1
+      return translation.x < -1 || velocity.x < -1
+    }
+    return false
   }
 
   private func buildFilters() {
