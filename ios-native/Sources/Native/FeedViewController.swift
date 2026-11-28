@@ -309,8 +309,10 @@ final class FeedViewController: UIViewController,
       appendLoadedRows(from: oldCount)
     }
     let warmStart = reset ? 0 : oldCount
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-      self?.prewarmCovers(from: warmStart, count: 6)
+    if !reset {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+        self?.prewarmCovers(from: warmStart, count: 6)
+      }
     }
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
       self.startPreviewIfNeeded()

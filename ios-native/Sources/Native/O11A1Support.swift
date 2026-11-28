@@ -55,7 +55,7 @@ func o11a1HTTPS(_ raw: String) -> String {
 func o11a1DecodeEntities(_ raw: String) -> String {
   var text = raw
   let source = text as NSString
-  if let regex = try? NSRegularExpression(pattern: "&#(x?[0-9A-Fa-f]+);") {
+  if let regex = try? NSRegularExpression(pattern: "&#([xX]?[0-9A-Fa-f]+);") {
     let matches = regex.matches(in: text, range: NSRange(location: 0, length: source.length))
     let decoded = NSMutableString(string: text)
     for match in matches.reversed() {
