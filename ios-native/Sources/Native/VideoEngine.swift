@@ -150,7 +150,7 @@ final class VideoEngine: NSObject {
       endObserver = nil
     }
     resetSpeed()
-    publish(.connecting)
+    publish(.buffering)
     installStartedAt = O11A1Trace.now
     loggedPlaying = false
     lastBufferEmpty = nil
@@ -162,7 +162,7 @@ final class VideoEngine: NSObject {
       "AVURLAssetAllowsConstrainedNetworkAccess": true,
     ])
     let item = AVPlayerItem(asset: asset)
-    item.preferredForwardBufferDuration = 1
+    item.preferredForwardBufferDuration = 2
     statusObservation = item.observe(\.status, options: [.new, .initial]) { [weak self] observed, _ in
       guard let self = self else { return }
       if observed.status == .readyToPlay {

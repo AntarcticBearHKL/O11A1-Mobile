@@ -147,11 +147,6 @@ final class BiliAPI {
     }
   }
 
-  func cachedPlayQuality(_ item: VideoItem, qn: Int) -> PlaySource? {
-    guard !item.bvid.isEmpty else { return nil }
-    return playCache.get(playKey(item, qn: qn))
-  }
-
   /// Warm a signed play URL in the background. The feed calls this for the
   /// rows just below the viewport, so both the next preview and the player's
   /// full-quality request can skip the playurl round-trip.
