@@ -106,6 +106,7 @@ final class O11A1BiliClient {
   private var cachedFolderId: Int64 = 0
   private var cachedWbiKey = ""
   private var cachedWbiAt: TimeInterval = 0
+  private var wbiRetryAt: TimeInterval = 0
 
   var port: Int = 0
 
@@ -554,6 +555,12 @@ final class O11A1BiliClient {
     ensureBuvid()
   }
 
+  private func invalidateWbiKey() {
+    cachedWbiKey = ""
+    cachedWbiAt = 0
+    wbiRetryAt = 0
+  }
+
   func play(bvid: String, cid: Int64, qns: [Int]) -> Data {
     guard !bvid.isEmpty else { return o11a1Error("缺少视频 BV 号") }
     ensureBuvid()
@@ -618,7 +625,10 @@ final class O11A1BiliClient {
         if code == -404 || code == -101 || code == -400 { break }
         // A rejected WBI signature would fail every signed variant; jump to
         // the unsigned endpoint instead of burning the whole budget.
-        if code == -403 { signedBlocked = true }
+        if code == -403 {
+          signedBlocked = true
+          invalidateWbiKey()
+        }
       }
       return PlayResolution(
         output: nil, code: lastCode, message: lastMessage, dashOnly: sawDashOnly)
@@ -1951,10 +1961,19 @@ final class O11A1BiliClient {
     if !cachedWbiKey.isEmpty && now - cachedWbiAt < 6 * 60 * 60 {
       return cachedWbiKey
     }
-    guard let data = navData(), let wbi = data["wbi_img"] as? [String: Any] else { return "" }
+    // If the nav request is being rate limited, do not fire one for every
+    // playurl variant; wait out the risk-control window.
+    if now < wbiRetryAt { return "" }
+    guard let data = navData(), let wbi = data["wbi_img"] as? [String: Any] else {
+      wbiRetryAt = now + 60
+      return ""
+    }
     let img = wbiFileKey(o11a1String(wbi["img_url"]))
     let sub = wbiFileKey(o11a1String(wbi["sub_url"]))
-    if img.isEmpty || sub.isEmpty { return "" }
+    if img.isEmpty || sub.isEmpty {
+      wbiRetryAt = now + 60
+      return ""
+    }
     let raw = Array(img + sub)
     var mixed = ""
     for index in Self.wbiMixinKey where index < raw.count {
@@ -1962,6 +1981,7 @@ final class O11A1BiliClient {
     }
     cachedWbiKey = String(mixed.prefix(32))
     cachedWbiAt = now
+    wbiRetryAt = 0
     return cachedWbiKey
   }
 
