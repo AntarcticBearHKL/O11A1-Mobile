@@ -510,28 +510,22 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   @objc private func handleDismissPan(_ gesture: UIPanGestureRecognizer) {
     let reference = view.superview ?? view
     let width = max(1, view.bounds.width)
-    let raw = gesture.translation(in: reference).x
-    let distance = dismissDirection > 0 ? max(0, raw) : max(0, -raw)
+    let distance = dismissDirection > 0
+      ? max(0, gesture.translation(in: reference).x)
+      : max(0, -gesture.translation(in: reference).x)
     switch gesture.state {
     case .began:
       view.endEditing(true)
     case .changed:
-      // The search page is presented from the right, so every dismissal leaves
-      // to the right as well. The left-edge drag tracks the finger; the
-      // right-edge back-swipe only nudges the page, then releases it to the
-      // right, instead of dragging it left and then reversing direction.
-      let progress = dismissDirection > 0
-        ? 1 - distance / width
-        : 1 - min(28, distance) / width
-      onInteractiveClose?(max(0, min(1, progress)), 1)
+      // Follow the finger: a right swipe from the left edge leaves to the
+      // right, a left swipe from the right edge leaves to the left. The page
+      // must never reverse direction when the finger is released.
+      onInteractiveClose?(max(0, min(1, 1 - distance / width)), dismissDirection)
     case .ended, .cancelled:
-      let velocity = dismissDirection > 0
-        ? gesture.velocity(in: view).x
-        : -gesture.velocity(in: view).x
-      let threshold = dismissDirection > 0 ? width * 0.24 : width * 0.12
-      let shouldClose = distance > threshold || velocity > 350
+      let velocity = gesture.velocity(in: view).x * dismissDirection
+      let shouldClose = distance > width * 0.24 || velocity > 350
       if shouldClose { view.endEditing(true) }
-      onCloseSettled?(shouldClose, 1)
+      onCloseSettled?(shouldClose, dismissDirection)
     default:
       break
     }
