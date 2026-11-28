@@ -896,19 +896,21 @@ final class FeedViewController: UIViewController,
   }
 
   func openFirstForTest() {
-    guard !items.isEmpty else {
+    let requested = Int(ProcessInfo.processInfo.environment["O11A1_TEST_INDEX"] ?? "") ?? 0
+    guard items.count > requested else {
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
         self?.openFirstForTest()
       }
       return
     }
-    table.scrollToRow(at: IndexPath(row: 0, section: 0), at: .top, animated: false)
+    let row = HomeFeedLayout.isGrid ? requested / 2 : requested
+    table.scrollToRow(at: IndexPath(row: row, section: 0), at: .top, animated: false)
     table.layoutIfNeeded()
-    let cell = table.cellForRow(at: IndexPath(row: 0, section: 0))
+    let cell = table.cellForRow(at: IndexPath(row: row, section: 0))
     if let home = cell as? HomeCardCell {
-      open(items[0], source: home)
+      open(items[requested], source: home)
     } else if let grid = cell as? HomeGridCell {
-      open(items[0], source: grid.leftCard)
+      open(items[requested], source: grid.sourceView(for: requested % 2))
     } else {
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
         self?.openFirstForTest()

@@ -37,7 +37,11 @@ final class VideoEngine: NSObject {
 
   private var timeObserver: Any?
   private var statusObservation: NSKeyValueObservation?
+  private var bufferObservation: NSKeyValueObservation?
+  private var keepUpObservation: NSKeyValueObservation?
   private var rateObservation: NSKeyValueObservation?
+  private var lastBufferEmpty: Bool?
+  private var lastKeepUp: Bool?
   private var endObserver: NSObjectProtocol?
   private var backgroundObserver: NSObjectProtocol?
   private var pipController: AVPictureInPictureController?
@@ -85,6 +89,8 @@ final class VideoEngine: NSObject {
       NotificationCenter.default.removeObserver(observer)
     }
     statusObservation?.invalidate()
+    bufferObservation?.invalidate()
+    keepUpObservation?.invalidate()
     rateObservation?.invalidate()
     speedTimer?.invalidate()
   }
@@ -137,6 +143,8 @@ final class VideoEngine: NSObject {
       return
     }
     statusObservation?.invalidate()
+    bufferObservation?.invalidate()
+    keepUpObservation?.invalidate()
     if let observer = endObserver {
       NotificationCenter.default.removeObserver(observer)
       endObserver = nil
@@ -145,6 +153,8 @@ final class VideoEngine: NSObject {
     publish(.connecting)
     installStartedAt = O11A1Trace.now
     loggedPlaying = false
+    lastBufferEmpty = nil
+    lastKeepUp = nil
     O11A1Trace.mark("media", "\(traceName) install host=\(mediaURL.host ?? "?") startAt=\(String(format: "%.1f", startAt))")
     let asset = AVURLAsset(url: mediaURL, options: [
       "AVURLAssetHTTPHeaderFieldsKey": headers,
@@ -159,6 +169,11 @@ final class VideoEngine: NSObject {
         O11A1Trace.mark(
           "media",
           "\(self.traceName) ready duration=\(String(format: "%.1f", observed.duration.seconds)) \(O11A1Trace.since(self.installStartedAt))")
+        if let event = observed.accessLog()?.events.last {
+          O11A1Trace.mark(
+            "media",
+            "\(self.traceName) accessLog bytes=\(event.numberOfBytesTransferred) bitrate=\(Int(event.observedBitrate)) server=\(event.serverAddress ?? "-")")
+        }
         DispatchQueue.main.async {
           self.publish(.buffering)
           var start = self.startAt
@@ -177,8 +192,8 @@ final class VideoEngine: NSObject {
           if start > 0 {
             self.player.seek(
               to: CMTime(seconds: start, preferredTimescale: 600),
-              toleranceBefore: .zero,
-              toleranceAfter: .zero
+              toleranceBefore: CMTime(seconds: 0.3, preferredTimescale: 600),
+              toleranceAfter: CMTime(seconds: 0.3, preferredTimescale: 600)
             ) { _ in
               DispatchQueue.main.async(execute: finish)
             }
@@ -199,6 +214,32 @@ final class VideoEngine: NSObject {
             self.onError?(observed.error?.localizedDescription ?? "播放失败")
           }
         }
+      }
+    }
+    bufferObservation = item.observe(\.isPlaybackBufferEmpty, options: [.new]) {
+      [weak self] observed, _ in
+      DispatchQueue.main.async {
+        guard let self = self, let current = self.player.currentItem,
+              current === observed else { return }
+        let empty = observed.isPlaybackBufferEmpty
+        guard empty != self.lastBufferEmpty else { return }
+        self.lastBufferEmpty = empty
+        O11A1Trace.mark(
+          "media",
+          "\(self.traceName) bufferEmpty=\(empty) \(O11A1Trace.since(self.installStartedAt))")
+      }
+    }
+    keepUpObservation = item.observe(\.isPlaybackLikelyToKeepUp, options: [.new]) {
+      [weak self] observed, _ in
+      DispatchQueue.main.async {
+        guard let self = self, let current = self.player.currentItem,
+              current === observed else { return }
+        let keepUp = observed.isPlaybackLikelyToKeepUp
+        guard keepUp != self.lastKeepUp else { return }
+        self.lastKeepUp = keepUp
+        O11A1Trace.mark(
+          "media",
+          "\(self.traceName) keepUp=\(keepUp) \(O11A1Trace.since(self.installStartedAt))")
       }
     }
     endObserver = NotificationCenter.default.addObserver(
@@ -229,11 +270,13 @@ final class VideoEngine: NSObject {
     rateObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
       DispatchQueue.main.async {
         guard let self = self else { return }
-        if player.timeControlStatus == .playing, !self.loggedPlaying {
+        if player.timeControlStatus == .playing,
+           player.currentItem?.status == .readyToPlay,
+           !self.loggedPlaying {
           self.loggedPlaying = true
           O11A1Trace.mark(
             "media",
-            "\(self.traceName) firstFrame \(O11A1Trace.since(self.installStartedAt))")
+            "\(self.traceName) playbackStarted \(O11A1Trace.since(self.installStartedAt))")
         }
         self.onPlaying?(player.timeControlStatus == .playing)
         self.refreshLoadPhase()

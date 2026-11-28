@@ -331,6 +331,10 @@ final class HomeGridCell: UITableViewCell {
     updateRight(right)
   }
 
+  func sourceView(for column: Int) -> MiniVideoCardView {
+    return column == 1 ? rightCard : leftCard
+  }
+
   /// Fill the empty right slot without touching the already visible left
   /// cover. Reloading the whole cell here would briefly clear the left image.
   func updateRight(_ right: VideoItem?) {

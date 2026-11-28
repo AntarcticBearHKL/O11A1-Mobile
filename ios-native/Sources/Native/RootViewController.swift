@@ -71,6 +71,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
 
   override func viewDidLoad() {
     super.viewDidLoad()
+    if ProcessInfo.processInfo.environment["O11A1_HOME_GRID"] == "1" {
+      HomeFeedLayout.testGrid = true
+    }
     view.backgroundColor = NativeTheme.background
     ThemeManager.shared.apply()
     UIApplication.shared.isIdleTimerDisabled = true

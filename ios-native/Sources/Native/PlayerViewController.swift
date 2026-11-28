@@ -1660,6 +1660,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         O11A1Trace.mark(
           "player",
           "source qn=\(qn) upgrade=\(upgrade) label=\(source.qualityLabel) host=\(URL(string: source.url)?.host ?? "?") \(O11A1Trace.since(requestStarted))")
+        O11A1MediaProbe.probe(
+          urlString: source.url, headers: BiliAPI.shared.mediaHeaders)
         if upgrade {
           self.prepareQualityUpgrade(source)
         } else {
