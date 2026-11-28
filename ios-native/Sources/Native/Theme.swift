@@ -127,6 +127,16 @@ enum NativeTheme {
     }
   }
 
+  /// Flat frosted tint used by the search field; on a white page a white glass
+  /// disappears, so light mode uses a faint smoke tint instead.
+  static var inputGlass: UIColor {
+    UIColor { trait in
+      trait.userInterfaceStyle == .dark
+        ? UIColor(white: 1, alpha: 0.08)
+        : UIColor(white: 0, alpha: 0.055)
+    }
+  }
+
   static var barBorder: UIColor {
     UIColor { trait in
       trait.userInterfaceStyle == .dark

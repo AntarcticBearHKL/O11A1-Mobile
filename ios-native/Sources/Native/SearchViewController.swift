@@ -59,17 +59,18 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     blur.layer.mask = headMask
 
     fieldWrap.backgroundColor = .clear
-    fieldWrap.layer.cornerRadius = NativeTheme.cornerRadius
+    fieldWrap.layer.cornerRadius = 10
     fieldWrap.layer.cornerCurve = .continuous
-    fieldWrap.layer.borderWidth = 1
-    fieldWrap.layer.borderColor = NativeTheme.hairline.cgColor
+    fieldWrap.layer.borderWidth = 0
+    fieldWrap.layer.borderColor = UIColor.clear.cgColor
     view.addSubview(fieldWrap)
     fieldWrap.translatesAutoresizingMaskIntoConstraints = false
 
-    fieldBlur.layer.cornerRadius = NativeTheme.cornerRadius
+    fieldBlur.layer.cornerRadius = 10
     fieldBlur.layer.cornerCurve = .continuous
     fieldBlur.clipsToBounds = true
     fieldBlur.isUserInteractionEnabled = false
+    fieldBlur.contentView.backgroundColor = NativeTheme.inputGlass
     fieldWrap.addSubview(fieldBlur)
     fieldBlur.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
@@ -90,13 +91,13 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
 
     field.leftView = iconWrap
     field.leftViewMode = .always
-    field.font = NativeTheme.bodyFont(13)
+    field.font = NativeTheme.bodyFont(14)
     field.textColor = NativeTheme.foreground
     field.tintColor = NativeTheme.navBlue
     field.attributedPlaceholder = NSAttributedString(
       string: "搜索视频 / UP / 番剧",
       attributes: [.foregroundColor: NativeTheme.tertiary,
-                   .font: NativeTheme.bodyFont(13)])
+                   .font: NativeTheme.bodyFont(14)])
     field.returnKeyType = .search
     field.clearButtonMode = .whileEditing
     field.autocorrectionType = .no
@@ -138,7 +139,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
       fieldWrap.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 18),
       fieldWrap.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -18),
       fieldWrap.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 6),
-      fieldWrap.heightAnchor.constraint(equalToConstant: 44),
+      fieldWrap.heightAnchor.constraint(equalToConstant: 52),
 
       field.leadingAnchor.constraint(equalTo: fieldWrap.leadingAnchor, constant: 4),
       field.trailingAnchor.constraint(equalTo: fieldWrap.trailingAnchor, constant: -10),
@@ -241,9 +242,6 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
       cornerRadius: NativeTheme.cornerRadius).cgPath
     CATransaction.commit()
     updateTableInsets()
-    fieldWrap.layer.borderColor = fieldWrap.layer.borderWidth > 1
-      ? NativeTheme.navBlue.withAlphaComponent(0.5).cgColor
-      : NativeTheme.hairline.cgColor
   }
 
   override func viewSafeAreaInsetsDidChange() {
@@ -253,8 +251,10 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
-    fieldWrap.layer.borderColor = NativeTheme.hairline.cgColor
+    fieldWrap.layer.borderWidth = 0
+    fieldWrap.layer.borderColor = UIColor.clear.cgColor
     fieldWrap.backgroundColor = .clear
+    fieldBlur.contentView.backgroundColor = NativeTheme.inputGlass
     updateTypeDock()
   }
 
@@ -303,8 +303,8 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     table.setContentOffset(CGPoint(x: 0, y: -8), animated: false)
     statusLabel.text = nil
     emptyState()
-    fieldWrap.layer.borderWidth = 1
-    fieldWrap.layer.borderColor = NativeTheme.hairline.cgColor
+    fieldWrap.layer.borderWidth = 0
+    fieldWrap.layer.borderColor = UIColor.clear.cgColor
     fieldWrap.layer.shadowOpacity = 0
     if hot.isEmpty {
       loadHot()
@@ -359,17 +359,12 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   }
 
   func textFieldDidBeginEditing(_ textField: UITextField) {
-    fieldWrap.layer.borderWidth = 1.5
-    fieldWrap.layer.borderColor = NativeTheme.navBlue.withAlphaComponent(0.5).cgColor
-    fieldWrap.layer.shadowColor = NativeTheme.navBlue.cgColor
-    fieldWrap.layer.shadowOpacity = 0.12
-    fieldWrap.layer.shadowRadius = 3
-    fieldWrap.layer.shadowOffset = .zero
+    fieldWrap.layer.borderWidth = 0
+    fieldWrap.layer.shadowOpacity = 0
   }
 
   func textFieldDidEndEditing(_ textField: UITextField) {
-    fieldWrap.layer.borderWidth = 1
-    fieldWrap.layer.borderColor = NativeTheme.hairline.cgColor
+    fieldWrap.layer.borderWidth = 0
     fieldWrap.layer.shadowOpacity = 0
   }
 
@@ -515,6 +510,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
       : max(0, -gesture.translation(in: reference).x)
     switch gesture.state {
     case .began:
+      UIImpactFeedbackGenerator(style: .light).impactOccurred()
       view.endEditing(true)
     case .changed:
       // Follow the finger: a right swipe from the left edge leaves to the
@@ -524,7 +520,10 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     case .ended, .cancelled:
       let velocity = gesture.velocity(in: view).x * dismissDirection
       let shouldClose = distance > width * 0.24 || velocity > 350
-      if shouldClose { view.endEditing(true) }
+      if shouldClose {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        view.endEditing(true)
+      }
       onCloseSettled?(shouldClose, dismissDirection)
     default:
       break
