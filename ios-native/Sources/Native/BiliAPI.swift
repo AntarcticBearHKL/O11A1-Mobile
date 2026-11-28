@@ -187,12 +187,32 @@ final class BiliAPI {
       if source.url.isEmpty {
         completion(.failure(NativeError.message("没有可播放地址")))
       } else {
+        preferFastMirror(&source)
         if let cacheKey = cacheKey {
           playCache.set(cacheKey, source)
         }
         completion(.success(source))
       }
     }
+  }
+
+  /// Bilibili's html5 playurl response often lists an Akamai edge first and a
+  /// domestic bilivideo mirror as the backup. Akamai is frequently much slower
+  /// from mainland networks, so use the domestic URL as the primary instead of
+  /// waiting for a timeout/failover.
+  private func preferFastMirror(_ source: inout PlaySource) {
+    let primary = URL(string: source.url)?.host?.lowercased() ?? ""
+    let backup = URL(string: source.backup)?.host?.lowercased() ?? ""
+    guard !primary.isEmpty else { return }
+    if primary.contains("akamaized.net") {
+      O11A1Trace.mark("mirror", "primary=\(primary) backup=\(backup)")
+    }
+    guard primary.contains("akamaized.net"), !backup.isEmpty,
+          backup.contains("bilivideo.com") || backup.contains("hdslb.com") else {
+      return
+    }
+    swap(&source.url, &source.backup)
+    O11A1Trace.mark("mirror", "swapped to \(backup)")
   }
 
   func qrGenerate(completion: @escaping (Result<(String, String), Error>) -> Void) {
