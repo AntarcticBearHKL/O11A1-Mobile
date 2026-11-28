@@ -213,6 +213,18 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
         self?.feed?.openSearchResultsForTest(term: "原神")
       }
+    case "preview-off":
+      FeedPreviewSettings.enabled = false
+    case "preview-on":
+      FeedPreviewSettings.enabled = true
+    case "preview-single-off":
+      HomeFeedLayout.isGrid = false
+      NotificationCenter.default.post(name: HomeFeedLayout.changed, object: nil)
+      FeedPreviewSettings.enabled = false
+    case "preview-restore":
+      FeedPreviewSettings.enabled = true
+      HomeFeedLayout.isGrid = true
+      NotificationCenter.default.post(name: HomeFeedLayout.changed, object: nil)
     case "login":
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
         guard let self = self else { return }

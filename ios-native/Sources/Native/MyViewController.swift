@@ -293,6 +293,12 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
                              columns: 3) { name in
       PlaybackLoopMode.from(title: name).store()
     })
+    rows.append(.toggle(
+      label: "单列视频流预览",
+      detail: "关闭后单列信息流不自动播放",
+      isOn: FeedPreviewSettings.enabled) { value in
+      FeedPreviewSettings.enabled = value
+    })
     presentSheet(SettingsSheetViewController(title: "播放", rows: rows))
   }
 

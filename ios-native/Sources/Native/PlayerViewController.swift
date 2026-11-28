@@ -2420,6 +2420,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       selected: loopMode.title, columns: 3) { [weak self] name in
       self?.setLoopMode(PlaybackLoopMode.from(title: name))
     })
+    rows.append(.toggle(
+      label: "单列视频流预览",
+      detail: "关闭后信息流不自动播放",
+      isOn: FeedPreviewSettings.enabled) { value in
+      FeedPreviewSettings.enabled = value
+    })
 
     let defaults = UserDefaults.standard
     rows.append(.section("弹幕"))

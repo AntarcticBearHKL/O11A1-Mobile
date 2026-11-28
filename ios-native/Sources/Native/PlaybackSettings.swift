@@ -70,3 +70,21 @@ enum PlaybackSettings {
 
   static let loopOptions = PlaybackLoopMode.allCases.map { $0.title }
 }
+
+/// Global switch for the autoplaying preview inside the single-column feed.
+/// Kept outside the player so the setting applies before any player exists.
+enum FeedPreviewSettings {
+  static let changed = Notification.Name("o11a1.feedPreview.changed")
+  private static let key = "o11a1.feed.previewEnabled"
+
+  static var enabled: Bool {
+    get {
+      if UserDefaults.standard.object(forKey: key) == nil { return true }
+      return UserDefaults.standard.bool(forKey: key)
+    }
+    set {
+      UserDefaults.standard.set(newValue, forKey: key)
+      NotificationCenter.default.post(name: changed, object: nil)
+    }
+  }
+}

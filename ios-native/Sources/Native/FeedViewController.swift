@@ -169,6 +169,9 @@ final class FeedViewController: UIViewController,
     NotificationCenter.default.addObserver(
       self, selector: #selector(feedLayoutChanged),
       name: HomeFeedLayout.changed, object: nil)
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(feedPreviewSettingChanged),
+      name: FeedPreviewSettings.changed, object: nil)
     load(reset: true)
   }
 
@@ -837,6 +840,7 @@ final class FeedViewController: UIViewController,
   /// already play. Debounce a little so a fast fling does not request a new
   /// stream for every row that passes the centre.
   private func schedulePreviewFocus() {
+    guard FeedPreviewSettings.enabled else { return }
     guard !previewFocusScheduled, !previewSuspended else { return }
     previewFocusScheduled = true
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) { [weak self] in
@@ -847,7 +851,19 @@ final class FeedViewController: UIViewController,
     }
   }
 
+  @objc private func feedPreviewSettingChanged() {
+    if FeedPreviewSettings.enabled {
+      startPreviewIfNeeded()
+    } else {
+      unloadPreviewMedia()
+    }
+  }
+
   private func startPreviewIfNeeded() {
+    guard FeedPreviewSettings.enabled else {
+      unloadPreviewMedia()
+      return
+    }
     guard !previewSuspended, !searchOpen, !items.isEmpty else { return }
     if HomeFeedLayout.isGrid {
       unloadPreviewMedia()
@@ -909,7 +925,7 @@ final class FeedViewController: UIViewController,
     BiliAPI.shared.playQuality(item, qn: ThemeManager.shared.quality) {
       [weak self] result in
       guard let self = self, token == self.previewToken,
-            !self.previewSuspended else { return }
+            !self.previewSuspended, FeedPreviewSettings.enabled else { return }
       self.previewPendingKey = ""
       guard let current = self.table.cellForRow(at: IndexPath(row: bestRow, section: 0)) as? HomeCardCell else {
         return
@@ -949,12 +965,14 @@ final class FeedViewController: UIViewController,
   /// leaves the screen. Only the live row keeps a decoder; the covered row
   /// stays on its cover image, and the next settle picks up the new centre.
   private func unloadPreviewMedia() {
-    guard previewEngine.player.currentItem != nil || previewView.superview != nil else {
-      return
-    }
+    // Always invalidate a pending resolution, even when nothing has been
+    // attached yet: disabling previews while a play URL is in flight must not
+    // let that response start playback afterwards.
     previewToken += 1
-    previewEngine.stop()
-    previewView.removeFromSuperview()
+    if previewEngine.player.currentItem != nil || previewView.superview != nil {
+      previewEngine.stop()
+      previewView.removeFromSuperview()
+    }
     previewView.alpha = 0
     previewCell?.hidePreviewLoading()
     previewCell?.setPreviewProgress(nil)
@@ -967,6 +985,7 @@ final class FeedViewController: UIViewController,
   }
 
   private func prewarmPreviewURLs(from start: Int, count: Int = 3) {
+    guard FeedPreviewSettings.enabled else { return }
     guard !HomeFeedLayout.isGrid, !items.isEmpty else { return }
     let first = max(0, min(items.count - 1, start))
     let last = min(items.count, first + count)
