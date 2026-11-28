@@ -1125,7 +1125,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     scroll.showsHorizontalScrollIndicator = false
     scroll.showsVerticalScrollIndicator = false
     scroll.alwaysBounceHorizontal = true
-    scroll.clipsToBounds = false
+    scroll.clipsToBounds = true
 
     let row = UIStackView()
     row.axis = .horizontal
