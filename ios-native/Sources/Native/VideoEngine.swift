@@ -52,6 +52,7 @@ final class VideoEngine: NSObject {
   private var didRetryBackup = false
   private var loop = false
   private var shouldAutoplay = false
+  private var userPaused = false
   private var startAt: Double = 0
   private var headers: [String: String] = [:]
   private var restoringFromPip = false
@@ -99,6 +100,8 @@ final class VideoEngine: NSObject {
     return player.timeControlStatus == .playing
   }
 
+  var isUserPaused: Bool { userPaused }
+
   var currentTime: Double {
     let value = player.currentTime().seconds
     return value.isFinite ? value : 0
@@ -129,6 +132,7 @@ final class VideoEngine: NSObject {
     self.headers = headers
     self.loop = loop
     self.shouldAutoplay = autoplay
+    self.userPaused = false
     self.startAt = max(0, startAt)
     self.loadedURL = url
     self.backupURL = backup
@@ -185,7 +189,10 @@ final class VideoEngine: NSObject {
           let finish = {
             guard self.player.currentItem === item else { return }
             self.onReady?()
-            if self.shouldAutoplay {
+            if self.userPaused {
+              self.player.pause()
+              self.publish(.idle)
+            } else if self.shouldAutoplay {
               self.player.play()
             }
           }
@@ -370,10 +377,14 @@ final class VideoEngine: NSObject {
   }
 
   func play() {
+    userPaused = false
+    shouldAutoplay = true
     player.play()
   }
 
   func pause() {
+    userPaused = true
+    shouldAutoplay = false
     player.pause()
   }
 

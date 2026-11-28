@@ -583,7 +583,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             self.poster.isHidden = true
             self.errorLabel.isHidden = true
             self.backdropVideo.alpha = 1
-            self.engine.play()
+            if !self.engine.isUserPaused {
+              self.engine.play()
+            }
             self.view.setNeedsLayout()
             if let source = self.pendingUpgradeSource {
               self.pendingUpgradeSource = nil
@@ -598,7 +600,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self.poster.isHidden = true
       self.errorLabel.isHidden = true
       self.backdropVideo.alpha = 1
-      self.engine.play()
+      if !self.engine.isUserPaused {
+        self.engine.play()
+      }
       self.view.setNeedsLayout()
       if self.pendingStartSeconds > 0 {
         let seconds = self.pendingStartSeconds
