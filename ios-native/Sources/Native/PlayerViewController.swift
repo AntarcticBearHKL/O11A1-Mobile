@@ -765,6 +765,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   private func resumePosition() -> Double {
     if pendingStartSeconds > 0 { return pendingStartSeconds }
+    if engine.player.currentItem?.status == .readyToPlay {
+      return max(0, engine.currentTime)
+    }
     let local = WatchProgressStore.shared.position(for: item.bvid)
     if local > 0 { return local }
     return Double(max(0, item.progress))
