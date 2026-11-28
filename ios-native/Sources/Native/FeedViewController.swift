@@ -36,7 +36,6 @@ final class FeedViewController: UIViewController,
   private var fresh = 1
   private var loading = false
   private var hasMore = true
-  private let maxFeedItems = 60
   private var lastOffset: CGFloat = 0
   private var toolbarHidden = false
   private var toolbarWasHidden = false
@@ -320,18 +319,9 @@ final class FeedViewController: UIViewController,
       incoming.append(item)
       existing.insert("\(item.bvid)-\(item.roomId)")
     }
-    let overflow = items.count + incoming.count - maxFeedItems
-    let append = { [weak self] in
-      guard let self = self else { return }
-      let appendStart = self.items.count
-      self.items.append(contentsOf: incoming)
-      self.completeFinish(values: values, reset: false, appendStart: appendStart)
-    }
-    if overflow > 0 {
-      trimAboveVisible(overflow, completion: append)
-    } else {
-      append()
-    }
+    let appendStart = items.count
+    items.append(contentsOf: incoming)
+    completeFinish(values: values, reset: false, appendStart: appendStart)
   }
 
   private func completeFinish(values: [VideoItem], reset: Bool,
@@ -358,75 +348,6 @@ final class FeedViewController: UIViewController,
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
       self.startPreviewIfNeeded()
       self.loadMoreIfNeeded()
-    }
-  }
-
-  /// Drop only rows that are fully above the first row still visible on
-  /// screen. The row under the user's eyes is the anchor: after the batch
-  /// delete we put it back at exactly the same screen y. This releases old
-  /// media without ever moving the item the user is currently watching.
-  private func trimAboveVisible(_ desired: Int,
-                                completion: @escaping () -> Void) {
-    guard desired > 0, !items.isEmpty, table.window != nil else {
-      completion()
-      return
-    }
-    let visible = (table.indexPathsForVisibleRows ?? []).sorted { $0.row < $1.row }
-    guard let anchor = visible.first(where: {
-      table.rectForRow(at: $0).maxY > table.contentOffset.y + 2
-    }) else {
-      completion()
-      return
-    }
-    let grid = HomeFeedLayout.isGrid
-    let anchorRow = anchor.row
-    var removeItems = min(desired, grid ? anchorRow * 2 : anchorRow)
-    if grid {
-      removeItems -= removeItems % 2
-    }
-    guard removeItems > 0 else {
-      completion()
-      return
-    }
-    let removeRows = grid ? removeItems / 2 : removeItems
-    let anchorItemIndex = grid ? anchorRow * 2 : anchorRow
-    guard anchorItemIndex < items.count else {
-      completion()
-      return
-    }
-    let anchorItem = items[anchorItemIndex]
-    let anchorKey = "\(anchorItem.bvid)-\(anchorItem.roomId)"
-    let anchorOffset = table.rectForRow(at: anchor).minY - table.contentOffset.y
-    let previewWasTrimmed = !grid && previewIndex >= 0 && previewIndex < removeItems
-    if previewWasTrimmed {
-      unloadPreviewMedia()
-    }
-    UIView.performWithoutAnimation {
-      table.performBatchUpdates({
-        self.items.removeFirst(removeItems)
-        self.table.deleteRows(
-          at: (0..<removeRows).map { IndexPath(row: $0, section: 0) },
-          with: .none)
-      }, completion: { _ in
-        let newAnchorItem = self.items.firstIndex {
-          "\($0.bvid)-\($0.roomId)" == anchorKey
-        } ?? (anchorItemIndex - removeItems)
-        let newAnchorRow = grid ? newAnchorItem / 2 : newAnchorItem
-        if newAnchorRow >= 0,
-           newAnchorRow < self.table.numberOfRows(inSection: 0) {
-          let rect = self.table.rectForRow(
-            at: IndexPath(row: newAnchorRow, section: 0))
-          let target = rect.minY - anchorOffset
-          self.table.setContentOffset(
-            CGPoint(x: 0, y: max(-self.table.contentInset.top, target)),
-            animated: false)
-        }
-        if !grid, self.previewIndex >= 0, !previewWasTrimmed {
-          self.previewIndex -= removeItems
-        }
-        self.lastOffset = self.table.contentOffset.y
-        completion()
-      })
     }
   }
 
@@ -707,9 +628,23 @@ final class FeedViewController: UIViewController,
     configurePreviewEngine()
   }
 
+  private func schedulePreviewRetry(after delay: TimeInterval) {
+    guard !previewRetryScheduled else { return }
+    previewRetryScheduled = true
+    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+      guard let self = self else { return }
+      self.previewRetryScheduled = false
+      guard !self.previewSuspended, !self.searchOpen else { return }
+      self.startPreviewIfNeeded()
+    }
+  }
+
   private func startPreviewIfNeeded() {
     guard !previewSuspended, !searchOpen, !items.isEmpty else { return }
-    if table.isDragging || table.isDecelerating { return }
+    if table.isDragging || table.isDecelerating {
+      schedulePreviewRetry(after: 0.18)
+      return
+    }
     if HomeFeedLayout.isGrid {
       unloadPreviewMedia()
       return
@@ -727,15 +662,7 @@ final class FeedViewController: UIViewController,
       }
     }
     guard let cell = table.cellForRow(at: IndexPath(row: bestRow, section: 0)) as? HomeCardCell else {
-      if !previewRetryScheduled {
-        previewRetryScheduled = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-          guard let self = self else { return }
-          self.previewRetryScheduled = false
-          guard !self.previewSuspended, !self.searchOpen else { return }
-          self.startPreviewIfNeeded()
-        }
-      }
+      schedulePreviewRetry(after: 0.25)
       return
     }
     if previewCell !== cell {

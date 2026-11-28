@@ -30,6 +30,11 @@ final class ImageLoader {
   }
 
   func load(_ urlString: String, into imageView: UIImageView, placeholder: UIImage? = nil) {
+    load(urlString, into: imageView, placeholder: placeholder, attempt: 0)
+  }
+
+  private func load(_ urlString: String, into imageView: UIImageView,
+                    placeholder: UIImage?, attempt: Int) {
     let key = urlString as NSString
     imageView.accessibilityIdentifier = urlString
     imageView.image = placeholder
@@ -56,7 +61,15 @@ final class ImageLoader {
     request.setValue("https://www.bilibili.com/", forHTTPHeaderField: "Referer")
     request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
     session.dataTask(with: request) { [weak self, weak imageView] data, _, _ in
-      guard let self = self, let data = data, let image = UIImage(data: data) else { return }
+      guard let self = self, let data = data, let image = UIImage(data: data) else {
+        guard let self = self, attempt < 2, let imageView = imageView,
+              imageView.accessibilityIdentifier == urlString else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+          self.load(urlString, into: imageView, placeholder: placeholder,
+                    attempt: attempt + 1)
+        }
+        return
+      }
       self.cache.setObject(image, forKey: key, cost: data.count)
       if let diskURL = self.diskURL(for: urlString) {
         self.diskQueue.async {
