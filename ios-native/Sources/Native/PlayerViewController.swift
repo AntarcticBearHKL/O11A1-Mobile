@@ -17,7 +17,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private(set) var isMiniWindow = false
   private(set) var isSystemPip = false
 
-  private var engine = VideoEngine()
+  private var engine = VideoEngine(name: "player")
   private lazy var playerView = PlayerLayerView(playerLayer: engine.playerLayer)
   private let speedFeedback = UIImpactFeedbackGenerator(style: .medium)
   private let backdrop = UIImageView()
@@ -207,7 +207,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     playerView.backgroundColor = .clear
     videoContainer.addSubview(playerView)
 
-    let upgrade = VideoEngine()
+    let upgrade = VideoEngine(name: "upgrade")
     let upgradeLayer = PlayerLayerView(playerLayer: upgrade.playerLayer)
     upgradeLayer.backgroundColor = .clear
     upgradeLayer.alpha = 0
@@ -588,6 +588,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     engine.onReady = { [weak self] in
       guard let self = self else { return }
+      O11A1Trace.mark("player", "engine onReady handoff=\(self.pendingHandoffStart != nil)")
       if let start = self.pendingHandoffStart {
         self.pendingHandoffStart = nil
         self.engine.seek(to: start, resume: false) { [weak self] in
@@ -1607,6 +1608,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     currentQuality = qn
     loadToken += 1
     let token = loadToken
+    let requestStarted = O11A1Trace.now
+    O11A1Trace.mark(
+      "player",
+      "loadQuality qn=\(qn) upgrade=\(upgrade) bvid=\(item.bvid) cid=\(item.cid) ep=\(item.epId)")
     if !upgrade && !upgradeAdopted {
       upgradePending = false
       upgradeGeneration += 1
@@ -1652,9 +1657,14 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       switch result {
       case .success(let source):
         self.qualityLabel.text = source.qualityLabel.isEmpty ? "\(qn)P" : source.qualityLabel
+        O11A1Trace.mark(
+          "player",
+          "source qn=\(qn) upgrade=\(upgrade) label=\(source.qualityLabel) host=\(URL(string: source.url)?.host ?? "?") \(O11A1Trace.since(requestStarted))")
         if upgrade {
           self.prepareQualityUpgrade(source)
         } else {
+          let startAt = self.resumePosition()
+          O11A1Trace.mark("player", "startAt \(String(format: "%.1f", startAt))")
           self.engine.load(
             url: source.url,
             backup: source.backup,
@@ -1662,10 +1672,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             autoplay: true,
             muted: false,
             loop: false,
-            startAt: self.resumePosition()
+            startAt: startAt
           )
         }
       case .failure:
+        O11A1Trace.mark(
+          "player",
+          "source FAIL qn=\(qn) upgrade=\(upgrade) \(O11A1Trace.since(requestStarted))")
         if upgrade {
           if qn > 64 {
             self.loadQuality(64, upgrade: true)

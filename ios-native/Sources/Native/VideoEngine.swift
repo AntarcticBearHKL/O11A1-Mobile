@@ -22,6 +22,9 @@ struct VideoLoadStatus {
 final class VideoEngine: NSObject {
   let player = AVPlayer()
   let playerLayer: AVPlayerLayer
+  private let traceName: String
+  private var installStartedAt: TimeInterval = 0
+  private var loggedPlaying = false
 
   var onTime: ((Double, Double) -> Void)?
   var onPlaying: ((Bool) -> Void)?
@@ -55,7 +58,8 @@ final class VideoEngine: NSObject {
   private var lastSpeedSample: CFTimeInterval = 0
   private var smoothedSpeed: Double = 0
 
-  override init() {
+  init(name: String = "engine") {
+    traceName = name
     playerLayer = AVPlayerLayer(player: player)
     playerLayer.videoGravity = .resizeAspect
     super.init()
@@ -139,18 +143,22 @@ final class VideoEngine: NSObject {
     }
     resetSpeed()
     publish(.connecting)
+    installStartedAt = O11A1Trace.now
+    loggedPlaying = false
+    O11A1Trace.mark("media", "\(traceName) install host=\(mediaURL.host ?? "?") startAt=\(String(format: "%.1f", startAt))")
     let asset = AVURLAsset(url: mediaURL, options: [
       "AVURLAssetHTTPHeaderFieldsKey": headers,
       "AVURLAssetAllowsExpensiveNetworkAccess": true,
       "AVURLAssetAllowsConstrainedNetworkAccess": true,
     ])
-    NSLog("[O11A1] media install %@", mediaURL.host ?? "?")
     let item = AVPlayerItem(asset: asset)
     item.preferredForwardBufferDuration = 8
     statusObservation = item.observe(\.status, options: [.new, .initial]) { [weak self] observed, _ in
       guard let self = self else { return }
       if observed.status == .readyToPlay {
-        NSLog("[O11A1] media ready duration=%.1f", observed.duration.seconds)
+        O11A1Trace.mark(
+          "media",
+          "\(self.traceName) ready duration=\(String(format: "%.1f", observed.duration.seconds)) \(O11A1Trace.since(self.installStartedAt))")
         DispatchQueue.main.async {
           self.publish(.buffering)
           var start = self.startAt
@@ -179,7 +187,9 @@ final class VideoEngine: NSObject {
           }
         }
       } else if observed.status == .failed {
-        NSLog("[O11A1] media failed %@", observed.error?.localizedDescription ?? "?")
+        O11A1Trace.mark(
+          "media",
+          "\(self.traceName) failed \(O11A1Trace.since(self.installStartedAt)) \(observed.error?.localizedDescription ?? "?")")
         DispatchQueue.main.async {
           self.publish(.idle)
           if !self.didRetryBackup, !self.backupURL.isEmpty, self.backupURL != self.loadedURL {
@@ -219,6 +229,12 @@ final class VideoEngine: NSObject {
     rateObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
       DispatchQueue.main.async {
         guard let self = self else { return }
+        if player.timeControlStatus == .playing, !self.loggedPlaying {
+          self.loggedPlaying = true
+          O11A1Trace.mark(
+            "media",
+            "\(self.traceName) firstFrame \(O11A1Trace.since(self.installStartedAt))")
+        }
         self.onPlaying?(player.timeControlStatus == .playing)
         self.refreshLoadPhase()
       }

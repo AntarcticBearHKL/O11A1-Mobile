@@ -21,7 +21,7 @@ final class FeedViewController: UIViewController,
   private let table = UITableView(frame: .zero, style: .plain)
   private let statusLabel = UILabel()
   private let topFade = TopBlurView()
-  private var previewEngine = VideoEngine()
+  private var previewEngine = VideoEngine(name: "preview")
   private lazy var previewView = PlayerLayerView(playerLayer: previewEngine.playerLayer)
   private var previewCell: HomeCardCell?
   private var previewIndex = -1
@@ -644,7 +644,7 @@ final class FeedViewController: UIViewController,
   }
 
   private func resetPreviewEngine() {
-    previewEngine = VideoEngine()
+    previewEngine = VideoEngine(name: "preview")
     previewView = PlayerLayerView(playerLayer: previewEngine.playerLayer)
     previewView.alpha = 0
     previewView.isUserInteractionEnabled = false

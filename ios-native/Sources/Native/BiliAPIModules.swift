@@ -91,7 +91,15 @@ extension BiliAPI {
   }
 
   func playPgc(epId: Int64, bvid: String, cid: Int64, qn: Int, completion: @escaping (Result<PlaySource, Error>) -> Void) {
+    let started = O11A1Trace.now
+    O11A1Trace.mark("api", "playPgc START ep=\(epId) qn=\(qn)")
     run({ self.client.playPgc(epId: epId, bvid: bvid, cid: cid, qn: qn) }) { result in
+      switch result {
+      case .failure(let error):
+        O11A1Trace.mark("api", "playPgc FAIL ep=\(epId) \(O11A1Trace.since(started)) \(error.localizedDescription)")
+      case .success(let json):
+        O11A1Trace.mark("api", "playPgc OK ep=\(epId) \(O11A1Trace.since(started)) quality=\(o11a1String(json["qualityLabel"]))")
+      }
       self.finishPlay(result, cacheKey: nil, completion)
     }
   }

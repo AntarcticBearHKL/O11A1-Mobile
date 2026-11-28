@@ -130,10 +130,19 @@ final class BiliAPI {
   func playQuality(_ item: VideoItem, qn: Int, completion: @escaping (Result<PlaySource, Error>) -> Void) {
     let key = playKey(item, qn: qn)
     if let cached = playCache.get(key) {
+      O11A1Trace.mark("api", "playQuality HIT \(key) quality=\(cached.qualityLabel)")
       DispatchQueue.main.async { completion(.success(cached)) }
       return
     }
+    let started = O11A1Trace.now
+    O11A1Trace.mark("api", "playQuality START \(key)")
     run({ self.client.playQuality(bvid: item.bvid, cid: item.cid, qn: qn) }) { result in
+      switch result {
+      case .failure(let error):
+        O11A1Trace.mark("api", "playQuality FAIL \(key) \(O11A1Trace.since(started)) \(error.localizedDescription)")
+      case .success(let json):
+        O11A1Trace.mark("api", "playQuality OK \(key) \(O11A1Trace.since(started)) quality=\(o11a1String(json["qualityLabel"]))")
+      }
       self.finishPlay(result, cacheKey: key, completion)
     }
   }

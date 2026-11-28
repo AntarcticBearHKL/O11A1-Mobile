@@ -415,6 +415,7 @@ final class O11A1BiliClient {
     print("[O11A1] play \(bvid) cid=\(resolvedCid)")
     var selected: [String: Any]?
     var seen = Set<Int>()
+    O11A1Trace.mark("bili", "play begin bvid=\(bvid) cid=\(resolvedCid) qns=\(qns)")
     for qn in qns {
       if seen.contains(qn) { continue }
       seen.insert(qn)
@@ -427,7 +428,15 @@ final class O11A1BiliClient {
           "fourk": "0"
         ]
         if !platform.isEmpty { query["platform"] = platform }
-        guard let payload = json(base: Self.apiBase, path: "/x/player/playurl", query: query),
+        let attemptStarted = O11A1Trace.now
+        let payload = json(base: Self.apiBase, path: "/x/player/playurl", query: query)
+        let code = payload.map { o11a1Int($0["code"]) } ?? -1
+        let durlCount = (((payload?["data"] as? [String: Any])?["durl"])
+          as? [[String: Any]])?.count ?? 0
+        O11A1Trace.mark(
+          "bili",
+          "play try qn=\(qn) platform=\(platform.isEmpty ? "default" : platform) code=\(code) durl=\(durlCount) \(O11A1Trace.since(attemptStarted))")
+        guard let payload = payload,
               o11a1Int(payload["code"]) == 0,
               let data = payload["data"] as? [String: Any],
               let durl = data["durl"] as? [[String: Any]],
@@ -477,7 +486,8 @@ final class O11A1BiliClient {
        120 from the durl endpoint makes Bilibili return only 720P, so cap the
        progressive fallback at 1080P instead. */
     let target = qn <= 0 ? 80 : min(qn, 80)
-    return play(bvid: bvid, cid: cid, qns: [target, 80, 74, 64, 32, 16])
+    let qns = [target, 80, 74, 64, 32, 16]
+    return play(bvid: bvid, cid: cid, qns: qns)
   }
 
   func playRemote(bvid: String, cid: Int64, qn: Int) -> Data {
