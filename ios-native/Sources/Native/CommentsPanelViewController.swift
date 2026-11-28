@@ -780,7 +780,7 @@ private final class PanelCommentCell: UITableViewCell {
       result.append(NSAttributedString(attachment: attachment))
     }
     result.append(NSAttributedString(
-      string: " \(o11a1Count(value))",
+      string: " \(o11a1Count(Int64(value)))",
       attributes: [
         .font: UIFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .medium),
         .foregroundColor: NativeTheme.tertiary,
