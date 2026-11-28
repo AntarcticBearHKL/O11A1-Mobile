@@ -4,6 +4,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   UIScrollViewDelegate {
   var onClose: (() -> Void)?
   var onProfile: ((Int64) -> Void)?
+  var onOpenVideo: ((VideoItem) -> Void)?
   var onQuality: ((Int) -> Void)?
   var onDanmaku: ((Bool) -> Void)?
   var onDanmakuSettingsChanged: (() -> Void)?
@@ -39,7 +40,21 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private let avatar = UIImageView()
   private let ownerName = UILabel()
   private let ownerMeta = UILabel()
-  private let authorButton = UIButton(type: .custom)
+  private let ownerHero = ProfileHeroBackground()
+  private let ownerRing = ProfileAvatarRing()
+  private let followButton = UIButton(type: .custom)
+  private var authorTap: UITapGestureRecognizer?
+  private var following = false
+  private var followStateLoaded = false
+  private var feedMid: Int64 = 0
+  private var latestVideos: [VideoItem] = []
+  private var popularRaw: [VideoItem] = []
+  private var latestSection: UIView?
+  private var popularSection: UIView?
+  private var latestStack: UIStackView?
+  private var popularStack: UIStackView?
+  private var latestScroll: UIScrollView?
+  private var popularScroll: UIScrollView?
   private let likeValue = UILabel()
   private let favoriteValue = UILabel()
   private let coinValue = UILabel()
@@ -271,49 +286,92 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     stack.addArrangedSubview(meta)
 
     let author = UIView()
-    author.backgroundColor = NativeTheme.background
-    author.layer.cornerRadius = detailCardRadius
+    author.backgroundColor = .clear
+    author.layer.cornerRadius = NativeTheme.cornerRadius
     author.layer.cornerCurve = .continuous
+    author.layer.shadowColor = UIColor.black.cgColor
+    author.layer.shadowOpacity = 0.12
+    author.layer.shadowRadius = 18
+    author.layer.shadowOffset = CGSize(width: 0, height: 8)
+    author.clipsToBounds = false
     stack.addArrangedSubview(author)
-    author.heightAnchor.constraint(equalToConstant: detailCardHeight).isActive = true
+    author.heightAnchor.constraint(equalToConstant: 108).isActive = true
+
+    author.addSubview(ownerHero)
+    ownerHero.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      ownerHero.leadingAnchor.constraint(equalTo: author.leadingAnchor),
+      ownerHero.trailingAnchor.constraint(equalTo: author.trailingAnchor),
+      ownerHero.topAnchor.constraint(equalTo: author.topAnchor),
+      ownerHero.bottomAnchor.constraint(equalTo: author.bottomAnchor),
+    ])
+
+    ownerRing.isUserInteractionEnabled = false
+    author.addSubview(ownerRing)
+    ownerRing.translatesAutoresizingMaskIntoConstraints = false
 
     avatar.contentMode = .scaleAspectFill
     avatar.clipsToBounds = true
-    avatar.layer.cornerRadius = 21
+    avatar.layer.cornerRadius = 27
+    avatar.layer.cornerCurve = .continuous
     avatar.backgroundColor = NativeTheme.tertiary.withAlphaComponent(0.2)
     ImageLoader.shared.load(item.ownerFace, into: avatar, placeholder: nil)
+    author.addSubview(avatar)
     avatar.translatesAutoresizingMaskIntoConstraints = false
-    avatar.widthAnchor.constraint(equalToConstant: 42).isActive = true
-    avatar.heightAnchor.constraint(equalToConstant: 42).isActive = true
 
     ownerName.text = item.owner
-    ownerName.font = UIFont.systemFont(ofSize: 16, weight: .bold)
+    ownerName.font = UIFont.systemFont(ofSize: 18, weight: .bold)
     ownerName.textColor = NativeTheme.foreground
     ownerName.numberOfLines = 1
     ownerName.lineBreakMode = .byTruncatingTail
 
-    let identity = UIStackView(arrangedSubviews: [avatar, ownerName])
-    identity.axis = .horizontal
-    identity.alignment = .center
-    identity.spacing = 10
-    author.addSubview(identity)
+    ownerMeta.font = UIFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .regular)
+    ownerMeta.textColor = NativeTheme.secondary
+    ownerMeta.numberOfLines = 1
+    ownerMeta.lineBreakMode = .byTruncatingTail
+    ownerMeta.text = item.mid > 0 ? "UID \(item.mid)" : ""
 
-    authorButton.backgroundColor = .clear
-    authorButton.addTarget(self, action: #selector(authorTapped), for: .touchUpInside)
-    author.addSubview(authorButton)
+    let ownerInfo = UIStackView(arrangedSubviews: [ownerName, ownerMeta])
+    ownerInfo.axis = .vertical
+    ownerInfo.alignment = .leading
+    ownerInfo.spacing = 2
+    author.addSubview(ownerInfo)
+    ownerInfo.translatesAutoresizingMaskIntoConstraints = false
 
-    [identity, authorButton].forEach {
-      $0.translatesAutoresizingMaskIntoConstraints = false
-    }
+    followButton.titleLabel?.font = UIFont.systemFont(ofSize: 11.5, weight: .bold)
+    followButton.layer.cornerRadius = NativeTheme.cornerRadius
+    followButton.layer.cornerCurve = .continuous
+    followButton.layer.borderWidth = 0.5
+    followButton.contentEdgeInsets = UIEdgeInsets(top: 0, left: 14, bottom: 0, right: 14)
+    followButton.addTarget(self, action: #selector(followTapped), for: .touchUpInside)
+    author.addSubview(followButton)
+    followButton.translatesAutoresizingMaskIntoConstraints = false
+    updateFollowButton()
+
+    let tap = UITapGestureRecognizer(target: self, action: #selector(authorTapped))
+    tap.delegate = self
+    author.addGestureRecognizer(tap)
+    authorTap = tap
+
     NSLayoutConstraint.activate([
-      identity.centerXAnchor.constraint(equalTo: author.centerXAnchor),
-      identity.centerYAnchor.constraint(equalTo: author.centerYAnchor),
-      identity.leadingAnchor.constraint(greaterThanOrEqualTo: author.leadingAnchor, constant: 14),
-      identity.trailingAnchor.constraint(lessThanOrEqualTo: author.trailingAnchor, constant: -14),
-      authorButton.leadingAnchor.constraint(equalTo: author.leadingAnchor),
-      authorButton.trailingAnchor.constraint(equalTo: author.trailingAnchor),
-      authorButton.topAnchor.constraint(equalTo: author.topAnchor),
-      authorButton.bottomAnchor.constraint(equalTo: author.bottomAnchor),
+      ownerRing.leadingAnchor.constraint(equalTo: author.leadingAnchor, constant: 16),
+      ownerRing.centerYAnchor.constraint(equalTo: author.centerYAnchor),
+      ownerRing.widthAnchor.constraint(equalToConstant: 60),
+      ownerRing.heightAnchor.constraint(equalToConstant: 60),
+
+      avatar.centerXAnchor.constraint(equalTo: ownerRing.centerXAnchor),
+      avatar.centerYAnchor.constraint(equalTo: ownerRing.centerYAnchor),
+      avatar.widthAnchor.constraint(equalToConstant: 54),
+      avatar.heightAnchor.constraint(equalToConstant: 54),
+
+      ownerInfo.leadingAnchor.constraint(equalTo: ownerRing.trailingAnchor, constant: 12),
+      ownerInfo.trailingAnchor.constraint(lessThanOrEqualTo: followButton.leadingAnchor,
+                                          constant: -10),
+      ownerInfo.centerYAnchor.constraint(equalTo: author.centerYAnchor),
+
+      followButton.trailingAnchor.constraint(equalTo: author.trailingAnchor, constant: -16),
+      followButton.centerYAnchor.constraint(equalTo: author.centerYAnchor),
+      followButton.heightAnchor.constraint(equalToConstant: 34),
     ])
 
     let actions = UIStackView()
@@ -368,6 +426,20 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     ])
     setDescription(item.desc)
 
+    let latest = makeMiniSection(title: "最近发布")
+    latestSection = latest.container
+    latestStack = latest.stack
+    latestScroll = latest.scroll
+    latest.container.isHidden = true
+    stack.addArrangedSubview(latest.container)
+
+    let popular = makeMiniSection(title: "最多播放")
+    popularSection = popular.container
+    popularStack = popular.stack
+    popularScroll = popular.scroll
+    popular.container.isHidden = true
+    stack.addArrangedSubview(popular.container)
+
     qualityValue = initialQuality
     danmakuOn = initialDanmakuOn
     loopOn = initialLoopOn
@@ -402,6 +474,9 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     }
 
     loadDetail()
+    if item.mid > 0 {
+      loadOwnerFeed(item.mid)
+    }
   }
 
   override func viewDidLayoutSubviews() {
@@ -954,6 +1029,9 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       let face = o11a1HTTPS(o11a1String(json["ownerFace"]))
       if !face.isEmpty { ImageLoader.shared.load(face, into: self.avatar, placeholder: nil) }
       self.detailMid = o11a1Int64(json["mid"])
+      if self.detailMid > 0 {
+        self.loadOwnerFeed(self.detailMid)
+      }
       self.detailAid = o11a1Int64(json["aid"])
       self.detailBvid = o11a1String(json["bvid"])
       if !self.detailBvid.isEmpty {
@@ -1029,6 +1107,146 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
       ])
   }
 
+  private func makeMiniSection(
+    title: String
+  ) -> (container: UIView, scroll: UIScrollView, stack: UIStackView) {
+    let container = UIStackView()
+    container.axis = .vertical
+    container.alignment = .fill
+    container.spacing = 8
+
+    let header = UILabel()
+    header.text = title
+    header.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+    header.textColor = NativeTheme.foreground
+    container.addArrangedSubview(header)
+
+    let scroll = UIScrollView()
+    scroll.showsHorizontalScrollIndicator = false
+    scroll.showsVerticalScrollIndicator = false
+    scroll.alwaysBounceHorizontal = true
+    scroll.clipsToBounds = false
+
+    let row = UIStackView()
+    row.axis = .horizontal
+    row.alignment = .top
+    row.spacing = 10
+    scroll.addSubview(row)
+    row.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      row.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor),
+      row.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor),
+      row.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),
+      row.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor),
+      row.heightAnchor.constraint(equalTo: scroll.frameLayoutGuide.heightAnchor),
+      scroll.heightAnchor.constraint(equalToConstant: 146),
+    ])
+    container.addArrangedSubview(scroll)
+    return (container, scroll, row)
+  }
+
+  private func loadOwnerFeed(_ mid: Int64) {
+    guard mid > 0, feedMid == 0 else { return }
+    feedMid = mid
+    BiliAPI.shared.upPage(mid: mid, page: 1, order: "pubdate") { [weak self] result in
+      guard let self = self, case .success(let up) = result else { return }
+      self.applyOwner(up)
+      self.latestVideos = Array(up.items.prefix(5))
+      self.renderFeed()
+    }
+    BiliAPI.shared.spaceVideos(mid: mid, page: 1, order: "click") {
+      [weak self] result in
+      guard let self = self, case .success(let items) = result else { return }
+      self.popularRaw = items
+      self.renderFeed()
+    }
+  }
+
+  private func applyOwner(_ up: BiliAPI.UpProfilePage) {
+    if !up.name.isEmpty { ownerName.text = up.name }
+    if !up.face.isEmpty {
+      ImageLoader.shared.load(up.face, into: avatar, placeholder: nil)
+    }
+    let uid = feedMid > 0 ? feedMid : detailMid
+    if up.follower > 0, uid > 0 {
+      ownerMeta.text = "UID \(uid) · \(o11a1Count(up.follower)) 粉丝"
+    } else if uid > 0 {
+      ownerMeta.text = "UID \(uid)"
+    }
+    if !followStateLoaded {
+      followStateLoaded = true
+      following = up.followed
+      updateFollowButton()
+    }
+  }
+
+  private func renderFeed() {
+    let latest = Array(latestVideos.prefix(5))
+    let latestKeys = Set(latest.map { $0.bvid })
+    let popular = Array(popularRaw.filter {
+      !$0.bvid.isEmpty && !latestKeys.contains($0.bvid)
+    }.prefix(5))
+    populateFeed(section: latestSection, stack: latestStack, items: latest)
+    populateFeed(section: popularSection, stack: popularStack, items: popular)
+  }
+
+  private func populateFeed(section: UIView?, stack: UIStackView?, items: [VideoItem]) {
+    guard let section = section, let stack = stack else { return }
+    for view in stack.arrangedSubviews {
+      stack.removeArrangedSubview(view)
+      view.removeFromSuperview()
+    }
+    for item in items {
+      let card = MiniUpVideoCard(item: item)
+      card.onTap = { [weak self] in self?.onOpenVideo?(item) }
+      card.translatesAutoresizingMaskIntoConstraints = false
+      stack.addArrangedSubview(card)
+      NSLayoutConstraint.activate([
+        card.widthAnchor.constraint(equalToConstant: 150),
+        card.heightAnchor.constraint(equalToConstant: 146),
+      ])
+    }
+    section.isHidden = items.isEmpty
+  }
+
+  private func updateFollowButton() {
+    if following {
+      followButton.setTitle("已关注", for: .normal)
+      followButton.setTitleColor(NativeTheme.navBlue, for: .normal)
+      followButton.backgroundColor = NativeTheme.navBlue.withAlphaComponent(0.12)
+      followButton.layer.borderColor = NativeTheme.navBlue.withAlphaComponent(0.30).cgColor
+    } else {
+      followButton.setTitle("关注", for: .normal)
+      followButton.setTitleColor(NativeTheme.foreground, for: .normal)
+      followButton.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.06)
+      followButton.layer.borderColor = NativeTheme.hairline.cgColor
+    }
+  }
+
+  @objc private func followTapped() {
+    let mid = feedMid > 0 ? feedMid : detailMid
+    guard mid > 0, followButton.isEnabled else { return }
+    followStateLoaded = true
+    let next = !following
+    followButton.isEnabled = false
+    BiliAPI.shared.follow(mid: mid, on: next) { [weak self] ok in
+      guard let self = self else { return }
+      self.followButton.isEnabled = true
+      guard ok else { return }
+      self.following = next
+      self.updateFollowButton()
+      UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+  }
+
+  func containsHorizontalVideoFeed(_ touched: UIView?) -> Bool {
+    guard let touched = touched else { return false }
+    for scroll in [latestScroll, popularScroll].compactMap({ $0 }) {
+      if touched === scroll || touched.isDescendant(of: scroll) { return true }
+    }
+    return false
+  }
+
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
     let width = max(1, view.bounds.width)
     let reference = view.superview ?? view
@@ -1072,6 +1290,15 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
 
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                          shouldReceive touch: UITouch) -> Bool {
+    if gestureRecognizer === authorTap {
+      if let touched = touch.view, touched.isDescendant(of: followButton) {
+        return false
+      }
+    }
+    if gestureRecognizer === closeSwipePan,
+       containsHorizontalVideoFeed(touch.view) {
+      return false
+    }
     if gestureRecognizer === pullDownPan {
       let x = touch.location(in: view).x
       let width = max(1, view.bounds.width)
@@ -1087,7 +1314,86 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
     card.backgroundColor = NativeTheme.surface
-    authorButton.superview?.backgroundColor = NativeTheme.background
     descLabel.textColor = NativeTheme.secondary
+    updateFollowButton()
+  }
+}
+
+private final class MiniUpVideoCard: UIControl {
+  private let cover = UIImageView()
+  private let duration = UILabel()
+  private let title = UILabel()
+  private let meta = UILabel()
+  var onTap: (() -> Void)?
+
+  init(item: VideoItem) {
+    super.init(frame: .zero)
+    backgroundColor = NativeTheme.background
+    layer.cornerRadius = NativeTheme.cornerRadius
+    layer.cornerCurve = .continuous
+    clipsToBounds = true
+
+    cover.contentMode = .scaleAspectFill
+    cover.clipsToBounds = true
+    cover.layer.cornerRadius = 10
+    cover.layer.cornerCurve = .continuous
+    cover.backgroundColor = NativeTheme.tertiary.withAlphaComponent(0.15)
+    ImageLoader.shared.load(item.pic, into: cover)
+    addSubview(cover)
+
+    duration.text = item.duration
+    duration.font = NativeTheme.numberFont(9)
+    duration.textColor = .white
+    duration.textAlignment = .center
+    duration.backgroundColor = UIColor.black.withAlphaComponent(0.72)
+    duration.layer.cornerRadius = 4
+    duration.clipsToBounds = true
+    addSubview(duration)
+
+    title.text = item.title
+    title.font = UIFont.systemFont(ofSize: 12.5, weight: .semibold)
+    title.textColor = NativeTheme.foreground
+    title.numberOfLines = 2
+    title.lineBreakMode = .byTruncatingTail
+    addSubview(title)
+
+    meta.text = (item.playText.isEmpty ? o11a1Count(item.play) : item.playText) + " 播放"
+    meta.font = NativeTheme.numberFont(9.5)
+    meta.textColor = NativeTheme.secondary
+    meta.numberOfLines = 1
+    addSubview(meta)
+
+    [cover, duration, title, meta].forEach {
+      $0.translatesAutoresizingMaskIntoConstraints = false
+    }
+    NSLayoutConstraint.activate([
+      cover.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
+      cover.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+      cover.topAnchor.constraint(equalTo: topAnchor, constant: 6),
+      cover.heightAnchor.constraint(equalToConstant: 78),
+
+      duration.trailingAnchor.constraint(equalTo: cover.trailingAnchor, constant: -4),
+      duration.bottomAnchor.constraint(equalTo: cover.bottomAnchor, constant: -4),
+      duration.heightAnchor.constraint(equalToConstant: 15),
+      duration.widthAnchor.constraint(greaterThanOrEqualToConstant: 32),
+
+      title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 9),
+      title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -9),
+      title.topAnchor.constraint(equalTo: cover.bottomAnchor, constant: 7),
+
+      meta.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+      meta.trailingAnchor.constraint(equalTo: title.trailingAnchor),
+      meta.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 3),
+    ])
+    title.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+    addTarget(self, action: #selector(tapped), for: .touchUpInside)
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  @objc private func tapped() {
+    onTap?()
   }
 }

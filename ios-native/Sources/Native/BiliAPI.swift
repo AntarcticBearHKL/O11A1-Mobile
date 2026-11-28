@@ -563,6 +563,18 @@ final class BiliAPI {
     }
   }
 
+  /// Video list only; skips the profile/card requests used by the UP page.
+  func spaceVideos(mid: Int64, page: Int, order: String,
+                   completion: @escaping (Result<[VideoItem], Error>) -> Void) {
+    run({ self.client.space(mid: mid, page: page, order: order, withProfile: false) }) {
+      result in
+      switch result {
+      case .failure(let error): completion(.failure(error))
+      case .success(let json): completion(.success(nativeItems(json)))
+      }
+    }
+  }
+
   func comments(aid: Int64, page: Int, sort: Int = 1,
                 completion: @escaping (Result<[CommentItem], Error>) -> Void) {
     let key = "comments:\(aid):\(page):\(sort)"

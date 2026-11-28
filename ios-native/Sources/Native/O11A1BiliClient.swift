@@ -1326,7 +1326,7 @@ final class O11A1BiliClient {
 
   /* ---------- UP space ---------- */
 
-  func space(mid: Int64, page: Int, order: String) -> Data {
+  func space(mid: Int64, page: Int, order: String, withProfile: Bool = true) -> Data {
     if mid <= 0 { return o11a1Error("缺少 UP 主 UID") }
     ensureBuvid()
     let pageNumber = max(1, page)
@@ -1415,25 +1415,27 @@ final class O11A1BiliClient {
       "hasMore": total > pageNumber * pageSize || (total == 0 && items.count >= pageSize)
     ]
 
-    if let cardPayload = json(
-      base: Self.apiBase,
-      path: "/x/web-interface/card",
-      query: ["mid": "\(mid)", "photo": "true"]
-    ), let cardData = cardPayload["data"] as? [String: Any],
-       let card = cardData["card"] as? [String: Any] {
-      output["name"] = o11a1StripHTML(o11a1String(card["name"]))
-      output["face"] = o11a1HTTPS(o11a1String(card["face"]))
-      output["sign"] = o11a1StripHTML(o11a1String(card["sign"]))
-      output["follower"] = o11a1Int64(card["fans"])
-      output["followed"] = o11a1Bool(card["attention"])
-    }
-    if let relationPayload = json(
-      base: Self.apiBase,
-      path: "/x/relation/stat",
-      query: ["mid": "\(mid)"]
-    ), let stats = relationPayload["data"] as? [String: Any] {
-      output["follower"] = o11a1Int64(stats["follower"])
-      output["following"] = o11a1Int64(stats["following"])
+    if withProfile {
+      if let cardPayload = json(
+        base: Self.apiBase,
+        path: "/x/web-interface/card",
+        query: ["mid": "\(mid)", "photo": "true"]
+      ), let cardData = cardPayload["data"] as? [String: Any],
+         let card = cardData["card"] as? [String: Any] {
+        output["name"] = o11a1StripHTML(o11a1String(card["name"]))
+        output["face"] = o11a1HTTPS(o11a1String(card["face"]))
+        output["sign"] = o11a1StripHTML(o11a1String(card["sign"]))
+        output["follower"] = o11a1Int64(card["fans"])
+        output["followed"] = o11a1Bool(card["attention"])
+      }
+      if let relationPayload = json(
+        base: Self.apiBase,
+        path: "/x/relation/stat",
+        query: ["mid": "\(mid)"]
+      ), let stats = relationPayload["data"] as? [String: Any] {
+        output["follower"] = o11a1Int64(stats["follower"])
+        output["following"] = o11a1Int64(stats["following"])
+      }
     }
     return o11a1Data(output)
   }

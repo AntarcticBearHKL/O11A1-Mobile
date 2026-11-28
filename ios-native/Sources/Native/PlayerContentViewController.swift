@@ -284,6 +284,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     controller.initialDanmakuOn = initialDanmakuOn
     controller.initialLoopOn = initialLoopOn
     controller.onProfile = { [weak self] mid in self?.onProfile?(mid) }
+    controller.onOpenVideo = { [weak self] value in self?.onSelectRelated?(value) }
     controller.onQuality = { [weak self] qn in self?.onQuality?(qn) }
     controller.onDanmaku = { [weak self] on in self?.onDanmaku?(on) }
     controller.onDanmakuSettingsChanged = { [weak self] in
@@ -582,6 +583,9 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
                          shouldReceive touch: UITouch) -> Bool {
     if gestureRecognizer === tabSwipePan {
       if touch.view?.isDescendant(of: tabDock) == true {
+        return false
+      }
+      if let detail = detail, detail.containsHorizontalVideoFeed(touch.view) {
         return false
       }
       tabSwipeStartX = touch.location(in: view).x
