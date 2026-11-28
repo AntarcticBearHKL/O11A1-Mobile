@@ -131,9 +131,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     searchButton.layer.cornerRadius = 12
     searchButton.layer.cornerCurve = .continuous
     searchButton.layer.shadowColor = UIColor.black.cgColor
-    searchButton.layer.shadowOpacity = 0.16
-    searchButton.layer.shadowRadius = 12
-    searchButton.layer.shadowOffset = CGSize(width: 0, height: 4)
+    searchButton.layer.shadowOpacity = 0.06
+    searchButton.layer.shadowRadius = 6
+    searchButton.layer.shadowOffset = .zero
     searchButton.addTarget(self, action: #selector(openSearchFromTop), for: .touchUpInside)
     mainHost.addSubview(searchButton)
     searchButton.translatesAutoresizingMaskIntoConstraints = false
@@ -154,9 +154,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     avatarButton.layer.borderWidth = 0.5
     avatarButton.layer.borderColor = NativeTheme.hairline.cgColor
     avatarButton.layer.shadowColor = UIColor.black.cgColor
-    avatarButton.layer.shadowOpacity = 0.16
-    avatarButton.layer.shadowRadius = 12
-    avatarButton.layer.shadowOffset = CGSize(width: 0, height: 4)
+    avatarButton.layer.shadowOpacity = 0.06
+    avatarButton.layer.shadowRadius = 6
+    avatarButton.layer.shadowOffset = .zero
     avatarButton.addTarget(self, action: #selector(openMy), for: .touchUpInside)
     mainHost.addSubview(avatarButton)
     avatarButton.translatesAutoresizingMaskIntoConstraints = false
@@ -273,6 +273,16 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     super.traitCollectionDidChange(previousTraitCollection)
     setNeedsStatusBarAppearanceUpdate()
     tabBar.setNeedsDisplay()
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    let searchPath = UIBezierPath(
+      roundedRect: searchButton.bounds, cornerRadius: 12).cgPath
+    searchButton.layer.shadowPath = searchPath
+    let avatarPath = UIBezierPath(
+      roundedRect: avatarButton.bounds, cornerRadius: 12).cgPath
+    avatarButton.layer.shadowPath = avatarPath
   }
 
   private func makeFeed() -> FeedViewController {
