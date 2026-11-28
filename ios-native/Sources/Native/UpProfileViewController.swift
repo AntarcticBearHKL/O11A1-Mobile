@@ -164,11 +164,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     sortBlur.layer.cornerRadius = NativeTheme.cornerRadius
     sortBlur.layer.cornerCurve = .continuous
     sortBlur.clipsToBounds = true
-    sortBlur.contentView.backgroundColor = UIColor { trait in
-      trait.userInterfaceStyle == .dark
-        ? UIColor(white: 0, alpha: 0.58)
-        : UIColor(white: 1, alpha: 0.88)
-    }
+    sortBlur.contentView.backgroundColor = NativeTheme.glassWhite
     sortDock.addSubview(sortBlur)
     sortBlur.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([

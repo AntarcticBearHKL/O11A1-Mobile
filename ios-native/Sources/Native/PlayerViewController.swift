@@ -1099,7 +1099,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let width = min(212, max(156, bounds.width * 0.5))
     let height = width * 9.0 / 16.0
     let x = bounds.width - width - 14
-    let y = bounds.height - 24 - 72 - 10 - height
+    let y = bounds.height - 24 - 66 - 10 - height
     return CGRect(x: x, y: max(60, y), width: width, height: height)
   }
 

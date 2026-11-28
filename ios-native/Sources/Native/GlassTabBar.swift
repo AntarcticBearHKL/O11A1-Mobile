@@ -25,7 +25,7 @@ final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
   private(set) var barHidden = false
   private let selectionFeedback = UISelectionFeedbackGenerator()
   private let barRadius: CGFloat = NativeTheme.cornerRadius
-  private let compactHeight: CGFloat = 72
+  private let compactHeight: CGFloat = 66
   private let listRowHeight: CGFloat = 60
   private let expansionDuration: CFTimeInterval = 0.52
   private var expandedHeight: CGFloat { listRowHeight * CGFloat(items.count) }
@@ -46,17 +46,18 @@ final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
     layer.cornerRadius = barRadius
     layer.cornerCurve = .continuous
     layer.borderWidth = 1
-    layer.borderColor = NativeTheme.barBorder.cgColor
+    layer.borderColor = NativeTheme.hairline.cgColor
     layer.shadowColor = UIColor.black.cgColor
-    layer.shadowOpacity = 0.12
-    layer.shadowRadius = 18
-    layer.shadowOffset = CGSize(width: 0, height: 8)
+    layer.shadowOpacity = 0.18
+    layer.shadowRadius = 17
+    layer.shadowOffset = CGSize(width: 0, height: 7)
     heightConstraint = heightAnchor.constraint(equalToConstant: compactHeight)
     heightConstraint?.isActive = true
 
     blur.layer.cornerRadius = barRadius
     blur.layer.cornerCurve = .continuous
     blur.clipsToBounds = true
+    blur.contentView.backgroundColor = NativeTheme.glassWhite
     addSubview(blur)
     blur.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
@@ -66,7 +67,7 @@ final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
       blur.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
 
-    tint.backgroundColor = NativeTheme.barGlass
+    tint.backgroundColor = .clear
     tint.layer.cornerRadius = barRadius
     tint.layer.cornerCurve = .continuous
     tint.clipsToBounds = true
@@ -92,7 +93,7 @@ final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
       contentClip.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
 
-    pill.backgroundColor = NativeTheme.navPill
+    pill.backgroundColor = NativeTheme.foreground
     pill.layer.cornerRadius = barRadius
     pill.layer.cornerCurve = .continuous
     pill.isUserInteractionEnabled = false
@@ -152,9 +153,9 @@ final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
-    layer.borderColor = NativeTheme.barBorder.cgColor
-    tint.backgroundColor = NativeTheme.barGlass
-    pill.backgroundColor = NativeTheme.navPill
+    layer.borderColor = NativeTheme.hairline.cgColor
+    tint.backgroundColor = .clear
+    pill.backgroundColor = NativeTheme.foreground
     for item in items {
       item.setNeedsLayout()
     }
@@ -217,11 +218,11 @@ final class GlassTabBar: UIView, UIGestureRecognizerDelegate {
   private func pillFrame(for index: Int, morph: CGFloat, width: CGFloat) -> CGRect {
     let p = max(0, min(1, morph))
     let half = width / CGFloat(tabTitles.count)
-    let compact = CGRect(x: CGFloat(index) * half, y: 0,
-                         width: half, height: compactHeight)
-    let row = CGRect(x: 6, y: CGFloat(index) * listRowHeight + 2,
+    let compact = CGRect(x: CGFloat(index) * half + 5, y: 7,
+                         width: max(0, half - 10), height: compactHeight - 14)
+    let row = CGRect(x: 6, y: CGFloat(index) * listRowHeight + 4,
                      width: max(0, width - 12),
-                     height: listRowHeight - 4)
+                     height: listRowHeight - 8)
     return CGRect(
       x: compact.minX + (row.minX - compact.minX) * p,
       y: compact.minY + (row.minY - compact.minY) * p,
@@ -503,10 +504,10 @@ private final class TabItemView: UIControl {
     super.layoutSubviews()
     guard bounds.width > 1, bounds.height > 1 else { return }
     let m = max(0, min(1, morph))
-    let iconSize: CGFloat = 24
-    let gap: CGFloat = 10
-    label.font = UIFont.systemFont(ofSize: 18,
-                                   weight: active ? .semibold : .medium)
+    let iconSize: CGFloat = 22
+    let gap: CGFloat = 9
+    label.font = UIFont.systemFont(ofSize: 16,
+                                   weight: active ? .bold : .medium)
     let textWidth = max(1, label.intrinsicContentSize.width)
     let groupWidth = iconSize + gap + textWidth
     let groupX = max(0, (bounds.width - groupWidth) / 2)
@@ -518,13 +519,9 @@ private final class TabItemView: UIControl {
       y: compactIcon.y + (rowIcon.y - compactIcon.y) * m
     )
 
-    let activeColor = NativeTheme.tabActive
-    let labelInactive = menuRow
-      ? NativeTheme.foreground
-      : blend(NativeTheme.tabInactive, NativeTheme.foreground, m)
-    let iconInactive = menuRow
-      ? NativeTheme.tabInactive
-      : blend(NativeTheme.tabInactive, NativeTheme.secondary, m)
+    let activeColor = NativeTheme.background
+    let labelInactive = NativeTheme.secondary
+    let iconInactive = NativeTheme.secondary
     label.textColor = active ? activeColor : labelInactive
     iconView.tintColor = active ? activeColor : iconInactive
 
