@@ -9,6 +9,7 @@ final class HomeCardCell: UITableViewCell {
   let mediaHost = UIView()
   var onOpen: (() -> Void)?
   var onAvatar: (() -> Void)?
+  var onTouchDown: (() -> Void)?
   var onPreviewScrub: ((CGFloat, Bool) -> Void)?
 
   private let cover = UIImageView()
@@ -295,9 +296,13 @@ final class HomeCardCell: UITableViewCell {
     fatalError("init(coder:) has not been implemented")
   }
 
+  override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+    onTouchDown?()
+    super.touchesBegan(touches, with: event)
+  }
+
   override func layoutSubviews() {
-    super.layoutSubviews()
-    CATransaction.begin()
+    super.layoutSubviews()    CATransaction.begin()
     CATransaction.setDisableActions(true)
     let shadowRect = contentView.bounds
     contentView.layer.shadowPath = UIBezierPath(
@@ -324,6 +329,7 @@ final class HomeCardCell: UITableViewCell {
     hidePreviewLoading()
     onOpen = nil
     onAvatar = nil
+    onTouchDown = nil
     onPreviewScrub = nil
   }
 

@@ -5,7 +5,7 @@ final class BiliAPI {
 
   let client = O11A1BiliClient()
   private let queue = DispatchQueue(label: "o11a1.api", qos: .userInitiated, attributes: .concurrent)
-  private let playCache = O11A1TTLCache<String, PlaySource>(ttl: 300, limit: 48)
+  private let playCache = O11A1TTLCache<String, PlaySource>(ttl: 1800, limit: 96)
   private let infoCache = O11A1TTLCache<String, [String: Any]>(ttl: 600, limit: 64)
   private let relatedCache = O11A1TTLCache<String, [VideoItem]>(ttl: 300, limit: 32)
   private let commentsCache = O11A1TTLCache<String, [CommentItem]>(ttl: 120, limit: 24)

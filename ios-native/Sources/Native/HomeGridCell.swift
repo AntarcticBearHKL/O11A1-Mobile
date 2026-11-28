@@ -25,6 +25,7 @@ final class MiniVideoCardView: UIView {
   private var item: VideoItem?
 
   var onOpen: (() -> Void)?
+  var onTouchDown: (() -> Void)?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -125,6 +126,7 @@ final class MiniVideoCardView: UIView {
 
     tapButton.backgroundColor = .clear
     tapButton.addTarget(self, action: #selector(tapped), for: .touchUpInside)
+    tapButton.addTarget(self, action: #selector(touchDown), for: .touchDown)
     addSubview(tapButton)
     tapButton.translatesAutoresizingMaskIntoConstraints = false
 
@@ -247,6 +249,10 @@ final class MiniVideoCardView: UIView {
     }
   }
 
+  @objc private func touchDown() {
+    onTouchDown?()
+  }
+
   @objc private func tapped() {
     onOpen?()
   }
@@ -265,6 +271,7 @@ final class HomeGridCell: UITableViewCell {
   private var rightItem: VideoItem?
 
   var onOpen: ((VideoItem, MiniVideoCardView) -> Void)?
+  var onTouchDown: ((VideoItem) -> Void)?
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
     super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -294,6 +301,14 @@ final class HomeGridCell: UITableViewCell {
       guard let self = self, let item = self.rightItem else { return }
       self.onOpen?(item, self.rightCard)
     }
+    leftCard.onTouchDown = { [weak self] in
+      guard let self = self, let item = self.leftItem else { return }
+      self.onTouchDown?(item)
+    }
+    rightCard.onTouchDown = { [weak self] in
+      guard let self = self, let item = self.rightItem else { return }
+      self.onTouchDown?(item)
+    }
   }
 
   required init?(coder: NSCoder) {
@@ -307,6 +322,7 @@ final class HomeGridCell: UITableViewCell {
     leftCard.prepareForReuse()
     rightCard.prepareForReuse()
     onOpen = nil
+    onTouchDown = nil
   }
 
   func configure(_ left: VideoItem, _ right: VideoItem?) {

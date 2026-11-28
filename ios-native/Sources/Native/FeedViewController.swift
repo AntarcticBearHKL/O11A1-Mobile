@@ -39,6 +39,7 @@ final class FeedViewController: UIViewController,
   private var loading = false
   private var hasMore = true
   private var lastOffset: CGFloat = 0
+  private var lastGridPrefetchAt: CFTimeInterval = 0
   private var toolbarHidden = false
   private var toolbarWasHidden = false
   private var searchController: SearchViewController?
@@ -351,6 +352,11 @@ final class FeedViewController: UIViewController,
       self.startPreviewIfNeeded()
       self.loadMoreIfNeeded()
     }
+    if HomeFeedLayout.isGrid {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+        self?.prefetchGridPlayURLs(force: true)
+      }
+    }
   }
 
   private func prewarmCovers(from start: Int, count: Int) {
@@ -483,6 +489,9 @@ final class FeedViewController: UIViewController,
       cell.onOpen = { [weak self] item, card in
         self?.open(item, source: card)
       }
+      cell.onTouchDown = { [weak self] item in
+        self?.prefetchPlayURL(item)
+      }
       return cell
     }
     let cell = tableView.dequeueReusableCell(
@@ -492,6 +501,9 @@ final class FeedViewController: UIViewController,
     cell.onOpen = { [weak self, weak cell] in
       guard let self = self, let cell = cell else { return }
       self.open(item, source: cell)
+    }
+    cell.onTouchDown = { [weak self] in
+      self?.prefetchPlayURL(item)
     }
     cell.onAvatar = { [weak self] in
       self?.onProfile?(item.mid)
@@ -574,6 +586,7 @@ final class FeedViewController: UIViewController,
     table.layoutIfNeeded()
     startPreviewIfNeeded()
     loadMoreIfNeeded()
+    prefetchGridPlayURLs(force: true)
   }
 
   private func applyFeedBackground() {
@@ -603,11 +616,13 @@ final class FeedViewController: UIViewController,
   func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
     if !decelerate {
       startPreviewIfNeeded()
+      prefetchGridPlayURLs()
     }
   }
 
   func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
     startPreviewIfNeeded()
+    prefetchGridPlayURLs()
     if scrollView.contentOffset.y <= 4 && toolbarHidden {
       toolbarHidden = false
       onToolbar?(false)
@@ -803,6 +818,45 @@ final class FeedViewController: UIViewController,
     for item in items[first..<last] {
       BiliAPI.shared.prefetchPlayQuality(item, qn: qn)
     }
+  }
+
+  /// Two-column cards have no autoplay preview, so every tap used to start a
+  /// cold playurl round-trip. Warm the URLs for the cards on screen: a tap
+  /// then gets the signed media URL from cache and goes straight to AVPlayer.
+  private func prefetchGridPlayURLs(force: Bool = false) {
+    guard HomeFeedLayout.isGrid, !items.isEmpty else { return }
+    let now = ProcessInfo.processInfo.systemUptime
+    if !force, now - lastGridPrefetchAt < 0.6 { return }
+    lastGridPrefetchAt = now
+    var indices = Set<Int>()
+    let rows = (table.indexPathsForVisibleRows ?? []).sorted { $0.row < $1.row }
+    if rows.isEmpty {
+      indices.formUnion(0..<min(8, items.count))
+    } else {
+      for indexPath in rows {
+        let left = indexPath.row * 2
+        indices.insert(left)
+        if left + 1 < items.count { indices.insert(left + 1) }
+      }
+      if let last = rows.last {
+        for row in (last.row + 1)...(last.row + 2) {
+          let left = row * 2
+          indices.insert(left)
+          if left + 1 < items.count { indices.insert(left + 1) }
+        }
+      }
+    }
+    let qn = ThemeManager.shared.quality
+    for index in indices.sorted() where index < items.count {
+      let item = items[index]
+      guard item.roomId == 0, !item.bvid.isEmpty else { continue }
+      BiliAPI.shared.prefetchPlayQuality(item, qn: qn)
+    }
+  }
+
+  private func prefetchPlayURL(_ item: VideoItem) {
+    guard item.roomId == 0, !item.bvid.isEmpty else { return }
+    BiliAPI.shared.prefetchPlayQuality(item, qn: ThemeManager.shared.quality)
   }
 
   func suspendPreview() {
