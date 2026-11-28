@@ -19,7 +19,6 @@ final class FeedViewController: UIViewController,
 
   private(set) var items: [VideoItem] = []
   private let table = UITableView(frame: .zero, style: .plain)
-  private let refreshControl = UIRefreshControl()
   private let statusLabel = UILabel()
   private let topFade = TopBlurView()
   private var previewEngine = VideoEngine()
@@ -36,7 +35,6 @@ final class FeedViewController: UIViewController,
   private var nextPage = 1
   private var fresh = 1
   private var loading = false
-  private var refreshing = false
   private var hasMore = true
   private var lastOffset: CGFloat = 0
   private var toolbarHidden = false
@@ -71,9 +69,6 @@ final class FeedViewController: UIViewController,
     table.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 138, right: 0)
     table.contentInsetAdjustmentBehavior = .never
     table.showsVerticalScrollIndicator = false
-    refreshControl.tintColor = NativeTheme.secondary
-    refreshControl.addTarget(self, action: #selector(refreshPulled), for: .valueChanged)
-    table.refreshControl = refreshControl
     view.addSubview(table)
     table.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
@@ -191,6 +186,12 @@ final class FeedViewController: UIViewController,
     unloadPreviewMedia()
   }
 
+  override func didReceiveMemoryWarning() {
+    super.didReceiveMemoryWarning()
+    unloadPreviewMedia()
+    ImageLoader.shared.clearMemory()
+  }
+
   // MARK: - data
 
   func setSource(_ source: String, title: String) {
@@ -230,22 +231,18 @@ final class FeedViewController: UIViewController,
     }
     guard !loading else { return }
     if homeSource == "none" {
-      endRefreshing()
       showEmpty("暂时没有内容\n下拉刷新试试")
       return
     }
     if homeSource == "dynamic" {
-      endRefreshing()
       showEmpty("动态请在底部「动态」查看")
       return
     }
     if homeSource == "fish" {
-      endRefreshing()
       showEmpty("养鱼请在底部「养鱼」查看")
       return
     }
     guard hasMore else {
-      endRefreshing()
       return
     }
     loading = true
@@ -260,7 +257,6 @@ final class FeedViewController: UIViewController,
       self.loading = false
       switch result {
       case .failure(let error):
-        self.endRefreshing()
         if self.items.isEmpty {
           self.statusLabel.text = error.localizedDescription + "\n轻触屏幕重试"
           self.statusLabel.isHidden = false
@@ -296,8 +292,7 @@ final class FeedViewController: UIViewController,
         self.loading = false
         switch result {
         case .failure(let error):
-          self.endRefreshing()
-          if self.items.isEmpty {
+            if self.items.isEmpty {
             self.statusLabel.text = error.localizedDescription + "\n轻触屏幕重试"
             self.statusLabel.isHidden = false
           }
@@ -311,18 +306,26 @@ final class FeedViewController: UIViewController,
   }
 
   private func finish(_ values: [VideoItem], reset: Bool) {
-    endRefreshing()
-    let oldCount = items.count
+    let maxFeedItems = 40
+    var appendStart = items.count
     if reset {
       unloadPreviewMedia()
       items = values
       previewSuspended = false
+      appendStart = 0
     } else {
       var existing = Set(items.map { "\($0.bvid)-\($0.roomId)" })
+      var incoming: [VideoItem] = []
       for item in values where !existing.contains("\(item.bvid)-\(item.roomId)") {
-        items.append(item)
+        incoming.append(item)
         existing.insert("\(item.bvid)-\(item.roomId)")
       }
+      let overflow = items.count + incoming.count - maxFeedItems
+      if overflow > 0 {
+        trimOldItems(overflow)
+      }
+      appendStart = items.count
+      items.append(contentsOf: incoming)
     }
     hasMore = !values.isEmpty
     nextPage += 1
@@ -334,10 +337,10 @@ final class FeedViewController: UIViewController,
     }
     if reset {
       table.reloadData()
-    } else if items.count != oldCount {
-      appendLoadedRows(from: oldCount)
+    } else if items.count != appendStart {
+      appendLoadedRows(from: appendStart)
     }
-    let warmStart = reset ? 0 : oldCount
+    let warmStart = reset ? 0 : appendStart
     if !reset {
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
         self?.prewarmCovers(from: warmStart, count: 6)
@@ -347,6 +350,26 @@ final class FeedViewController: UIViewController,
       self.startPreviewIfNeeded()
       self.loadMoreIfNeeded()
     }
+  }
+
+  /// Keep the live feed bounded. The stream is forward-only, so once a new
+  /// page arrives the oldest rows and their media can be released instead of
+  /// letting the list (and its image/player memory) grow forever.
+  private func trimOldItems(_ count: Int) {
+    guard count > 0, count < items.count else { return }
+    let beforeHeight = table.contentSize.height
+    let beforeOffset = table.contentOffset.y
+    unloadPreviewMedia()
+    items.removeFirst(count)
+    previewIndex = -1
+    table.reloadData()
+    table.layoutIfNeeded()
+    let removedHeight = beforeHeight - table.contentSize.height
+    if removedHeight > 0 {
+      table.setContentOffset(
+        CGPoint(x: 0, y: max(0, beforeOffset - removedHeight)), animated: false)
+    }
+    lastOffset = table.contentOffset.y
   }
 
   private func prewarmCovers(from start: Int, count: Int) {
@@ -423,17 +446,6 @@ final class FeedViewController: UIViewController,
     guard items.isEmpty, !loading else { return }
     statusLabel.isHidden = true
     load(reset: true)
-  }
-
-  @objc private func refreshPulled() {
-    refreshing = true
-    load(reset: true)
-  }
-
-  private func endRefreshing() {
-    guard refreshing else { return }
-    refreshing = false
-    refreshControl.endRefreshing()
   }
 
   // MARK: - table

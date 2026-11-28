@@ -635,7 +635,6 @@ private final class PanelCommentCell: UITableViewCell {
     time.font = UIFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .medium)
     time.textAlignment = .right
     time.numberOfLines = 1
-    time.widthAnchor.constraint(equalToConstant: 54).isActive = true
     time.setContentHuggingPriority(.required, for: .horizontal)
     time.setContentCompressionResistancePriority(.required, for: .horizontal)
 
@@ -718,13 +717,8 @@ private final class PanelCommentCell: UITableViewCell {
         .kern: 0.3,
       ])
     let timeText = NativeTheme.freshness(Int64(item.time))
-    time.attributedText = NSAttributedString(
-      string: timeText,
-      attributes: [
-        .font: UIFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .medium),
-        .foregroundColor: NativeTheme.freshnessColor(Int64(item.time)),
-        .kern: 0.2,
-      ])
+    let timeTint = NativeTheme.freshnessColor(Int64(item.time))
+    time.attributedText = timeMetric(timeText, tint: timeTint)
     setMessage(item.message, emotes: item.emotes)
 
     likes.attributedText = metric(icon: "heart.fill",
@@ -765,6 +759,28 @@ private final class PanelCommentCell: UITableViewCell {
       emoteSize: 20,
       paragraphSpacing: 6
     )
+  }
+
+  private func timeMetric(_ text: String, tint: UIColor) -> NSAttributedString {
+    let result = NSMutableAttributedString(string: "")
+    let configuration = UIImage.SymbolConfiguration(pointSize: 9.5, weight: .semibold)
+    if let base = UIImage(systemName: "clock", withConfiguration: configuration) {
+      let symbol = base.withTintColor(tint, renderingMode: .alwaysOriginal)
+      let attachment = NSTextAttachment()
+      attachment.image = symbol
+      attachment.bounds = CGRect(x: 0, y: -1.2,
+                                 width: symbol.size.width,
+                                 height: symbol.size.height)
+      result.append(NSAttributedString(attachment: attachment))
+    }
+    result.append(NSAttributedString(
+      string: " \(text)",
+      attributes: [
+        .font: UIFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .medium),
+        .foregroundColor: tint,
+        .kern: 0.2,
+      ]))
+    return result
   }
 
   private func metric(icon: String, tint: UIColor, value: Int) -> NSAttributedString {

@@ -75,6 +75,10 @@ final class ImageLoader {
     return cache.object(forKey: urlString as NSString)
   }
 
+  func clearMemory() {
+    cache.removeAllObjects()
+  }
+
   /// Load an image without binding it to a view. Used by inline comment
   /// emotes, which need a `UIImage` for an NSTextAttachment.
   func loadImage(_ urlString: String, completion: @escaping (UIImage?) -> Void) {

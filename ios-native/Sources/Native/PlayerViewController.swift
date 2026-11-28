@@ -257,6 +257,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     view.addSubview(dim)
 
     topBar.backgroundColor = .clear
+    topBar.isHidden = true
+    topBar.isUserInteractionEnabled = false
     view.addSubview(topBar)
 
     backButton.setImage(UIImage(systemName: "chevron.left"), for: .normal)
@@ -1179,8 +1181,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     videoContainer.backgroundColor = .clear
     backdropHost.isHidden = false
     backdropHost.alpha = 1
-    topBar.isHidden = false
-    topBar.alpha = 1
+    topBar.isHidden = true
+    topBar.alpha = 0
     bottomPanel.isHidden = false
     dim.isHidden = false
     dim.alpha = 1

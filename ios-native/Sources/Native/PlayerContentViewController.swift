@@ -251,9 +251,6 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
       return
     }
 
-    let oldIndex = tabs.firstIndex(where: { $0.tab == tabKind(for: old) }) ?? 0
-    let newIndex = tabs.firstIndex(where: { $0.tab == tab }) ?? oldIndex
-    let direction: CGFloat = newIndex >= oldIndex ? 1 : -1
     for child in [detail, comments, episodes, related] {
       guard let child = child, child !== controller, child !== old else { continue }
       child.view.isHidden = true
@@ -264,18 +261,14 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     old.view.alpha = 1
     old.view.transform = .identity
     controller.view.alpha = 0
-    controller.view.transform = CGAffineTransform(
-      translationX: 26 * direction, y: 0)
+    controller.view.transform = .identity
     transitionToken += 1
     let token = transitionToken
-    UIView.animate(withDuration: 0.26, delay: 0,
-                   options: [.curveEaseOut, .beginFromCurrentState,
+    UIView.animate(withDuration: 0.22, delay: 0,
+                   options: [.curveEaseInOut, .beginFromCurrentState,
                              .allowUserInteraction]) {
       old.view.alpha = 0
-      old.view.transform = CGAffineTransform(
-        translationX: -16 * direction, y: 0)
       controller.view.alpha = 1
-      controller.view.transform = .identity
     } completion: { _ in
       guard token == self.transitionToken else { return }
       for child in [self.detail, self.comments, self.episodes, self.related] {
@@ -285,13 +278,6 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
         child.view.transform = .identity
       }
     }
-  }
-
-  private func tabKind(for controller: UIViewController) -> Tab {
-    if controller === detail { return .detail }
-    if controller === comments { return .comments }
-    if controller === episodes { return .episodes }
-    return .related
   }
 
   private func ensureDetail() -> VideoDetailViewController {
