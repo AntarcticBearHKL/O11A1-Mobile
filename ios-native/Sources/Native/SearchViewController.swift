@@ -157,12 +157,16 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     ])
 
     typeDock.backgroundColor = .clear
-    typeDock.layer.cornerRadius = 33
+    typeDock.layer.cornerRadius = NativeTheme.cornerRadius
     typeDock.layer.cornerCurve = .continuous
     typeDock.layer.borderWidth = 1
     typeDock.layer.borderColor = NativeTheme.hairline.cgColor
+    typeDock.layer.shadowColor = UIColor.black.cgColor
+    typeDock.layer.shadowOpacity = 0.18
+    typeDock.layer.shadowRadius = 17
+    typeDock.layer.shadowOffset = CGSize(width: 0, height: 7)
     typeDock.clipsToBounds = false
-    typeBlur.layer.cornerRadius = 33
+    typeBlur.layer.cornerRadius = NativeTheme.cornerRadius
     typeBlur.layer.cornerCurve = .continuous
     typeBlur.clipsToBounds = true
     typeBlur.isUserInteractionEnabled = false
@@ -180,13 +184,13 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     typeStack.distribution = .fillEqually
     typeStack.spacing = 3
     typeStack.isLayoutMarginsRelativeArrangement = true
-    typeStack.layoutMargins = UIEdgeInsets(top: 7, left: 7, bottom: 7, right: 7)
+    typeStack.layoutMargins = UIEdgeInsets(top: 7, left: 5, bottom: 7, right: 5)
     for (index, type) in SearchType.allCases.enumerated() {
       let button = UIButton(type: .custom)
       button.tag = index
       button.setTitle(type.title, for: .normal)
-      button.titleLabel?.font = UIFont.systemFont(ofSize: 13.5, weight: .bold)
-      button.layer.cornerRadius = 26
+      button.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .bold)
+      button.layer.cornerRadius = NativeTheme.cornerRadius
       button.layer.cornerCurve = .continuous
       button.addTarget(self, action: #selector(typeTapped(_:)), for: .touchUpInside)
       typeButtons.append(button)
@@ -205,8 +209,8 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     NSLayoutConstraint.activate([
       typeDock.centerXAnchor.constraint(equalTo: view.centerXAnchor),
       typeDock.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor,
-                                       constant: -14),
-      typeDock.widthAnchor.constraint(equalToConstant: 264),
+                                       constant: -28),
+      typeDock.widthAnchor.constraint(equalToConstant: 304),
       typeDock.heightAnchor.constraint(equalToConstant: 66),
     ])
     updateTypeDock()
@@ -232,9 +236,11 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     headMask.frame = head.bounds
+    typeDock.layer.shadowPath = UIBezierPath(
+      roundedRect: typeDock.bounds,
+      cornerRadius: NativeTheme.cornerRadius).cgPath
     CATransaction.commit()
-    table.contentInset = UIEdgeInsets(top: mode == .hot ? 8 : 0, left: 0,
-                                      bottom: 100 + view.safeAreaInsets.bottom, right: 0)
+    updateTableInsets()
     fieldWrap.layer.borderColor = fieldWrap.layer.borderWidth > 1
       ? NativeTheme.navBlue.withAlphaComponent(0.5).cgColor
       : NativeTheme.hairline.cgColor
@@ -242,8 +248,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
 
   override func viewSafeAreaInsetsDidChange() {
     super.viewSafeAreaInsetsDidChange()
-    table.contentInset = UIEdgeInsets(top: mode == .hot ? 8 : 0, left: 0,
-                                      bottom: 100 + view.safeAreaInsets.bottom, right: 0)
+    updateTableInsets()
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -269,6 +274,11 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
       self.field.becomeFirstResponder()
     }
+  }
+
+  func testSearch(_ term: String) {
+    field.text = term
+    performSearch(term)
   }
 
   /// Close-out reset: the next opening starts a fresh search flow.
@@ -323,12 +333,14 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
       table.reloadData()
       statusLabel.isHidden = true
       table.contentInset.top = 8
+      updateTypeDock()
       return
     }
     mode = .suggest
     table.reloadData()
     statusLabel.isHidden = true
     table.contentInset.top = 0
+    updateTypeDock()
     let task = DispatchWorkItem { [weak self] in
       self?.loadSuggestions(term)
     }
@@ -378,6 +390,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     items = []
     table.reloadData()
     table.contentInset.top = 0
+    updateTypeDock()
     loadResults(reset: true)
   }
 
@@ -443,18 +456,24 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   }
 
   private func updateTypeDock() {
-    let light = traitCollection.userInterfaceStyle == .light
+    typeDock.isHidden = mode != .results
+    typeDock.layer.borderColor = NativeTheme.hairline.cgColor
     for (index, button) in typeButtons.enumerated() {
       let on = index < SearchType.allCases.count
         && SearchType.allCases[index] == searchType
       button.backgroundColor = on ? NativeTheme.foreground : .clear
       button.setTitleColor(on ? NativeTheme.background : NativeTheme.secondary,
                            for: .normal)
-      button.layer.borderWidth = on ? 0 : 1
-      button.layer.borderColor = light
-        ? UIColor(white: 0, alpha: 0.06).cgColor
-        : UIColor(white: 1, alpha: 0.08).cgColor
+      button.layer.borderWidth = 0
     }
+    updateTableInsets()
+  }
+
+  private func updateTableInsets() {
+    let bottom: CGFloat = mode == .results ? 100 : 24
+    table.contentInset = UIEdgeInsets(
+      top: mode == .hot ? 8 : 0, left: 0,
+      bottom: bottom + view.safeAreaInsets.bottom, right: 0)
   }
 
   @objc private func typeTapped(_ sender: UIButton) {
@@ -470,7 +489,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     if !term.isEmpty, mode == .results {
       loadResults(reset: true)
     }
-    UISelectionFeedbackGenerator().selectionChanged()
+    UIImpactFeedbackGenerator(style: .light).impactOccurred()
   }
 
   @objc private func handleTypeSwipe(_ gesture: UIPanGestureRecognizer) {
@@ -490,19 +509,27 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   @objc private func handleDismissPan(_ gesture: UIPanGestureRecognizer) {
     let reference = view.superview ?? view
     let width = max(1, view.bounds.width)
-    let translation = dismissDirection > 0
-      ? max(0, gesture.translation(in: reference).x)
-      : max(0, -gesture.translation(in: reference).x)
+    let raw = gesture.translation(in: reference).x
+    let distance = dismissDirection > 0 ? max(0, raw) : max(0, -raw)
     switch gesture.state {
     case .began:
       view.endEditing(true)
     case .changed:
-      onInteractiveClose?(max(0, min(1, 1 - translation / width)), dismissDirection)
+      // The search page is presented from the right, so every dismissal leaves
+      // to the right as well. The left-edge drag tracks the finger; the
+      // right-edge back-swipe only nudges the page, then releases it to the
+      // right, instead of dragging it left and then reversing direction.
+      let progress = dismissDirection > 0
+        ? 1 - distance / width
+        : 1 - min(28, distance) / width
+      onInteractiveClose?(max(0, min(1, progress)), 1)
     case .ended, .cancelled:
-      let velocity = gesture.velocity(in: view).x * dismissDirection
-      let shouldClose = translation > width * 0.24 || velocity > 350
+      let velocity = dismissDirection > 0
+        ? gesture.velocity(in: view).x
+        : -gesture.velocity(in: view).x
+      let shouldClose = distance > width * 0.24 || velocity > 350
       if shouldClose { view.endEditing(true) }
-      onCloseSettled?(shouldClose, dismissDirection)
+      onCloseSettled?(shouldClose, 1)
     default:
       break
     }
@@ -530,6 +557,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
       }
       return false
     }
+    guard mode == .results else { return false }
     return typeStartX >= width / 6.0 && typeStartX <= width * 5.0 / 6.0
   }
 
@@ -537,6 +565,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     _ gestureRecognizer: UIGestureRecognizer,
     shouldReceive touch: UITouch
   ) -> Bool {
+    if touch.view?.isDescendant(of: typeDock) == true { return false }
     if gestureRecognizer === dismissPan {
       dismissStartX = touch.location(in: view).x
     }

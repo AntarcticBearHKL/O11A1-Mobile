@@ -209,6 +209,10 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
         self?.feed?.openSearchFromHost()
       }
+    case "search-results":
+      DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        self?.feed?.openSearchResultsForTest(term: "原神")
+      }
     case "login":
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
         guard let self = self else { return }

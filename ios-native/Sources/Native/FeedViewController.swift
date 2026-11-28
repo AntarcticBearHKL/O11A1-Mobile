@@ -1298,6 +1298,11 @@ final class FeedViewController: UIViewController,
     openSearch(animated: true)
   }
 
+  func openSearchResultsForTest(term: String) {
+    openSearch(animated: false)
+    searchController?.testSearch(term)
+  }
+
   func isSearchOpen() -> Bool {
     return searchOpen
   }
