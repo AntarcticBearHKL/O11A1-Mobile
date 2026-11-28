@@ -839,10 +839,10 @@ private final class PanelCommentCell: UITableViewCell {
       emotes: emotes,
       font: UIFont.systemFont(ofSize: 16.5, weight: .regular),
       color: NativeTheme.foreground.withAlphaComponent(0.9),
-      lineHeight: 28,
-      tracking: 0.15,
+      lineHeight: 26,
+      tracking: 0.1,
       emoteSize: 20,
-      paragraphSpacing: 6
+      paragraphSpacing: 0
     )
   }
 
@@ -916,10 +916,10 @@ private final class PanelCommentCell: UITableViewCell {
       emotes: item.emotes,
       font: UIFont.systemFont(ofSize: 15.5, weight: .regular),
       color: NativeTheme.foreground.withAlphaComponent(0.86),
-      lineHeight: 25,
-      tracking: 0.1,
+      lineHeight: 24,
+      tracking: 0.08,
       emoteSize: 19,
-      paragraphSpacing: 5
+      paragraphSpacing: 0
     )
 
     let copy = UIStackView(arrangedSubviews: [replyName, replyMessage])

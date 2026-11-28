@@ -281,10 +281,10 @@ private final class CommentCell: UITableViewCell {
       emotes: item.emotes,
       font: NativeTheme.bodyFont(14),
       color: NativeTheme.foreground,
-      lineHeight: 22,
-      tracking: 0.1,
+      lineHeight: 21,
+      tracking: 0.08,
       emoteSize: 18,
-      paragraphSpacing: 4
+      paragraphSpacing: 0
     )
     meta.text = "赞 \(item.likes)"
     let hasReplies = item.replies > 0 && onReplies != nil

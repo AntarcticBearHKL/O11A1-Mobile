@@ -11,10 +11,10 @@ final class CommentMessageLabel: UILabel {
   private var renderToken = 0
   private var textFont = UIFont.systemFont(ofSize: 16.5)
   private var textColorValue = UIColor.label
-  private var lineHeight: CGFloat = 28
-  private var tracking: CGFloat = 0.15
+  private var lineHeight: CGFloat = 26
+  private var tracking: CGFloat = 0.1
   private var emoteSize: CGFloat = 20
-  private var paragraphSpacing: CGFloat = 6
+  private var paragraphSpacing: CGFloat = 0
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -32,13 +32,13 @@ final class CommentMessageLabel: UILabel {
     font: UIFont,
     color: UIColor,
     lineHeight: CGFloat,
-    tracking: CGFloat = 0.15,
+    tracking: CGFloat = 0.1,
     emoteSize: CGFloat = 20,
-    paragraphSpacing: CGFloat = 6
+    paragraphSpacing: CGFloat = 0
   ) {
     renderToken += 1
     let token = renderToken
-    rawText = text
+    rawText = text.trimmingCharacters(in: .whitespacesAndNewlines)
     emoteMap = emotes
     emoteImages.removeAll()
     failedEmotes.removeAll()
@@ -91,7 +91,7 @@ final class CommentMessageLabel: UILabel {
             string: CommentMessageLabel.fallbackEmoji(key),
             attributes: attributes))
         } else {
-          result.append(emoteAttachment(for: key))
+          result.append(emoteAttachment(for: key, attributes: attributes))
         }
         index = rawText.index(index, offsetBy: key.count)
       } else {
@@ -105,14 +105,19 @@ final class CommentMessageLabel: UILabel {
     attributedText = result
   }
 
-  private func emoteAttachment(for key: String) -> NSAttributedString {
+  private func emoteAttachment(
+    for key: String,
+    attributes: [NSAttributedString.Key: Any]
+  ) -> NSAttributedString {
     let image = emoteImages[key] ?? placeholderImage()
     let attachment = NSTextAttachment()
     attachment.image = image
     let baseline = (textFont.capHeight - emoteSize) / 2
     attachment.bounds = CGRect(x: 0, y: baseline,
                                width: emoteSize, height: emoteSize)
-    return NSAttributedString(attachment: attachment)
+    let string = NSMutableAttributedString(attachment: attachment)
+    string.addAttributes(attributes, range: NSRange(location: 0, length: string.length))
+    return string
   }
 
   private static func fallbackEmoji(_ key: String) -> String {
