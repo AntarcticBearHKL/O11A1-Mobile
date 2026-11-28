@@ -243,6 +243,12 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
         self?.feed?.runScrollTest(steps: 18)
       }
+    case "comments-images":
+      DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        let panel = CommentsPanelViewController(aid: 117676869491009)
+        panel.modalPresentationStyle = .overFullScreen
+        self?.present(panel, animated: false)
+      }
     case "my":
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
         self?.openMy()
