@@ -1579,9 +1579,10 @@ final class O11A1BiliClient {
     return result
   }
 
-  func favorite(aid: Int64, on: Bool) -> Data {
+  func favorite(aid: Int64, folderId: Int64, on: Bool) -> Data {
     guard canWrite() else { return needLogin("请先登录") }
-    let folder = defaultFolderId()
+    var folder = folderId
+    if folder <= 0 { folder = defaultFolderId() }
     guard folder > 0 else { return apiFailure(-1, "没有可用的收藏夹") }
     guard let payload = postForm("https://api.bilibili.com/x/v3/fav/resource/deal", fields: [
       "rid": "\(aid)", "type": "2",
@@ -1590,6 +1591,46 @@ final class O11A1BiliClient {
       "csrf": csrfToken()
     ]) else { return o11a1Error("收藏失败") }
     return writeResult(payload, key: "faved", value: on)
+  }
+
+  func favoriteFolders() -> Data {
+    guard cookies.hasSession() else { return needLogin("请先登录") }
+    let mid = accountMid()
+    guard mid > 0 else { return needLogin("请先登录") }
+    guard let payload = json(
+      base: Self.apiBase,
+      path: "/x/v3/fav/folder/created/list-all",
+      query: ["up_mid": "\(mid)"]
+    ), o11a1Int(payload["code"]) == 0,
+      let data = payload["data"] as? [String: Any] else {
+      return o11a1Error("收藏夹加载失败")
+    }
+    let list = data["list"] as? [[String: Any]] ?? []
+    let folders: [[String: Any]] = list.map { folder in
+      [
+        "id": o11a1Int64(folder["id"]),
+        "title": o11a1String(folder["title"]),
+        "count": o11a1Int(folder["media_count"]),
+      ]
+    }
+    return o11a1Data(["ok": true, "folders": folders])
+  }
+
+  func createFavoriteFolder(title: String) -> Data {
+    guard canWrite() else { return needLogin("请先登录") }
+    let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !name.isEmpty else { return o11a1Error("收藏夹名称不能为空") }
+    guard let payload = postForm("https://api.bilibili.com/x/v3/fav/folder/add", fields: [
+      "title": name, "privacy": "0", "csrf": csrfToken()
+    ]) else { return o11a1Error("新建收藏夹失败") }
+    let code = o11a1Int(payload["code"])
+    guard code == 0, let data = payload["data"] as? [String: Any] else {
+      return apiFailure(code, o11a1String(payload["message"]))
+    }
+    return o11a1Data([
+      "ok": true, "id": o11a1Int64(data["id"]),
+      "title": name, "count": 0,
+    ])
   }
 
   func follow(mid: Int64, on: Bool) -> Data {

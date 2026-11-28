@@ -54,6 +54,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   private var liked = false
   private var faved = false
   private var coined = false
+  private var favoriteFolderId: Int64 = 0
   private var detailAid: Int64 = 0
   private var detailBvid = ""
   private let descLabel = UILabel()
@@ -96,6 +97,8 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   override func viewDidLoad() {
     super.viewDidLoad()
     view.backgroundColor = .clear
+    favoriteFolderId = Int64(
+      UserDefaults.standard.integer(forKey: "o11a1.favoriteFolderId"))
 
     card.backgroundColor = NativeTheme.surface
     card.layer.cornerRadius = embedded ? 0 : NativeTheme.cornerRadius
@@ -232,18 +235,18 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     bvidLabel.text = item.bvid
     bvidLabel.lineBreakMode = .byTruncatingTail
 
-    let copyConfig = UIImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+    let copyConfig = UIImage.SymbolConfiguration(pointSize: 8, weight: .semibold)
     copyButton.setImage(UIImage(systemName: "doc.on.doc", withConfiguration: copyConfig),
                         for: .normal)
     copyButton.tintColor = NativeTheme.tertiary
     copyButton.addTarget(self, action: #selector(copyBvid), for: .touchUpInside)
     copyButton.translatesAutoresizingMaskIntoConstraints = false
-    copyButton.widthAnchor.constraint(equalToConstant: 18).isActive = true
-    copyButton.heightAnchor.constraint(equalToConstant: 18).isActive = true
+    copyButton.widthAnchor.constraint(equalToConstant: 14).isActive = true
+    copyButton.heightAnchor.constraint(equalToConstant: 14).isActive = true
 
     let bvidRow = UIStackView(arrangedSubviews: [bvidLabel, copyButton])
     bvidRow.axis = .horizontal
-    bvidRow.spacing = 5
+    bvidRow.spacing = 4
     bvidRow.alignment = .center
 
     playLabel.font = NativeTheme.numberFont(10.5)
@@ -378,53 +381,6 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     danmakuAreaPercent = DanmakuSettings.areaPercent(defaults: defaults)
     danmakuDensity = defaults.object(forKey: "danmaku_density") == nil
       ? true : defaults.bool(forKey: "danmaku_density")
-
-    let settingsTitle = UILabel()
-    settingsTitle.text = "播放设置"
-    settingsTitle.font = UIFont.systemFont(ofSize: 13, weight: .bold)
-    settingsTitle.textColor = NativeTheme.secondary
-    stack.addArrangedSubview(settingsTitle)
-
-    let settingsTile = UIView()
-    settingsTile.backgroundColor = NativeTheme.background
-    settingsTile.layer.cornerRadius = NativeTheme.cornerRadius
-    settingsTile.layer.cornerCurve = .continuous
-    stack.addArrangedSubview(settingsTile)
-
-    let settingsStack = UIStackView()
-    settingsStack.axis = .vertical
-    settingsStack.alignment = .fill
-    settingsStack.spacing = 0
-    settingsTile.addSubview(settingsStack)
-    settingsStack.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      settingsStack.leadingAnchor.constraint(equalTo: settingsTile.leadingAnchor, constant: 14),
-      settingsStack.trailingAnchor.constraint(equalTo: settingsTile.trailingAnchor, constant: -14),
-      settingsStack.topAnchor.constraint(equalTo: settingsTile.topAnchor),
-      settingsStack.bottomAnchor.constraint(equalTo: settingsTile.bottomAnchor),
-    ])
-
-    qualitySetting.font = NativeTheme.bodyFont(11)
-    qualitySetting.textColor = NativeTheme.secondary
-    qualitySetting.textAlignment = .right
-    danmakuSetting.font = NativeTheme.bodyFont(11)
-    danmakuSetting.textColor = NativeTheme.secondary
-    danmakuSetting.textAlignment = .right
-    loopSetting.font = NativeTheme.bodyFont(11)
-    loopSetting.textColor = NativeTheme.secondary
-    loopSetting.textAlignment = .right
-
-    settingsStack.addArrangedSubview(makeSettingsRow(
-      title: "画质", value: qualitySetting, chevron: true,
-      action: #selector(toggleQualityChips)))
-    settingsStack.addArrangedSubview(settingsSeparator())
-    settingsStack.addArrangedSubview(makeQualityChips())
-    settingsStack.addArrangedSubview(makeSettingsRow(
-      title: "弹幕设置", value: danmakuSetting, chevron: true,
-      action: #selector(toggleDanmakuSetting)))
-    settingsStack.addArrangedSubview(makeDanmakuPanel())
-
-    updateSettingsLabels()
 
     if embedded {
       let swipe = UIPanGestureRecognizer(target: self, action: #selector(handleCloseSwipe(_:)))
@@ -939,14 +895,33 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   @objc private func favoriteTapped() {
     let aid = actionAid
     guard aid > 0 else { return }
-    let next = !faved
-    BiliAPI.shared.favorite(aid: aid, on: next) { [weak self] ok in
-      guard ok, let self = self else { return }
-      self.faved = next
-      self.favoriteCount = max(0, self.favoriteCount + (next ? 1 : -1))
-      self.updateActions()
-      UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    if faved {
+      BiliAPI.shared.favorite(aid: aid, folderId: favoriteFolderId, on: false) {
+        [weak self] ok in
+        guard ok, let self = self else { return }
+        self.faved = false
+        self.favoriteCount = max(0, self.favoriteCount - 1)
+        self.updateActions()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+      }
+      return
     }
+    let sheet = FavoriteFolderSheetViewController()
+    sheet.modalPresentationStyle = .overFullScreen
+    sheet.onSelect = { [weak self] folder in
+      guard let self = self else { return }
+      self.favoriteFolderId = folder.id
+      UserDefaults.standard.set(folder.id, forKey: "o11a1.favoriteFolderId")
+      BiliAPI.shared.favorite(aid: aid, folderId: folder.id, on: true) {
+        [weak self] ok in
+        guard ok, let self = self else { return }
+        self.faved = true
+        self.favoriteCount += 1
+        self.updateActions()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+      }
+    }
+    present(sheet, animated: false)
   }
 
   @objc private func shareTapped() {
@@ -1032,7 +1007,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     guard !bvid.isEmpty else { return }
     UIPasteboard.general.string = bvid
     UIImpactFeedbackGenerator(style: .light).impactOccurred()
-    let config = UIImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+    let config = UIImage.SymbolConfiguration(pointSize: 8, weight: .semibold)
     copyButton.setImage(UIImage(systemName: "checkmark", withConfiguration: config),
                         for: .normal)
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in

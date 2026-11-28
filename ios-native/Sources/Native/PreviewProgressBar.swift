@@ -66,14 +66,5 @@ final class PreviewProgressBar: UIControl {
     let fillRect = CGRect(x: 0, y: 0, width: width, height: height)
     NativeTheme.navBlue.setFill()
     UIBezierPath(roundedRect: fillRect, cornerRadius: radius).fill()
-
-    let headX = min(bounds.width - radius, max(radius, width - radius))
-    let center = CGPoint(x: headX, y: height / 2)
-    NativeTheme.navBlue.withAlphaComponent(0.30).setFill()
-    UIBezierPath(ovalIn: CGRect(x: center.x - 6, y: center.y - 6,
-                                width: 12, height: 12)).fill()
-    UIColor.white.setFill()
-    UIBezierPath(ovalIn: CGRect(x: center.x - 3.5, y: center.y - 3.5,
-                                width: 7, height: 7)).fill()
   }
 }

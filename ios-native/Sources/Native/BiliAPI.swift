@@ -520,6 +520,43 @@ final class BiliAPI {
     }
   }
 
+  func favorite(aid: Int64, folderId: Int64, on: Bool,
+                completion: ((Bool) -> Void)? = nil) {
+    run({ self.client.favorite(aid: aid, folderId: folderId, on: on) }) { result in
+      if case .failure = result { completion?(false) } else { completion?(true) }
+    }
+  }
+
+  func favoriteFolders(completion: @escaping (Result<[FavoriteFolder], Error>) -> Void) {
+    run({ self.client.favoriteFolders() }) { result in
+      switch result {
+      case .failure(let error): completion(.failure(error))
+      case .success(let json):
+        let rows = (json["folders"] as? [[String: Any]]) ?? []
+        let folders = rows.map { row -> FavoriteFolder in
+          FavoriteFolder(id: o11a1Int64(row["id"]),
+                         title: o11a1String(row["title"]),
+                         count: o11a1Int(row["count"]))
+        }
+        completion(.success(folders))
+      }
+    }
+  }
+
+  func createFavoriteFolder(title: String,
+                            completion: @escaping (Result<FavoriteFolder, Error>) -> Void) {
+    run({ self.client.createFavoriteFolder(title: title) }) { result in
+      switch result {
+      case .failure(let error): completion(.failure(error))
+      case .success(let json):
+        completion(.success(FavoriteFolder(
+          id: o11a1Int64(json["id"]),
+          title: o11a1String(json["title"]),
+          count: o11a1Int(json["count"]))))
+      }
+    }
+  }
+
   func follow(mid: Int64, on: Bool, completion: ((Bool) -> Void)? = nil) {
     run({ self.client.follow(mid: mid, on: on) }) { result in
       if case .failure = result { completion?(false) } else { completion?(true) }

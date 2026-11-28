@@ -140,6 +140,12 @@ struct PreviewHandoff {
   var engine: VideoEngine?
 }
 
+struct FavoriteFolder {
+  var id: Int64 = 0
+  var title = ""
+  var count = 0
+}
+
 struct AccountInfo {
   var loggedIn = false
   var name = ""

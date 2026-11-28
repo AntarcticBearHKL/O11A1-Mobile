@@ -94,13 +94,14 @@ final class CommentImageStrip: UIView {
   }
 }
 
-final class CommentImageViewer: UIViewController, UIScrollViewDelegate {
+final class CommentImageViewer: UIViewController, UIScrollViewDelegate,
+  UIGestureRecognizerDelegate {
   private let images: [String]
   private let startIndex: Int
   private let scroll = UIScrollView()
   private let pager = UIPageControl()
-  private let close = UIButton(type: .system)
   private var didSetInitialPage = false
+  private var dismissPan: UIPanGestureRecognizer?
 
   init(images: [String], startIndex: Int) {
     self.images = images
@@ -139,14 +140,10 @@ final class CommentImageViewer: UIViewController, UIScrollViewDelegate {
     pager.isUserInteractionEnabled = false
     view.addSubview(pager)
 
-    let configuration = UIImage.SymbolConfiguration(pointSize: 15, weight: .bold)
-    close.setImage(UIImage(systemName: "xmark", withConfiguration: configuration),
-                   for: .normal)
-    close.tintColor = .white
-    close.backgroundColor = UIColor.black.withAlphaComponent(0.42)
-    close.layer.cornerRadius = 18
-    close.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
-    view.addSubview(close)
+    let pan = UIPanGestureRecognizer(target: self, action: #selector(handleDismissPan(_:)))
+    pan.delegate = self
+    view.addGestureRecognizer(pan)
+    dismissPan = pan
   }
 
   override func viewDidLayoutSubviews() {
@@ -161,8 +158,6 @@ final class CommentImageViewer: UIViewController, UIScrollViewDelegate {
     }
     pager.frame = CGRect(x: 0, y: size.height - view.safeAreaInsets.bottom - 34,
                          width: size.width, height: 20)
-    close.frame = CGRect(x: size.width - 54, y: view.safeAreaInsets.top + 8,
-                         width: 36, height: 36)
     if !didSetInitialPage {
       didSetInitialPage = true
       scroll.contentOffset = CGPoint(x: size.width * CGFloat(startIndex), y: 0)
@@ -175,8 +170,48 @@ final class CommentImageViewer: UIViewController, UIScrollViewDelegate {
     pager.currentPage = max(0, min(images.count - 1, page))
   }
 
-  @objc private func closeTapped() {
-    dismiss(animated: true)
+  @objc private func handleDismissPan(_ gesture: UIPanGestureRecognizer) {
+    let translation = max(0, gesture.translation(in: view).y)
+    switch gesture.state {
+    case .began:
+      break
+    case .changed:
+      let scale = max(0.72, 1 - translation / max(1, view.bounds.height) * 0.55)
+      view.transform = CGAffineTransform(translationX: 0, y: translation)
+        .scaledBy(x: scale, y: scale)
+      view.alpha = max(0.25, 1 - translation / 520)
+    case .ended, .cancelled:
+      let velocity = gesture.velocity(in: view).y
+      if translation > 90 || velocity > 650 {
+        UIView.animate(withDuration: 0.22, delay: 0,
+                       options: [.curveEaseIn]) {
+          self.view.transform = CGAffineTransform(
+            translationX: 0, y: max(translation, self.view.bounds.height * 0.55))
+            .scaledBy(x: 0.7, y: 0.7)
+          self.view.alpha = 0
+        } completion: { _ in
+          self.dismiss(animated: false)
+        }
+      } else {
+        UIView.animate(withDuration: 0.24, delay: 0,
+                       usingSpringWithDamping: 0.82,
+                       initialSpringVelocity: 0.3) {
+          self.view.transform = .identity
+          self.view.alpha = 1
+        }
+      }
+    default:
+      break
+    }
+  }
+
+  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+          pan === dismissPan else { return true }
+    let velocity = pan.velocity(in: view)
+    let translation = pan.translation(in: view)
+    return translation.y > abs(translation.x) * 1.1
+      || velocity.y > abs(velocity.x) * 1.1
   }
 
   static func present(_ images: [String], startIndex: Int) {

@@ -102,6 +102,7 @@ final class HomeCardCell: UITableViewCell {
     previewBar.onScrub = { [weak self] ratio, finished in
       self?.onPreviewScrub?(ratio, finished)
     }
+    previewBar.isUserInteractionEnabled = false
 
     previewLoading.backgroundColor = UIColor.black.withAlphaComponent(0.58)
     previewLoading.layer.cornerRadius = 16
@@ -255,7 +256,7 @@ final class HomeCardCell: UITableViewCell {
       previewBar.leadingAnchor.constraint(equalTo: media.leadingAnchor),
       previewBar.trailingAnchor.constraint(equalTo: media.trailingAnchor),
       previewBar.bottomAnchor.constraint(equalTo: media.bottomAnchor),
-      previewBar.heightAnchor.constraint(equalToConstant: 4),
+      previewBar.heightAnchor.constraint(equalToConstant: 6),
 
       copyView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
       copyView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),

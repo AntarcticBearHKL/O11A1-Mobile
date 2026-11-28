@@ -1046,6 +1046,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     videoContainer.layer.cornerRadius = 0
     layoutVideoSubviews()
     danmakuOverlay.frame = lerpRect(full, videoRect, p)
+    danmakuOverlay.setTopInset(
+      max(76, view.safeAreaInsets.top + 52) * (1 - p), animated: false)
 
     let panelHeight: CGFloat = playerPanelHeight
     let panelWidth = max(1, full.width * portraitPanelWidthRatio)
@@ -1546,7 +1548,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       hideControls()
     }
     let danmakuInset: CGFloat = landscape
-      ? 0 : max(76, view.safeAreaInsets.top + 52)
+      ? 0 : max(76, view.safeAreaInsets.top + 52) * (1 - max(0, min(1, portraitTransition)))
     danmakuOverlay.setTopInset(danmakuInset, animated: true)
     view.backgroundColor = .clear
     let backdropBusy = openingTransition || portraitDragActive
@@ -2414,7 +2416,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func handlePlaybackEnded() {
-    guard loopMode == .list, !closing, !loadingNextLoop else { return }
+    guard !closing else { return }
+    if loopMode == .off {
+      userPaused = true
+      engine.pause()
+      engine.seek(to: 0, resume: false)
+      applyPlaying(false)
+      return
+    }
+    guard loopMode == .list, !loadingNextLoop else { return }
     loadingNextLoop = true
     if loopQueue.isEmpty {
       BiliAPI.shared.related(item.bvid) { [weak self] result in
