@@ -76,6 +76,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var closing = false
   private var currentQuality = 80
   private var userPaused = false
+  private var lastAppliedPlaying = false
   private var loadToken = 0
   private var started = false
   private var speedIndex = 0
@@ -833,6 +834,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func applyPlaying(_ playing: Bool) {
+    let becamePaused = lastAppliedPlaying && !playing
+    lastAppliedPlaying = playing
     let paused = userPaused || !playing
     playGlyph.setSymbol(paused ? "play.fill" : "pause.fill", pointSize: 52)
     pausedVeil.isHidden = true
@@ -844,17 +847,17 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       progressTick()
     }
     updatePauseButton()
-    if !playing {
+    if becamePaused {
       saveWatchProgress()
     }
   }
 
   private func updatePauseButton() {
-    let show = userPaused && !mediaLoadActive && !closing
+    let show = !mediaLoadActive && !closing
       && !isMiniWindow && !isSystemPip
     let wasHidden = playButton.isHidden
     playButton.isHidden = !show
-    playButton.alpha = show ? 1 : 0
+    playButton.alpha = show ? (userPaused ? 1 : 0.9) : 0
     guard show else {
       playButton.transform = .identity
       return
@@ -1890,9 +1893,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   @objc private func togglePlay() {
-    userPaused = false
-    engine.play()
-    applyPlaying(true)
+    if userPaused || !engine.isPlaying {
+      userPaused = false
+      engine.play()
+      applyPlaying(true)
+    } else {
+      userPaused = true
+      engine.pause()
+      applyPlaying(false)
+    }
     videoContainer.backgroundColor = .clear
   }
 
@@ -2218,6 +2227,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     lastProgressSave = 0
     lastHistoryReport = 0
     userPaused = false
+    lastAppliedPlaying = false
     engine.stop()
     danmakuOverlay.load(cid: page.cid)
     contentController?.setCurrentPage(page)
@@ -2249,6 +2259,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     lastProgressSave = 0
     lastHistoryReport = 0
     userPaused = false
+    lastAppliedPlaying = false
     forcePageStart = false
     closing = false
     errorLabel.isHidden = true
