@@ -26,7 +26,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   private let hotButton = UIButton(type: .custom)
   private var items: [CommentItem] = []
   private var page = 1
-  private var sort = 2
+  private var sort = 1
   private var loading = false
   private var hasMore = true
   private var dismissPan: UIPanGestureRecognizer?
@@ -308,7 +308,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   private func updateSort() {
     if embedded {
       for (index, button) in [latestButton, hotButton].enumerated() {
-        let on = (index == 0 && sort == 0) || (index == 1 && sort == 2)
+        let on = (index == 0 && sort == 0) || (index == 1 && sort == 1)
         button.backgroundColor = .clear
         button.setTitleColor(on ? NativeTheme.foreground : NativeTheme.secondary,
                              for: .normal)
@@ -319,7 +319,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
     }
     let light = traitCollection.userInterfaceStyle == .light
     for (index, button) in [latestButton, hotButton].enumerated() {
-      let on = (index == 0 && sort == 0) || (index == 1 && sort == 2)
+      let on = (index == 0 && sort == 0) || (index == 1 && sort == 1)
       button.backgroundColor = on
         ? (light ? NativeTheme.foreground : NativeTheme.foreground)
         : .clear
@@ -329,7 +329,7 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   }
 
   @objc private func sortTapped(_ sender: UIButton) {
-    let newSort = sender.tag == 0 ? 0 : 2
+    let newSort = sender.tag == 0 ? 0 : 1
     guard newSort != sort else { return }
     sort = newSort
     updateSort()
@@ -652,6 +652,7 @@ private final class PanelCommentCell: UITableViewCell {
   private let repliesCount = UILabel()
   private let time = UILabel()
   private let message = CommentMessageLabel()
+  private let imageStrip = CommentImageStrip()
   private let repliesStack = UIStackView()
   private let separator = UIView()
   var onLoadMoreReplies: (() -> Void)?
@@ -721,7 +722,7 @@ private final class PanelCommentCell: UITableViewCell {
     repliesStack.spacing = 18
     repliesStack.isHidden = true
 
-    let bodyStack = UIStackView(arrangedSubviews: [message, repliesStack])
+    let bodyStack = UIStackView(arrangedSubviews: [message, imageStrip, repliesStack])
     bodyStack.axis = .vertical
     bodyStack.alignment = .fill
     bodyStack.spacing = 14
@@ -761,6 +762,7 @@ private final class PanelCommentCell: UITableViewCell {
     repliesCount.attributedText = nil
     repliesCount.isHidden = true
     time.attributedText = nil
+    imageStrip.setImages([])
     repliesStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
     onLoadMoreReplies = nil
   }
@@ -779,6 +781,7 @@ private final class PanelCommentCell: UITableViewCell {
     let timeTint = NativeTheme.freshnessColor(Int64(item.time))
     time.attributedText = timeMetric(timeText, tint: timeTint)
     setMessage(item.message, emotes: item.emotes)
+    imageStrip.setImages(item.images)
 
     likes.attributedText = metric(icon: "heart.fill",
                                   tint: NativeTheme.accent,
@@ -919,6 +922,9 @@ private final class PanelCommentCell: UITableViewCell {
     copy.axis = .vertical
     copy.alignment = .fill
     copy.spacing = 6
+    let replyImages = CommentImageStrip()
+    replyImages.setImages(item.images, compact: true)
+    copy.addArrangedSubview(replyImages)
 
     let row = UIStackView(arrangedSubviews: [replyAvatar, copy])
     row.axis = .horizontal

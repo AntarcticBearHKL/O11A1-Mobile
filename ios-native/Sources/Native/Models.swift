@@ -159,6 +159,7 @@ struct CommentItem {
   var time = 0
   var replies = 0
   var emotes: [String: String] = [:]
+  var images: [String] = []
 }
 
 struct LiveSource {

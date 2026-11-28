@@ -445,7 +445,7 @@ final class BiliAPI {
     }
   }
 
-  func comments(aid: Int64, page: Int, sort: Int = 2,
+  func comments(aid: Int64, page: Int, sort: Int = 1,
                 completion: @escaping (Result<[CommentItem], Error>) -> Void) {
     let key = "comments:\(aid):\(page):\(sort)"
     if let cached = commentsCache.get(key) {
@@ -456,7 +456,10 @@ final class BiliAPI {
       switch result {
       case .failure(let error): completion(.failure(error))
       case .success(let json):
-        let items = self.commentItems(json)
+        var items = self.commentItems(json)
+        if sort != 0 {
+          items.sort { $0.likes > $1.likes }
+        }
         self.commentsCache.set(key, items)
         completion(.success(items))
       }
@@ -491,6 +494,9 @@ final class BiliAPI {
       item.likes = o11a1Int(row["like"])
       item.time = o11a1Int(row["time"])
       item.replies = o11a1Int(row["rcount"])
+      if let images = row["images"] as? [String] {
+        item.images = images.filter { !$0.isEmpty }
+      }
       if item.name.isEmpty { item.name = "用户" }
       return item
     }

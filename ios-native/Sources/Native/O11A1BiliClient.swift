@@ -551,7 +551,7 @@ final class O11A1BiliClient {
   /* ---------- comments and danmaku ---------- */
 
   func comments(aid: Int64, page: Int) -> Data {
-    return comments(aid: aid, page: page, sort: 2)
+    return comments(aid: aid, page: page, sort: 1)
   }
 
   func comments(aid: Int64, page: Int, sort: Int) -> Data {
@@ -560,7 +560,8 @@ final class O11A1BiliClient {
     guard let payload = json(
       base: Self.apiBase,
       path: "/x/v2/reply",
-      query: ["type": "1", "oid": "\(aid)", "pn": "\(max(1, page))", "sort": "\(sort == 0 ? 0 : 2)"]
+      query: ["type": "1", "oid": "\(aid)", "pn": "\(max(1, page))",
+              "ps": "20", "sort": "\(sort == 0 ? 0 : 1)"]
     ),
       o11a1Int(payload["code"]) == 0,
       let data = payload["data"] as? [String: Any] else {
@@ -609,6 +610,21 @@ final class O11A1BiliClient {
         emotes[key] = o11a1HTTPS(url)
       }
     }
+    var pictures: [String] = []
+    if let rows = content?["pictures"] as? [[String: Any]] {
+      for row in rows {
+        let raw = o11a1String(row["img_src"]).isEmpty
+          ? (o11a1String(row["img_url"]).isEmpty
+            ? o11a1String(row["url"]) : o11a1String(row["img_url"]))
+          : o11a1String(row["img_src"])
+        if !raw.isEmpty { pictures.append(o11a1HTTPS(raw)) }
+      }
+    }
+    if let single = content?["picture"] as? [String: Any] {
+      let raw = o11a1String(single["img_src"]).isEmpty
+        ? o11a1String(single["img_url"]) : o11a1String(single["img_src"])
+      if !raw.isEmpty { pictures.append(o11a1HTTPS(raw)) }
+    }
     return [
       "rpid": o11a1Int64(reply["rpid"]),
       "root": o11a1Int64(reply["root"]),
@@ -618,6 +634,7 @@ final class O11A1BiliClient {
       "avatar": o11a1HTTPS(o11a1String(member?["avatar"])),
       "message": o11a1DecodeEntities(o11a1String(content?["message"])),
       "emotes": emotes,
+      "images": pictures,
       "like": o11a1Int(reply["like"]),
       "time": o11a1Int64(reply["ctime"])
     ]

@@ -198,6 +198,7 @@ private final class CommentCell: UITableViewCell {
   private let avatar = UIImageView()
   private let name = UILabel()
   private let message = CommentMessageLabel()
+  private let imageStrip = CommentImageStrip()
   private let meta = UILabel()
   private let replies = UIButton(type: .system)
   private var repliesHeight: NSLayoutConstraint?
@@ -236,7 +237,13 @@ private final class CommentCell: UITableViewCell {
     repliesHeight = replies.heightAnchor.constraint(equalToConstant: 0)
     repliesHeight?.isActive = true
 
-    [avatar, name, message, meta, replies].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
+    let bodyStack = UIStackView(arrangedSubviews: [message, imageStrip, meta, replies])
+    bodyStack.axis = .vertical
+    bodyStack.alignment = .fill
+    bodyStack.spacing = 6
+    contentView.addSubview(bodyStack)
+
+    [avatar, name, bodyStack].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
     NSLayoutConstraint.activate([
       avatar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 18),
       avatar.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
@@ -247,18 +254,10 @@ private final class CommentCell: UITableViewCell {
       name.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -18),
       name.topAnchor.constraint(equalTo: avatar.topAnchor),
 
-      message.leadingAnchor.constraint(equalTo: name.leadingAnchor),
-      message.trailingAnchor.constraint(equalTo: name.trailingAnchor),
-      message.topAnchor.constraint(equalTo: name.bottomAnchor, constant: 4),
-
-      meta.leadingAnchor.constraint(equalTo: name.leadingAnchor),
-      meta.topAnchor.constraint(equalTo: message.bottomAnchor, constant: 6),
-      meta.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -18),
-
-      replies.leadingAnchor.constraint(equalTo: name.leadingAnchor),
-      replies.topAnchor.constraint(equalTo: meta.bottomAnchor, constant: 2),
-      replies.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -18),
-      replies.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+      bodyStack.leadingAnchor.constraint(equalTo: name.leadingAnchor),
+      bodyStack.trailingAnchor.constraint(equalTo: name.trailingAnchor),
+      bodyStack.topAnchor.constraint(equalTo: name.bottomAnchor, constant: 4),
+      bodyStack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
     ])
   }
 
@@ -266,8 +265,14 @@ private final class CommentCell: UITableViewCell {
     fatalError("init(coder:) has not been implemented")
   }
 
+  override func prepareForReuse() {
+    super.prepareForReuse()
+    imageStrip.setImages([])
+  }
+
   func configure(_ item: CommentItem) {
     name.text = item.name
+    imageStrip.setImages(item.images)
     message.configure(
       text: item.message,
       emotes: item.emotes,
