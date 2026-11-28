@@ -152,17 +152,25 @@ final class VideoEngine: NSObject {
         NSLog("[O11A1] media ready duration=%.1f", observed.duration.seconds)
         DispatchQueue.main.async {
           self.publish(.buffering)
-          self.onReady?()
-          if self.startAt > 0 {
+          let start = self.startAt
+          self.startAt = 0
+          let finish = {
+            guard self.player.currentItem === item else { return }
+            self.onReady?()
+            if self.shouldAutoplay {
+              self.player.play()
+            }
+          }
+          if start > 0 {
             self.player.seek(
-              to: CMTime(seconds: self.startAt, preferredTimescale: 600),
+              to: CMTime(seconds: start, preferredTimescale: 600),
               toleranceBefore: .zero,
               toleranceAfter: .zero
-            )
-            self.startAt = 0
-          }
-          if self.shouldAutoplay {
-            self.player.play()
+            ) { _ in
+              DispatchQueue.main.async(execute: finish)
+            }
+          } else {
+            finish()
           }
         }
       } else if observed.status == .failed {
