@@ -125,68 +125,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       tabBar.bottomAnchor.constraint(equalTo: mainHost.bottomAnchor, constant: -24),
     ])
 
-    let topIconConfig = UIImage.SymbolConfiguration(pointSize: 19, weight: .bold)
-    searchButton.setImage(
-      UIImage(systemName: "magnifyingglass", withConfiguration: topIconConfig),
-      for: .normal)
-    searchButton.tintColor = NativeTheme.foreground
-    searchButton.backgroundColor = NativeTheme.surface
-    searchButton.layer.cornerRadius = 12
-    searchButton.layer.cornerCurve = .continuous
-    searchButton.layer.shadowColor = UIColor.black.cgColor
-    searchButton.layer.shadowOpacity = 0.06
-    searchButton.layer.shadowRadius = 6
-    searchButton.layer.shadowOffset = .zero
-    searchButton.addTarget(self, action: #selector(openSearchFromTop), for: .touchUpInside)
-    mainHost.addSubview(searchButton)
-    searchButton.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      searchButton.trailingAnchor.constraint(equalTo: mainHost.trailingAnchor, constant: -16),
-      searchButton.topAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.topAnchor, constant: 6),
-      searchButton.widthAnchor.constraint(equalToConstant: 48),
-      searchButton.heightAnchor.constraint(equalToConstant: 48),
-    ])
+    // The floating search/avatar buttons above the feed were removed by request.
 
-    avatarButton.setImage(
-      UIImage(systemName: "person.crop.circle.fill", withConfiguration: topIconConfig),
-      for: .normal)
-    avatarButton.tintColor = NativeTheme.foreground
-    avatarButton.backgroundColor = NativeTheme.surface
-    avatarButton.layer.cornerRadius = 12
-    avatarButton.layer.cornerCurve = .continuous
-    avatarButton.layer.borderWidth = 0.5
-    avatarButton.layer.borderColor = NativeTheme.hairline.cgColor
-    avatarButton.layer.shadowColor = UIColor.black.cgColor
-    avatarButton.layer.shadowOpacity = 0.06
-    avatarButton.layer.shadowRadius = 6
-    avatarButton.layer.shadowOffset = .zero
-    avatarButton.addTarget(self, action: #selector(openMy), for: .touchUpInside)
-    mainHost.addSubview(avatarButton)
-    avatarButton.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      avatarButton.leadingAnchor.constraint(equalTo: mainHost.leadingAnchor, constant: 16),
-      avatarButton.topAnchor.constraint(equalTo: mainHost.safeAreaLayoutGuide.topAnchor, constant: 6),
-      avatarButton.widthAnchor.constraint(equalToConstant: 48),
-      avatarButton.heightAnchor.constraint(equalToConstant: 48),
-    ])
-
-    topAvatar.contentMode = .scaleAspectFill
-    topAvatar.clipsToBounds = true
-    topAvatar.layer.cornerRadius = 12
-    topAvatar.layer.cornerCurve = .continuous
-    topAvatar.isUserInteractionEnabled = false
-    avatarButton.addSubview(topAvatar)
-    topAvatar.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      topAvatar.leadingAnchor.constraint(equalTo: avatarButton.leadingAnchor),
-      topAvatar.trailingAnchor.constraint(equalTo: avatarButton.trailingAnchor),
-      topAvatar.topAnchor.constraint(equalTo: avatarButton.topAnchor),
-      topAvatar.bottomAnchor.constraint(equalTo: avatarButton.bottomAnchor),
-    ])
-    topAvatar.isHidden = true
-
-    searchButton.isHidden = false
-    avatarButton.isHidden = false
 
     let edge = UIScreenEdgePanGestureRecognizer(
       target: self, action: #selector(handleSidebarEdge(_:)))
@@ -224,7 +164,6 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
     ThemeManager.shared.apply()
-    loadTopAvatar()
     ClipboardShareWatcher.shared.onOpen = { [weak self] target in
       self?.openShared(target)
     }

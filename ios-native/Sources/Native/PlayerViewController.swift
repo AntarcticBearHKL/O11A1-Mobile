@@ -842,8 +842,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private func applyPlaying(_ playing: Bool) {
     let becamePaused = lastAppliedPlaying && !playing
     lastAppliedPlaying = playing
-    let paused = userPaused || !playing
-    playGlyph.setSymbol(paused ? "play.fill" : "pause.fill", pointSize: 38)
+    playGlyph.setSymbol("pause.fill", pointSize: 38)
     pausedVeil.isHidden = true
     videoContainer.backgroundColor = .clear
     if playing {
@@ -859,11 +858,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func updatePauseButton() {
-    let show = !mediaLoadActive && !closing
+    let show = userPaused && !mediaLoadActive && !closing
       && !isMiniWindow && !isSystemPip
     let wasHidden = playButton.isHidden
     playButton.isHidden = !show
-    playButton.alpha = show ? (userPaused ? 1 : 0.9) : 0
+    playButton.alpha = show ? 1 : 0
     guard show else {
       playButton.transform = .identity
       return
