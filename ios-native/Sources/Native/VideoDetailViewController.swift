@@ -926,15 +926,16 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     let config = UIImage.SymbolConfiguration(pointSize: 21, weight: .semibold)
     likeIcon.image = UIImage(systemName: liked ? "hand.thumbsup.fill" : "hand.thumbsup",
                              withConfiguration: config)
-    likeIcon.tintColor = liked ? NativeTheme.warmOrange : NativeTheme.foreground
+    likeIcon.tintColor = liked ? NativeTheme.likePastelActive : NativeTheme.likePastel
     coinIcon.image = UIImage(systemName: coined ? "bitcoinsign.circle.fill" : "bitcoinsign.circle",
                              withConfiguration: config)
-    coinIcon.tintColor = coined ? NativeTheme.warmOrange : NativeTheme.foreground
+    coinIcon.tintColor = coined ? NativeTheme.coinPastelActive : NativeTheme.coinPastel
     favoriteIcon.image = UIImage(systemName: faved ? "star.fill" : "star",
                                  withConfiguration: config)
-    favoriteIcon.tintColor = faved ? NativeTheme.warmOrange : NativeTheme.foreground
+    favoriteIcon.tintColor = faved
+      ? NativeTheme.favoritePastelActive : NativeTheme.favoritePastel
     shareIcon.image = UIImage(systemName: "square.and.arrow.up", withConfiguration: config)
-    shareIcon.tintColor = NativeTheme.foreground
+    shareIcon.tintColor = NativeTheme.sharePastel
     likeValue.text = o11a1Count(likeCount)
     favoriteValue.text = o11a1Count(favoriteCount)
     coinValue.text = o11a1Count(coinCount)

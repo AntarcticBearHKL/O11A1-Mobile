@@ -196,6 +196,18 @@ enum NativeTheme {
   static let warmOrange = UIColor(red: 1.0, green: 0.62, blue: 0.26, alpha: 1)
   static let hotPink = UIColor(red: 1.0, green: 0.36, blue: 0.54, alpha: 1)
 
+  /// Soft macaron action colours for the video detail toolbar. Each hue keeps
+  /// Bilibili's meaning (pink like, gold coin, warm star, blue share) while
+  /// staying light enough to sit on both themes.
+  static let likePastel = UIColor(red: 0.976, green: 0.624, blue: 0.718, alpha: 1)
+  static let likePastelActive = UIColor(red: 0.929, green: 0.388, blue: 0.553, alpha: 1)
+  static let coinPastel = UIColor(red: 0.980, green: 0.804, blue: 0.447, alpha: 1)
+  static let coinPastelActive = UIColor(red: 0.902, green: 0.647, blue: 0.235, alpha: 1)
+  static let favoritePastel = UIColor(red: 0.980, green: 0.678, blue: 0.502, alpha: 1)
+  static let favoritePastelActive = UIColor(red: 0.910, green: 0.498, blue: 0.310, alpha: 1)
+  static let sharePastel = UIColor(red: 0.545, green: 0.804, blue: 0.925, alpha: 1)
+  static let sharePastelActive = UIColor(red: 0.302, green: 0.667, blue: 0.859, alpha: 1)
+
   static let cardRadius: CGFloat = 18
   /// The one radius used by rectangular surfaces across the app.
   static let cornerRadius: CGFloat = 18
