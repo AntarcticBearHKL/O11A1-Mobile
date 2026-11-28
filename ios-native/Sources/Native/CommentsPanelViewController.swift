@@ -36,8 +36,13 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
   private var pullDownPan: UIPanGestureRecognizer?
   private var pullDownArmed = false
   private var repliesCache: [Int64: [CommentItem]] = [:]
+  private var replyVisibleCount: [Int64: Int] = [:]
+  private var replyNextPage: [Int64: Int] = [:]
+  private var replyHasMore: [Int64: Bool] = [:]
+  private var replyServerMore: [Int64: Bool] = [:]
   private var expandedRoots: Set<Int64> = []
   private var loadingReplies: Set<Int64> = []
+  private var suppressCommentSelection = false
   private var lastDockScrollPosition: CGFloat?
 
   init(aid: Int64) {
@@ -384,10 +389,24 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
       withIdentifier: PanelCommentCell.reuseID, for: indexPath) as! PanelCommentCell
     let item = items[indexPath.row]
     let expanded = expandedRoots.contains(item.rpid)
-    cell.configure(item,
-                   replies: repliesCache[item.rpid] ?? [],
-                   expanded: expanded,
-                   loading: loadingReplies.contains(item.rpid))
+    let all = repliesCache[item.rpid] ?? []
+    let count = min(max(0, replyVisibleCount[item.rpid] ?? 0), all.count)
+    let visible = Array(all.prefix(count))
+    let hasMore = replyHasMore[item.rpid] ?? (item.replies > count)
+    cell.configure(
+      item,
+      replies: visible,
+      expanded: expanded,
+      loading: loadingReplies.contains(item.rpid),
+      hasMoreReplies: expanded && hasMore)
+    cell.onLoadMoreReplies = { [weak self] in
+      guard let self = self else { return }
+      self.suppressCommentSelection = true
+      self.loadMoreReplies(item)
+      DispatchQueue.main.async {
+        self.suppressCommentSelection = false
+      }
+    }
     return cell
   }
 
@@ -401,7 +420,9 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
 
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     tableView.deselectRow(at: indexPath, animated: false)
-    guard items.indices.contains(indexPath.row) else { return }
+    guard !suppressCommentSelection, items.indices.contains(indexPath.row) else {
+      return
+    }
     UIImpactFeedbackGenerator(style: .light).impactOccurred()
     toggleReplies(items[indexPath.row])
   }
@@ -417,36 +438,72 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
       return
     }
     expandedRoots.insert(root)
-    if cached != nil {
+    let all = cached ?? []
+    if replyVisibleCount[root] == nil {
+      replyVisibleCount[root] = min(5, all.count)
+    }
+    if let count = replyVisibleCount[root] {
+      replyHasMore[root] = count < all.count || replyServerMore[root] == true
+        || (all.isEmpty && item.replies > 0)
+    }
+    if all.isEmpty, item.replies > 0, (replyNextPage[root] ?? 1) == 1,
+       !loadingReplies.contains(root) {
+      loadingReplies.insert(root)
       reloadComment(root)
+      fetchReplyPage(root: root, page: 1)
       return
     }
-    if loadingReplies.contains(root) {
-      reloadComment(root)
-      return
-    }
-    loadingReplies.insert(root)
     reloadComment(root)
-    loadReplyPage(root: root, page: 1, collected: [])
   }
 
-  private func loadReplyPage(root: Int64, page: Int, collected: [CommentItem]) {
+  private func loadMoreReplies(_ item: CommentItem) {
+    let root = item.rpid
+    guard root > 0, expandedRoots.contains(root),
+          !loadingReplies.contains(root) else { return }
+    let all = repliesCache[root] ?? []
+    let count = replyVisibleCount[root] ?? 0
+    if count < all.count {
+      let next = min(all.count, count + 5)
+      replyVisibleCount[root] = next
+      replyHasMore[root] = next < all.count || replyServerMore[root] == true
+      UIImpactFeedbackGenerator(style: .light).impactOccurred()
+      reloadComment(root)
+      return
+    }
+    guard replyHasMore[root] == true else { return }
+    loadingReplies.insert(root)
+    replyHasMore[root] = true
+    reloadComment(root)
+    fetchReplyPage(root: root, page: replyNextPage[root] ?? 1)
+  }
+
+  private func fetchReplyPage(root: Int64, page: Int) {
     BiliAPI.shared.commentReplies(aid: aid, root: root, page: page) { [weak self] result in
       guard let self = self else { return }
+      self.loadingReplies.remove(root)
       switch result {
       case .failure:
-        self.loadingReplies.remove(root)
-        self.repliesCache[root] = collected
+        if self.repliesCache[root] == nil {
+          self.repliesCache[root] = []
+        }
+        self.replyHasMore[root] = self.replyHasMore[root] ?? false
         self.reloadComment(root)
       case .success(let values):
-        let all = collected + values
-        if values.count >= 20 && page < 10 {
-          self.loadReplyPage(root: root, page: page + 1, collected: all)
-        } else {
-          self.loadingReplies.remove(root)
-          self.repliesCache[root] = all
-          self.reloadComment(root)
+        var existing = self.repliesCache[root] ?? []
+        var ids = Set(existing.map { $0.rpid })
+        for value in values where !ids.contains(value.rpid) {
+          existing.append(value)
+          ids.insert(value.rpid)
         }
+        self.repliesCache[root] = existing
+        self.replyNextPage[root] = page + 1
+        self.replyServerMore[root] = values.count >= 20
+        let previous = self.replyVisibleCount[root] ?? 0
+        self.replyVisibleCount[root] = min(existing.count, previous + 5)
+        let shown = self.replyVisibleCount[root] ?? 0
+        self.replyHasMore[root] = shown < existing.count
+          || self.replyServerMore[root] == true
+        self.reloadComment(root)
       }
     }
   }
@@ -597,6 +654,7 @@ private final class PanelCommentCell: UITableViewCell {
   private let message = CommentMessageLabel()
   private let repliesStack = UIStackView()
   private let separator = UIView()
+  var onLoadMoreReplies: (() -> Void)?
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
     super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -660,7 +718,7 @@ private final class PanelCommentCell: UITableViewCell {
     message.lineBreakMode = .byWordWrapping
 
     repliesStack.axis = .vertical
-    repliesStack.spacing = 16
+    repliesStack.spacing = 18
     repliesStack.isHidden = true
 
     let bodyStack = UIStackView(arrangedSubviews: [message, repliesStack])
@@ -704,10 +762,11 @@ private final class PanelCommentCell: UITableViewCell {
     repliesCount.isHidden = true
     time.attributedText = nil
     repliesStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+    onLoadMoreReplies = nil
   }
 
   func configure(_ item: CommentItem, replies items: [CommentItem],
-                 expanded: Bool, loading: Bool) {
+                 expanded: Bool, loading: Bool, hasMoreReplies: Bool) {
     let displayName = item.name.isEmpty ? "用户" : item.name
     name.attributedText = NSAttributedString(
       string: displayName,
@@ -738,7 +797,7 @@ private final class PanelCommentCell: UITableViewCell {
     if loading && items.isEmpty {
       let loadingLabel = UILabel()
       loadingLabel.text = "正在加载回复…"
-      loadingLabel.font = UIFont.systemFont(ofSize: 12.5, weight: .regular)
+      loadingLabel.font = UIFont.systemFont(ofSize: 13, weight: .regular)
       loadingLabel.textColor = NativeTheme.tertiary
       repliesStack.addArrangedSubview(loadingLabel)
       return
@@ -746,6 +805,25 @@ private final class PanelCommentCell: UITableViewCell {
     for reply in items {
       repliesStack.addArrangedSubview(makeReplyRow(reply))
     }
+    if hasMoreReplies {
+      let button = UIButton(type: .system)
+      button.setTitle(loading ? "加载中…" : "加载更多回复", for: .normal)
+      button.setTitleColor(NativeTheme.navBlue, for: .normal)
+      button.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .medium)
+      button.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.045)
+      button.layer.cornerRadius = NativeTheme.cornerRadius
+      button.layer.cornerCurve = .continuous
+      button.clipsToBounds = true
+      button.isEnabled = !loading
+      button.addTarget(self, action: #selector(loadMoreRepliesTapped),
+                       for: .touchUpInside)
+      button.heightAnchor.constraint(equalToConstant: 38).isActive = true
+      repliesStack.addArrangedSubview(button)
+    }
+  }
+
+  @objc private func loadMoreRepliesTapped() {
+    onLoadMoreReplies?()
   }
 
   private func setMessage(_ text: String, emotes: [String: String]) {
@@ -820,7 +898,7 @@ private final class PanelCommentCell: UITableViewCell {
     replyName.attributedText = NSAttributedString(
       string: item.name.isEmpty ? "用户" : item.name,
       attributes: [
-        .font: UIFont.systemFont(ofSize: 11.5, weight: .medium),
+        .font: UIFont.systemFont(ofSize: 12.5, weight: .medium),
         .foregroundColor: NativeTheme.secondary,
         .kern: 0.2,
       ])
@@ -829,18 +907,18 @@ private final class PanelCommentCell: UITableViewCell {
     replyMessage.configure(
       text: item.message,
       emotes: item.emotes,
-      font: UIFont.systemFont(ofSize: 14.5, weight: .regular),
+      font: UIFont.systemFont(ofSize: 15.5, weight: .regular),
       color: NativeTheme.foreground.withAlphaComponent(0.86),
-      lineHeight: 22,
+      lineHeight: 25,
       tracking: 0.1,
-      emoteSize: 18,
-      paragraphSpacing: 4
+      emoteSize: 19,
+      paragraphSpacing: 5
     )
 
     let copy = UIStackView(arrangedSubviews: [replyName, replyMessage])
     copy.axis = .vertical
     copy.alignment = .fill
-    copy.spacing = 5
+    copy.spacing = 6
 
     let row = UIStackView(arrangedSubviews: [replyAvatar, copy])
     row.axis = .horizontal
