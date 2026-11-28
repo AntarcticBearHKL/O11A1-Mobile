@@ -627,7 +627,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self.loadingView.hide()
       self.handoffLowReady = true
       if self.refreshMediaSource(resumeAt: self.engine.currentTime) { return }
-      self.errorLabel.text = message
+      self.errorLabel.text = message + "\n轻点重试"
       self.errorLabel.isHidden = false
       self.installErrorRetryIfNeeded()
       if let source = self.pendingUpgradeSource {
@@ -1691,7 +1691,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
           }
           return
         }
-        if !self.resolutionRetryUsed {
+        let message = error.localizedDescription
+        let transient = message.contains("网络") || message.contains("拦截")
+          || message.contains("超时") || message.contains("接口")
+          || message.contains("无法获取播放地址")
+        if !self.resolutionRetryUsed && transient {
           // The resolver already walked its quality and platform ladder. Wait
           // briefly and retry once; this recovers from short risk-control or
           // network hiccups without asking the viewer to tap again.
@@ -1704,7 +1708,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
           }
         } else {
           self.loadingView.hide()
-          self.errorLabel.text = error.localizedDescription
+          self.errorLabel.text = message + "\n轻点重试"
           self.errorLabel.isHidden = false
           self.installErrorRetryIfNeeded()
         }
@@ -1764,7 +1768,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         if self.userPaused { self.engine.pause() }
       case .failure(let error):
         self.loadingView.hide()
-        self.errorLabel.text = error.localizedDescription
+        self.errorLabel.text = error.localizedDescription + "\n轻点重试"
         self.errorLabel.isHidden = false
         self.installErrorRetryIfNeeded()
       }

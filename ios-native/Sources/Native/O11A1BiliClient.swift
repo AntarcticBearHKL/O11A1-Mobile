@@ -622,7 +622,9 @@ final class O11A1BiliClient {
           "play try qn=\(attempt.qn) platform=\(attempt.platform.isEmpty ? "default" : attempt.platform) signed=\(attempt.signed) code=\(code) \(O11A1Trace.since(attemptStarted))")
         // These codes mean the video itself is unavailable, so other quality
         // or platform variants cannot help.
-        if code == -404 || code == -101 || code == -400 { break }
+        if code == -404 || code == -101 || code == -400 || code == -10403 {
+          break
+        }
         // A rejected WBI signature would fail every signed variant; jump to
         // the unsigned endpoint instead of burning the whole budget.
         if code == -403 {
@@ -1532,7 +1534,9 @@ final class O11A1BiliClient {
       if let result = result, result["dash"] is [String: Any] { sawDashOnly = true }
       lastCode = code
       lastMessage = o11a1String(payload["message"])
-      if code == -404 || code == -101 || code == -400 { break }
+      if code == -404 || code == -101 || code == -400 || code == -10403 {
+        break
+      }
     }
     if lastCode == -10403 {
       return o11a1Error("该番剧在当前地区不可播放")
