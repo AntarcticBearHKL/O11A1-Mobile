@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 enum PlaybackLoopMode: String, CaseIterable {
   case off
@@ -80,6 +81,25 @@ enum FeedPreviewSettings {
   static var enabled: Bool {
     get {
       if UserDefaults.standard.object(forKey: key) == nil { return true }
+      return UserDefaults.standard.bool(forKey: key)
+    }
+    set {
+      UserDefaults.standard.set(newValue, forKey: key)
+      NotificationCenter.default.post(name: changed, object: nil)
+    }
+  }
+}
+
+/// Optional constant-speed cruise after a fast upward feed flick.
+enum FrictionlessSettings {
+  static let changed = Notification.Name("o11a1.frictionless.changed")
+  private static let key = "o11a1.frictionlessFeed"
+  static let cruiseSpeed: CGFloat = 300
+  static let triggerVelocity: CGFloat = 900
+
+  static var enabled: Bool {
+    get {
+      if UserDefaults.standard.object(forKey: key) == nil { return false }
       return UserDefaults.standard.bool(forKey: key)
     }
     set {

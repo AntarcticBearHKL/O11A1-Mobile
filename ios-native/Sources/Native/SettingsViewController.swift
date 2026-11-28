@@ -40,11 +40,15 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
     dismiss(animated: true)
   }
 
+  @objc private func frictionlessSwitchChanged(_ sender: UISwitch) {
+    FrictionlessSettings.enabled = sender.isOn
+  }
+
   func numberOfSections(in tableView: UITableView) -> Int { return 4 }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
     switch section {
-    case 0: return themes.count
+    case 0: return themes.count + 1
     case 1: return qualities.count
     case 2: return account.loggedIn ? 2 : 1
     default: return 2
@@ -61,6 +65,21 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
   }
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    if indexPath.section == 0, indexPath.row >= themes.count {
+      let switchCell = tableView.dequeueReusableCell(withIdentifier: "switchCell")
+        ?? UITableViewCell(style: .default, reuseIdentifier: "switchCell")
+      switchCell.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.04)
+      switchCell.textLabel?.textColor = NativeTheme.foreground
+      switchCell.textLabel?.text = "无摩擦模式"
+      switchCell.selectionStyle = .none
+      let toggle = UISwitch()
+      toggle.isOn = FrictionlessSettings.enabled
+      toggle.onTintColor = NativeTheme.navBlue
+      toggle.addTarget(self, action: #selector(frictionlessSwitchChanged(_:)),
+                       for: .valueChanged)
+      switchCell.accessoryView = toggle
+      return switchCell
+    }
     let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
     cell.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.04)
     cell.textLabel?.textColor = NativeTheme.foreground
@@ -106,6 +125,7 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
     tableView.deselectRow(at: indexPath, animated: true)
     switch indexPath.section {
     case 0:
+      guard indexPath.row < themes.count else { return }
       ThemeManager.shared.theme = themes[indexPath.row]
       table.reloadData()
     case 1:

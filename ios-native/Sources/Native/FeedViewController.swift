@@ -44,6 +44,10 @@ final class FeedViewController: UIViewController,
   private let maxFeedItems = 100
   private var lastOffset: CGFloat = 0
   private var lastGridPrefetchAt: CFTimeInterval = 0
+  private var frictionlessLink: CADisplayLink?
+  private var frictionlessActive = false
+  private var frictionlessPending = false
+  private var frictionlessLastTime: CFTimeInterval = 0
 
   private struct FeedAnchor {
     let key: String
@@ -68,6 +72,10 @@ final class FeedViewController: UIViewController,
   private var homeSource = "recommend"
   private var sourceTitle = "推荐"
   private var sourceToken = 0
+
+  deinit {
+    frictionlessLink?.invalidate()
+  }
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -172,6 +180,9 @@ final class FeedViewController: UIViewController,
     NotificationCenter.default.addObserver(
       self, selector: #selector(feedPreviewSettingChanged),
       name: FeedPreviewSettings.changed, object: nil)
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(frictionlessSettingChanged),
+      name: FrictionlessSettings.changed, object: nil)
     load(reset: true)
   }
 
@@ -218,12 +229,14 @@ final class FeedViewController: UIViewController,
 
   override func viewDidDisappear(_ animated: Bool) {
     super.viewDidDisappear(animated)
+    stopFrictionlessScroll(restartPreview: false)
     previewSuspended = true
     unloadPreviewMedia()
   }
 
   override func didReceiveMemoryWarning() {
     super.didReceiveMemoryWarning()
+    stopFrictionlessScroll(restartPreview: false)
     unloadPreviewMedia()
     ImageLoader.shared.clearMemory()
   }
@@ -232,6 +245,7 @@ final class FeedViewController: UIViewController,
 
   func setSource(_ source: String, title: String) {
     guard source != homeSource || items.isEmpty else { return }
+    stopFrictionlessScroll(restartPreview: false)
     homeSource = source
     sourceTitle = title
     sourceToken += 1
@@ -722,6 +736,7 @@ final class FeedViewController: UIViewController,
   }
 
   @objc private func feedLayoutChanged() {
+    stopFrictionlessScroll(restartPreview: false)
     let anchor = captureFeedAnchor()
     O11A1Trace.mark(
       "feed",
@@ -757,7 +772,7 @@ final class FeedViewController: UIViewController,
         onToolbar?(false)
       }
     }
-    if !HomeFeedLayout.isGrid, !searchOpen {
+    if !HomeFeedLayout.isGrid, !searchOpen, !frictionlessActive {
       schedulePreviewFocus()
     }
     lastOffset = scrollView.contentOffset.y
@@ -770,7 +785,25 @@ final class FeedViewController: UIViewController,
     }
   }
 
+  func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+    if frictionlessActive || frictionlessPending {
+      stopFrictionlessScroll(restartPreview: false)
+    }
+  }
+
   func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+    frictionlessPending = false
+    if decelerate, FrictionlessSettings.enabled {
+      let velocity = scrollView.panGestureRecognizer.velocity(in: scrollView).y
+      let maxOffset = maxFrictionlessOffset(scrollView)
+      O11A1Trace.mark(
+        "feed",
+        "frictionless velocity=\(Int(velocity)) offset=\(String(format: "%.0f", scrollView.contentOffset.y)) max=\(String(format: "%.0f", maxOffset))")
+      if velocity < -FrictionlessSettings.triggerVelocity,
+         scrollView.contentOffset.y < maxOffset - 8 {
+        frictionlessPending = true
+      }
+    }
     if !decelerate {
       startPreviewIfNeeded()
       prefetchGridPlayURLs()
@@ -778,7 +811,14 @@ final class FeedViewController: UIViewController,
     }
   }
 
+  func scrollViewWillBeginDecelerating(_ scrollView: UIScrollView) {
+    guard frictionlessPending else { return }
+    frictionlessPending = false
+    beginFrictionlessScroll(scrollView)
+  }
+
   func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+    guard !frictionlessActive else { return }
     startPreviewIfNeeded()
     prefetchGridPlayURLs()
     trimIfNeeded()
@@ -786,6 +826,79 @@ final class FeedViewController: UIViewController,
       toolbarHidden = false
       onToolbar?(false)
     }
+  }
+
+  // MARK: - frictionless browsing
+
+  private func maxFrictionlessOffset(_ scrollView: UIScrollView) -> CGFloat {
+    let inset = scrollView.adjustedContentInset
+    return max(-inset.top,
+               scrollView.contentSize.height - scrollView.bounds.height + inset.bottom)
+  }
+
+  @objc private func frictionlessSettingChanged() {
+    if !FrictionlessSettings.enabled {
+      stopFrictionlessScroll(restartPreview: true)
+    }
+  }
+
+  private func beginFrictionlessScroll(_ scrollView: UIScrollView) {
+    guard FrictionlessSettings.enabled, !frictionlessActive else { return }
+    frictionlessActive = true
+    frictionlessPending = false
+    if previewCell != nil || previewEngine.player.currentItem != nil {
+      unloadPreviewMedia()
+    }
+    previewFocusScheduled = false
+    let offset = scrollView.contentOffset
+    // Cancel the system's deceleration before the display link takes over.
+    scrollView.isScrollEnabled = false
+    scrollView.isScrollEnabled = true
+    scrollView.setContentOffset(offset, animated: false)
+    frictionlessLastTime = CACurrentMediaTime()
+    let link = CADisplayLink(target: self, selector: #selector(frictionlessTick(_:)))
+    link.add(to: .main, forMode: .common)
+    frictionlessLink = link
+    O11A1Trace.mark(
+      "feed",
+      "frictionless start offset=\(String(format: "%.0f", offset.y))")
+  }
+
+  @objc private func frictionlessTick(_ link: CADisplayLink) {
+    guard frictionlessActive, FrictionlessSettings.enabled else {
+      stopFrictionlessScroll(restartPreview: true)
+      return
+    }
+    let now = CACurrentMediaTime()
+    let dt = min(0.05, max(0, now - frictionlessLastTime))
+    frictionlessLastTime = now
+    guard dt > 0 else { return }
+    let maxOffset = maxFrictionlessOffset(table)
+    let next = table.contentOffset.y + FrictionlessSettings.cruiseSpeed * CGFloat(dt)
+    if next >= maxOffset - 0.5 {
+      table.setContentOffset(CGPoint(x: table.contentOffset.x, y: maxOffset),
+                             animated: false)
+      stopFrictionlessScroll(restartPreview: true)
+      return
+    }
+    table.setContentOffset(CGPoint(x: table.contentOffset.x, y: next), animated: false)
+  }
+
+  private func stopFrictionlessScroll(restartPreview: Bool) {
+    let wasActive = frictionlessActive || frictionlessLink != nil
+    frictionlessActive = false
+    frictionlessPending = false
+    frictionlessLink?.invalidate()
+    frictionlessLink = nil
+    guard wasActive else { return }
+    if restartPreview {
+      startPreviewIfNeeded()
+      prefetchGridPlayURLs()
+      trimIfNeeded()
+    }
+    O11A1Trace.mark(
+      "feed",
+      "frictionless stop offset=\(String(format: "%.0f", table.contentOffset.y))")
   }
 
   // MARK: - preview
@@ -840,7 +953,7 @@ final class FeedViewController: UIViewController,
   /// already play. Debounce a little so a fast fling does not request a new
   /// stream for every row that passes the centre.
   private func schedulePreviewFocus() {
-    guard FeedPreviewSettings.enabled else { return }
+    guard FeedPreviewSettings.enabled, !frictionlessActive else { return }
     guard !previewFocusScheduled, !previewSuspended else { return }
     previewFocusScheduled = true
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) { [weak self] in
@@ -864,6 +977,7 @@ final class FeedViewController: UIViewController,
       unloadPreviewMedia()
       return
     }
+    guard !frictionlessActive else { return }
     guard !previewSuspended, !searchOpen, !items.isEmpty else { return }
     if HomeFeedLayout.isGrid {
       unloadPreviewMedia()
@@ -1047,6 +1161,7 @@ final class FeedViewController: UIViewController,
   }
 
   func suspendPreview() {
+    stopFrictionlessScroll(restartPreview: false)
     previewSuspended = true
     previewScrubbing = false
     previewToken += 1
@@ -1237,6 +1352,7 @@ final class FeedViewController: UIViewController,
 
   private func beginSearchInteractive() {
     guard let search = searchController else { return }
+    stopFrictionlessScroll(restartPreview: false)
     searchSettleToken += 1
     searchAnimating = false
     searchOpen = true

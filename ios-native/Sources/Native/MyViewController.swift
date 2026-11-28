@@ -355,6 +355,12 @@ final class MyViewController: UIViewController, UIGestureRecognizerDelegate {
       HomeFeedLayout.isGrid = (value == layouts[1])
       NotificationCenter.default.post(name: HomeFeedLayout.changed, object: nil)
     })
+    rows.append(.toggle(
+      label: "无摩擦模式",
+      detail: "上滑松手后匀速浏览视频流",
+      isOn: FrictionlessSettings.enabled) { value in
+      FrictionlessSettings.enabled = value
+    })
     presentSheet(SettingsSheetViewController(title: "外观", rows: rows))
   }
 
