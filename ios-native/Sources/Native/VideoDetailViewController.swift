@@ -154,6 +154,7 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
 
     scroll.alwaysBounceVertical = true
     scroll.showsVerticalScrollIndicator = false
+    scroll.contentInsetAdjustmentBehavior = .never
     scroll.delegate = self
     card.addSubview(scroll)
     scroll.translatesAutoresizingMaskIntoConstraints = false

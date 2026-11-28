@@ -644,9 +644,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       adopted.play()
     } else if let handoff = previewHandoff, !handoff.url.isEmpty, item.roomId == 0 {
       handoffLowReady = false
+      let local = WatchProgressStore.shared.position(for: item.bvid)
+      let resume = handoff.seconds > 1 ? handoff.seconds : max(local, handoff.seconds)
       let start = handoff.duration > 0
-        ? min(handoff.seconds, max(0, handoff.duration - 0.5))
-        : max(0, handoff.seconds)
+        ? min(resume, max(0, handoff.duration - 0.5))
+        : max(0, resume)
       engine.load(
         url: handoff.url,
         backup: handoff.backup,
@@ -762,6 +764,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func resumePosition() -> Double {
+    if pendingStartSeconds > 0 { return pendingStartSeconds }
     let local = WatchProgressStore.shared.position(for: item.bvid)
     if local > 0 { return local }
     return Double(max(0, item.progress))

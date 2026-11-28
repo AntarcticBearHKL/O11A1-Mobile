@@ -187,13 +187,13 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
       sortDock.addSubview(button)
       button.translatesAutoresizingMaskIntoConstraints = false
       button.centerYAnchor.constraint(equalTo: sortDock.centerYAnchor).isActive = true
-      button.widthAnchor.constraint(equalToConstant: 96).isActive = true
       button.heightAnchor.constraint(equalToConstant: 52).isActive = true
       if index == 0 {
         button.leadingAnchor.constraint(equalTo: sortDock.leadingAnchor, constant: 5).isActive = true
       } else {
         button.leadingAnchor.constraint(equalTo: latestButton.trailingAnchor, constant: 3).isActive = true
         button.trailingAnchor.constraint(equalTo: sortDock.trailingAnchor, constant: -5).isActive = true
+        button.widthAnchor.constraint(equalTo: latestButton.widthAnchor).isActive = true
       }
     }
     latestButton.setTitle("新发布", for: .normal)
@@ -261,6 +261,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
     sortDock.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
     sortDock.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -28).isActive = true
     sortDock.heightAnchor.constraint(equalToConstant: 66).isActive = true
+    sortDock.widthAnchor.constraint(equalToConstant: 304).isActive = true
 
     let closePan = UIPanGestureRecognizer(target: self, action: #selector(handleDismissPan(_:)))
     closePan.delegate = self
@@ -471,6 +472,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                          shouldReceive touch: UITouch) -> Bool {
     if gestureRecognizer === dismissPan {
+      if touch.view?.isDescendant(of: sortDock) == true { return false }
       dismissStartX = touch.location(in: view).x
     }
     if gestureRecognizer === sortPan {
