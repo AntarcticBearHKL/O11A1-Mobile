@@ -29,6 +29,7 @@ final class FeedViewController: UIViewController,
   private var previewIndex = -1
   private var previewToken = 0
   private var previewSuspended = false
+  private var profilePausedPreview = false
   private var previewScrubbing = false
   private var previewHandedOff = false
   private var previewRetryScheduled = false
@@ -642,6 +643,7 @@ final class FeedViewController: UIViewController,
       self?.prefetchPlayURL(item)
     }
     cell.onAvatar = { [weak self] in
+      self?.suspendPreviewForProfile()
       self?.onProfile?(item.mid)
     }
     cell.onPreviewScrub = { [weak self, weak cell] ratio, finished in
@@ -1012,6 +1014,17 @@ final class FeedViewController: UIViewController,
     BiliAPI.shared.prefetchPlayQuality(item, qn: ThemeManager.shared.quality)
   }
 
+  func suspendPreviewForProfile() {
+    profilePausedPreview = true
+    suspendPreview()
+  }
+
+  func resumePreviewAfterProfile() {
+    guard profilePausedPreview else { return }
+    profilePausedPreview = false
+    resumePreview()
+  }
+
   func suspendPreview() {
     previewSuspended = true
     previewScrubbing = false
@@ -1044,6 +1057,7 @@ final class FeedViewController: UIViewController,
 
   func resumePreview() {
     guard !searchOpen else { return }
+    profilePausedPreview = false
     previewSuspended = false
     startPreviewIfNeeded()
   }

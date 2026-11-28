@@ -598,6 +598,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     } completion: { _ in
       page.view.removeFromSuperview()
       page.removeFromParent()
+      if self.player == nil {
+        self.feed?.resumePreviewAfterProfile()
+      }
     }
   }
 
