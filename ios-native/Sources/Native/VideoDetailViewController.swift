@@ -1291,7 +1291,8 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                          shouldReceive touch: UITouch) -> Bool {
     if gestureRecognizer === authorTap {
-      if let touched = touch.view, touched.isDescendant(of: followButton) {
+      if let touched = touch.view,
+         touched === followButton || touched.isDescendant(of: followButton) {
         return false
       }
     }
