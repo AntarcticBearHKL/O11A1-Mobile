@@ -2330,7 +2330,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       let qn = PlaybackSettings.qualityValue(name)
       self.currentQuality = qn
       ThemeManager.shared.quality = qn
-      self.loadQuality(qn, fastStart: false)
+      self.loadQuality(qn)
     })
     rows.append(.gridChoices(
       label: "默认画质", options: PlaybackSettings.qualityOptions,
