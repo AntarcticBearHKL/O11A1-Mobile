@@ -158,7 +158,7 @@ jobs:
         run: |
           gh release view ios-unsigned >/dev/null 2>&1 || gh release create ios-unsigned --title "iOS unsigned build" --notes "Unsigned IPA and simulator app built from $GITHUB_SHA."
           shopt -s nullglob
-          files=(ios-native/artifacts/ios-native.png ios-native/artifacts/ios-native-player.png ios-native/artifacts/ios-native.log)
+          files=(ios-native/artifacts/ios-native.png ios-native/artifacts/ios-native-player.png ios-native/artifacts/ios-feed-scroll.png ios-native/artifacts/ios-feed-grid-scroll.png ios-native/artifacts/ios-native.log)
           if [ ${#files[@]} -gt 0 ]; then gh release upload ios-unsigned "${files[@]}" --clobber || true; fi
 
       - name: Publish failure logs
