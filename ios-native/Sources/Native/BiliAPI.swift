@@ -359,6 +359,11 @@ final class BiliAPI {
     }
   }
 
+  func reportHistory(aid: Int64, cid: Int64, progress: Int) {
+    guard aid > 0, cid > 0, isLoggedIn else { return }
+    run({ self.client.reportHistory(aid: aid, cid: cid, progress: progress) }) { _ in }
+  }
+
   func ranking(page: Int, completion: @escaping (Result<[VideoItem], Error>) -> Void) {
     run({ self.client.ranking(page: page) }) { result in
       switch result {

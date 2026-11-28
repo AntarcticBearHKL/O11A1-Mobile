@@ -1586,6 +1586,23 @@ final class O11A1BiliClient {
     return o11a1Data(result)
   }
 
+  func reportHistory(aid: Int64, cid: Int64, progress: Int) -> Data {
+    guard aid > 0, cid > 0 else { return o11a1Error("缺少视频信息") }
+    guard canWrite() else { return needLogin("请先登录") }
+    guard let payload = postForm(
+      "https://api.bilibili.com/x/v2/history/report",
+      fields: [
+        "aid": "\(aid)",
+        "cid": "\(cid)",
+        "progress": "\(max(0, progress))",
+        "platform": "android",
+        "csrf": csrfToken(),
+      ]) else {
+      return o11a1Error("历史记录上报失败")
+    }
+    return writeResult(payload, key: "reported", value: true)
+  }
+
   func sendDanmaku(cid: Int64, message: String, progressMs: Int64) -> Data {
     guard canWrite() else { return needLogin("请先登录") }
     guard let payload = postForm("https://api.bilibili.com/x/v2/dm/post", fields: [

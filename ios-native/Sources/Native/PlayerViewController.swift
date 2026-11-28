@@ -35,6 +35,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let poster = UIImageView()
   private let pausedVeil = UIView()
   private let pausedGradient = CAGradientLayer()
+  private let playBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
   private let dim = UIView()
   private let topBar = UIView()
   private let backButton = UIButton(type: .system)
@@ -65,6 +66,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var activeObserver: NSObjectProtocol?
   private var backgroundWatchObserver: NSObjectProtocol?
   private var lastProgressSave: CFTimeInterval = 0
+  private var lastHistoryReport: CFTimeInterval = 0
+  private var mediaLoadActive = false
   private var sourceFrame: CGRect = .zero
   private var panStartFrame: CGRect = .zero
   private var isScrubbing = false
@@ -234,17 +237,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     pausedVeil.isUserInteractionEnabled = false
     pausedVeil.isHidden = true
-    pausedGradient.type = .radial
-    pausedGradient.colors = [
-      UIColor(red: 1, green: 110.0 / 255.0, blue: 110.0 / 255.0, alpha: 0).cgColor,
-      UIColor(red: 1, green: 110.0 / 255.0, blue: 110.0 / 255.0, alpha: 0.045).cgColor,
-      UIColor(red: 1, green: 95.0 / 255.0, blue: 95.0 / 255.0, alpha: 0.10).cgColor,
-    ]
-    pausedGradient.locations = [0.35, 0.78, 1]
-    pausedGradient.startPoint = CGPoint(x: 0.5, y: 0.5)
-    pausedGradient.endPoint = CGPoint(x: 1, y: 1)
-    pausedVeil.layer.addSublayer(pausedGradient)
-    videoContainer.addSubview(pausedVeil)
 
     loadingView.translatesAutoresizingMaskIntoConstraints = false
     videoContainer.addSubview(loadingView)
@@ -283,11 +275,36 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     followButton.addTarget(self, action: #selector(followTapped), for: .touchUpInside)
     topBar.addSubview(followButton)
 
-    playButton.setImage(UIImage(systemName: "play.fill"), for: .normal)
+    let playIcon = UIImage.SymbolConfiguration(pointSize: 26, weight: .semibold)
+    playButton.setImage(
+      UIImage(systemName: "play.fill", withConfiguration: playIcon), for: .normal)
     playButton.tintColor = .white
-    playButton.backgroundColor = UIColor.black.withAlphaComponent(0.30)
-    playButton.layer.cornerRadius = 32
+    playButton.backgroundColor = .clear
+    playButton.layer.cornerRadius = 36
+    playButton.layer.cornerCurve = .continuous
+    playButton.layer.borderWidth = 0.5
+    playButton.layer.borderColor = UIColor.white.withAlphaComponent(0.22).cgColor
+    playButton.layer.shadowColor = UIColor.black.cgColor
+    playButton.layer.shadowOpacity = 0.26
+    playButton.layer.shadowRadius = 16
+    playButton.layer.shadowOffset = CGSize(width: 0, height: 6)
+    playButton.layer.shadowPath = UIBezierPath(
+      roundedRect: CGRect(x: 0, y: 0, width: 72, height: 72),
+      cornerRadius: 36).cgPath
     playButton.addTarget(self, action: #selector(togglePlay), for: .touchUpInside)
+    playBlur.layer.cornerRadius = 36
+    playBlur.layer.cornerCurve = .continuous
+    playBlur.clipsToBounds = true
+    playBlur.isUserInteractionEnabled = false
+    playBlur.contentView.backgroundColor = UIColor.black.withAlphaComponent(0.22)
+    playButton.insertSubview(playBlur, at: 0)
+    playBlur.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      playBlur.leadingAnchor.constraint(equalTo: playButton.leadingAnchor),
+      playBlur.trailingAnchor.constraint(equalTo: playButton.trailingAnchor),
+      playBlur.topAnchor.constraint(equalTo: playButton.topAnchor),
+      playBlur.bottomAnchor.constraint(equalTo: playButton.bottomAnchor),
+    ])
     view.addSubview(playButton)
 
     bottomPanel.layer.cornerRadius = 8
@@ -465,8 +482,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       danmakuSend.widthAnchor.constraint(equalToConstant: 34),
       danmakuSend.heightAnchor.constraint(equalToConstant: 30),
 
-      playButton.widthAnchor.constraint(equalToConstant: 64),
-      playButton.heightAnchor.constraint(equalToConstant: 64),
+      playButton.widthAnchor.constraint(equalToConstant: 72),
+      playButton.heightAnchor.constraint(equalToConstant: 72),
 
       ownerLabel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
       ownerLabel.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
@@ -785,6 +802,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       lastProgressSave = now
       WatchProgressStore.shared.update(bvid: item.bvid, seconds: seconds,
                                        duration: duration)
+      if now - lastHistoryReport >= 15 {
+        lastHistoryReport = now
+        reportWatchHistory(seconds: seconds)
+      }
     }
   }
 
@@ -795,6 +816,15 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     guard seconds >= 1, duration > 0 else { return }
     WatchProgressStore.shared.update(bvid: item.bvid, seconds: seconds,
                                      duration: duration)
+    reportWatchHistory(seconds: seconds)
+  }
+
+  private func reportWatchHistory(seconds: Double) {
+    guard item.roomId == 0, item.aid > 0, item.cid > 0, seconds >= 1 else {
+      return
+    }
+    BiliAPI.shared.reportHistory(
+      aid: item.aid, cid: item.cid, progress: Int(seconds))
   }
 
   private func resumePosition() -> Double {
@@ -811,8 +841,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func applyPlaying(_ playing: Bool) {
-    playButton.setImage(UIImage(systemName: playing ? "pause.fill" : "play.fill"), for: .normal)
-    pausedVeil.isHidden = playing
+    let icon = UIImage.SymbolConfiguration(pointSize: 26, weight: .semibold)
+    playButton.setImage(
+      UIImage(systemName: playing ? "pause.fill" : "play.fill",
+              withConfiguration: icon), for: .normal)
+    pausedVeil.isHidden = true
     videoContainer.backgroundColor = .clear
     if playing {
       startProgressLink()
@@ -820,11 +853,42 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       stopProgressLink()
       progressTick()
     }
+    updatePauseButton()
+    if !playing {
+      saveWatchProgress()
+    }
+  }
+
+  private func updatePauseButton() {
+    let show = !engine.isPlaying && !mediaLoadActive && !closing
+      && !isMiniWindow && !isSystemPip
+    let wasHidden = playButton.isHidden
+    playButton.isHidden = !show
+    playButton.alpha = show ? 1 : 0
+    guard show else {
+      playButton.transform = .identity
+      return
+    }
+    if wasHidden {
+      playButton.transform = CGAffineTransform(scaleX: 0.86, y: 0.86)
+      UIView.animate(
+        withDuration: 0.24, delay: 0,
+        usingSpringWithDamping: 0.7, initialSpringVelocity: 0.4,
+        options: [.allowUserInteraction, .beginFromCurrentState]) {
+        self.playButton.transform = .identity
+      }
+    }
   }
 
   private func applyLoadStatus(_ status: VideoLoadStatus) {
-    guard status.isActive, !closing else {
+    mediaLoadActive = status.isActive && !closing
+    if mediaLoadActive {
+      playButton.isHidden = true
+      playButton.alpha = 0
+    }
+    guard mediaLoadActive else {
       loadingView.hide()
+      updatePauseButton()
       return
     }
     loadingView.apply(status)
@@ -2140,6 +2204,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     forcePageStart = true
     lastProgressSave = 0
+    lastHistoryReport = 0
     engine.stop()
     danmakuOverlay.load(cid: page.cid)
     contentController?.setCurrentPage(page)
@@ -2169,6 +2234,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     bottomPanel.isUserInteractionEnabled = false
     item = value
     lastProgressSave = 0
+    lastHistoryReport = 0
     forcePageStart = false
     closing = false
     errorLabel.isHidden = true
