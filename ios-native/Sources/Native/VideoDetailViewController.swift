@@ -1032,6 +1032,13 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
     guard !bvid.isEmpty else { return }
     UIPasteboard.general.string = bvid
     UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    let config = UIImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+    copyButton.setImage(UIImage(systemName: "checkmark", withConfiguration: config),
+                        for: .normal)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+      self?.copyButton.setImage(
+        UIImage(systemName: "doc.on.doc", withConfiguration: config), for: .normal)
+    }
   }
 
   private func setDescription(_ text: String) {

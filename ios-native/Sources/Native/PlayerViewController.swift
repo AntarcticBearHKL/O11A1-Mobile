@@ -2421,7 +2421,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         guard let self = self else { return }
         self.loadingNextLoop = false
         guard case .success(let values) = result else { return }
-        self.loopQueue = values.filter { $0.bvid != self.item.bvid }
+        self.loopQueue = values.filter {
+          $0.bvid != self.item.bvid && $0.seasonId == 0 && $0.kind != "season"
+        }
         self.loopIndex = 0
         self.playNextLoopItem()
       }
