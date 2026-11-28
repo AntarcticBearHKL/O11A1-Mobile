@@ -302,7 +302,8 @@ final class HomeCardCell: UITableViewCell {
   }
 
   override func layoutSubviews() {
-    super.layoutSubviews()    CATransaction.begin()
+    super.layoutSubviews()
+    CATransaction.begin()
     CATransaction.setDisableActions(true)
     let shadowRect = contentView.bounds
     contentView.layer.shadowPath = UIBezierPath(
