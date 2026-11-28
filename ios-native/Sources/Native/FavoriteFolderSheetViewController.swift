@@ -49,12 +49,14 @@ final class FavoriteFolderSheetViewController: UIViewController,
     card.clipsToBounds = true
     view.addSubview(card)
     card.translatesAutoresizingMaskIntoConstraints = false
+    let cardWidth = card.widthAnchor.constraint(equalTo: view.widthAnchor)
+    cardWidth.priority = UILayoutPriority(999)
+    cardWidth.isActive = true
     NSLayoutConstraint.activate([
       card.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor),
       card.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor),
       card.centerXAnchor.constraint(equalTo: view.centerXAnchor),
       card.widthAnchor.constraint(lessThanOrEqualToConstant: 520),
-      card.widthAnchor.constraint(equalTo: view.widthAnchor).withPriority(999),
       card.bottomAnchor.constraint(equalTo: view.bottomAnchor),
       card.topAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.topAnchor,
                                 constant: 40),

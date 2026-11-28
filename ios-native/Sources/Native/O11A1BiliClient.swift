@@ -1615,6 +1615,10 @@ final class O11A1BiliClient {
     return result
   }
 
+  func favorite(aid: Int64, on: Bool) -> Data {
+    return favorite(aid: aid, folderId: 0, on: on)
+  }
+
   func favorite(aid: Int64, folderId: Int64, on: Bool) -> Data {
     guard canWrite() else { return needLogin("请先登录") }
     var folder = folderId
