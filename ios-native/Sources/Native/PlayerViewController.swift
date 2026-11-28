@@ -693,15 +693,27 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       pausedVeil.isHidden = true
       errorLabel.isHidden = true
       backdropVideo.alpha = 1
-      applyPlaying(true)
-      adopted.play()
+      let handoffDuration = handoff.duration > 0 ? handoff.duration : adopted.duration
+      if handoffDuration > 0, adopted.currentTime >= handoffDuration - 3 {
+        adopted.seek(to: 0, resume: false) { [weak self] in
+          guard let self = self else { return }
+          self.applyPlaying(true)
+          adopted.play()
+        }
+      } else {
+        applyPlaying(true)
+        adopted.play()
+      }
     } else if let handoff = previewHandoff, !handoff.url.isEmpty, item.roomId == 0 {
       handoffLowReady = false
       let local = WatchProgressStore.shared.position(for: item.bvid)
       let resume = handoff.seconds > 1 ? handoff.seconds : max(local, handoff.seconds)
-      let start = handoff.duration > 0
+      var start = handoff.duration > 0
         ? min(resume, max(0, handoff.duration - 0.5))
         : max(0, resume)
+      if handoff.duration > 0, start >= handoff.duration - 3 {
+        start = 0
+      }
       engine.load(
         url: handoff.url,
         backup: handoff.backup,
@@ -835,13 +847,21 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     if forcePageStart {
       return 0
     }
-    if pendingStartSeconds > 0 { return pendingStartSeconds }
+    if pendingStartSeconds > 0 { return initialResume(pendingStartSeconds) }
     if engine.player.currentItem?.status == .readyToPlay {
       return max(0, engine.currentTime)
     }
     let local = WatchProgressStore.shared.position(for: item.bvid)
-    if local > 0 { return local }
-    return Double(max(0, item.progress))
+    if local > 0 { return initialResume(local) }
+    return initialResume(Double(max(0, item.progress)))
+  }
+
+  /// A saved point inside the final three seconds is treated as finished.
+  private func initialResume(_ seconds: Double) -> Double {
+    guard seconds.isFinite, seconds > 0 else { return 0 }
+    let duration = engine.duration > 0 ? engine.duration : Double(item.durationSec)
+    if duration > 0, seconds >= duration - 3 { return 0 }
+    return seconds
   }
 
   private func applyPlaying(_ playing: Bool) {

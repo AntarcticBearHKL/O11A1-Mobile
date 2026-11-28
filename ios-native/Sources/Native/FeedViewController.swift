@@ -1053,7 +1053,9 @@ final class FeedViewController: UIViewController,
       self.previewItemKey = "\(item.bvid)-\(item.cid)"
       self.attachPreview(current)
       let localResume = WatchProgressStore.shared.position(for: item.bvid)
-      let resume = localResume > 0 ? localResume : Double(max(0, item.progress))
+      var resume = localResume > 0 ? localResume : Double(max(0, item.progress))
+      let duration = Double(item.durationSec)
+      if duration > 0, resume >= duration - 3 { resume = 0 }
       self.previewEngine.load(
         url: source.url,
         backup: source.backup,

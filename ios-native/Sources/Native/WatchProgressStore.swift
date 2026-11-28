@@ -30,7 +30,7 @@ final class WatchProgressStore {
     let entry = entries[bvid]
     lock.unlock()
     guard let entry = entry, entry.seconds >= 3 else { return 0 }
-    if entry.duration > 0, entry.seconds >= entry.duration - 8 {
+    if entry.duration > 0, entry.seconds >= entry.duration - 3 {
       return 0
     }
     return entry.seconds
@@ -38,7 +38,7 @@ final class WatchProgressStore {
 
   func update(bvid: String, seconds: Double, duration: Double) {
     guard !bvid.isEmpty, seconds.isFinite, seconds >= 3 else { return }
-    let finished = duration > 0 && seconds >= duration - 8
+    let finished = duration > 0 && seconds >= duration - 3
     lock.lock()
     if finished {
       entries.removeValue(forKey: bvid)
@@ -70,7 +70,7 @@ final class WatchProgressStore {
       guard !item.bvid.isEmpty, item.progress >= 3 else { continue }
       if entries[item.bvid] != nil { continue }
       let duration = Double(item.durationSec)
-      if duration > 0, Double(item.progress) >= duration - 8 { continue }
+      if duration > 0, Double(item.progress) >= duration - 3 { continue }
       entries[item.bvid] = Entry(seconds: Double(item.progress),
                                  duration: duration,
                                  updated: Date().timeIntervalSince1970)
