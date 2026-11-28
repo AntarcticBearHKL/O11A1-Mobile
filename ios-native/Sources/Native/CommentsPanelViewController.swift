@@ -460,14 +460,18 @@ final class CommentsPanelViewController: UIViewController, UITableViewDataSource
 
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
     guard scrollView.contentSize.height > 0 else { return }
-    let position = scrollView.contentOffset.y + scrollView.contentInset.top
-    if let last = lastDockScrollPosition {
-      let delta = position - last
-      if abs(delta) > 0.5 {
-        onScroll?(delta, position)
+    if scrollView.isDragging {
+      let position = scrollView.contentOffset.y + scrollView.contentInset.top
+      if let last = lastDockScrollPosition {
+        let delta = position - last
+        if abs(delta) > 2 {
+          onScroll?(delta, position)
+        }
       }
+      lastDockScrollPosition = position
+    } else {
+      lastDockScrollPosition = nil
     }
-    lastDockScrollPosition = position
     guard hasMore, !loading else { return }
     if scrollView.contentOffset.y > scrollView.contentSize.height - scrollView.bounds.height * 2 {
       load(reset: false)
@@ -624,12 +628,12 @@ private final class PanelCommentCell: UITableViewCell {
       metric.setContentHuggingPriority(.required, for: .horizontal)
       metric.setContentCompressionResistancePriority(.required, for: .horizontal)
     }
-    likes.widthAnchor.constraint(equalToConstant: 60).isActive = true
-    repliesCount.widthAnchor.constraint(equalToConstant: 46).isActive = true
+    likes.widthAnchor.constraint(equalToConstant: 56).isActive = true
+    repliesCount.widthAnchor.constraint(equalToConstant: 42).isActive = true
     repliesCount.isHidden = true
 
     time.font = UIFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .medium)
-    time.textAlignment = .left
+    time.textAlignment = .right
     time.numberOfLines = 1
     time.widthAnchor.constraint(equalToConstant: 54).isActive = true
     time.setContentHuggingPriority(.required, for: .horizontal)
@@ -638,7 +642,7 @@ private final class PanelCommentCell: UITableViewCell {
     let metaRow = UIStackView(arrangedSubviews: [likes, repliesCount, time])
     metaRow.axis = .horizontal
     metaRow.alignment = .center
-    metaRow.spacing = 10
+    metaRow.spacing = 6
     metaRow.setContentHuggingPriority(.required, for: .horizontal)
     metaRow.setContentCompressionResistancePriority(.required, for: .horizontal)
 

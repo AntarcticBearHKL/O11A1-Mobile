@@ -443,14 +443,18 @@ final class VideoDetailViewController: UIViewController, UIGestureRecognizerDele
 
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
     guard scrollView === scroll else { return }
-    let position = scrollView.contentOffset.y + scrollView.contentInset.top
-    if let last = lastDockScrollPosition {
-      let delta = position - last
-      if abs(delta) > 0.5 {
-        onScroll?(delta, position)
+    if scrollView.isDragging {
+      let position = scrollView.contentOffset.y + scrollView.contentInset.top
+      if let last = lastDockScrollPosition {
+        let delta = position - last
+        if abs(delta) > 2 {
+          onScroll?(delta, position)
+        }
       }
+      lastDockScrollPosition = position
+    } else {
+      lastDockScrollPosition = nil
     }
-    lastDockScrollPosition = position
   }
 
   @objc private func handleCloseSwipe(_ gesture: UIPanGestureRecognizer) {

@@ -120,6 +120,13 @@ struct PlaySource {
   var cid: Int64 = 0
 }
 
+struct VideoPage: Equatable {
+  var cid: Int64 = 0
+  var page = 1
+  var title = ""
+  var duration = 0
+}
+
 /// A low-resolution stream that is already playing in the feed preview, handed
 /// to the player so it can start from the same frame while the full-quality
 /// stream is fetched and preloaded.

@@ -261,4 +261,15 @@ final class VideoRowCell: UITableViewCell {
     duration.text = item.duration
     ImageLoader.shared.load(item.pic, into: cover)
   }
+
+  func configureSearch(_ item: VideoItem) {
+    title.text = item.title
+    metaLeft.text = "\(item.owner) · \(item.playText)播放"
+    metaLeft.textColor = NativeTheme.secondary
+    metaRight.text = NativeTheme.freshness(item.pubdate)
+    metaRight.textColor = NativeTheme.freshnessColor(item.pubdate)
+    metaRight.isHidden = false
+    duration.text = item.duration
+    ImageLoader.shared.load(item.pic, into: cover)
+  }
 }

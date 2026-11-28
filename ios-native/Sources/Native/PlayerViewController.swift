@@ -12,6 +12,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   var item: VideoItem
   var onClose: (() -> Void)?
   var onProfile: ((Int64) -> Void)?
+  var onMinimize: (() -> Void)?
+  var onExpand: (() -> Void)?
+  private(set) var isMiniWindow = false
 
   private var engine = VideoEngine()
   private lazy var playerView = PlayerLayerView(playerLayer: engine.playerLayer)
@@ -75,6 +78,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var horizontalCloseActive = false
   private var horizontalCloseProgress: CGFloat = 0
   private var horizontalSlideRight = false
+  private var horizontalSlideLeft = false
   private var landscapeDrag = false
   private var landscapeControl: LandscapeVerticalControl = .none
   private var landscapeAdjusting = false
@@ -106,6 +110,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   var pendingStartSeconds: Double = 0
   private var portraitTransition: CGFloat = 1
   private var portraitStageIsTop = true
+  private var portraitSettleToken = 0
+  private var portraitDragBase: CGFloat = 1
+  private var miniDragStartFrame = CGRect.zero
+  private var miniDragTargetFrame = CGRect.zero
+  private var miniDragProgress: CGFloat = 0
+  private var miniSavedTransition: CGFloat = 0
+  private var miniSavedTop = true
+  private var miniSavedAlphas: [CGFloat] = []
+  private var forcePageStart = false
+  private let miniCloseButton = UIButton(type: .system)
   private var contentReady = false
   private var panDirectionDecided = false
   private var contentController: PlayerContentViewController?
@@ -502,6 +516,18 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       errorLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: 80),
     ])
 
+    miniCloseButton.setImage(
+      UIImage(systemName: "xmark",
+              withConfiguration: UIImage.SymbolConfiguration(pointSize: 10, weight: .bold)),
+      for: .normal)
+    miniCloseButton.tintColor = .white
+    miniCloseButton.backgroundColor = UIColor.black.withAlphaComponent(0.52)
+    miniCloseButton.layer.cornerRadius = 11
+    miniCloseButton.layer.cornerCurve = .continuous
+    miniCloseButton.isHidden = true
+    miniCloseButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
+    view.addSubview(miniCloseButton)
+
     let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
     pan.delegate = self
     view.addGestureRecognizer(pan)
@@ -562,6 +588,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         return
       }
       self.handoffLowReady = true
+      self.forcePageStart = false
       self.poster.isHidden = true
       self.errorLabel.isHidden = true
       self.backdropVideo.alpha = 1
@@ -764,6 +791,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func resumePosition() -> Double {
+    if forcePageStart {
+      return 0
+    }
     if pendingStartSeconds > 0 { return pendingStartSeconds }
     if engine.player.currentItem?.status == .readyToPlay {
       return max(0, engine.currentTime)
@@ -938,7 +968,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func applyPortraitTransition(_ value: CGFloat) {
-    guard !isLandscapePlayer else { return }
+    guard !isLandscapePlayer, !isMiniWindow else { return }
     let p = max(0, min(1, value))
     portraitTransition = p
     let full = view.bounds
@@ -983,26 +1013,219 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     portraitStageIsTop = top
     portraitDragActive = false
     portraitSettling = animated
+    portraitSettleToken += 1
+    let token = portraitSettleToken
     hideControls()
     let target: CGFloat = top ? 1 : 0
     if animated {
-      UIView.animate(withDuration: 0.58, delay: 0,
-                     usingSpringWithDamping: 0.88, initialSpringVelocity: 0.15,
+      UIView.animate(withDuration: 0.46, delay: 0,
+                     usingSpringWithDamping: 0.92, initialSpringVelocity: 0.12,
                      options: [.allowUserInteraction, .beginFromCurrentState]) {
         self.applyPortraitTransition(target)
       } completion: { _ in
+        guard token == self.portraitSettleToken,
+              !self.portraitDragActive else { return }
         self.portraitSettling = false
         self.portraitTransition = target
         self.applyPortraitTransition(target)
       }
     } else {
+      portraitSettling = false
       portraitTransition = target
       applyPortraitTransition(target)
     }
   }
 
+  private func miniFrameInParent() -> CGRect {
+    let parent = view.superview ?? view
+    let bounds = parent.bounds
+    let width = min(212, max(156, bounds.width * 0.5))
+    let height = width * 9.0 / 16.0
+    let x = bounds.width - width - 14
+    let y = bounds.height - 24 - 72 - 10 - height
+    return CGRect(x: x, y: max(60, y), width: width, height: height)
+  }
+
+  private func beginMiniDrag() {
+    guard !isMiniWindow, onMinimize != nil else { return }
+    miniDragStartFrame = videoContainer.frame
+    miniDragTargetFrame = miniFrameInParent()
+    miniDragProgress = 0
+    miniSavedAlphas = [backdropHost.alpha, topBar.alpha, bottomPanel.alpha,
+                       dim.alpha, playButton.alpha, danmakuOverlay.alpha,
+                       contentController?.view.alpha ?? 0]
+    view.bringSubviewToFront(videoContainer)
+    view.bringSubviewToFront(miniCloseButton)
+    miniCloseButton.isHidden = true
+  }
+
+  private func updateMiniDrag(_ distance: CGFloat) {
+    let p = max(0, min(1, distance / 220))
+    miniDragProgress = p
+    videoContainer.frame = lerpRect(miniDragStartFrame, miniDragTargetFrame, p)
+    videoContainer.layer.cornerRadius = 12 * p
+    videoContainer.clipsToBounds = true
+    let fade = max(0, 1 - p * 1.7)
+    backdropHost.alpha = fade
+    topBar.alpha = fade
+    bottomPanel.alpha = fade
+    dim.alpha = fade
+    danmakuOverlay.alpha = fade
+    contentController?.view.alpha = fade
+    playButton.alpha = 0
+  }
+
+  private func finishMiniDrag(velocity: CGFloat) {
+    guard onMinimize != nil, miniDragProgress > 0 || velocity > 0 else {
+      portraitDragActive = false
+      return
+    }
+    let commit = miniDragProgress > 0.28 || velocity > 700
+    if commit {
+      UIView.animate(withDuration: 0.26, delay: 0,
+                     options: [.curveEaseOut, .beginFromCurrentState]) {
+        self.videoContainer.frame = self.miniDragTargetFrame
+        self.videoContainer.layer.cornerRadius = 12
+        self.backdropHost.alpha = 0
+        self.topBar.alpha = 0
+        self.bottomPanel.alpha = 0
+        self.dim.alpha = 0
+        self.danmakuOverlay.alpha = 0
+        self.contentController?.view.alpha = 0
+      } completion: { _ in
+        self.commitMiniWindow()
+      }
+    } else {
+      UIView.animate(withDuration: 0.34, delay: 0,
+                     usingSpringWithDamping: 0.9,
+                     initialSpringVelocity: 0.3,
+                     options: [.beginFromCurrentState, .allowUserInteraction]) {
+        self.videoContainer.frame = self.miniDragStartFrame
+        self.videoContainer.layer.cornerRadius = 0
+        if self.miniSavedAlphas.count == 7 {
+          self.backdropHost.alpha = self.miniSavedAlphas[0]
+          self.topBar.alpha = self.miniSavedAlphas[1]
+          self.bottomPanel.alpha = self.miniSavedAlphas[2]
+          self.dim.alpha = self.miniSavedAlphas[3]
+          self.playButton.alpha = self.miniSavedAlphas[4]
+          self.danmakuOverlay.alpha = self.miniSavedAlphas[5]
+          self.contentController?.view.alpha = self.miniSavedAlphas[6]
+        }
+      } completion: { _ in
+        self.portraitDragActive = false
+        self.applyPortraitTransition(self.portraitTransition)
+      }
+    }
+  }
+
+  private func commitMiniWindow() {
+    guard !isMiniWindow else { return }
+    isMiniWindow = true
+    portraitDragActive = false
+    portraitSettling = false
+    miniSavedTransition = portraitTransition
+    miniSavedTop = portraitStageIsTop
+    miniDragProgress = 0
+    let target = miniDragTargetFrame
+    view.transform = .identity
+    view.frame = target
+    view.autoresizingMask = []
+    view.clipsToBounds = false
+    view.backgroundColor = .clear
+    view.layer.cornerRadius = 12
+    view.layer.shadowColor = UIColor.black.cgColor
+    view.layer.shadowOpacity = 0.28
+    view.layer.shadowRadius = 16
+    view.layer.shadowOffset = CGSize(width: 0, height: 6)
+    videoContainer.frame = view.bounds
+    videoContainer.backgroundColor = .black
+    videoContainer.layer.cornerRadius = 12
+    videoContainer.clipsToBounds = true
+    videoContainer.transform = .identity
+    videoContainer.alpha = 1
+    backdropHost.isHidden = true
+    backdropHost.alpha = 0
+    topBar.isHidden = true
+    bottomPanel.isHidden = true
+    dim.isHidden = true
+    contentController?.view.isHidden = true
+    danmakuOverlay.isHidden = true
+    playButton.isHidden = true
+    errorLabel.isHidden = true
+    seekBubble.isHidden = true
+    miniCloseButton.isHidden = false
+    miniCloseButton.frame = CGRect(x: max(4, view.bounds.width - 30), y: 6,
+                                   width: 24, height: 24)
+    view.bringSubviewToFront(videoContainer)
+    view.bringSubviewToFront(miniCloseButton)
+    hideControls()
+    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    onMinimize?()
+    setNeedsStatusBarAppearanceUpdate()
+  }
+
+  func exitMiniWindow() {
+    guard isMiniWindow else { return }
+    isMiniWindow = false
+    miniCloseButton.isHidden = true
+    let parent = view.superview ?? view
+    view.frame = parent.bounds
+    view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    view.layer.cornerRadius = 0
+    view.layer.shadowOpacity = 0
+    view.clipsToBounds = true
+    view.backgroundColor = .clear
+    videoContainer.layer.cornerRadius = 0
+    videoContainer.backgroundColor = .clear
+    backdropHost.isHidden = false
+    backdropHost.alpha = 1
+    topBar.isHidden = false
+    topBar.alpha = 1
+    bottomPanel.isHidden = false
+    dim.isHidden = false
+    dim.alpha = 1
+    contentController?.view.isHidden = false
+    danmakuOverlay.isHidden = item.roomId > 0
+    danmakuOverlay.alpha = 1
+    playButton.isHidden = false
+    playButton.alpha = engine.isPlaying ? 0 : 1
+    miniDragProgress = 0
+    portraitStageIsTop = miniSavedTop
+    portraitTransition = miniSavedTransition
+    applyPortraitTransition(miniSavedTransition)
+    if miniSavedTransition < 0.5 {
+      hideControls()
+    } else {
+      hideControls()
+    }
+    onExpand?()
+    setNeedsStatusBarAppearanceUpdate()
+    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+  }
+
+  private func layoutMiniWindow() {
+    view.backgroundColor = .clear
+    videoContainer.frame = view.bounds
+    videoContainer.backgroundColor = .black
+    videoContainer.layer.cornerRadius = 12
+    videoContainer.clipsToBounds = true
+    layoutVideoSubviews()
+    miniCloseButton.frame = CGRect(x: max(4, view.bounds.width - 30), y: 6,
+                                   width: 24, height: 24)
+    view.bringSubviewToFront(videoContainer)
+    view.bringSubviewToFront(miniCloseButton)
+  }
+
   private func commentsPull(_ progress: CGFloat) {
-    guard !isLandscapePlayer, portraitStageIsTop else { return }
+    guard !isLandscapePlayer, !isMiniWindow, portraitStageIsTop else { return }
+    if portraitSettling {
+      videoContainer.layer.removeAllAnimations()
+      bottomPanel.layer.removeAllAnimations()
+      contentController?.view.layer.removeAllAnimations()
+      danmakuOverlay.layer.removeAllAnimations()
+    }
+    portraitSettleToken += 1
+    portraitSettling = false
     portraitDragActive = true
     applyPortraitTransition(1 - max(0, min(1, progress)))
   }
@@ -1019,6 +1242,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     content.initialDanmakuOn = danmakuOverlay.enabled
     content.initialLoopOn = loopOn
     content.onSelectRelated = { [weak self] value in self?.replace(with: value) }
+    content.onSelectPage = { [weak self] page in self?.selectPage(page) }
     content.onProfile = { [weak self] mid in self?.onProfile?(mid) }
     content.onQuality = { [weak self] qn in
       guard let self = self else { return }
@@ -1067,7 +1291,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     horizontalCloseProgress = 0
     portraitDragActive = true
     hideControls()
-    if !horizontalSlideRight {
+    if !horizontalSlideRight && !horizontalSlideLeft {
       collapseBackdrop(animated: true)
     }
   }
@@ -1076,9 +1300,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     guard horizontalCloseActive else { return }
     let p = max(0, min(1, progress))
     horizontalCloseProgress = p
-    if horizontalSlideRight {
+    if horizontalSlideRight || horizontalSlideLeft {
       let width = max(1, view.bounds.width)
-      view.transform = CGAffineTransform(translationX: width * p, y: 0)
+      let direction: CGFloat = horizontalSlideRight ? 1 : -1
+      view.transform = CGAffineTransform(translationX: width * direction * p, y: 0)
       return
     }
     let height = max(1, view.bounds.height)
@@ -1100,15 +1325,18 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       if shouldClose { closeFromRightSwipe() }
       return
     }
-    if horizontalSlideRight {
+    if horizontalSlideRight || horizontalSlideLeft {
       let width = max(1, view.bounds.width)
+      let direction: CGFloat = horizontalSlideRight ? 1 : -1
       if shouldClose {
         UIView.animate(withDuration: 0.24, delay: 0,
                        options: [.curveEaseIn, .beginFromCurrentState]) {
-          self.view.transform = CGAffineTransform(translationX: width, y: 0)
+          self.view.transform = CGAffineTransform(
+            translationX: width * direction, y: 0)
         } completion: { _ in
           self.horizontalCloseActive = false
           self.horizontalSlideRight = false
+          self.horizontalSlideLeft = false
           self.closePlayer(animated: false)
         }
       } else {
@@ -1121,6 +1349,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
           self.horizontalCloseActive = false
           self.portraitDragActive = false
           self.horizontalSlideRight = false
+          self.horizontalSlideLeft = false
+          self.expandBackdrop(animated: true)
+          self.applyPortraitTransition(self.portraitTransition)
         }
       }
       return
@@ -1169,6 +1400,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     guard !closing, !portraitShrinking, !isLandscapePlayer,
           portraitCloseReady else { return }
     horizontalSlideRight = true
+    horizontalSlideLeft = false
     beginHorizontalClose()
     finishHorizontalClose(true)
   }
@@ -1184,6 +1416,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
+    if isMiniWindow {
+      isLandscapePlayer = false
+      layoutMiniWindow()
+      return
+    }
     let full = view.bounds
     let landscape = full.width > full.height
     let wasLandscape = isLandscapePlayer
@@ -1527,6 +1764,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   @objc private func handleSingleTap() {
+    if isMiniWindow {
+      exitMiniWindow()
+      return
+    }
     if !isLandscapePlayer && portraitStageIsTop {
       if bottomPanel.alpha > 0.01 {
         hideControls()
@@ -1554,7 +1795,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func showControls() {
-    guard isLandscapePlayer || !portraitStageIsTop else { return }
+    guard !isMiniWindow, isLandscapePlayer || !portraitStageIsTop else { return }
     controlsVisible = true
     bottomPanel.isUserInteractionEnabled = true
     UIView.animate(withDuration: panelShowDuration, delay: 0,
@@ -1599,23 +1840,28 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let translation = gesture.translation(in: reference)
     switch gesture.state {
     case .began:
-      horizontalSlideRight = true
+      horizontalSlideLeft = contentCloseStartX > width * 5.0 / 6.0
+      horizontalSlideRight = !horizontalSlideLeft
       view.transform = .identity
       beginHorizontalClose()
     case .changed:
-      updateHorizontalClose(max(0, min(1, translation.x / width)))
+      let direction: CGFloat = horizontalSlideLeft ? -1 : 1
+      updateHorizontalClose(max(0, min(1, translation.x * direction / width)))
     case .ended, .cancelled:
       guard horizontalCloseActive else { return }
       let velocity = gesture.velocity(in: reference).x
-      finishHorizontalClose(translation.x > width * 0.22 || velocity > 380)
+      let far = horizontalSlideLeft
+        ? -translation.x > width * 0.22
+        : translation.x > width * 0.22
+      let fast = horizontalSlideLeft ? velocity < -380 : velocity > 380
+      finishHorizontalClose(far || fast)
     default:
       break
     }
   }
 
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
-    if portraitShrinking { return }
-    if horizontalCloseActive && horizontalSlideRight { return }
+    if portraitShrinking || isMiniWindow || horizontalCloseActive { return }
     let reference = view.superview ?? view
     let translation = gesture.translation(in: reference)
     switch gesture.state {
@@ -1629,6 +1875,18 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       portraitDownClose = false
       panDirectionDecided = false
       portraitDragActive = true
+      let wasSettling = portraitSettling
+      portraitSettleToken += 1
+      portraitSettling = false
+      if wasSettling {
+        videoContainer.layer.removeAllAnimations()
+        bottomPanel.layer.removeAllAnimations()
+        contentController?.view.layer.removeAllAnimations()
+        danmakuOverlay.layer.removeAllAnimations()
+        portraitTransition = portraitStageIsTop ? 1 : 0
+        applyPortraitTransition(portraitTransition)
+      }
+      portraitDragBase = portraitTransition
       panStartFrame = videoContainer.frame
       panProgress = 0
       view.transform = .identity
@@ -1659,16 +1917,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             panDirectionDecided = true
           } else if !isLandscapePlayer {
             panDirectionDecided = true
-            if portraitStageIsTop {
-              if translation.y > 0 {
-                portraitRestoreDrag = true
-              }
-            } else if translation.y > 0, portraitCloseReady {
-              portraitDownClose = true
-              horizontalSlideRight = false
-              beginHorizontalClose()
-            } else if translation.y < 0 {
+            if translation.y < 0 {
               portraitUpDrag = true
+            } else if portraitDragBase <= 0.02, onMinimize != nil {
+              portraitDownClose = true
+              beginMiniDrag()
+            } else {
+              portraitRestoreDrag = true
             }
           } else {
             panDirectionDecided = true
@@ -1695,20 +1950,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         return
       }
       if portraitDownClose {
-        let height = max(1, view.bounds.height)
-        updateHorizontalClose(max(0, min(1, translation.y / (height * 0.58))))
+        updateMiniDrag(translation.y)
         return
       }
       guard !isLandscapePlayer || landscapeDrag else { return }
       if !isLandscapePlayer {
         let rects = portraitVideoRects()
         let distance = max(120, rects.center.minY - rects.top.minY)
-        if portraitUpDrag {
-          let p = min(1, max(0, -translation.y / distance))
-          applyPortraitTransition(p)
-        } else if portraitRestoreDrag {
-          let p = 1 - min(1, max(0, translation.y / distance))
-          applyPortraitTransition(p)
+        if portraitUpDrag || portraitRestoreDrag {
+          let p = portraitDragBase - translation.y / distance
+          applyPortraitTransition(max(0, min(1, p)))
         }
         return
       }
@@ -1758,9 +2009,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       if portraitDownClose {
         portraitDownClose = false
         panDirectionDecided = false
-        portraitDragActive = false
-        let shouldClose = translation.y > 120 || endVelocity.y > 700
-        finishHorizontalClose(shouldClose)
+        finishMiniDrag(velocity: endVelocity.y)
         return
       }
       if isLandscapePlayer && !landscapeDrag {
@@ -1775,18 +2024,20 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       if !isLandscapePlayer {
         let rects = portraitVideoRects()
         let distance = max(120, rects.center.minY - rects.top.minY)
-        if portraitUpDrag {
+        if portraitUpDrag || portraitRestoreDrag {
           portraitUpDrag = false
-          panDirectionDecided = false
-          let p = min(1, max(0, -translation.y / distance))
-          settlePortrait(top: p > 0.28 || endVelocity.y < -420, animated: true)
-          return
-        }
-        if portraitRestoreDrag {
           portraitRestoreDrag = false
           panDirectionDecided = false
-          let p = 1 - min(1, max(0, translation.y / distance))
-          settlePortrait(top: !(p < 0.72 || endVelocity.y > 420), animated: true)
+          let p = max(0, min(1, portraitDragBase - translation.y / distance))
+          let targetTop: Bool
+          if endVelocity.y < -420 {
+            targetTop = true
+          } else if endVelocity.y > 420 {
+            targetTop = false
+          } else {
+            targetTop = p > 0.5
+          }
+          settlePortrait(top: targetTop, animated: true)
           return
         }
         panDirectionDecided = false
@@ -1813,6 +2064,22 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
   }
 
+  private func selectPage(_ page: VideoPage) {
+    guard page.cid > 0, page.cid != item.cid else { return }
+    saveWatchProgress()
+    item.cid = page.cid
+    if page.duration > 0 {
+      item.durationSec = page.duration
+      item.duration = format(Double(page.duration))
+    }
+    forcePageStart = true
+    lastProgressSave = 0
+    engine.stop()
+    danmakuOverlay.load(cid: page.cid)
+    contentController?.setCurrentPage(page)
+    loadQuality(currentQuality)
+  }
+
   private func openRelatedPanel() {
     hideControls()
     ensurePlayerContent().select(.related)
@@ -1836,6 +2103,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     bottomPanel.isUserInteractionEnabled = false
     item = value
     lastProgressSave = 0
+    forcePageStart = false
     closing = false
     errorLabel.isHidden = true
     poster.isHidden = false
@@ -1961,6 +2229,17 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   func testCommentsStage() {
     settlePortrait(top: true, animated: false)
+  }
+
+  func testMinimize() {
+    guard onMinimize != nil, !isMiniWindow else { return }
+    portraitStageIsTop = false
+    portraitTransition = 0
+    applyPortraitTransition(0)
+    portraitDragActive = true
+    beginMiniDrag()
+    updateMiniDrag(260)
+    finishMiniDrag(velocity: 900)
   }
 
   func testLandscape() {
@@ -2112,17 +2391,21 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     if gestureRecognizer === contentClosePan {
-      guard !closing, !isLandscapePlayer, portraitCloseReady,
+      guard !closing, !isLandscapePlayer, !isMiniWindow, portraitCloseReady,
             !portraitShrinking, !horizontalCloseActive,
             let pan = gestureRecognizer as? UIPanGestureRecognizer else {
         return false
       }
-      if portraitStageIsTop && contentCloseStartX >= view.bounds.width / 6.0 {
-        return false
-      }
+      let width = max(1, view.bounds.width)
       let translation = pan.translation(in: view)
       let velocity = pan.velocity(in: view)
-      guard translation.x > 2, velocity.x >= 0 else { return false }
+      let leftZone = contentCloseStartX > width * 5.0 / 6.0
+      let rightZone = contentCloseStartX < width / 6.0
+      let movingLeft = translation.x < -2 || velocity.x < -80
+      let movingRight = translation.x > 2 || velocity.x > 80
+      guard (leftZone && movingLeft) || (rightZone && movingRight) else {
+        return false
+      }
       return abs(translation.x) > abs(translation.y) * 1.15
         || abs(velocity.x) > abs(velocity.y) * 1.15
     }

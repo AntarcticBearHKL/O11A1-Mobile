@@ -19,6 +19,7 @@ final class FeedViewController: UIViewController,
 
   private(set) var items: [VideoItem] = []
   private let table = UITableView(frame: .zero, style: .plain)
+  private let refreshControl = UIRefreshControl()
   private let statusLabel = UILabel()
   private let topFade = TopBlurView()
   private var previewEngine = VideoEngine()
@@ -35,6 +36,7 @@ final class FeedViewController: UIViewController,
   private var nextPage = 1
   private var fresh = 1
   private var loading = false
+  private var refreshing = false
   private var hasMore = true
   private var lastOffset: CGFloat = 0
   private var toolbarHidden = false
@@ -44,6 +46,8 @@ final class FeedViewController: UIViewController,
   private var sidebarPan: UIPanGestureRecognizer?
   private var searchOpen = false
   private var searchProgress: CGFloat = 0
+  private var searchSettleToken = 0
+  private var searchAnimating = false
   private var searchKeyboardShown = false
   private var searchPanStartX: CGFloat = 0
   private var sidebarPanStartX: CGFloat = 0
@@ -67,6 +71,9 @@ final class FeedViewController: UIViewController,
     table.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 138, right: 0)
     table.contentInsetAdjustmentBehavior = .never
     table.showsVerticalScrollIndicator = false
+    refreshControl.tintColor = NativeTheme.secondary
+    refreshControl.addTarget(self, action: #selector(refreshPulled), for: .valueChanged)
+    table.refreshControl = refreshControl
     view.addSubview(table)
     table.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
@@ -115,9 +122,10 @@ final class FeedViewController: UIViewController,
       self?.onSearchOpen?(item)
     }
     addChild(search)
-    search.view.frame = CGRect(x: view.bounds.width, y: 0,
-                               width: view.bounds.width, height: view.bounds.height)
+    search.view.frame = view.bounds
     search.view.autoresizingMask = [.flexibleHeight]
+    search.view.transform = CGAffineTransform(
+      translationX: max(1, view.bounds.width), y: 0)
     view.addSubview(search.view)
     search.didMove(toParent: self)
     search.view.isHidden = true
@@ -160,11 +168,13 @@ final class FeedViewController: UIViewController,
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     updateInsets()
-    if let search = searchController {
+    if let search = searchController, !searchAnimating {
       let width = max(1, view.bounds.width)
       let progress = max(0, min(1, searchProgress))
-      search.view.frame = CGRect(x: width * (1 - progress), y: 0,
-                                 width: width, height: view.bounds.height)
+      search.view.transform = .identity
+      search.view.frame = view.bounds
+      search.view.transform = CGAffineTransform(
+        translationX: width * (1 - progress), y: 0)
     }
   }
 
@@ -192,12 +202,9 @@ final class FeedViewController: UIViewController,
     hasMore = source != "none" && source != "dynamic" && source != "fish"
     nextPage = 1
     fresh = 1
+    unloadPreviewMedia()
     items = []
-    previewIndex = -1
-    previewCell?.setPreviewProgress(nil)
-    previewCell = nil
     previewSuspended = true
-    previewEngine.stop()
     statusLabel.isHidden = true
     table.reloadData()
     table.setContentOffset(CGPoint(x: 0, y: -table.contentInset.top), animated: false)
@@ -205,25 +212,42 @@ final class FeedViewController: UIViewController,
   }
 
   private func load(reset: Bool) {
-    guard !loading else { return }
     if reset {
+      // A refresh replaces the stream instead of piling another page on top of
+      // it. Invalidate any request that is still in flight and release the
+      // preview decoder before the old rows disappear.
+      sourceToken += 1
+      loading = false
       nextPage = 1
       fresh = 1
       hasMore = homeSource != "none" && homeSource != "dynamic" && homeSource != "fish"
+      unloadPreviewMedia()
+      items = []
+      statusLabel.text = "正在加载\(sourceTitle)…"
+      statusLabel.isHidden = false
+      table.reloadData()
+      table.setContentOffset(CGPoint(x: 0, y: -table.contentInset.top), animated: false)
     }
+    guard !loading else { return }
     if homeSource == "none" {
+      endRefreshing()
       showEmpty("暂时没有内容\n下拉刷新试试")
       return
     }
     if homeSource == "dynamic" {
+      endRefreshing()
       showEmpty("动态请在底部「动态」查看")
       return
     }
     if homeSource == "fish" {
+      endRefreshing()
       showEmpty("养鱼请在底部「养鱼」查看")
       return
     }
-    guard hasMore else { return }
+    guard hasMore else {
+      endRefreshing()
+      return
+    }
     loading = true
     if reset && items.isEmpty {
       statusLabel.text = "正在加载\(sourceTitle)…"
@@ -236,6 +260,7 @@ final class FeedViewController: UIViewController,
       self.loading = false
       switch result {
       case .failure(let error):
+        self.endRefreshing()
         if self.items.isEmpty {
           self.statusLabel.text = error.localizedDescription + "\n轻触屏幕重试"
           self.statusLabel.isHidden = false
@@ -271,6 +296,7 @@ final class FeedViewController: UIViewController,
         self.loading = false
         switch result {
         case .failure(let error):
+          self.endRefreshing()
           if self.items.isEmpty {
             self.statusLabel.text = error.localizedDescription + "\n轻触屏幕重试"
             self.statusLabel.isHidden = false
@@ -285,9 +311,12 @@ final class FeedViewController: UIViewController,
   }
 
   private func finish(_ values: [VideoItem], reset: Bool) {
+    endRefreshing()
     let oldCount = items.count
     if reset {
+      unloadPreviewMedia()
       items = values
+      previewSuspended = false
     } else {
       var existing = Set(items.map { "\($0.bvid)-\($0.roomId)" })
       for item in values where !existing.contains("\(item.bvid)-\(item.roomId)") {
@@ -394,6 +423,17 @@ final class FeedViewController: UIViewController,
     guard items.isEmpty, !loading else { return }
     statusLabel.isHidden = true
     load(reset: true)
+  }
+
+  @objc private func refreshPulled() {
+    refreshing = true
+    load(reset: true)
+  }
+
+  private func endRefreshing() {
+    guard refreshing else { return }
+    refreshing = false
+    refreshControl.endRefreshing()
   }
 
   // MARK: - table
@@ -512,11 +552,7 @@ final class FeedViewController: UIViewController,
 
   @objc private func feedLayoutChanged() {
     applyFeedBackground()
-    previewEngine.pause()
-    previewView.alpha = 0
-    previewCell?.setPreviewProgress(nil)
-    previewCell = nil
-    previewIndex = -1
+    unloadPreviewMedia()
     table.reloadData()
     table.layoutIfNeeded()
     startPreviewIfNeeded()
@@ -869,27 +905,20 @@ final class FeedViewController: UIViewController,
     let width = max(1, view.bounds.width)
     let progress = max(0, min(1, value))
     searchProgress = progress
-    search.view.frame = CGRect(x: width * (1 - progress), y: 0,
-                               width: width, height: view.bounds.height)
-    table.transform = CGAffineTransform(translationX: -width * 0.18 * progress, y: 0)
-    if searchOpen {
-      if progress > 0.28 && !searchKeyboardShown {
-        searchKeyboardShown = true
-        search.focusNow()
-      } else if progress < 0.58 && searchKeyboardShown {
-        searchKeyboardShown = false
-        search.resignKeyboard()
-      }
-    }
+    search.view.transform = CGAffineTransform(
+      translationX: width * (1 - progress), y: 0)
   }
 
   private func beginSearchInteractive() {
     guard let search = searchController else { return }
+    searchSettleToken += 1
+    searchAnimating = false
     searchOpen = true
     search.view.isHidden = false
+    search.view.transform = .identity
+    search.view.frame = view.bounds
     view.bringSubviewToFront(search.view)
     previewEngine.pause()
-    table.transform = .identity
     updateSearchProgress(0)
     toolbarWasHidden = toolbarHidden
     onToolbar?(true)
@@ -897,7 +926,10 @@ final class FeedViewController: UIViewController,
 
   private func settleSearch(open: Bool) {
     guard let search = searchController else { return }
+    searchSettleToken += 1
+    let token = searchSettleToken
     searchOpen = open
+    searchAnimating = true
     if !open {
       searchKeyboardShown = false
       search.resignKeyboard()
@@ -910,13 +942,13 @@ final class FeedViewController: UIViewController,
                    initialSpringVelocity: 0,
                    options: [.curveEaseOut, .allowUserInteraction],
                    animations: changes) { [weak self] _ in
-      guard let self = self else { return }
+      guard let self = self, token == self.searchSettleToken else { return }
+      self.searchAnimating = false
       if open {
         search.focusNow()
         self.searchKeyboardShown = true
       } else {
         search.view.isHidden = true
-        self.table.transform = .identity
         self.onToolbar?(self.toolbarWasHidden)
         self.startPreviewIfNeeded()
         if !self.searchOpen {
@@ -946,7 +978,6 @@ final class FeedViewController: UIViewController,
     } else {
       updateSearchProgress(0)
       search.view.isHidden = true
-      table.transform = .identity
       onToolbar?(toolbarWasHidden)
       startPreviewIfNeeded()
       if !searchOpen {

@@ -7,6 +7,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
   enum Tab: Int {
     case detail
     case comments
+    case episodes
     case related
   }
 
@@ -29,6 +30,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
   var onSwipeRightBegan: (() -> Void)?
   var onSwipeRightChanged: ((CGFloat) -> Void)?
   var onSwipeRightEnded: ((Bool) -> Void)?
+  var onSelectPage: ((VideoPage) -> Void)?
 
   private let host = UIView()
   private let tabDock = UIView()
@@ -36,14 +38,20 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
   private var tabButtons: [UIButton] = []
   private var detail: VideoDetailViewController?
   private var comments: CommentsPanelViewController?
+  private var episodes: EpisodesViewController?
   private var related: RelatedViewController?
+  private var pages: [VideoPage] = []
+  private var currentCid: Int64 = 0
+  private var pagesToken = 0
   private var tabSwipePan: UIPanGestureRecognizer?
   private var tabSwipeStartX: CGFloat = 0
   private var tabSwipeSuppressedUntil: CFTimeInterval = 0
   private var transitionToken = 0
   private var dockHidden = false
+  private var dockScrollAccumulator: CGFloat = 0
+  private var dockLastChange: CFTimeInterval = 0
 
-  private let tabs: [(title: String, tab: Tab)] = [
+  private var tabs: [(title: String, tab: Tab)] = [
     ("详情", .detail),
     ("评论", .comments),
     ("推荐", .related),
@@ -97,19 +105,10 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
       tabBlur.bottomAnchor.constraint(equalTo: tabDock.bottomAnchor),
     ])
 
-    for entry in tabs {
-      let button = UIButton(type: .custom)
-      button.tag = entry.tab.rawValue
-      button.setTitle(entry.title, for: .normal)
-      button.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .bold)
-      button.layer.cornerRadius = NativeTheme.cornerRadius
-      button.layer.cornerCurve = .continuous
-      button.addTarget(self, action: #selector(tabTapped(_:)), for: .touchUpInside)
-      tabDock.addSubview(button)
-      tabButtons.append(button)
-    }
-    updateTabs()
+    currentCid = item.cid
+    configureTabButtons()
     show(selected, animated: false)
+    loadPages()
 
     let swipe = UIPanGestureRecognizer(
       target: self, action: #selector(handleTabSwipe(_:)))
@@ -129,7 +128,9 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     tabDock.layer.shadowPath = UIBezierPath(
       roundedRect: tabDock.bounds,
       cornerRadius: NativeTheme.cornerRadius).cgPath
-    let buttonWidth: CGFloat = 96
+    let buttonCount = max(1, tabButtons.count)
+    let buttonWidth = (tabDock.bounds.width - 10 - 3 * CGFloat(buttonCount - 1))
+      / CGFloat(buttonCount)
     let buttonHeight: CGFloat = 52
     for (index, button) in tabButtons.enumerated() {
       button.frame = CGRect(
@@ -141,7 +142,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     }
     tabDock.setNeedsLayout()
     tabDock.layoutIfNeeded()
-    for child in [detail?.view, comments?.view, related?.view] {
+    for child in [detail?.view, comments?.view, episodes?.view, related?.view] {
       child?.frame = host.bounds
     }
   }
@@ -185,10 +186,18 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
       selected = tab
     }
     clearContent()
+    pages = []
+    currentCid = item.cid
+    if selected == .episodes {
+      selected = .comments
+    }
+    configureTabButtons()
     show(selected, animated: false)
+    loadPages()
   }
 
   func select(_ tab: Tab) {
+    if tab == .episodes && pages.count <= 1 { return }
     selected = tab
     show(tab)
   }
@@ -213,10 +222,12 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
       controller = ensureDetail()
     case .comments:
       controller = ensureComments()
+    case .episodes:
+      controller = ensureEpisodes()
     case .related:
       controller = ensureRelated()
     }
-    let visible = [detail, comments, related]
+    let visible = [detail, comments, episodes, related]
       .compactMap { $0 }
       .first { $0.view.superview != nil && !$0.view.isHidden }
     controller.view.frame = host.bounds
@@ -229,7 +240,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     updateTabs()
 
     guard animated, let old = visible, old !== controller else {
-      for child in [detail, comments, related] {
+      for child in [detail, comments, episodes, related] {
         guard let child = child, child !== controller else { continue }
         child.view.isHidden = true
         child.view.alpha = 1
@@ -240,12 +251,10 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
       return
     }
 
-    let oldIndex: Int
-    if old === detail { oldIndex = 0 }
-    else if old === comments { oldIndex = 1 }
-    else { oldIndex = 2 }
-    let direction: CGFloat = tab.rawValue >= oldIndex ? 1 : -1
-    for child in [detail, comments, related] {
+    let oldIndex = tabs.firstIndex(where: { $0.tab == tabKind(for: old) }) ?? 0
+    let newIndex = tabs.firstIndex(where: { $0.tab == tab }) ?? oldIndex
+    let direction: CGFloat = newIndex >= oldIndex ? 1 : -1
+    for child in [detail, comments, episodes, related] {
       guard let child = child, child !== controller, child !== old else { continue }
       child.view.isHidden = true
       child.view.alpha = 1
@@ -269,13 +278,20 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
       controller.view.transform = .identity
     } completion: { _ in
       guard token == self.transitionToken else { return }
-      for child in [self.detail, self.comments, self.related] {
+      for child in [self.detail, self.comments, self.episodes, self.related] {
         guard let child = child, child !== controller else { continue }
         child.view.isHidden = true
         child.view.alpha = 1
         child.view.transform = .identity
       }
     }
+  }
+
+  private func tabKind(for controller: UIViewController) -> Tab {
+    if controller === detail { return .detail }
+    if controller === comments { return .comments }
+    if controller === episodes { return .episodes }
+    return .related
   }
 
   private func ensureDetail() -> VideoDetailViewController {
@@ -346,6 +362,29 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     return controller
   }
 
+  private func ensureEpisodes() -> EpisodesViewController {
+    if let episodes = episodes { return episodes }
+    let controller = EpisodesViewController(pages: pages, currentCid: currentCid)
+    controller.onSelect = { [weak self] page in
+      guard let self = self else { return }
+      self.currentCid = page.cid
+      self.item.cid = page.cid
+      self.episodes?.setCurrentCid(page.cid)
+      self.onSelectPage?(page)
+    }
+    controller.onScroll = { [weak self] delta, position in
+      self?.contentScrolled(delta: delta, position: position)
+    }
+    addChild(controller)
+    controller.view.frame = host.bounds
+    controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    host.addSubview(controller.view)
+    controller.didMove(toParent: self)
+    controller.view.isHidden = selected != .episodes
+    episodes = controller
+    return controller
+  }
+
   private func ensureRelated() -> RelatedViewController {
     if let related = related { return related }
     let controller = RelatedViewController(bvid: item.bvid)
@@ -377,7 +416,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
   }
 
   private func clearContent() {
-    for controller in [detail, comments, related] {
+    for controller in [detail, comments, episodes, related] {
       guard let controller = controller else { continue }
       controller.willMove(toParent: nil)
       controller.view.removeFromSuperview()
@@ -385,28 +424,124 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     }
     detail = nil
     comments = nil
+    episodes = nil
     related = nil
   }
 
   private func updateTabs() {
-    for (index, button) in tabButtons.enumerated() {
+    for (index, button) in tabButtons.enumerated() where index < tabs.count {
       let on = tabs[index].tab == selected
       button.backgroundColor = on ? NativeTheme.foreground : .clear
       button.setTitleColor(on ? NativeTheme.background : NativeTheme.secondary, for: .normal)
     }
   }
 
+  private func configureTabButtons() {
+    guard isViewLoaded else { return }
+    for button in tabButtons {
+      button.removeFromSuperview()
+    }
+    tabButtons.removeAll()
+    tabs = [
+      ("详情", .detail),
+      ("评论", .comments),
+    ]
+    if pages.count > 1 {
+      tabs.append(("分集", .episodes))
+    }
+    tabs.append(("推荐", .related))
+    if selected == .episodes && pages.count <= 1 {
+      selected = .comments
+    }
+    for entry in tabs {
+      let button = UIButton(type: .custom)
+      button.tag = entry.tab.rawValue
+      button.setTitle(entry.title, for: .normal)
+      button.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .bold)
+      button.layer.cornerRadius = NativeTheme.cornerRadius
+      button.layer.cornerCurve = .continuous
+      button.addTarget(self, action: #selector(tabTapped(_:)), for: .touchUpInside)
+      tabDock.addSubview(button)
+      tabButtons.append(button)
+    }
+    updateTabs()
+    tabDock.setNeedsLayout()
+    setNeedsLayoutIfLoaded()
+  }
+
+  private func setNeedsLayoutIfLoaded() {
+    guard isViewLoaded else { return }
+    view.setNeedsLayout()
+  }
+
+  private func loadPages() {
+    guard item.roomId == 0, !item.bvid.isEmpty else { return }
+    pagesToken += 1
+    let token = pagesToken
+    BiliAPI.shared.videoInfo(item.bvid) { [weak self] result in
+      guard let self = self, token == self.pagesToken else { return }
+      guard case .success(let json) = result else { return }
+      let rows = json["pages"] as? [[String: Any]] ?? []
+      var parsed: [VideoPage] = []
+      for (index, row) in rows.enumerated() {
+        let cid = o11a1Int64(row["cid"])
+        guard cid > 0 else { continue }
+        let number = o11a1Int(row["page"])
+        parsed.append(VideoPage(
+          cid: cid,
+          page: number > 0 ? number : index + 1,
+          title: o11a1String(row["title"]),
+          duration: o11a1Int(row["duration"])))
+      }
+      self.setPages(parsed)
+    }
+  }
+
+  private func setPages(_ values: [VideoPage]) {
+    let hadEpisodes = pages.count > 1
+    pages = values
+    let hasEpisodes = values.count > 1
+    if currentCid <= 0, let first = values.first {
+      currentCid = first.cid
+    }
+    if hadEpisodes != hasEpisodes {
+      configureTabButtons()
+    }
+    episodes?.update(pages: values, currentCid: currentCid)
+    if selected == .episodes && !hasEpisodes {
+      select(.comments)
+    }
+  }
+
+  func setCurrentPage(_ page: VideoPage) {
+    currentCid = page.cid
+    item.cid = page.cid
+    episodes?.setCurrentCid(page.cid)
+  }
+
   private func contentScrolled(delta: CGFloat, position: CGFloat) {
     guard abs(delta) > 8 else { return }
-    if delta > 0, !dockHidden, position > 24 {
+    let now = CACurrentMediaTime()
+    if (delta > 0) != (dockScrollAccumulator > 0) {
+      dockScrollAccumulator = 0
+    }
+    dockScrollAccumulator += delta
+    if delta > 0, !dockHidden, position > 24,
+       dockScrollAccumulator > 20, now - dockLastChange > 0.24 {
+      dockScrollAccumulator = 0
+      dockLastChange = now
       setDockHidden(true, animated: true)
-    } else if delta < 0, dockHidden {
+    } else if delta < 0, dockHidden,
+              dockScrollAccumulator < -26, now - dockLastChange > 0.32 {
+      dockScrollAccumulator = 0
+      dockLastChange = now
       setDockHidden(false, animated: true)
     }
   }
 
   private func setDockHidden(_ hidden: Bool, animated: Bool) {
     dockHidden = hidden
+    dockScrollAccumulator = 0
     tabDock.isUserInteractionEnabled = false
     tabDock.alpha = 1
     let normal = dockFrame()
@@ -448,10 +583,11 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
       || abs(velocity.x) > abs(velocity.y) * 1.5
     guard horizontal,
           abs(translation.x) > 55 || abs(velocity.x) > 420 else { return }
-    let all: [Tab] = [.detail, .comments, .related]
+    let all = tabs.map { $0.tab }
     guard let index = all.firstIndex(of: selected) else { return }
     let next = translation.x < 0 ? index + 1 : index - 1
     guard all.indices.contains(next) else { return }
+    if all[next] == .episodes && pages.count <= 1 { return }
     UIImpactFeedbackGenerator(style: .light).impactOccurred()
     select(all[next])
   }
@@ -471,6 +607,7 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
           pan === tabSwipePan else { return true }
     guard tabSwipeStartX >= view.bounds.width / 6.0,
+          tabSwipeStartX < view.bounds.width * 5.0 / 6.0,
           CACurrentMediaTime() >= tabSwipeSuppressedUntil else { return false }
     let translation = pan.translation(in: view)
     let velocity = pan.velocity(in: view)

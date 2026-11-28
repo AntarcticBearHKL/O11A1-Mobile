@@ -35,7 +35,10 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   override var prefersHomeIndicatorAutoHidden: Bool { true }
 
   override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
-    return player == nil ? .portrait : .allButUpsideDown
+    if let player = player, !player.isMiniWindow {
+      return .allButUpsideDown
+    }
+    return .portrait
   }
 
   override var prefersStatusBarHidden: Bool {
@@ -43,11 +46,13 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   }
 
   override var childForStatusBarStyle: UIViewController? {
+    if let player = player, player.isMiniWindow { return nil }
     if profileCoveredByPlayer, let player = player { return player }
     return upProfile ?? player
   }
 
   override var childForStatusBarHidden: UIViewController? {
+    if let player = player, player.isMiniWindow { return nil }
     if profileCoveredByPlayer, let player = player { return player }
     return upProfile ?? player
   }
@@ -227,7 +232,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     switch flow {
     case "player", "player-detail", "player-comments", "player-settings", "player-related",
          "player-landscape", "player-portrait", "player-controls", "player-panel", "player-up",
-         "player-danmaku", "player-stage-comments":
+         "player-danmaku", "player-stage-comments", "player-mini":
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
         self?.feed?.openFirstForTest()
       }
@@ -402,6 +407,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       presented.dismiss(animated: false)
     }
     if let existing = player {
+      if existing.isMiniWindow {
+        existing.exitMiniWindow()
+      }
       existing.play(item, startAt: startAt)
       view.bringSubviewToFront(existing.view)
       if upProfile != nil {
@@ -423,6 +431,12 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     }
     controller.onProfile = { [weak self] mid in
       self?.openProfile(mid)
+    }
+    controller.onMinimize = { [weak self] in
+      self?.playerDidMinimize()
+    }
+    controller.onExpand = { [weak self] in
+      self?.playerDidExpand()
     }
     addChild(controller)
     controller.view.frame = view.bounds
@@ -466,6 +480,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
         case "player-up": controller?.testOpenProfile()
         case "player-danmaku": controller?.testOpenDanmakuSettings()
         case "player-stage-comments": controller?.testCommentsStage()
+        case "player-mini": controller?.testMinimize()
         default: break
         }
       }
@@ -490,6 +505,22 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       searchButton.alpha = alpha
       avatarButton.alpha = alpha
     }
+  }
+
+  private func playerDidMinimize() {
+    tabBar.isHidden = false
+    searchButton.isHidden = false
+    avatarButton.isHidden = false
+    feed?.setToolbarHidden(false)
+    setTopChromeHidden(false, animated: true)
+    setNeedsStatusBarAppearanceUpdate()
+  }
+
+  private func playerDidExpand() {
+    tabBar.isHidden = true
+    searchButton.isHidden = true
+    avatarButton.isHidden = true
+    setNeedsStatusBarAppearanceUpdate()
   }
 
   private func closePlayer() {
@@ -740,7 +771,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     if gestureRecognizer === settingsPan {
-      guard player == nil, presentedViewController == nil,
+      guard player == nil || player?.isMiniWindow == true,
+            presentedViewController == nil,
             myController == nil, upProfile == nil,
             sidebar?.superview == nil,
             feed?.isSearchOpen() != true,
@@ -925,7 +957,6 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     let width = max(1, view.bounds.width)
     my.view.transform = CGAffineTransform(
       translationX: -width * (1 - p), y: 0)
-    setRecedeProgress(p)
   }
 
   private func finishMyOpen() {
@@ -935,7 +966,6 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
                    initialSpringVelocity: 0.25,
                    options: [.beginFromCurrentState, .allowUserInteraction]) {
       my.view.transform = .identity
-      self.setRecedeProgress(1)
     }
   }
 
@@ -950,7 +980,6 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
                    options: [.curveEaseIn, .beginFromCurrentState]) {
       my.view.transform = CGAffineTransform(
         translationX: -self.view.bounds.width, y: 0)
-      self.setRecedeProgress(0)
     } completion: { _ in
       my.willMove(toParent: nil)
       my.view.removeFromSuperview()

@@ -97,12 +97,11 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     table.dataSource = self
     table.delegate = self
     table.keyboardDismissMode = .onDrag
-    table.register(SearchResultCell.self, forCellReuseIdentifier: SearchResultCell.reuseID)
-    table.register(HomeCardCell.self, forCellReuseIdentifier: HomeCardCell.reuseID)
+    table.register(VideoRowCell.self, forCellReuseIdentifier: VideoRowCell.reuseID)
     table.register(HotWordCell.self, forCellReuseIdentifier: HotWordCell.reuseID)
     table.register(SuggestionCell.self, forCellReuseIdentifier: SuggestionCell.reuseID)
     table.rowHeight = UITableView.automaticDimension
-    table.estimatedRowHeight = 300
+    table.estimatedRowHeight = 108
     table.contentInsetAdjustmentBehavior = .never
     table.showsVerticalScrollIndicator = false
     view.addSubview(table)
@@ -379,11 +378,8 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     if mode == .results {
       let cell = tableView.dequeueReusableCell(
-        withIdentifier: HomeCardCell.reuseID, for: indexPath) as! HomeCardCell
-      let item = items[indexPath.row]
-      cell.configure(item)
-      cell.onOpen = { [weak self] in self?.onOpenVideo?(item) }
-      cell.onAvatar = nil
+        withIdentifier: VideoRowCell.reuseID, for: indexPath) as! VideoRowCell
+      cell.configureSearch(items[indexPath.row])
       return cell
     }
     if mode == .hot {
@@ -401,6 +397,9 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     tableView.deselectRow(at: indexPath, animated: true)
     if mode == .results {
+      guard items.indices.contains(indexPath.row) else { return }
+      view.endEditing(true)
+      onOpenVideo?(items[indexPath.row])
       return
     }
     let term = mode == .hot ? hot[indexPath.row] : suggestions[indexPath.row]
