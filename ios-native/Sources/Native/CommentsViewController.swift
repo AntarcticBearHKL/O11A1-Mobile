@@ -241,6 +241,9 @@ private final class CommentCell: UITableViewCell {
     bodyStack.axis = .vertical
     bodyStack.alignment = .fill
     bodyStack.spacing = 6
+    [message, imageStrip, meta, replies].forEach {
+      $0.translatesAutoresizingMaskIntoConstraints = false
+    }
     contentView.addSubview(bodyStack)
 
     [avatar, name, bodyStack].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }

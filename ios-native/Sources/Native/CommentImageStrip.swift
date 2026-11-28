@@ -6,6 +6,7 @@ import UIKit
 final class CommentImageStrip: UIView {
   private let stack = UIStackView()
   private var urls: [String] = []
+  private var heightConstraint: NSLayoutConstraint?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -21,6 +22,8 @@ final class CommentImageStrip: UIView {
       stack.topAnchor.constraint(equalTo: topAnchor),
       stack.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
+    heightConstraint = heightAnchor.constraint(equalToConstant: 0)
+    heightConstraint?.isActive = true
     isHidden = true
   }
 
@@ -32,6 +35,7 @@ final class CommentImageStrip: UIView {
     self.urls = urls.filter { !$0.isEmpty }
     stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
     guard !self.urls.isEmpty else {
+      heightConstraint?.constant = 0
       isHidden = true
       return
     }
@@ -40,6 +44,9 @@ final class CommentImageStrip: UIView {
     let tileHeight: CGFloat = compact
       ? (columns == 2 ? 92 : 76)
       : (columns == 2 ? 136 : 104)
+    let rows = (self.urls.count + columns - 1) / columns
+    heightConstraint?.constant = CGFloat(rows) * tileHeight
+      + CGFloat(max(0, rows - 1)) * 6
     var index = 0
     while index < self.urls.count {
       let row = UIStackView()
@@ -47,6 +54,7 @@ final class CommentImageStrip: UIView {
       row.spacing = 6
       row.distribution = .fillEqually
       row.alignment = .fill
+      row.translatesAutoresizingMaskIntoConstraints = false
       row.heightAnchor.constraint(equalToConstant: tileHeight).isActive = true
       for _ in 0..<columns {
         if index < self.urls.count {
@@ -66,6 +74,7 @@ final class CommentImageStrip: UIView {
     let imageView = UIImageView()
     imageView.contentMode = .scaleAspectFill
     imageView.clipsToBounds = true
+    imageView.translatesAutoresizingMaskIntoConstraints = false
     imageView.layer.cornerRadius = 9
     imageView.layer.cornerCurve = .continuous
     imageView.backgroundColor = NativeTheme.tertiary.withAlphaComponent(0.14)
