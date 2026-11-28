@@ -1030,6 +1030,17 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
                              mode: ModuleListViewController.Mode,
                              target: Int64,
                              title: String) {
+    if mode == .live || mode == .bangumi {
+      let grid = MediaGridViewController(kind: mode == .live ? .live : .bangumi)
+      grid.modalPresentationStyle = .fullScreen
+      grid.onClose = { [weak grid] in grid?.dismiss(animated: true) }
+      grid.onSelect = { [weak self, weak grid] item in
+        guard let self = self, let grid = grid else { return }
+        self.openModuleItem(item, from: grid)
+      }
+      host.present(grid, animated: true)
+      return
+    }
     let module = ModuleListViewController(mode: mode, targetId: target, title: title)
     module.modalPresentationStyle = .fullScreen
     module.onClose = { [weak module] in
@@ -1043,16 +1054,20 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     }
     module.onSelect = { [weak self, weak module] item in
       guard let self = self, let module = module else { return }
-      if item.kind == "season", item.seasonId > 0 {
-        self.presentModule(from: module, mode: .season, target: item.seasonId, title: item.title)
-        return
-      }
-      let player = PlayerViewController(item: item, sourceView: nil)
-      player.modalPresentationStyle = .overFullScreen
-      player.onClose = { [weak player] in player?.dismiss(animated: false) }
-      module.present(player, animated: false)
+      self.openModuleItem(item, from: module)
     }
     host.present(module, animated: true)
+  }
+
+  private func openModuleItem(_ item: VideoItem, from host: UIViewController) {
+    if item.kind == "season", item.seasonId > 0 {
+      presentModule(from: host, mode: .season, target: item.seasonId, title: item.title)
+      return
+    }
+    let player = PlayerViewController(item: item, sourceView: nil)
+    player.modalPresentationStyle = .overFullScreen
+    player.onClose = { [weak player] in player?.dismiss(animated: false) }
+    host.present(player, animated: false)
   }
 
   @objc private func openSettings() {

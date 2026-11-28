@@ -27,6 +27,8 @@ struct VideoItem: Equatable {
   var badge = ""
   var progress: Int64 = 0
   var unread = false
+  var online: Int64 = 0
+  var area = ""
 
   init() {}
 
@@ -56,6 +58,8 @@ struct VideoItem: Equatable {
     meta = o11a1String(json["meta"])
     badge = o11a1String(json["badge"])
     progress = o11a1Int64(json["progress"])
+    online = o11a1Int64(json["online"])
+    area = o11a1String(json["area"])
     if let value = json["unread"] as? Bool {
       unread = value
     } else if let value = json["unread"] as? NSNumber {
