@@ -235,7 +235,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     switch flow {
     case "player", "player-detail", "player-comments", "player-settings", "player-related",
          "player-landscape", "player-portrait", "player-controls", "player-panel", "player-up",
-         "player-danmaku", "player-stage-comments", "player-mini":
+         "player-danmaku", "player-stage-comments", "player-mini", "player-paused":
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
         self?.feed?.openFirstForTest()
       }
@@ -497,6 +497,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
         case "player-danmaku": controller?.testOpenDanmakuSettings()
         case "player-stage-comments": controller?.testCommentsStage()
         case "player-mini": controller?.testMinimize()
+        case "player-paused": controller?.testPause()
         default: break
         }
       }

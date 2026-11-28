@@ -35,12 +35,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private let poster = UIImageView()
   private let pausedVeil = UIView()
   private let pausedGradient = CAGradientLayer()
-  private let playBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
   private let dim = UIView()
   private let topBar = UIView()
   private let backButton = UIButton(type: .system)
   private let titleLabel = UILabel()
-  private let playButton = UIButton(type: .system)
+  private let playButton = UIButton(type: .custom)
+  private let playGlyph = FrostedGlyphView()
   private let bottomPanel = UIView()
   private let bottomBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
   private let bottomTint = UIView()
@@ -275,35 +275,18 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     followButton.addTarget(self, action: #selector(followTapped), for: .touchUpInside)
     topBar.addSubview(followButton)
 
-    let playIcon = UIImage.SymbolConfiguration(pointSize: 26, weight: .semibold)
-    playButton.setImage(
-      UIImage(systemName: "play.fill", withConfiguration: playIcon), for: .normal)
-    playButton.tintColor = .white
     playButton.backgroundColor = .clear
-    playButton.layer.cornerRadius = 36
-    playButton.layer.cornerCurve = .continuous
-    playButton.layer.borderWidth = 0.5
-    playButton.layer.borderColor = UIColor.white.withAlphaComponent(0.22).cgColor
-    playButton.layer.shadowColor = UIColor.black.cgColor
-    playButton.layer.shadowOpacity = 0.26
-    playButton.layer.shadowRadius = 16
-    playButton.layer.shadowOffset = CGSize(width: 0, height: 6)
-    playButton.layer.shadowPath = UIBezierPath(
-      roundedRect: CGRect(x: 0, y: 0, width: 72, height: 72),
-      cornerRadius: 36).cgPath
+    playButton.adjustsImageWhenHighlighted = false
     playButton.addTarget(self, action: #selector(togglePlay), for: .touchUpInside)
-    playBlur.layer.cornerRadius = 36
-    playBlur.layer.cornerCurve = .continuous
-    playBlur.clipsToBounds = true
-    playBlur.isUserInteractionEnabled = false
-    playBlur.contentView.backgroundColor = UIColor.black.withAlphaComponent(0.22)
-    playButton.insertSubview(playBlur, at: 0)
-    playBlur.translatesAutoresizingMaskIntoConstraints = false
+    playGlyph.isUserInteractionEnabled = false
+    playGlyph.setSymbol("play.fill", pointSize: 52)
+    playButton.addSubview(playGlyph)
+    playGlyph.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      playBlur.leadingAnchor.constraint(equalTo: playButton.leadingAnchor),
-      playBlur.trailingAnchor.constraint(equalTo: playButton.trailingAnchor),
-      playBlur.topAnchor.constraint(equalTo: playButton.topAnchor),
-      playBlur.bottomAnchor.constraint(equalTo: playButton.bottomAnchor),
+      playGlyph.leadingAnchor.constraint(equalTo: playButton.leadingAnchor),
+      playGlyph.trailingAnchor.constraint(equalTo: playButton.trailingAnchor),
+      playGlyph.topAnchor.constraint(equalTo: playButton.topAnchor),
+      playGlyph.bottomAnchor.constraint(equalTo: playButton.bottomAnchor),
     ])
     view.addSubview(playButton)
 
@@ -482,8 +465,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       danmakuSend.widthAnchor.constraint(equalToConstant: 34),
       danmakuSend.heightAnchor.constraint(equalToConstant: 30),
 
-      playButton.widthAnchor.constraint(equalToConstant: 72),
-      playButton.heightAnchor.constraint(equalToConstant: 72),
+      playButton.widthAnchor.constraint(equalToConstant: 84),
+      playButton.heightAnchor.constraint(equalToConstant: 84),
+      playButton.centerXAnchor.constraint(equalTo: videoContainer.centerXAnchor),
+      playButton.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor),
 
       ownerLabel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
       ownerLabel.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
@@ -842,10 +827,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func applyPlaying(_ playing: Bool) {
-    let icon = UIImage.SymbolConfiguration(pointSize: 26, weight: .semibold)
-    playButton.setImage(
-      UIImage(systemName: playing ? "pause.fill" : "play.fill",
-              withConfiguration: icon), for: .normal)
+    playGlyph.setSymbol(playing ? "pause.fill" : "play.fill", pointSize: 52)
     pausedVeil.isHidden = true
     videoContainer.backgroundColor = .clear
     if playing {
@@ -870,6 +852,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       playButton.transform = .identity
       return
     }
+    view.bringSubviewToFront(playButton)
     if wasHidden {
       playButton.transform = CGAffineTransform(scaleX: 0.86, y: 0.86)
       UIView.animate(
@@ -1035,8 +1018,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     poster.frame = videoContainer.bounds
     pausedVeil.frame = videoContainer.bounds
     pausedGradient.frame = pausedVeil.bounds
-    playButton.center = CGPoint(x: videoContainer.center.x,
-                                y: videoContainer.center.y)
   }
 
   private func applyPortraitTransition(_ value: CGFloat) {
@@ -2370,6 +2351,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     hideControls()
   }
 
+  func testPause() {
+    engine.pause()
+    applyPlaying(false)
+    hideControls()
+  }
+
   func testOpenProfile() {
     openProfile()
   }
@@ -2581,5 +2568,55 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                          shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
     return gestureRecognizer === contentClosePan || other === contentClosePan
+  }
+}
+
+/// A bare SF Symbol rendered as frosted glass: the blur is masked to the glyph
+/// itself, so there is no circle or panel behind it, only the frosted shape.
+final class FrostedGlyphView: UIView {
+  private let blur = UIVisualEffectView(
+    effect: UIBlurEffect(style: .systemUltraThinMaterialLight))
+  private let glyphMask = UIImageView()
+  private let glyph = UIImageView()
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    backgroundColor = .clear
+    isUserInteractionEnabled = false
+    blur.isUserInteractionEnabled = false
+    blur.contentView.backgroundColor = UIColor.white.withAlphaComponent(0.10)
+    addSubview(blur)
+
+    glyphMask.contentMode = .scaleAspectFit
+    blur.mask = glyphMask
+
+    glyph.contentMode = .scaleAspectFit
+    glyph.tintColor = .white
+    glyph.alpha = 0.88
+    glyph.layer.shadowColor = UIColor.black.cgColor
+    glyph.layer.shadowOpacity = 0.42
+    glyph.layer.shadowRadius = 10
+    glyph.layer.shadowOffset = CGSize(width: 0, height: 2)
+    addSubview(glyph)
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  func setSymbol(_ name: String, pointSize: CGFloat) {
+    let configuration = UIImage.SymbolConfiguration(
+      pointSize: pointSize, weight: .semibold)
+    guard let image = UIImage(
+      systemName: name, withConfiguration: configuration) else { return }
+    glyphMask.image = image.withTintColor(.white, renderingMode: .alwaysOriginal)
+    glyph.image = image
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    blur.frame = bounds
+    glyphMask.frame = blur.bounds
+    glyph.frame = bounds
   }
 }
