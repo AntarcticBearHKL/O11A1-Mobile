@@ -75,6 +75,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var panProgress: CGFloat = 0
   private var closing = false
   private var currentQuality = 80
+  private var userPaused = false
   private var loadToken = 0
   private var started = false
   private var speedIndex = 0
@@ -583,7 +584,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             self.poster.isHidden = true
             self.errorLabel.isHidden = true
             self.backdropVideo.alpha = 1
-            if !self.engine.isUserPaused {
+            if !self.userPaused {
               self.engine.play()
             }
             self.view.setNeedsLayout()
@@ -600,7 +601,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self.poster.isHidden = true
       self.errorLabel.isHidden = true
       self.backdropVideo.alpha = 1
-      if !self.engine.isUserPaused {
+      if !self.userPaused {
         self.engine.play()
       }
       self.view.setNeedsLayout()
@@ -699,6 +700,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         loop: false,
         startAt: 0
       )
+      if userPaused { engine.pause() }
       pendingHandoffStart = start
       if handoff.quality > 0 {
         currentQuality = handoff.quality
@@ -831,7 +833,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func applyPlaying(_ playing: Bool) {
-    playGlyph.setSymbol(playing ? "pause.fill" : "play.fill", pointSize: 52)
+    let paused = userPaused || !playing
+    playGlyph.setSymbol(paused ? "play.fill" : "pause.fill", pointSize: 52)
     pausedVeil.isHidden = true
     videoContainer.backgroundColor = .clear
     if playing {
@@ -847,7 +850,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   private func updatePauseButton() {
-    let show = !engine.isPlaying && !mediaLoadActive && !closing
+    let show = userPaused && !mediaLoadActive && !closing
       && !isMiniWindow && !isSystemPip
     let wasHidden = playButton.isHidden
     playButton.isHidden = !show
@@ -1654,11 +1657,12 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             url: source.url,
             backup: source.backup,
             headers: BiliAPI.shared.mediaHeaders,
-            autoplay: true,
+            autoplay: !self.userPaused,
             muted: false,
             loop: false,
             startAt: startAt
           )
+          if self.userPaused { self.engine.pause() }
         }
       case .failure:
         O11A1Trace.mark(
@@ -1886,7 +1890,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   @objc private func togglePlay() {
-    engine.toggle()
+    userPaused = false
+    engine.play()
+    applyPlaying(true)
     videoContainer.backgroundColor = .clear
   }
 
@@ -1914,10 +1920,18 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   @objc private func handleDoubleTap() {
-    if engine.isPlaying {
-      engine.pause()
-    } else {
+    if userPaused {
+      userPaused = false
       engine.play()
+      applyPlaying(true)
+    } else if engine.isPlaying || mediaLoadActive {
+      userPaused = true
+      engine.pause()
+      applyPlaying(false)
+    } else {
+      userPaused = false
+      engine.play()
+      applyPlaying(true)
     }
   }
 
@@ -2203,6 +2217,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     forcePageStart = true
     lastProgressSave = 0
     lastHistoryReport = 0
+    userPaused = false
     engine.stop()
     danmakuOverlay.load(cid: page.cid)
     contentController?.setCurrentPage(page)
@@ -2233,6 +2248,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     item = value
     lastProgressSave = 0
     lastHistoryReport = 0
+    userPaused = false
     forcePageStart = false
     closing = false
     errorLabel.isHidden = true
@@ -2354,8 +2370,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   func testPause() {
-    engine.pause()
-    applyPlaying(false)
+    handleDoubleTap()
     hideControls()
   }
 
@@ -2594,10 +2609,10 @@ final class FrostedGlyphView: UIView {
 
     glyph.contentMode = .scaleAspectFit
     glyph.tintColor = .white
-    glyph.alpha = 0.32
+    glyph.alpha = 0.5
     glyph.layer.shadowColor = UIColor.black.cgColor
-    glyph.layer.shadowOpacity = 0.42
-    glyph.layer.shadowRadius = 10
+    glyph.layer.shadowOpacity = 0.55
+    glyph.layer.shadowRadius = 11
     glyph.layer.shadowOffset = CGSize(width: 0, height: 2)
     addSubview(glyph)
   }
