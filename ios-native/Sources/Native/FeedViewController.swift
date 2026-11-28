@@ -10,6 +10,8 @@ final class FeedViewController: UIViewController,
   var onProfile: ((Int64) -> Void)?
   var onToolbar: ((Bool) -> Void)?
   var onSearchOpen: ((VideoItem) -> Void)?
+  var onSearchUser: ((Int64) -> Void)?
+  var onSearchSeason: ((Int64, String) -> Void)?
   var onSeason: ((VideoItem) -> Void)?
   var onSidebar: (() -> Void)?
   var onSidebarPanBegan: (() -> Void)?
@@ -55,6 +57,7 @@ final class FeedViewController: UIViewController,
   private var sidebarPan: UIPanGestureRecognizer?
   private var searchOpen = false
   private var searchProgress: CGFloat = 0
+  private var searchCloseDirection: CGFloat = 1
   private var searchSettleToken = 0
   private var searchAnimating = false
   private var searchKeyboardShown = false
@@ -120,14 +123,22 @@ final class FeedViewController: UIViewController,
 
     let search = SearchViewController()
     search.onClose = { [weak self] in self?.closeSearch(animated: true) }
-    search.onInteractiveClose = { [weak self] progress in
+    search.onInteractiveClose = { [weak self] progress, direction in
+      self?.searchCloseDirection = direction
       self?.updateSearchProgress(progress)
     }
-    search.onCloseSettled = { [weak self] shouldClose in
+    search.onCloseSettled = { [weak self] shouldClose, direction in
+      self?.searchCloseDirection = direction
       self?.settleSearch(open: !shouldClose)
     }
     search.onOpenVideo = { [weak self] item in
       self?.onSearchOpen?(item)
+    }
+    search.onOpenUser = { [weak self] mid in
+      self?.onSearchUser?(mid)
+    }
+    search.onOpenSeason = { [weak self] seasonId, title in
+      self?.onSearchSeason?(seasonId, title)
     }
     addChild(search)
     search.view.frame = view.bounds
@@ -1186,7 +1197,7 @@ final class FeedViewController: UIViewController,
     let progress = max(0, min(1, value))
     searchProgress = progress
     search.view.transform = CGAffineTransform(
-      translationX: width * (1 - progress), y: 0)
+      translationX: width * (1 - progress) * searchCloseDirection, y: 0)
   }
 
   private func beginSearchInteractive() {
@@ -1194,6 +1205,7 @@ final class FeedViewController: UIViewController,
     searchSettleToken += 1
     searchAnimating = false
     searchOpen = true
+    searchCloseDirection = 1
     search.view.isHidden = false
     search.view.transform = .identity
     search.view.frame = view.bounds

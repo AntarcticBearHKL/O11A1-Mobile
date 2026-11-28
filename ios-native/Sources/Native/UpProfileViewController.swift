@@ -6,6 +6,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   UITableViewDelegate, UIGestureRecognizerDelegate {
 
   var onClose: (() -> Void)?
+  var onCloseDirection: ((CGFloat) -> Void)?
   var onOpenVideo: ((VideoItem, UIView?) -> Void)?
 
   private let mid: Int64
@@ -37,6 +38,7 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   private var sortPan: UIPanGestureRecognizer?
   private var dismissStartX: CGFloat = 0
   private var sortStartX: CGFloat = 0
+  private var dismissDirection: CGFloat = 1
 
   init(mid: Int64) {
     self.mid = mid
@@ -437,15 +439,21 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
   @objc private func handleDismissPan(_ gesture: UIPanGestureRecognizer) {
     let reference = view.superview ?? view
     let width = max(1, view.bounds.width)
-    let translation = max(0, gesture.translation(in: reference).x)
+    let raw = gesture.translation(in: reference).x
+    let translation = dismissDirection > 0 ? max(0, raw) : max(0, -raw)
     switch gesture.state {
     case .changed:
-      view.transform = CGAffineTransform(translationX: translation, y: 0)
+      view.transform = CGAffineTransform(
+        translationX: dismissDirection * translation, y: 0)
     case .ended, .cancelled:
-      let velocity = gesture.velocity(in: reference).x
+      let velocity = gesture.velocity(in: reference).x * dismissDirection
       if translation > width * 0.24 || velocity > 350 {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        onClose?()
+        if let close = onCloseDirection {
+          close(dismissDirection)
+        } else {
+          onClose?()
+        }
       } else {
         UIView.animate(withDuration: 0.24) { self.view.transform = .identity }
       }
@@ -489,10 +497,19 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
       || abs(velocity.x) > abs(velocity.y) * 1.4
     guard horizontal else { return false }
     if pan === dismissPan {
-      guard dismissStartX < width / 6.0 else { return false }
-      return translation.x > 1 || velocity.x > 1
+      if dismissStartX < width / 6.0 {
+        dismissDirection = 1
+        return translation.x > 1 || velocity.x > 1
+      }
+      if dismissStartX > width * 5.0 / 6.0 {
+        dismissDirection = -1
+        return translation.x < -1 || velocity.x < -1
+      }
+      return false
     }
-    guard sortStartX >= width / 6.0 else { return false }
+    guard sortStartX >= width / 6.0, sortStartX <= width * 5.0 / 6.0 else {
+      return false
+    }
     return abs(translation.x) > 2 || abs(velocity.x) > 80
   }
 

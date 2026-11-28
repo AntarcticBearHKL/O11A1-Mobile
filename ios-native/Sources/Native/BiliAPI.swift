@@ -102,6 +102,40 @@ final class BiliAPI {
     }
   }
 
+  func searchEntries(_ keyword: String, page: Int, type: SearchType,
+                     completion: @escaping (Result<[SearchEntry], Error>) -> Void) {
+    run({ self.client.search(keyword: keyword, page: page, type: type.rawValue) }) {
+      result in
+      switch result {
+      case .failure(let error): completion(.failure(error))
+      case .success(let json):
+        let rows = (json["items"] as? [[String: Any]]) ?? []
+        var entries: [SearchEntry] = []
+        for row in rows {
+          switch o11a1String(row["kind"]) {
+          case "user":
+            let mid = o11a1Int64(row["mid"])
+            guard mid > 0 else { continue }
+            entries.append(.user(SearchUser(
+              mid: mid,
+              name: o11a1String(row["title"]),
+              face: o11a1String(row["cover"]),
+              fans: o11a1String(row["subtitle"]))))
+          case "bangumi":
+            entries.append(.bangumi(SearchBangumi(
+              seasonId: o11a1Int64(row["seasonId"]),
+              title: o11a1String(row["title"]),
+              cover: o11a1String(row["cover"]),
+              subtitle: o11a1String(row["subtitle"]))))
+          default:
+            entries.append(.video(VideoItem(json: row)))
+          }
+        }
+        completion(.success(entries))
+      }
+    }
+  }
+
   func suggest(_ term: String, completion: @escaping ([String]) -> Void) {
     queue.async {
       let data = self.client.suggest(term: term)

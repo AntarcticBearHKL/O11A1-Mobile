@@ -252,6 +252,14 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     controller.onSearchOpen = { [weak self] item in
       self?.openPlayer(item, from: nil)
     }
+    controller.onSearchUser = { [weak self] mid in
+      self?.openProfile(mid)
+    }
+    controller.onSearchSeason = { [weak self] seasonId, title in
+      guard let self = self, seasonId > 0 else { return }
+      self.presentModule(from: self, mode: .season, target: seasonId,
+                         title: title.isEmpty ? "番剧" : title)
+    }
     controller.onSeason = { [weak self] item in
       guard let self = self else { return }
       let title = item.title.isEmpty ? "番剧" : item.title
@@ -555,6 +563,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     guard mid > 0, upProfile == nil else { return }
     let page = UpProfileViewController(mid: mid)
     page.onClose = { [weak self] in self?.closeProfile() }
+    page.onCloseDirection = { [weak self] direction in
+      self?.closeProfile(direction: direction)
+    }
     page.onOpenVideo = { [weak self] item, source in
       self?.openPlayer(item, from: source)
     }
@@ -574,7 +585,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     setNeedsStatusBarAppearanceUpdate()
   }
 
-  private func closeProfile() {
+  private func closeProfile(direction: CGFloat = 1) {
     guard let page = upProfile else { return }
     upProfile = nil
     profileCoveredByPlayer = false
@@ -582,7 +593,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
     page.willMove(toParent: nil)
     UIView.animate(withDuration: 0.30, delay: 0,
                    options: [.curveEaseIn, .beginFromCurrentState]) {
-      page.view.transform = CGAffineTransform(translationX: self.view.bounds.width, y: 0)
+      page.view.transform = CGAffineTransform(
+        translationX: self.view.bounds.width * direction, y: 0)
     } completion: { _ in
       page.view.removeFromSuperview()
       page.removeFromParent()

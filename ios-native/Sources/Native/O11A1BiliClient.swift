@@ -277,14 +277,19 @@ final class O11A1BiliClient {
   }
 
   func search(keyword: String, page: Int) -> Data {
+    return search(keyword: keyword, page: page, type: "video")
+  }
+
+  func search(keyword: String, page: Int, type: String) -> Data {
     let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.isEmpty { return popular(page: page, ps: 20) }
     ensureBuvid()
     let pageNumber = max(1, page)
+    let searchType = type.isEmpty ? "video" : type
     guard let payload = json(
       base: Self.apiBase,
       path: "/x/web-interface/search/type",
-      query: ["search_type": "video", "keyword": trimmed, "page": "\(pageNumber)"]
+      query: ["search_type": searchType, "keyword": trimmed, "page": "\(pageNumber)"]
     ),
       o11a1Int(payload["code"]) == 0,
       let data = payload["data"] as? [String: Any] else {
@@ -293,9 +298,40 @@ final class O11A1BiliClient {
     let result = data["result"] as? [[String: Any]] ?? []
     var items: [[String: Any]] = []
     for item in result {
-      let type = o11a1String(item["type"])
-      if !type.isEmpty && type != "video" { continue }
-      items.append(video(item, search: true))
+      let resultType = o11a1String(item["type"])
+      if !resultType.isEmpty && resultType != searchType { continue }
+      switch searchType {
+      case "bili_user":
+        let name = o11a1StripHTML(o11a1String(item["uname"]))
+        let mid = o11a1Int64(item["mid"])
+        guard mid > 0, !name.isEmpty else { continue }
+        let fans = o11a1Int64(item["fans"])
+        items.append([
+          "kind": "user",
+          "mid": mid,
+          "title": name,
+          "cover": o11a1HTTPS(o11a1String(item["upic"])),
+          "subtitle": "\(o11a1Count(fans)) 粉丝",
+        ])
+      case "media_bangumi":
+        let title = o11a1StripHTML(o11a1String(item["title"]))
+        guard !title.isEmpty else { continue }
+        let seasonId = o11a1Int64(item["season_id"]) != 0
+          ? o11a1Int64(item["season_id"]) : o11a1Int64(item["media_id"])
+        let subtitle = o11a1StripHTML(o11a1String(item["styles"]).isEmpty
+          ? o11a1String(item["desc"]) : o11a1String(item["styles"]))
+        items.append([
+          "kind": "bangumi",
+          "seasonId": seasonId,
+          "title": title,
+          "cover": o11a1HTTPS(o11a1String(item["cover"])),
+          "subtitle": subtitle,
+        ])
+      default:
+        var row = video(item, search: true)
+        row["kind"] = "video"
+        items.append(row)
+      }
     }
     return o11a1Data(["ok": true, "items": items, "page": pageNumber])
   }

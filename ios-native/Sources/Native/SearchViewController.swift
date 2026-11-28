@@ -5,8 +5,10 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
 
   var onClose: (() -> Void)?
   var onOpenVideo: ((VideoItem) -> Void)?
-  var onInteractiveClose: ((CGFloat) -> Void)?
-  var onCloseSettled: ((Bool) -> Void)?
+  var onOpenUser: ((Int64) -> Void)?
+  var onOpenSeason: ((Int64, String) -> Void)?
+  var onInteractiveClose: ((CGFloat, CGFloat) -> Void)?
+  var onCloseSettled: ((Bool, CGFloat) -> Void)?
 
   private enum Mode {
     case hot
@@ -21,14 +23,25 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   private let field = UITextField()
   private let table = UITableView(frame: .zero, style: .plain)
   private let statusLabel = UILabel()
-  private var items: [VideoItem] = []
+  private var items: [SearchEntry] = []
   private var hot: [String] = []
   private var suggestions: [String] = []
   private var mode: Mode = .hot
   private var workItem: DispatchWorkItem?
   private var loading = false
   private var requestToken = 0
+  private var page = 1
+  private var hasMore = true
+  private var term = ""
+  private var searchType: SearchType = .all
   private var dismissPan: UIPanGestureRecognizer?
+  private var typePan: UIPanGestureRecognizer?
+  private var dismissStartX: CGFloat = 0
+  private var typeStartX: CGFloat = 0
+  private var dismissDirection: CGFloat = 1
+  private let typeDock = UIView()
+  private let typeBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+  private var typeButtons: [UIButton] = []
 
 
   override func viewDidLoad() {
@@ -100,6 +113,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     table.register(VideoRowCell.self, forCellReuseIdentifier: VideoRowCell.reuseID)
     table.register(HotWordCell.self, forCellReuseIdentifier: HotWordCell.reuseID)
     table.register(SuggestionCell.self, forCellReuseIdentifier: SuggestionCell.reuseID)
+    table.register(SearchEntityCell.self, forCellReuseIdentifier: SearchEntityCell.reuseID)
     table.rowHeight = UITableView.automaticDimension
     table.estimatedRowHeight = 108
     table.contentInsetAdjustmentBehavior = .never
@@ -142,11 +156,73 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
       statusLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -32),
     ])
 
+    typeDock.backgroundColor = .clear
+    typeDock.layer.cornerRadius = 33
+    typeDock.layer.cornerCurve = .continuous
+    typeDock.layer.borderWidth = 1
+    typeDock.layer.borderColor = NativeTheme.hairline.cgColor
+    typeDock.clipsToBounds = false
+    typeBlur.layer.cornerRadius = 33
+    typeBlur.layer.cornerCurve = .continuous
+    typeBlur.clipsToBounds = true
+    typeBlur.isUserInteractionEnabled = false
+    typeBlur.contentView.backgroundColor = NativeTheme.glassWhite
+    typeDock.addSubview(typeBlur)
+    typeBlur.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      typeBlur.leadingAnchor.constraint(equalTo: typeDock.leadingAnchor),
+      typeBlur.trailingAnchor.constraint(equalTo: typeDock.trailingAnchor),
+      typeBlur.topAnchor.constraint(equalTo: typeDock.topAnchor),
+      typeBlur.bottomAnchor.constraint(equalTo: typeDock.bottomAnchor),
+    ])
+    let typeStack = UIStackView()
+    typeStack.axis = .horizontal
+    typeStack.distribution = .fillEqually
+    typeStack.spacing = 3
+    typeStack.isLayoutMarginsRelativeArrangement = true
+    typeStack.layoutMargins = UIEdgeInsets(top: 7, left: 7, bottom: 7, right: 7)
+    for (index, type) in SearchType.allCases.enumerated() {
+      let button = UIButton(type: .custom)
+      button.tag = index
+      button.setTitle(type.title, for: .normal)
+      button.titleLabel?.font = UIFont.systemFont(ofSize: 13.5, weight: .bold)
+      button.layer.cornerRadius = 26
+      button.layer.cornerCurve = .continuous
+      button.addTarget(self, action: #selector(typeTapped(_:)), for: .touchUpInside)
+      typeButtons.append(button)
+      typeStack.addArrangedSubview(button)
+    }
+    typeDock.addSubview(typeStack)
+    typeStack.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      typeStack.leadingAnchor.constraint(equalTo: typeDock.leadingAnchor),
+      typeStack.trailingAnchor.constraint(equalTo: typeDock.trailingAnchor),
+      typeStack.topAnchor.constraint(equalTo: typeDock.topAnchor),
+      typeStack.bottomAnchor.constraint(equalTo: typeDock.bottomAnchor),
+    ])
+    view.addSubview(typeDock)
+    typeDock.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      typeDock.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+      typeDock.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor,
+                                       constant: -14),
+      typeDock.widthAnchor.constraint(equalToConstant: 264),
+      typeDock.heightAnchor.constraint(equalToConstant: 66),
+    ])
+    updateTypeDock()
+
     let pan = UIPanGestureRecognizer(target: self, action: #selector(handleDismissPan(_:)))
     pan.delegate = self
     table.panGestureRecognizer.require(toFail: pan)
     view.addGestureRecognizer(pan)
     dismissPan = pan
+
+    let typeSwipe = UIPanGestureRecognizer(target: self, action: #selector(handleTypeSwipe(_:)))
+    typeSwipe.delegate = self
+    typeSwipe.cancelsTouchesInView = true
+    table.panGestureRecognizer.require(toFail: typeSwipe)
+    view.addGestureRecognizer(typeSwipe)
+    typePan = typeSwipe
 
     loadHot()
   }
@@ -158,7 +234,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     headMask.frame = head.bounds
     CATransaction.commit()
     table.contentInset = UIEdgeInsets(top: mode == .hot ? 8 : 0, left: 0,
-                                      bottom: 24 + view.safeAreaInsets.bottom, right: 0)
+                                      bottom: 100 + view.safeAreaInsets.bottom, right: 0)
     fieldWrap.layer.borderColor = fieldWrap.layer.borderWidth > 1
       ? NativeTheme.navBlue.withAlphaComponent(0.5).cgColor
       : NativeTheme.hairline.cgColor
@@ -167,13 +243,14 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   override func viewSafeAreaInsetsDidChange() {
     super.viewSafeAreaInsetsDidChange()
     table.contentInset = UIEdgeInsets(top: mode == .hot ? 8 : 0, left: 0,
-                                      bottom: 24 + view.safeAreaInsets.bottom, right: 0)
+                                      bottom: 100 + view.safeAreaInsets.bottom, right: 0)
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
     fieldWrap.layer.borderColor = NativeTheme.hairline.cgColor
     fieldWrap.backgroundColor = .clear
+    updateTypeDock()
   }
 
   private func loadHot() {
@@ -205,6 +282,11 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     mode = .hot
     items = []
     suggestions = []
+    page = 1
+    hasMore = true
+    term = ""
+    searchType = .all
+    updateTypeDock()
     table.reloadData()
     table.contentInset.top = 8
     table.layoutIfNeeded()
@@ -288,29 +370,62 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   }
 
   private func performSearch(_ term: String) {
-    guard !loading else { return }
-    requestToken += 1
-    let token = requestToken
-    workItem?.cancel()
+    self.term = term
+    page = 1
+    hasMore = true
     mode = .results
     items = []
     table.reloadData()
-    loading = true
-    statusLabel.text = "搜索中…"
-    statusLabel.isHidden = false
     table.contentInset.top = 0
-    BiliAPI.shared.search(term, page: 1) { [weak self] result in
+    loadResults(reset: true)
+  }
+
+  private func loadResults(reset: Bool) {
+    guard !loading else { return }
+    guard !term.isEmpty else { return }
+    if !reset && !hasMore { return }
+    requestToken += 1
+    let token = requestToken
+    if reset {
+      page = 1
+      items = []
+      table.reloadData()
+      statusLabel.text = "搜索中…"
+      statusLabel.isHidden = false
+    }
+    loading = true
+    let requestedPage = page
+    BiliAPI.shared.searchEntries(term, page: requestedPage, type: searchType) {
+      [weak self] result in
       guard let self = self, token == self.requestToken else { return }
       self.loading = false
       switch result {
       case .failure(let error):
-        self.statusLabel.text = error.localizedDescription
-        self.statusLabel.isHidden = false
-      case .success(let items):
-        self.items = items
-        self.table.reloadData()
-        if items.isEmpty {
-          self.statusLabel.text = "没有找到视频 · 换个关键词试试"
+        if self.items.isEmpty {
+          self.statusLabel.text = error.localizedDescription
+          self.statusLabel.isHidden = false
+        }
+      case .success(let entries):
+        self.hasMore = entries.count >= 20
+        self.page = requestedPage + 1
+        if reset {
+          self.items = entries
+          self.table.reloadData()
+        } else {
+          let start = self.items.count
+          self.items.append(contentsOf: entries)
+          let paths = (start..<self.items.count).map {
+            IndexPath(row: $0, section: 0)
+          }
+          if !paths.isEmpty {
+            UIView.performWithoutAnimation {
+              self.table.insertRows(at: paths, with: .none)
+            }
+          }
+        }
+        if self.items.isEmpty {
+          self.statusLabel.text = self.searchType == .all
+            ? "没有找到视频 · 换个关键词试试" : "没有找到结果"
           self.statusLabel.isHidden = false
         } else {
           self.statusLabel.isHidden = true
@@ -326,33 +441,108 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     }
   }
 
+  private func updateTypeDock() {
+    let light = traitCollection.userInterfaceStyle == .light
+    for (index, button) in typeButtons.enumerated() {
+      let on = index < SearchType.allCases.count
+        && SearchType.allCases[index] == searchType
+      button.backgroundColor = on ? NativeTheme.foreground : .clear
+      button.setTitleColor(on ? NativeTheme.background : NativeTheme.secondary,
+                           for: .normal)
+      button.layer.borderWidth = on ? 0 : 1
+      button.layer.borderColor = light
+        ? UIColor(white: 0, alpha: 0.06).cgColor
+        : UIColor(white: 1, alpha: 0.08).cgColor
+    }
+  }
+
+  @objc private func typeTapped(_ sender: UIButton) {
+    let all = SearchType.allCases
+    guard all.indices.contains(sender.tag) else { return }
+    setSearchType(all[sender.tag])
+  }
+
+  private func setSearchType(_ type: SearchType) {
+    guard type != searchType else { return }
+    searchType = type
+    updateTypeDock()
+    if !term.isEmpty, mode == .results {
+      loadResults(reset: true)
+    }
+    UISelectionFeedbackGenerator().selectionChanged()
+  }
+
+  @objc private func handleTypeSwipe(_ gesture: UIPanGestureRecognizer) {
+    guard gesture.state == .ended || gesture.state == .cancelled else { return }
+    let translation = gesture.translation(in: view).x
+    let velocity = gesture.velocity(in: view).x
+    let horizontal = abs(translation) > abs(gesture.translation(in: view).y) * 1.2
+      || abs(velocity) > abs(gesture.velocity(in: view).y) * 1.2
+    guard horizontal, abs(translation) > 40 || abs(velocity) > 300 else { return }
+    let all = SearchType.allCases
+    guard let index = all.firstIndex(of: searchType) else { return }
+    let next = translation < 0 ? index + 1 : index - 1
+    guard all.indices.contains(next) else { return }
+    setSearchType(all[next])
+  }
+
   @objc private func handleDismissPan(_ gesture: UIPanGestureRecognizer) {
     let reference = view.superview ?? view
-    let translation = max(0, gesture.translation(in: reference).x)
     let width = max(1, view.bounds.width)
+    let translation = dismissDirection > 0
+      ? max(0, gesture.translation(in: reference).x)
+      : max(0, -gesture.translation(in: reference).x)
     switch gesture.state {
     case .began:
       view.endEditing(true)
     case .changed:
-      onInteractiveClose?(max(0, min(1, 1 - translation / width)))
+      onInteractiveClose?(max(0, min(1, 1 - translation / width)), dismissDirection)
     case .ended, .cancelled:
-      let velocity = gesture.velocity(in: view).x
+      let velocity = gesture.velocity(in: view).x * dismissDirection
       let shouldClose = translation > width * 0.24 || velocity > 350
       if shouldClose { view.endEditing(true) }
-      onCloseSettled?(shouldClose)
+      onCloseSettled?(shouldClose, dismissDirection)
     default:
       break
     }
   }
 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-    guard let pan = gestureRecognizer as? UIPanGestureRecognizer, pan === dismissPan else {
+    guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+          pan === dismissPan || pan === typePan else {
       return true
     }
+    let width = max(1, view.bounds.width)
     let velocity = pan.velocity(in: view)
     let translation = pan.translation(in: view)
-    return abs(translation.x) > abs(translation.y) * 1.1
+    let horizontal = abs(translation.x) > abs(translation.y) * 1.1
       || abs(velocity.x) > abs(velocity.y) * 1.1
+    guard horizontal else { return false }
+    if pan === dismissPan {
+      if dismissStartX < width / 6.0 {
+        dismissDirection = 1
+        return translation.x > 1 || velocity.x > 1
+      }
+      if dismissStartX > width * 5.0 / 6.0 {
+        dismissDirection = -1
+        return translation.x < -1 || velocity.x < -1
+      }
+      return false
+    }
+    return typeStartX >= width / 6.0 && typeStartX <= width * 5.0 / 6.0
+  }
+
+  func gestureRecognizer(
+    _ gestureRecognizer: UIGestureRecognizer,
+    shouldReceive touch: UITouch
+  ) -> Bool {
+    if gestureRecognizer === dismissPan {
+      dismissStartX = touch.location(in: view).x
+    }
+    if gestureRecognizer === typePan {
+      typeStartX = touch.location(in: view).x
+    }
+    return true
   }
 
   func gestureRecognizer(
@@ -360,6 +550,14 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
   ) -> Bool {
     return gestureRecognizer === dismissPan || other === dismissPan
+  }
+
+  func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    guard mode == .results, !loading, hasMore else { return }
+    if scrollView.contentOffset.y > scrollView.contentSize.height
+        - scrollView.bounds.height * 2 {
+      loadResults(reset: false)
+    }
   }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -377,10 +575,27 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     if mode == .results {
-      let cell = tableView.dequeueReusableCell(
-        withIdentifier: VideoRowCell.reuseID, for: indexPath) as! VideoRowCell
-      cell.configureSearch(items[indexPath.row])
-      return cell
+      guard items.indices.contains(indexPath.row) else {
+        return UITableViewCell()
+      }
+      switch items[indexPath.row] {
+      case .video(let item):
+        let cell = tableView.dequeueReusableCell(
+          withIdentifier: VideoRowCell.reuseID, for: indexPath) as! VideoRowCell
+        cell.configureSearch(item)
+        return cell
+      case .user(let user):
+        let cell = tableView.dequeueReusableCell(
+          withIdentifier: SearchEntityCell.reuseID, for: indexPath) as! SearchEntityCell
+        cell.configure(title: user.name, subtitle: user.fans, image: user.face)
+        return cell
+      case .bangumi(let bangumi):
+        let cell = tableView.dequeueReusableCell(
+          withIdentifier: SearchEntityCell.reuseID, for: indexPath) as! SearchEntityCell
+        cell.configure(title: bangumi.title,
+                       subtitle: bangumi.subtitle, image: bangumi.cover)
+        return cell
+      }
     }
     if mode == .hot {
       let cell = tableView.dequeueReusableCell(
@@ -399,7 +614,14 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     if mode == .results {
       guard items.indices.contains(indexPath.row) else { return }
       view.endEditing(true)
-      onOpenVideo?(items[indexPath.row])
+      switch items[indexPath.row] {
+      case .video(let item):
+        onOpenVideo?(item)
+      case .user(let user):
+        onOpenUser?(user.mid)
+      case .bangumi(let bangumi):
+        onOpenSeason?(bangumi.seasonId, bangumi.title)
+      }
       return
     }
     let term = mode == .hot ? hot[indexPath.row] : suggestions[indexPath.row]
@@ -587,5 +809,68 @@ private final class SearchResultCell: UITableViewCell {
     meta.text = "\(item.owner) · \(item.playText) 播放"
     duration.text = item.duration
     ImageLoader.shared.load(item.pic, into: cover)
+  }
+}
+
+final class SearchEntityCell: UITableViewCell {
+  static let reuseID = "SearchEntityCell"
+  private let cover = UIImageView()
+  private let title = UILabel()
+  private let subtitle = UILabel()
+
+  override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+    super.init(style: style, reuseIdentifier: reuseIdentifier)
+    backgroundColor = .clear
+    selectionStyle = .default
+    let selected = UIView()
+    selected.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.04)
+    selectedBackgroundView = selected
+
+    cover.contentMode = .scaleAspectFill
+    cover.clipsToBounds = true
+    cover.layer.cornerRadius = 10
+    cover.layer.cornerCurve = .continuous
+    cover.backgroundColor = NativeTheme.surface
+    contentView.addSubview(cover)
+    cover.translatesAutoresizingMaskIntoConstraints = false
+
+    title.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
+    title.textColor = NativeTheme.foreground
+    title.numberOfLines = 2
+    contentView.addSubview(title)
+    title.translatesAutoresizingMaskIntoConstraints = false
+
+    subtitle.font = UIFont.systemFont(ofSize: 12, weight: .regular)
+    subtitle.textColor = NativeTheme.secondary
+    subtitle.numberOfLines = 1
+    contentView.addSubview(subtitle)
+    subtitle.translatesAutoresizingMaskIntoConstraints = false
+
+    NSLayoutConstraint.activate([
+      cover.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 18),
+      cover.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 10),
+      cover.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -10),
+      cover.widthAnchor.constraint(equalToConstant: 64),
+      cover.heightAnchor.constraint(equalToConstant: 64),
+
+      title.leadingAnchor.constraint(equalTo: cover.trailingAnchor, constant: 12),
+      title.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+      title.topAnchor.constraint(equalTo: cover.topAnchor, constant: 3),
+
+      subtitle.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+      subtitle.trailingAnchor.constraint(equalTo: title.trailingAnchor),
+      subtitle.bottomAnchor.constraint(equalTo: cover.bottomAnchor, constant: -2),
+    ])
+    contentView.heightAnchor.constraint(greaterThanOrEqualToConstant: 84).isActive = true
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  func configure(title: String, subtitle: String, image: String) {
+    self.title.text = title
+    self.subtitle.text = subtitle
+    ImageLoader.shared.load(image, into: cover)
   }
 }

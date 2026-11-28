@@ -146,6 +146,40 @@ struct FavoriteFolder {
   var count = 0
 }
 
+struct SearchUser {
+  var mid: Int64 = 0
+  var name = ""
+  var face = ""
+  var fans = ""
+}
+
+struct SearchBangumi {
+  var seasonId: Int64 = 0
+  var title = ""
+  var cover = ""
+  var subtitle = ""
+}
+
+enum SearchEntry {
+  case video(VideoItem)
+  case user(SearchUser)
+  case bangumi(SearchBangumi)
+}
+
+enum SearchType: String, CaseIterable {
+  case all = "video"
+  case bangumi = "media_bangumi"
+  case user = "bili_user"
+
+  var title: String {
+    switch self {
+    case .all: return "综合"
+    case .bangumi: return "番剧"
+    case .user: return "用户"
+    }
+  }
+}
+
 struct AccountInfo {
   var loggedIn = false
   var name = ""
