@@ -38,8 +38,16 @@ final class FeedViewController: UIViewController,
   private var fresh = 1
   private var loading = false
   private var hasMore = true
+  private let maxFeedItems = 100
   private var lastOffset: CGFloat = 0
   private var lastGridPrefetchAt: CFTimeInterval = 0
+
+  private struct FeedAnchor {
+    let key: String
+    let screenY: CGFloat
+  }
+
+  private var pendingAppendAnchor: FeedAnchor?
   private var toolbarHidden = false
   private var toolbarWasHidden = false
   private var searchController: SearchViewController?
@@ -323,8 +331,14 @@ final class FeedViewController: UIViewController,
       existing.insert("\(item.bvid)-\(item.roomId)")
     }
     let appendStart = items.count
+    let anchor = captureFeedAnchor()
+    pendingAppendAnchor = anchor
+    O11A1Trace.mark(
+      "feed",
+      "append begin old=\(items.count) add=\(incoming.count) offset=\(String(format: "%.0f", table.contentOffset.y)) size=\(String(format: "%.0f", table.contentSize.height)) grid=\(HomeFeedLayout.isGrid)")
     items.append(contentsOf: incoming)
     completeFinish(values: values, reset: false, appendStart: appendStart)
+    restoreFeedAnchor(anchor, reason: "append")
   }
 
   private func completeFinish(values: [VideoItem], reset: Bool,
@@ -351,11 +365,25 @@ final class FeedViewController: UIViewController,
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
       self.startPreviewIfNeeded()
       self.loadMoreIfNeeded()
+      O11A1Trace.mark(
+        "feed",
+        "post append offset=\(String(format: "%.0f", self.table.contentOffset.y)) size=\(String(format: "%.0f", self.table.contentSize.height)) dragging=\(self.table.isDragging) decel=\(self.table.isDecelerating)")
+      if let anchor = self.pendingAppendAnchor {
+        if !self.table.isDragging && !self.table.isDecelerating {
+          self.restoreFeedAnchor(anchor, reason: "post")
+        } else {
+          O11A1Trace.mark("feed", "anchor post skipped while scrolling")
+        }
+        self.pendingAppendAnchor = nil
+      }
     }
     if HomeFeedLayout.isGrid {
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
         self?.prefetchGridPlayURLs(force: true)
       }
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
+      self?.trimIfNeeded()
     }
   }
 
@@ -374,12 +402,86 @@ final class FeedViewController: UIViewController,
   /// the new items belong to, so the grid grows without a table-wide reload.
   /// The content offset is restored afterwards: even an implicit layout pass
   /// must not move the card the user is looking at.
-  private func appendLoadedRows(from oldCount: Int) {
-    let newCount = items.count
+  private func captureFeedAnchor() -> FeedAnchor? {
+    guard let visible = table.indexPathsForVisibleRows?
+      .sorted(by: { $0.row < $1.row }) else { return nil }
+    guard let first = visible.first(where: {
+      table.rectForRow(at: $0).maxY > table.contentOffset.y + 2
+    }) else { return nil }
+    let index = HomeFeedLayout.isGrid ? first.row * 2 : first.row
+    guard index >= 0, index < items.count else { return nil }
+    let item = items[index]
+    let rect = table.rectForRow(at: first)
+    return FeedAnchor(
+      key: "\(item.bvid)-\(item.roomId)",
+      screenY: rect.minY - table.contentOffset.y)
+  }
+
+  private func restoreFeedAnchor(_ anchor: FeedAnchor?, reason: String) {
+    guard let anchor,
+          let index = items.firstIndex(where: {
+            "\($0.bvid)-\($0.roomId)" == anchor.key
+          }) else { return }
+    let row = HomeFeedLayout.isGrid ? index / 2 : index
+    guard row >= 0, row < table.numberOfRows(inSection: 0) else { return }
+    table.layoutIfNeeded()
+    let rect = table.rectForRow(at: IndexPath(row: row, section: 0))
+    let target = max(-table.contentInset.top, rect.minY - anchor.screenY)
+    let before = table.contentOffset.y
+    guard abs(target - before) > 0.5 else { return }
+    table.setContentOffset(CGPoint(x: 0, y: target), animated: false)
+    O11A1Trace.mark(
+      "feed",
+      "anchor \(reason) key=\(anchor.key) \(String(format: "%.0f", before))->\(String(format: "%.0f", target)) sy=\(String(format: "%.0f", anchor.screenY))")
+  }
+
+  /// Release rows that are far above the viewport once scrolling has settled.
+  /// Twenty items above the anchor are kept so a small upward flick still has
+  /// content; the anchor item is restored to the same screen y after reload.
+  private func trimIfNeeded() {
+    guard items.count > maxFeedItems, !loading,
+          !table.isDragging, !table.isDecelerating,
+          table.window != nil else { return }
+    guard let anchor = captureFeedAnchor(),
+          let anchorIndex = items.firstIndex(where: {
+            "\($0.bvid)-\($0.roomId)" == anchor.key
+          }) else { return }
+    let keepAbove = max(0, anchorIndex - 20)
+    let overflow = items.count - maxFeedItems
+    var remove = min(overflow, keepAbove)
+    if HomeFeedLayout.isGrid { remove -= remove % 2 }
+    guard remove >= 10 else { return }
+    let oldOffset = table.contentOffset.y
+    unloadPreviewMedia()
+    O11A1Trace.mark(
+      "feed",
+      "trim begin remove=\(remove) items=\(items.count) anchor=\(anchor.key) offset=\(String(format: "%.0f", oldOffset))")
+    UIView.performWithoutAnimation {
+      items.removeFirst(remove)
+      table.reloadData()
+      table.layoutIfNeeded()
+      restoreFeedAnchor(anchor, reason: "trim")
+    }
+    O11A1Trace.mark(
+      "feed",
+      "trim end items=\(items.count) offset=\(String(format: "%.0f", table.contentOffset.y)) size=\(String(format: "%.0f", table.contentSize.height))")
+    lastOffset = table.contentOffset.y
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+      self?.startPreviewIfNeeded()
+    }
+  }
+
+  private func appendLoadedRows(from oldCount: Int) {    let newCount = items.count
     guard newCount > oldCount else { return }
     let offsetBefore = table.contentOffset
+    O11A1Trace.mark(
+      "feed",
+      "rows insert old=\(oldCount) new=\(newCount) rows=\(table.numberOfRows(inSection: 0)) offset=\(String(format: "%.0f", offsetBefore.y)) size=\(String(format: "%.0f", table.contentSize.height)) grid=\(HomeFeedLayout.isGrid)")
     let restoreOffset = {
       guard self.table.contentOffset != offsetBefore else { return }
+      O11A1Trace.mark(
+        "feed",
+        "rows insert shifted \(String(format: "%.0f", offsetBefore.y))->\(String(format: "%.0f", self.table.contentOffset.y))")
       self.table.setContentOffset(offsetBefore, animated: false)
     }
     if HomeFeedLayout.isGrid {
@@ -414,7 +516,11 @@ final class FeedViewController: UIViewController,
           self.table.insertRows(at: insertPaths, with: .none)
         }, completion: { _ in
           self.table.layoutIfNeeded()
+          O11A1Trace.mark(
+            "feed",
+            "rows inserted offset=\(String(format: "%.0f", self.table.contentOffset.y)) size=\(String(format: "%.0f", self.table.contentSize.height))")
           restoreOffset()
+          self.restoreFeedAnchor(self.pendingAppendAnchor, reason: "rows")
         })
       }
     } else {
@@ -428,7 +534,11 @@ final class FeedViewController: UIViewController,
           self.table.insertRows(at: insertPaths, with: .none)
         }, completion: { _ in
           self.table.layoutIfNeeded()
+          O11A1Trace.mark(
+            "feed",
+            "rows inserted offset=\(String(format: "%.0f", self.table.contentOffset.y)) size=\(String(format: "%.0f", self.table.contentSize.height))")
           restoreOffset()
+          self.restoreFeedAnchor(self.pendingAppendAnchor, reason: "rows")
         })
       }
     }
@@ -580,10 +690,18 @@ final class FeedViewController: UIViewController,
   }
 
   @objc private func feedLayoutChanged() {
+    let anchor = captureFeedAnchor()
+    O11A1Trace.mark(
+      "feed",
+      "layout change begin grid=\(HomeFeedLayout.isGrid) offset=\(String(format: "%.0f", table.contentOffset.y)) items=\(items.count)")
     applyFeedBackground()
     unloadPreviewMedia()
     table.reloadData()
     table.layoutIfNeeded()
+    restoreFeedAnchor(anchor, reason: "layout")
+    O11A1Trace.mark(
+      "feed",
+      "layout change end offset=\(String(format: "%.0f", table.contentOffset.y)) size=\(String(format: "%.0f", table.contentSize.height)) rows=\(table.numberOfRows(inSection: 0))")
     startPreviewIfNeeded()
     loadMoreIfNeeded()
     prefetchGridPlayURLs(force: true)
@@ -611,18 +729,26 @@ final class FeedViewController: UIViewController,
     }
     lastOffset = scrollView.contentOffset.y
     loadMoreIfNeeded()
+    if abs(delta) > 120, !scrollView.isTracking,
+       !scrollView.isDragging, !scrollView.isDecelerating {
+      O11A1Trace.mark(
+        "feed",
+        "unexpected scroll \(String(format: "%.0f", scrollView.contentOffset.y - delta))->\(String(format: "%.0f", scrollView.contentOffset.y)) dragging=false items=\(items.count)")
+    }
   }
 
   func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
     if !decelerate {
       startPreviewIfNeeded()
       prefetchGridPlayURLs()
+      trimIfNeeded()
     }
   }
 
   func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
     startPreviewIfNeeded()
     prefetchGridPlayURLs()
+    trimIfNeeded()
     if scrollView.contentOffset.y <= 4 && toolbarHidden {
       toolbarHidden = false
       onToolbar?(false)
@@ -893,6 +1019,39 @@ final class FeedViewController: UIViewController,
     guard !searchOpen else { return }
     previewSuspended = false
     startPreviewIfNeeded()
+  }
+
+  func runScrollTest(steps: Int) {
+    guard steps > 0 else { return }
+    guard !items.isEmpty else {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+        self?.runScrollTest(steps: steps)
+      }
+      return
+    }
+    let bottom = max(-table.contentInset.top,
+                     table.contentSize.height - table.bounds.height
+                       + table.contentInset.bottom)
+    let from = table.contentOffset.y
+    var next = from + table.bounds.height * 0.82
+    if next >= bottom - 1 {
+      O11A1Trace.mark(
+        "feed",
+        "scrolltest bottom step=\(steps) offset=\(String(format: "%.0f", from)) items=\(items.count)")
+      loadMoreIfNeeded()
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+        self?.runScrollTest(steps: steps - 1)
+      }
+      return
+    }
+    next = min(next, bottom)
+    O11A1Trace.mark(
+      "feed",
+      "scrolltest step=\(steps) \(String(format: "%.0f", from))->\(String(format: "%.0f", next)) items=\(items.count) grid=\(HomeFeedLayout.isGrid)")
+    table.setContentOffset(CGPoint(x: 0, y: next), animated: true)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) { [weak self] in
+      self?.runScrollTest(steps: steps - 1)
+    }
   }
 
   func openFirstForTest() {

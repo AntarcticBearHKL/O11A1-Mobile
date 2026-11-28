@@ -239,6 +239,10 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
         self?.feed?.openFirstForTest()
       }
+    case "feed-scroll", "feed-grid-scroll":
+      DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        self?.feed?.runScrollTest(steps: 18)
+      }
     case "my":
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
         self?.openMy()
