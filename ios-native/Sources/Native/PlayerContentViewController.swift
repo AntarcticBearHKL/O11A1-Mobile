@@ -361,6 +361,10 @@ final class PlayerContentViewController: UIViewController, UIGestureRecognizerDe
     controller.onScroll = { [weak self] delta, position in
       self?.contentScrolled(delta: delta, position: position)
     }
+    controller.onPullDown = { [weak self] progress in self?.onPullDown?(progress) }
+    controller.onPullDownEnded = { [weak self] complete in
+      self?.onPullDownEnded?(complete)
+    }
     addChild(controller)
     controller.view.frame = host.bounds
     controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]

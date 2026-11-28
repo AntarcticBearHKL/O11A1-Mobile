@@ -15,6 +15,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   var onMinimize: (() -> Void)?
   var onExpand: (() -> Void)?
   private(set) var isMiniWindow = false
+  private(set) var isSystemPip = false
 
   private var engine = VideoEngine()
   private lazy var playerView = PlayerLayerView(playerLayer: engine.playerLayer)
@@ -621,12 +622,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       self?.applyLoadStatus(status)
     }
     engine.refreshLoadStatus()
+    engine.onPipStart = { [weak self] in
+      self?.systemPipDidStart()
+    }
     engine.onPipClose = { [weak self] in
       self?.closeFromPip()
     }
     engine.onPipRestore = { [weak self] in
       self?.closing = false
       self?.videoContainer.isHidden = false
+      self?.restoreFromSystemPiP(stopPip: false)
     }
     activeObserver = NotificationCenter.default.addObserver(
       forName: UIApplication.didBecomeActiveNotification,
@@ -1036,6 +1041,56 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       portraitTransition = target
       applyPortraitTransition(target)
     }
+  }
+
+  private func startSystemPiPFromGesture() {
+    portraitDragActive = false
+    if engine.startPipNow(requirePlaying: false) {
+      return
+    }
+    // The system PiP needs a ready, visible player layer. Give it one short
+    // retry, then keep the gesture useful with the in-app fallback.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { [weak self] in
+      guard let self = self, !self.isSystemPip, !self.isMiniWindow else { return }
+      if self.engine.startPipNow(requirePlaying: false) {
+        return
+      }
+      self.portraitDragActive = true
+      self.beginMiniDrag()
+      self.updateMiniDrag(260)
+      self.finishMiniDrag(velocity: 900)
+    }
+  }
+
+  private func systemPipDidStart() {
+    guard !isSystemPip else { return }
+    isSystemPip = true
+    closing = false
+    portraitDragActive = false
+    portraitSettling = false
+    view.isHidden = true
+    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    onMinimize?()
+    setNeedsStatusBarAppearanceUpdate()
+  }
+
+  func restoreFromSystemPiP(stopPip: Bool = true) {
+    if stopPip, engine.isPipActive {
+      engine.stopPipForRestore()
+    }
+    let wasHidden = view.isHidden || isSystemPip
+    isSystemPip = false
+    guard wasHidden else { return }
+    view.isHidden = false
+    view.alpha = 1
+    if let parent = view.superview {
+      view.frame = parent.bounds
+    }
+    view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    view.setNeedsLayout()
+    applyPortraitTransition(portraitTransition)
+    onExpand?()
+    setNeedsStatusBarAppearanceUpdate()
   }
 
   private func miniFrameInParent() -> CGRect {
@@ -1635,6 +1690,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     previous.onReady = nil
     previous.onError = nil
     previous.onLoadStatus = nil
+    previous.onPipStart = nil
     previous.onPipClose = nil
     previous.onPipRestore = nil
     previous.pause()
@@ -1662,6 +1718,13 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       applyPlaying(false)
     }
     upgrade.enablePiP()
+    upgrade.onPipStart = { [weak self] in self?.systemPipDidStart() }
+    upgrade.onPipClose = { [weak self] in self?.closeFromPip() }
+    upgrade.onPipRestore = { [weak self] in
+      self?.closing = false
+      self?.videoContainer.isHidden = false
+      self?.restoreFromSystemPiP(stopPip: false)
+    }
     qualityLabel.text = pendingUpgradeLabel
     view.setNeedsLayout()
   }
@@ -1921,9 +1984,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
             panDirectionDecided = true
             if translation.y < 0 {
               portraitUpDrag = true
-            } else if portraitDragBase <= 0.02, onMinimize != nil {
+            } else if portraitDragBase <= 0.02 {
               portraitDownClose = true
-              beginMiniDrag()
             } else {
               portraitRestoreDrag = true
             }
@@ -1952,7 +2014,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         return
       }
       if portraitDownClose {
-        updateMiniDrag(translation.y)
         return
       }
       guard !isLandscapePlayer || landscapeDrag else { return }
@@ -2011,7 +2072,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       if portraitDownClose {
         portraitDownClose = false
         panDirectionDecided = false
-        finishMiniDrag(velocity: endVelocity.y)
+        portraitDragActive = false
+        if translation.y > 80 || endVelocity.y > 500 {
+          startSystemPiPFromGesture()
+        }
         return
       }
       if isLandscapePlayer && !landscapeDrag {
@@ -2234,14 +2298,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   }
 
   func testMinimize() {
-    guard onMinimize != nil, !isMiniWindow else { return }
+    guard !isMiniWindow, !isSystemPip else { return }
     portraitStageIsTop = false
     portraitTransition = 0
     applyPortraitTransition(0)
-    portraitDragActive = true
-    beginMiniDrag()
-    updateMiniDrag(260)
-    finishMiniDrag(velocity: 900)
+    startSystemPiPFromGesture()
   }
 
   func testLandscape() {
@@ -2308,6 +2369,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   private func closeFromPip() {
     closing = true
+    isSystemPip = false
     stopLiveChat()
     stopProgressLink()
     cancelUpgradePreload()

@@ -35,7 +35,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   override var prefersHomeIndicatorAutoHidden: Bool { true }
 
   override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
-    if let player = player, !player.isMiniWindow {
+    if let player = player, !player.isMiniWindow, !player.isSystemPip {
       return .allButUpsideDown
     }
     return .portrait
@@ -46,13 +46,13 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   }
 
   override var childForStatusBarStyle: UIViewController? {
-    if let player = player, player.isMiniWindow { return nil }
+    if let player = player, player.isMiniWindow || player.isSystemPip { return nil }
     if profileCoveredByPlayer, let player = player { return player }
     return upProfile ?? player
   }
 
   override var childForStatusBarHidden: UIViewController? {
-    if let player = player, player.isMiniWindow { return nil }
+    if let player = player, player.isMiniWindow || player.isSystemPip { return nil }
     if profileCoveredByPlayer, let player = player { return player }
     return upProfile ?? player
   }
@@ -407,6 +407,9 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
       presented.dismiss(animated: false)
     }
     if let existing = player {
+      if existing.isSystemPip {
+        existing.restoreFromSystemPiP()
+      }
       if existing.isMiniWindow {
         existing.exitMiniWindow()
       }
@@ -771,7 +774,7 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     if gestureRecognizer === settingsPan {
-      guard player == nil || player?.isMiniWindow == true,
+      guard player == nil || player?.isMiniWindow == true || player?.isSystemPip == true,
             presentedViewController == nil,
             myController == nil, upProfile == nil,
             sidebar?.superview == nil,

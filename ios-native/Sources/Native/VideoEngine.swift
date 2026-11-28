@@ -28,6 +28,7 @@ final class VideoEngine: NSObject {
   var onReady: (() -> Void)?
   var onError: ((String) -> Void)?
   var onLoadStatus: ((VideoLoadStatus) -> Void)?
+  var onPipStart: (() -> Void)?
   var onPipClose: (() -> Void)?
   var onPipRestore: (() -> Void)?
 
@@ -362,10 +363,17 @@ final class VideoEngine: NSObject {
   }
 
   func startPipIfPossible() {
-    guard let controller = pipController else { return }
-    guard isPlaying, !controller.isPictureInPictureActive else { return }
-    guard controller.isPictureInPicturePossible else { return }
+    startPipNow()
+  }
+
+  @discardableResult
+  func startPipNow(requirePlaying: Bool = true) -> Bool {
+    guard let controller = pipController,
+          !requirePlaying || isPlaying,
+          !controller.isPictureInPictureActive,
+          controller.isPictureInPicturePossible else { return false }
     controller.startPictureInPicture()
+    return true
   }
 
   var isPipActive: Bool {
@@ -408,14 +416,13 @@ final class VideoEngine: NSObject {
       onPipRestore?()
       return
     }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
-      guard let self = self else { return }
-      if UIApplication.shared.applicationState == .background {
-        self.onPipClose?()
-      } else {
-        self.onPipRestore?()
-      }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+      self?.onPipClose?()
     }
+  }
+
+  fileprivate func pipDidStart() {
+    onPipStart?()
   }
 
   fileprivate func pipFailed(_ message: String) {
@@ -431,7 +438,7 @@ private final class PictureInPictureDelegate: NSObject, AVPictureInPictureContro
   }
 
   func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-    // The system owns the video window; the app is now in the background.
+    engine?.pipDidStart()
   }
 
   func pictureInPictureController(

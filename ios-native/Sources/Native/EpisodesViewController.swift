@@ -3,9 +3,11 @@ import UIKit
 /// The multi-part (分P) panel. It mirrors the detail and recommendation pages:
 /// a 56 pt frosted title bar over a plain row list.
 final class EpisodesViewController: UIViewController, UITableViewDataSource,
-  UITableViewDelegate {
+  UITableViewDelegate, UIGestureRecognizerDelegate {
   var onSelect: ((VideoPage) -> Void)?
   var onScroll: ((CGFloat, CGFloat) -> Void)?
+  var onPullDown: ((CGFloat) -> Void)?
+  var onPullDownEnded: ((Bool) -> Void)?
 
   private let table = UITableView(frame: .zero, style: .plain)
   private let headerTitle = UILabel()
@@ -15,6 +17,8 @@ final class EpisodesViewController: UIViewController, UITableViewDataSource,
   private var pages: [VideoPage] = []
   private var currentCid: Int64 = 0
   private var lastDockScrollPosition: CGFloat?
+  private var pullDownPan: UIPanGestureRecognizer?
+  private var pullDownArmed = false
 
   init(pages: [VideoPage], currentCid: Int64) {
     self.pages = pages
@@ -45,8 +49,8 @@ final class EpisodesViewController: UIViewController, UITableViewDataSource,
     table.dataSource = self
     table.delegate = self
     table.register(EpisodeRowCell.self, forCellReuseIdentifier: EpisodeRowCell.reuseID)
-    table.rowHeight = 64
-    table.estimatedRowHeight = 64
+    table.rowHeight = 58
+    table.estimatedRowHeight = 58
     table.contentInsetAdjustmentBehavior = .never
     table.showsVerticalScrollIndicator = false
     view.addSubview(table)
@@ -57,6 +61,12 @@ final class EpisodesViewController: UIViewController, UITableViewDataSource,
       table.topAnchor.constraint(equalTo: view.topAnchor),
       table.bottomAnchor.constraint(equalTo: view.bottomAnchor),
     ])
+
+    let pull = UIPanGestureRecognizer(target: self, action: #selector(handlePullDown(_:)))
+    pull.delegate = self
+    view.addGestureRecognizer(pull)
+    table.panGestureRecognizer.require(toFail: pull)
+    pullDownPan = pull
 
     headerBar.backgroundColor = .clear
     headerBar.isUserInteractionEnabled = false
@@ -183,15 +193,48 @@ final class EpisodesViewController: UIViewController, UITableViewDataSource,
     }
     lastDockScrollPosition = position
   }
+
+  @objc private func handlePullDown(_ gesture: UIPanGestureRecognizer) {
+    let reference = view.superview ?? view
+    let translation = max(0, gesture.translation(in: reference).y)
+    let progress = min(1, translation / 240)
+    switch gesture.state {
+    case .changed:
+      onPullDown?(progress)
+    case .ended, .cancelled:
+      let velocity = gesture.velocity(in: reference).y
+      onPullDownEnded?(progress > 0.35 || velocity > 450)
+    default:
+      break
+    }
+  }
+
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldReceive touch: UITouch) -> Bool {
+    if gestureRecognizer === pullDownPan {
+      let x = touch.location(in: view).x
+      let width = max(1, view.bounds.width)
+      pullDownArmed = x < width / 6.0 || x > width * 5.0 / 6.0
+    }
+    return true
+  }
+
+  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+          pan === pullDownPan else { return true }
+    guard pullDownArmed else { return false }
+    let velocity = pan.velocity(in: view)
+    let translation = pan.translation(in: view)
+    return (translation.y > 2 && abs(translation.y) > abs(translation.x) * 1.1)
+      || (velocity.y > 60 && abs(velocity.y) > abs(velocity.x) * 1.1)
+  }
 }
 
 private final class EpisodeRowCell: UITableViewCell {
   static let reuseID = "EpisodeRowCell"
 
-  private let indexLabel = UILabel()
   private let titleLabel = UILabel()
   private let durationLabel = UILabel()
-  private let playingLabel = UILabel()
   private let separator = UIView()
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
@@ -200,20 +243,9 @@ private final class EpisodeRowCell: UITableViewCell {
     contentView.backgroundColor = .clear
     selectionStyle = .none
 
-    indexLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-    indexLabel.textColor = NativeTheme.secondary
-    indexLabel.textAlignment = .center
-    indexLabel.clipsToBounds = true
-    indexLabel.layer.cornerRadius = 11
-    indexLabel.layer.cornerCurve = .continuous
-    indexLabel.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.06)
-    indexLabel.widthAnchor.constraint(equalToConstant: 22).isActive = true
-    indexLabel.heightAnchor.constraint(equalToConstant: 22).isActive = true
-    contentView.addSubview(indexLabel)
-
     titleLabel.font = UIFont.systemFont(ofSize: 14.5, weight: .medium)
     titleLabel.textColor = NativeTheme.foreground
-    titleLabel.numberOfLines = 2
+    titleLabel.numberOfLines = 1
     titleLabel.lineBreakMode = .byTruncatingTail
     contentView.addSubview(titleLabel)
 
@@ -224,34 +256,21 @@ private final class EpisodeRowCell: UITableViewCell {
     durationLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
     contentView.addSubview(durationLabel)
 
-    playingLabel.text = "播放中"
-    playingLabel.font = UIFont.systemFont(ofSize: 10, weight: .semibold)
-    playingLabel.textColor = NativeTheme.navBlue
-    playingLabel.textAlignment = .right
-    playingLabel.setContentHuggingPriority(.required, for: .horizontal)
-    contentView.addSubview(playingLabel)
-
     separator.backgroundColor = NativeTheme.hairline
     contentView.addSubview(separator)
 
-    [indexLabel, titleLabel, durationLabel, playingLabel, separator].forEach {
+    [titleLabel, durationLabel, separator].forEach {
       $0.translatesAutoresizingMaskIntoConstraints = false
     }
     NSLayoutConstraint.activate([
-      indexLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-      indexLabel.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+      titleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      titleLabel.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+      titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: durationLabel.leadingAnchor, constant: -12),
 
-      titleLabel.leadingAnchor.constraint(equalTo: indexLabel.trailingAnchor, constant: 12),
-      titleLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 10),
-      titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: durationLabel.leadingAnchor, constant: -10),
-      titleLabel.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -10),
-
-      playingLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-      playingLabel.centerYAnchor.constraint(equalTo: indexLabel.centerYAnchor, constant: -8),
       durationLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-      durationLabel.centerYAnchor.constraint(equalTo: indexLabel.centerYAnchor, constant: 8),
+      durationLabel.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
 
-      separator.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 54),
+      separator.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
       separator.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
       separator.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
       separator.heightAnchor.constraint(equalToConstant: 0.5),
@@ -263,15 +282,10 @@ private final class EpisodeRowCell: UITableViewCell {
   }
 
   func configure(_ page: VideoPage, current: Bool) {
-    indexLabel.text = "\(page.page)"
-    indexLabel.textColor = current ? NativeTheme.background : NativeTheme.secondary
-    indexLabel.backgroundColor = current
-      ? NativeTheme.foreground
-      : NativeTheme.foreground.withAlphaComponent(0.06)
     titleLabel.text = page.title.isEmpty ? "第 \(page.page) P" : page.title
     titleLabel.textColor = current ? NativeTheme.navBlue : NativeTheme.foreground
     durationLabel.text = EpisodeRowCell.timeText(page.duration)
-    playingLabel.isHidden = !current
+    durationLabel.textColor = current ? NativeTheme.navBlue : NativeTheme.tertiary
   }
 
   private static func timeText(_ seconds: Int) -> String {
