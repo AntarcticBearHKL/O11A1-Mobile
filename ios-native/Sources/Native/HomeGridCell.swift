@@ -82,13 +82,13 @@ final class MiniVideoCardView: UIView {
     addSubview(info)
     info.translatesAutoresizingMaskIntoConstraints = false
 
-    title.font = UIFont.systemFont(ofSize: 15, weight: .medium)
+    title.font = UIFont.systemFont(ofSize: 14, weight: .regular)
     title.textColor = NativeTheme.foreground
     title.numberOfLines = 2
     title.lineBreakMode = .byTruncatingTail
-    title.heightAnchor.constraint(equalToConstant: 38).isActive = true
+    title.heightAnchor.constraint(equalToConstant: 36).isActive = true
 
-    owner.font = UIFont.systemFont(ofSize: 12.5, weight: .medium)
+    owner.font = UIFont.systemFont(ofSize: 12.5, weight: .regular)
     owner.textColor = .white
     owner.numberOfLines = 1
     owner.lineBreakMode = .byTruncatingTail
@@ -98,12 +98,12 @@ final class MiniVideoCardView: UIView {
     mediaHost.addSubview(owner)
     owner.translatesAutoresizingMaskIntoConstraints = false
 
-    play.font = UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+    play.font = UIFont.monospacedDigitSystemFont(ofSize: 11.5, weight: .regular)
     play.textAlignment = .left
     play.numberOfLines = 1
     play.setContentHuggingPriority(.required, for: .horizontal)
     play.setContentCompressionResistancePriority(.required, for: .horizontal)
-    time.font = UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+    time.font = UIFont.monospacedDigitSystemFont(ofSize: 11.5, weight: .regular)
     time.textColor = NativeTheme.tertiary
     time.textAlignment = .right
     time.numberOfLines = 1
@@ -204,13 +204,13 @@ final class MiniVideoCardView: UIView {
   func configure(_ item: VideoItem) {
     self.item = item
     let paragraph = NSMutableParagraphStyle()
-    paragraph.minimumLineHeight = 19
-    paragraph.maximumLineHeight = 19
+    paragraph.minimumLineHeight = 18
+    paragraph.maximumLineHeight = 18
     paragraph.lineBreakMode = .byTruncatingTail
     title.attributedText = NSAttributedString(
       string: item.title + "\n",
       attributes: [
-        .font: UIFont.systemFont(ofSize: 15, weight: .medium),
+        .font: UIFont.systemFont(ofSize: 14, weight: .regular),
         .foregroundColor: NativeTheme.foreground,
         .paragraphStyle: paragraph,
       ])
