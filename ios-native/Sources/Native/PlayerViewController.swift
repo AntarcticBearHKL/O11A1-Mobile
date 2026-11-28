@@ -2336,6 +2336,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       label: "默认画质", options: PlaybackSettings.qualityOptions,
       selected: PlaybackSettings.defaultQualityName(), columns: 3) { name in
       UserDefaults.standard.set(name, forKey: "o11a1.defaultQuality")
+      ThemeManager.shared.quality = PlaybackSettings.qualityValue(name)
     })
     rows.append(.section("播放"))
     rows.append(.gridChoices(
