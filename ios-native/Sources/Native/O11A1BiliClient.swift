@@ -514,13 +514,16 @@ final class O11A1BiliClient {
       params["high_quality"] = "1"
     }
     if attempt.tryLook { params["try_look"] = "1" }
-    if attempt.signed, let key = wbiKey(), !key.isEmpty {
-      return signedJSON(
-        path: "/x/player/wbi/playurl",
-        query: wbiSign(params, key: key),
-        referer: "https://www.bilibili.com/",
-        origin: "https://www.bilibili.com"
-      )
+    if attempt.signed {
+      let key = wbiKey()
+      if !key.isEmpty {
+        return signedJSON(
+          path: "/x/player/wbi/playurl",
+          query: wbiSign(params, key: key),
+          referer: "https://www.bilibili.com/",
+          origin: "https://www.bilibili.com"
+        )
+      }
     }
     return json(base: Self.apiBase, path: "/x/player/playurl", query: params)
   }
