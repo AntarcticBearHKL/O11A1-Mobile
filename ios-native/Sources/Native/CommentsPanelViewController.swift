@@ -628,8 +628,8 @@ private final class PanelCommentCell: UITableViewCell {
       metric.setContentHuggingPriority(.required, for: .horizontal)
       metric.setContentCompressionResistancePriority(.required, for: .horizontal)
     }
-    likes.widthAnchor.constraint(equalToConstant: 56).isActive = true
-    repliesCount.widthAnchor.constraint(equalToConstant: 42).isActive = true
+    likes.widthAnchor.constraint(equalToConstant: 46).isActive = true
+    repliesCount.widthAnchor.constraint(equalToConstant: 40).isActive = true
     repliesCount.isHidden = true
 
     time.font = UIFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .medium)
@@ -642,7 +642,7 @@ private final class PanelCommentCell: UITableViewCell {
     let metaRow = UIStackView(arrangedSubviews: [likes, repliesCount, time])
     metaRow.axis = .horizontal
     metaRow.alignment = .center
-    metaRow.spacing = 6
+    metaRow.spacing = 4
     metaRow.setContentHuggingPriority(.required, for: .horizontal)
     metaRow.setContentCompressionResistancePriority(.required, for: .horizontal)
 
@@ -780,7 +780,7 @@ private final class PanelCommentCell: UITableViewCell {
       result.append(NSAttributedString(attachment: attachment))
     }
     result.append(NSAttributedString(
-      string: " \(value)",
+      string: " \(o11a1Count(value))",
       attributes: [
         .font: UIFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .medium),
         .foregroundColor: NativeTheme.tertiary,
