@@ -640,7 +640,7 @@ final class O11A1BiliClient {
       return o11a1Error("该视频在当前地区不可播放")
     }
     if resolution.code == -404 {
-      return o11a1Error("视频不存在或已被删除")
+      return o11a1Error("视频不可用或当前地区受限")
     }
     if resolution.code == -101 || resolution.code == -400 {
       return o11a1Error("登录已过期，请重新登录")
