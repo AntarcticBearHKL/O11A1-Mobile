@@ -75,8 +75,10 @@ final class FeedViewController: UIViewController,
     table.delegate = self
     table.register(HomeCardCell.self, forCellReuseIdentifier: HomeCardCell.reuseID)
     table.register(HomeGridCell.self, forCellReuseIdentifier: HomeGridCell.reuseID)
-    table.rowHeight = UITableView.automaticDimension
-    table.estimatedRowHeight = 360
+    table.rowHeight = feedRowHeight()
+    table.estimatedRowHeight = 0
+    table.estimatedSectionHeaderHeight = 0
+    table.estimatedSectionFooterHeight = 0
     table.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 138, right: 0)
     table.contentInsetAdjustmentBehavior = .never
     table.showsVerticalScrollIndicator = false
@@ -174,6 +176,14 @@ final class FeedViewController: UIViewController,
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     updateInsets()
+    let height = feedRowHeight()
+    if abs(table.rowHeight - height) > 0.5 {
+      let anchor = captureFeedAnchor()
+      table.rowHeight = height
+      table.reloadData()
+      table.layoutIfNeeded()
+      restoreFeedAnchor(anchor, reason: "rowheight")
+    }
     if let search = searchController, !searchAnimating {
       let width = max(1, view.bounds.width)
       let progress = max(0, min(1, searchProgress))
@@ -572,19 +582,24 @@ final class FeedViewController: UIViewController,
     return HomeFeedLayout.isGrid ? (items.count + 1) / 2 : items.count
   }
 
-  func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-    guard HomeFeedLayout.isGrid else {
-      // Exact height: a fixed value keeps table layout deterministic while
-      // new pages are appended, so the visible card never shifts.
-      return max(1, tableView.bounds.width) * 9.0 / 16.0 + 98 + 14
+  private func feedRowHeight() -> CGFloat {
+    let width: CGFloat
+    if table.bounds.width > 1 {
+      width = table.bounds.width
+    } else if view.bounds.width > 1 {
+      width = view.bounds.width
+    } else {
+      width = UIScreen.main.bounds.width
     }
-    let available = tableView.bounds.width
-      - HomeGridCell.sideInset * 2
-      - HomeGridCell.columnSpacing
-    let cardWidth = max(1, available / 2)
-    return HomeGridCell.verticalInset * 2
-      + cardWidth * 3.0 / 4.0
-      + HomeGridCell.infoHeight
+    if HomeFeedLayout.isGrid {
+      let available = width - HomeGridCell.sideInset * 2
+        - HomeGridCell.columnSpacing
+      let cardWidth = max(1, available / 2)
+      return HomeGridCell.verticalInset * 2
+        + cardWidth * 3.0 / 4.0
+        + HomeGridCell.infoHeight
+    }
+    return max(1, width) * 9.0 / 16.0 + 98 + 14
   }
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -696,6 +711,7 @@ final class FeedViewController: UIViewController,
       "layout change begin grid=\(HomeFeedLayout.isGrid) offset=\(String(format: "%.0f", table.contentOffset.y)) items=\(items.count)")
     applyFeedBackground()
     unloadPreviewMedia()
+    table.rowHeight = feedRowHeight()
     table.reloadData()
     table.layoutIfNeeded()
     restoreFeedAnchor(anchor, reason: "layout")
