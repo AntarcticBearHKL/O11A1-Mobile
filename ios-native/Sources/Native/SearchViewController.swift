@@ -370,6 +370,7 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
   }
 
   private func performSearch(_ term: String) {
+    view.endEditing(true)
     self.term = term
     page = 1
     hasMore = true

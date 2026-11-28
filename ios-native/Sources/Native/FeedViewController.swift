@@ -201,7 +201,7 @@ final class FeedViewController: UIViewController,
       search.view.transform = .identity
       search.view.frame = view.bounds
       search.view.transform = CGAffineTransform(
-        translationX: width * (1 - progress), y: 0)
+        translationX: width * (1 - progress) * searchCloseDirection, y: 0)
     }
   }
 
