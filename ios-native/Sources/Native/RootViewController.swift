@@ -741,7 +741,8 @@ final class RootViewController: UIViewController, UIGestureRecognizerDelegate {
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     if gestureRecognizer === settingsPan {
       guard player == nil, presentedViewController == nil,
-            myController == nil, sidebar?.superview == nil,
+            myController == nil, upProfile == nil,
+            sidebar?.superview == nil,
             feed?.isSearchOpen() != true,
             feed?.isFeedScrolling() != true,
             let pan = gestureRecognizer as? UIPanGestureRecognizer else {
