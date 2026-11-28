@@ -46,6 +46,14 @@ final class O11A1CookieStore {
     lock.unlock()
   }
 
+  func remove(_ name: String) {
+    guard !name.isEmpty else { return }
+    lock.lock()
+    values.removeValue(forKey: name)
+    persistLocked()
+    lock.unlock()
+  }
+
   func absorb(_ response: HTTPURLResponse) {
     guard let url = response.url else { return }
     var setCookies: [String] = []
@@ -442,75 +450,282 @@ final class O11A1BiliClient {
     return cid
   }
 
+  private struct PlayAttempt {
+    let qn: Int
+    let signed: Bool
+    let platform: String
+    let tryLook: Bool
+  }
+
+  private struct PlayResolution {
+    let output: [String: Any]?
+    let code: Int
+    let message: String
+    let dashOnly: Bool
+  }
+
+  private func playLadder(_ requested: [Int]) -> [Int] {
+    var ladder: [Int] = []
+    func push(_ value: Int) {
+      let qn = value <= 0 ? 0 : min(value, 80)
+      guard qn > 0, !ladder.contains(qn) else { return }
+      ladder.append(qn)
+    }
+    for value in requested { push(value) }
+    for value in [80, 64, 32, 16] { push(value) }
+    return Array(ladder.prefix(4))
+  }
+
+  /// Ordered resolution plan. The signed HTML5 passes come first because that
+  /// endpoint returns one MP4 with audio and tolerates account/quality limits
+  /// better than the default web endpoint. The plan then requests a free
+  /// preview for paid/restricted videos, retries the default web endpoint,
+  /// and finally drops to the unsigned endpoint used by older builds.
+  private func playAttempts(_ requested: [Int]) -> [PlayAttempt] {
+    let ladder = playLadder(requested)
+    var attempts: [PlayAttempt] = []
+    for qn in ladder {
+      attempts.append(PlayAttempt(qn: qn, signed: true, platform: "html5", tryLook: false))
+    }
+    for qn in [64, 16] {
+      attempts.append(PlayAttempt(qn: qn, signed: true, platform: "html5", tryLook: true))
+    }
+    for qn in [80, 64, 32] {
+      attempts.append(PlayAttempt(qn: qn, signed: true, platform: "", tryLook: false))
+    }
+    for qn in [64, 32, 16] {
+      attempts.append(PlayAttempt(qn: qn, signed: false, platform: "html5", tryLook: false))
+    }
+    return attempts
+  }
+
+  private func playPayload(bvid: String, cid: Int64, attempt: PlayAttempt) -> [String: Any]? {
+    var params: [String: String] = [
+      "bvid": bvid,
+      "cid": "\(cid)",
+      "qn": "\(attempt.qn)",
+      "fnval": "1",
+      "fnver": "0",
+      "fourk": "0",
+      "otype": "json"
+    ]
+    if !attempt.platform.isEmpty {
+      params["platform"] = attempt.platform
+      params["high_quality"] = "1"
+    }
+    if attempt.tryLook { params["try_look"] = "1" }
+    if attempt.signed, let key = wbiKey(), !key.isEmpty {
+      return signedJSON(
+        path: "/x/player/wbi/playurl",
+        query: wbiSign(params, key: key),
+        referer: "https://www.bilibili.com/",
+        origin: "https://www.bilibili.com"
+      )
+    }
+    return json(base: Self.apiBase, path: "/x/player/playurl", query: params)
+  }
+
+  private func requestPlayPayload(
+    bvid: String,
+    cid: Int64,
+    attempt: PlayAttempt
+  ) -> [String: Any]? {
+    var payload = playPayload(bvid: bvid, cid: cid, attempt: attempt)
+    if payload == nil {
+      Thread.sleep(forTimeInterval: 0.25)
+      payload = playPayload(bvid: bvid, cid: cid, attempt: attempt)
+    }
+    let code = payload.map { o11a1Int($0["code"]) } ?? 0
+    if code == -352 || code == -412 {
+      O11A1Trace.mark("bili", "play risk code=\(code), refreshing buvid")
+      refreshBuvid()
+      Thread.sleep(forTimeInterval: 0.4)
+      payload = playPayload(bvid: bvid, cid: cid, attempt: attempt) ?? payload
+    }
+    return payload
+  }
+
+  private func refreshBuvid() {
+    cookies.remove("buvid3")
+    cookies.remove("buvid4")
+    ensureBuvid()
+  }
+
   func play(bvid: String, cid: Int64, qns: [Int]) -> Data {
-    guard !bvid.isEmpty else { return o11a1Error("bvid missing") }
+    guard !bvid.isEmpty else { return o11a1Error("缺少视频 BV 号") }
     ensureBuvid()
     var resolvedCid = cid
     if resolvedCid <= 0 { resolvedCid = firstCid(bvid) }
-    guard resolvedCid > 0 else { return o11a1Error("cid not found") }
-    print("[O11A1] play \(bvid) cid=\(resolvedCid)")
-    var selected: [String: Any]?
-    var seen = Set<Int>()
+    if resolvedCid <= 0 {
+      Thread.sleep(forTimeInterval: 0.3)
+      resolvedCid = firstCid(bvid)
+    }
+    guard resolvedCid > 0 else { return o11a1Error("找不到视频分P，请稍后重试") }
     O11A1Trace.mark("bili", "play begin bvid=\(bvid) cid=\(resolvedCid) qns=\(qns)")
-    for qn in qns {
-      if seen.contains(qn) { continue }
-      seen.insert(qn)
-      for platform in ["html5", ""] {
-        var query = [
-          "bvid": bvid,
-          "cid": "\(resolvedCid)",
-          "qn": "\(qn)",
-          "fnval": "1",
-          "fourk": "0"
-        ]
-        if !platform.isEmpty { query["platform"] = platform }
+
+    func resolve(cidValue: Int64) -> PlayResolution {
+      var lastCode = 0
+      var lastMessage = ""
+      var sawDashOnly = false
+      var signedBlocked = false
+      let plan = playAttempts(qns)
+      var index = 0
+      var budget = 12
+      while index < plan.count, budget > 0 {
+        let attempt = plan[index]
+        index += 1
+        if attempt.signed && signedBlocked { continue }
+        budget -= 1
         let attemptStarted = O11A1Trace.now
-        let payload = json(base: Self.apiBase, path: "/x/player/playurl", query: query)
-        let code = payload.map { o11a1Int($0["code"]) } ?? -1
-        let durlCount = (((payload?["data"] as? [String: Any])?["durl"])
-          as? [[String: Any]])?.count ?? 0
+        guard let payload = requestPlayPayload(
+          bvid: bvid, cid: cidValue, attempt: attempt
+        ) else {
+          lastCode = -1
+          lastMessage = "网络请求失败"
+          O11A1Trace.mark(
+            "bili",
+            "play try qn=\(attempt.qn) platform=\(attempt.platform.isEmpty ? "default" : attempt.platform) signed=\(attempt.signed) network \(O11A1Trace.since(attemptStarted))")
+          continue
+        }
+        let code = o11a1Int(payload["code"])
+        if code == 0, let data = payload["data"] as? [String: Any] {
+          let durl = data["durl"] as? [[String: Any]] ?? []
+          if !durl.isEmpty,
+             let output = makePlayOutput(data: data, durl: durl, cid: cidValue) {
+            O11A1Trace.mark(
+              "bili",
+              "play OK qn=\(attempt.qn) platform=\(attempt.platform.isEmpty ? "default" : attempt.platform) signed=\(attempt.signed) quality=\(o11a1Int(data["quality"])) \(O11A1Trace.since(attemptStarted))")
+            return PlayResolution(output: output, code: 0, message: "", dashOnly: false)
+          }
+          if data["dash"] is [String: Any] { sawDashOnly = true }
+          lastCode = 0
+          lastMessage = "该视频暂时没有可用的 MP4 播放源"
+          O11A1Trace.mark(
+            "bili",
+            "play no durl qn=\(attempt.qn) platform=\(attempt.platform.isEmpty ? "default" : attempt.platform) \(O11A1Trace.since(attemptStarted))")
+          continue
+        }
+        lastCode = code
+        lastMessage = o11a1String(payload["message"])
         O11A1Trace.mark(
           "bili",
-          "play try qn=\(qn) platform=\(platform.isEmpty ? "default" : platform) code=\(code) durl=\(durlCount) \(O11A1Trace.since(attemptStarted))")
-        guard let payload = payload,
-              o11a1Int(payload["code"]) == 0,
-              let data = payload["data"] as? [String: Any],
-              let durl = data["durl"] as? [[String: Any]],
-              !durl.isEmpty else { continue }
-        selected = data
-        break
+          "play try qn=\(attempt.qn) platform=\(attempt.platform.isEmpty ? "default" : attempt.platform) signed=\(attempt.signed) code=\(code) \(O11A1Trace.since(attemptStarted))")
+        // These codes mean the video itself is unavailable, so other quality
+        // or platform variants cannot help.
+        if code == -404 || code == -101 || code == -400 { break }
+        // A rejected WBI signature would fail every signed variant; jump to
+        // the unsigned endpoint instead of burning the whole budget.
+        if code == -403 { signedBlocked = true }
       }
-      if selected != nil { break }
+      return PlayResolution(
+        output: nil, code: lastCode, message: lastMessage, dashOnly: sawDashOnly)
     }
-    guard let data = selected,
-          let durl = data["durl"] as? [[String: Any]],
-          let first = durl.first,
+
+    var resolution = resolve(cidValue: resolvedCid)
+    if resolution.output == nil, resolution.code == -404, cid > 0 {
+      let canonical = firstCid(bvid)
+      if canonical > 0, canonical != resolvedCid {
+        O11A1Trace.mark("bili", "play retry canonical cid=\(canonical)")
+        resolvedCid = canonical
+        resolution = resolve(cidValue: canonical)
+      }
+    }
+    if let output = resolution.output {
+      return o11a1Data(output)
+    }
+    if resolution.code == -10403 {
+      return o11a1Error("该视频在当前地区不可播放")
+    }
+    if resolution.code == -404 {
+      return o11a1Error("视频不存在或已被删除")
+    }
+    if resolution.code == -101 || resolution.code == -400 {
+      return o11a1Error("登录已过期，请重新登录")
+    }
+    if resolution.code == 87008 || resolution.code == 87007 {
+      return o11a1Error("该视频需要大会员或付费观看")
+    }
+    if resolution.code == -352 || resolution.code == -412 || resolution.code == -1 {
+      return o11a1Error("播放请求被拦截，请稍后再试")
+    }
+    if resolution.dashOnly {
+      return o11a1Error("该视频只有 DASH 源，暂时无法播放")
+    }
+    if !resolution.message.isEmpty {
+      return o11a1Error("无法获取播放地址：\(resolution.message)")
+    }
+    return o11a1Error("无法获取播放地址，请稍后再试")
+  }
+
+  private func makePlayOutput(
+    data: [String: Any],
+    durl: [[String: Any]],
+    cid: Int64
+  ) -> [String: Any]? {
+    guard let first = durl.first,
           let remote = first["url"] as? String,
-          !remote.isEmpty else { return o11a1Error("playurl unavailable") }
-    var urls = [remote]
+          !remote.isEmpty else { return nil }
+    var rawURLs = [remote]
     if let backups = first["backup_url"] as? [String] {
-      for url in backups.prefix(2) where !url.isEmpty { urls.append(url) }
+      rawURLs.append(contentsOf: backups)
     }
+    if let backups = first["backupUrl"] as? [String] {
+      rawURLs.append(contentsOf: backups)
+    }
+    let ranked = rankMediaURLs(rawURLs)
+    guard let primary = ranked.first else { return nil }
     let quality = o11a1Int(data["quality"])
     var output: [String: Any] = [
       "ok": true,
-      "cid": resolvedCid,
-      "url": remote,
-      "remote": remote,
+      "cid": cid,
+      "url": primary,
+      "remote": primary,
       "quality": quality,
       "qualityLabel": o11a1QualityLabel(quality),
       "format": o11a1String(data["format"])
     ]
+    if ranked.count > 1 {
+      output["backup"] = ranked[1]
+      output["backupRemote"] = ranked[1]
+      output["backups"] = Array(ranked.dropFirst())
+    }
     if let accept = data["accept_quality"] as? [Any] {
       let labels = accept.map { o11a1QualityLabel(o11a1Int($0)) }.filter { !$0.isEmpty && $0 != "0P" }
       if !labels.isEmpty { output["available"] = labels }
     }
     if output["available"] == nil { output["available"] = [o11a1QualityLabel(quality)] }
-    if urls.count > 1 {
-      output["backup"] = urls[1]
-      output["backupRemote"] = urls[1]
+    return output
+  }
+
+  /// Prefer domestic bilivideo edges over Akamai/mcdn mirrors. The API does
+  /// not always put the fastest CDN first, and a dead first URL used to mean a
+  /// failed playback even when a perfectly good mirror was in `backup_url`.
+  private func rankMediaURLs(_ raw: [String]) -> [String] {
+    var seen = Set<String>()
+    var values: [String] = []
+    for item in raw {
+      let url = o11a1HTTPS(item.trimmingCharacters(in: .whitespacesAndNewlines))
+      guard !url.isEmpty, seen.insert(url).inserted else { continue }
+      values.append(url)
     }
-    return o11a1Data(output)
+    return values.enumerated().sorted { lhs, rhs in
+      let left = mediaHostScore(lhs.element)
+      let right = mediaHostScore(rhs.element)
+      if left != right { return left > right }
+      return lhs.offset < rhs.offset
+    }.map { $0.element }
+  }
+
+  private func mediaHostScore(_ raw: String) -> Int {
+    guard let host = URL(string: raw)?.host?.lowercased() else { return 0 }
+    var score = 0
+    if host.contains("bilivideo.com") { score += 40 }
+    if host.contains("hdslb.com") { score += 20 }
+    if host.contains("akamaized.net") { score -= 30 }
+    if host.contains("mcdn.bilivideo.cn") { score -= 35 }
+    if host.hasPrefix("upos-sz-mirror") { score += 8 }
+    if raw.hasPrefix("https://") { score += 4 }
+    return score
   }
 
   func playLow(bvid: String, cid: Int64) -> Data {
@@ -1273,47 +1488,52 @@ final class O11A1BiliClient {
 
   func playPgc(epId: Int64, bvid: String, cid: Int64, qn: Int) -> Data {
     let target = qn <= 0 ? 80 : min(qn, 80)
-    if !bvid.isEmpty && cid > 0 {
-      let normal = play(bvid: bvid, cid: cid, qns: [target, 80, 74, 64, 32, 16])
-      if let object = (try? JSONSerialization.jsonObject(with: normal)) as? [String: Any],
-         o11a1Bool(object["ok"]) {
-        return normal
+    ensureBuvid()
+    var plan: [(qn: Int, extra: [String: String])] = []
+    for value in [target, 64, 32, 16] {
+      plan.append((value, ["fnval": "1", "fnver": "0", "fourk": "0"]))
+    }
+    plan.append((64, ["fnval": "1", "platform": "html5", "high_quality": "1"]))
+    plan.append((16, ["fnval": "1", "try_look": "1"]))
+    plan.append((16, ["fnval": "1", "platform": "html5", "try_look": "1"]))
+    var lastCode = 0
+    var lastMessage = ""
+    var sawDashOnly = false
+    for attempt in plan {
+      var query = ["ep_id": "\(epId)", "qn": "\(attempt.qn)"]
+      query.merge(attempt.extra) { _, new in new }
+      guard let payload = json(
+        base: Self.apiBase,
+        path: "/pgc/player/web/playurl",
+        query: query
+      ) else { continue }
+      let code = o11a1Int(payload["code"])
+      let result = (payload["result"] as? [String: Any])
+        ?? (payload["data"] as? [String: Any])
+      if code == 0, let result = result,
+         let durl = result["durl"] as? [[String: Any]], !durl.isEmpty,
+         var output = makePlayOutput(data: result, durl: durl, cid: cid) {
+        output["pgc"] = true
+        return o11a1Data(output)
       }
+      if let result = result, result["dash"] is [String: Any] { sawDashOnly = true }
+      lastCode = code
+      lastMessage = o11a1String(payload["message"])
+      if code == -404 || code == -101 || code == -400 { break }
     }
-    guard let payload = json(base: Self.apiBase, path: "/pgc/player/web/playurl", query: [
-      "ep_id": "\(epId)", "qn": "\(target)", "fnval": "1", "fourk": "0"
-    ]) else { return o11a1Error("番剧播放不可用") }
-    let code = o11a1Int(payload["code"])
-    guard code == 0, let result = payload["result"] as? [String: Any],
-          let durl = result["durl"] as? [[String: Any]], let first = durl.first,
-          let remote = first["url"] as? String, !remote.isEmpty else {
-      return apiFailure(code == 0 ? -1 : code, o11a1String(payload["message"]))
+    if lastCode == -10403 {
+      return o11a1Error("该番剧在当前地区不可播放")
     }
-    let quality = o11a1Int(result["quality"])
-    var mediaUrls = [remote]
-    if let backups = first["backup_url"] as? [String], let backup = backups.first, !backup.isEmpty {
-      mediaUrls.append(backup)
+    if lastCode == 87008 || lastCode == 87007 {
+      return o11a1Error("该番剧需要大会员或付费观看")
     }
-    var output: [String: Any] = [
-      "ok": true,
-      "cid": cid,
-      "url": remote,
-      "remote": remote,
-      "quality": quality,
-      "qualityLabel": o11a1QualityLabel(quality),
-      "format": o11a1String(result["format"]),
-      "pgc": true
-    ]
-    if let accept = result["accept_quality"] as? [Any] {
-      let labels = accept.map { o11a1QualityLabel(o11a1Int($0)) }.filter { !$0.isEmpty }
-      if !labels.isEmpty { output["available"] = labels }
+    if sawDashOnly {
+      return o11a1Error("该番剧只有 DASH 源，暂时无法播放")
     }
-    if output["available"] == nil { output["available"] = [o11a1QualityLabel(quality)] }
-    if let backups = first["backup_url"] as? [String], let backup = backups.first, !backup.isEmpty {
-      output["backup"] = backup
-      output["backupRemote"] = backup
+    if !lastMessage.isEmpty {
+      return o11a1Error("番剧播放地址获取失败：\(lastMessage)")
     }
-    return o11a1Data(output)
+    return o11a1Error("番剧播放地址获取失败，请稍后再试")
   }
 
   func live(page: Int) -> Data {
@@ -1775,13 +1995,18 @@ final class O11A1BiliClient {
     return digest.map { String(format: "%02x", $0) }.joined()
   }
 
-  private func signedJSON(path: String, query: String, referer: String) -> [String: Any]? {
+  private func signedJSON(
+    path: String,
+    query: String,
+    referer: String,
+    origin: String = "https://space.bilibili.com"
+  ) -> [String: Any]? {
     guard let url = URL(string: Self.apiBase + path + "?" + query) else { return nil }
     var request = URLRequest(url: url)
     request.httpMethod = "GET"
     request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
     request.setValue(referer, forHTTPHeaderField: "Referer")
-    request.setValue("https://space.bilibili.com", forHTTPHeaderField: "Origin")
+    request.setValue(origin, forHTTPHeaderField: "Origin")
     request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
     request.setValue("zh-CN,zh;q=0.9,en;q=0.8", forHTTPHeaderField: "Accept-Language")
     let header = cookies.header()

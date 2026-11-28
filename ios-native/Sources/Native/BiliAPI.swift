@@ -12,6 +12,11 @@ final class BiliAPI {
   private let feedCache = O11A1TTLCache<String, FeedResult>(ttl: 180, limit: 16)
   private let prefetchLock = NSLock()
   private var prefetching = Set<String>()
+  private var prefetchQueued = 0
+  private let prefetchQueue = DispatchQueue(
+    label: "o11a1.play.prefetch", qos: .utility)
+  private let flightLock = NSLock()
+  private var inFlight: [String: [(Result<PlaySource, Error>) -> Void]] = [:]
 
   var isLoggedIn: Bool { client.hasSession() }
   var mediaHeaders: [String: String] { client.mediaHeaders() }
@@ -168,6 +173,17 @@ final class BiliAPI {
       DispatchQueue.main.async { completion(.success(cached)) }
       return
     }
+    // Coalesce identical resolutions. A tap while the feed is prefetching the
+    // same card used to fire two playurl requests, doubling the chance of a
+    // risk-control rejection. Now every caller waits on one request.
+    flightLock.lock()
+    if inFlight[key] != nil {
+      inFlight[key]?.append(completion)
+      flightLock.unlock()
+      return
+    }
+    inFlight[key] = [completion]
+    flightLock.unlock()
     let started = O11A1Trace.now
     O11A1Trace.mark("api", "playQuality START \(key)")
     run({ self.client.playQuality(bvid: item.bvid, cid: item.cid, qn: qn) }) { result in
@@ -177,29 +193,51 @@ final class BiliAPI {
       case .success(let json):
         O11A1Trace.mark("api", "playQuality OK \(key) \(O11A1Trace.since(started)) quality=\(o11a1String(json["qualityLabel"]))")
       }
-      self.finishPlay(result, cacheKey: key, completion)
+      self.finishPlay(result, cacheKey: key) { [weak self] finalResult in
+        guard let self = self else {
+          completion(finalResult)
+          return
+        }
+        self.flightLock.lock()
+        let waiters = self.inFlight.removeValue(forKey: key) ?? []
+        self.flightLock.unlock()
+        for waiter in waiters {
+          waiter(finalResult)
+        }
+      }
     }
   }
 
   /// Warm a signed play URL in the background. The feed calls this for the
   /// rows just below the viewport, so both the next preview and the player's
   /// full-quality request can skip the playurl round-trip.
+  ///
+  /// Requests are queued on a serial lane and spaced out: a grid viewport used
+  /// to fire a dozen playurl calls at once, which tripped Bilibili's rate
+  /// limiting and made a later tap fail with "cannot get playback URL".
   func prefetchPlayQuality(_ item: VideoItem, qn: Int) {
-    guard !item.bvid.isEmpty else { return }
+    guard !item.bvid.isEmpty, item.roomId == 0 else { return }
     let key = playKey(item, qn: qn)
     if playCache.get(key) != nil { return }
     prefetchLock.lock()
-    if prefetching.contains(key) {
+    if prefetching.contains(key) || prefetchQueued >= 6 {
       prefetchLock.unlock()
       return
     }
     prefetching.insert(key)
+    prefetchQueued += 1
     prefetchLock.unlock()
-    playQuality(item, qn: qn) { [weak self] _ in
+    prefetchQueue.asyncAfter(deadline: .now() + 0.06) { [weak self] in
       guard let self = self else { return }
-      self.prefetchLock.lock()
-      self.prefetching.remove(key)
-      self.prefetchLock.unlock()
+      // Pace the lane so scrolling does not look like an API flood.
+      Thread.sleep(forTimeInterval: 0.5)
+      self.playQuality(item, qn: qn) { [weak self] _ in
+        guard let self = self else { return }
+        self.prefetchLock.lock()
+        self.prefetching.remove(key)
+        self.prefetchQueued = max(0, self.prefetchQueued - 1)
+        self.prefetchLock.unlock()
+      }
     }
   }
 
@@ -215,6 +253,7 @@ final class BiliAPI {
       var source = PlaySource()
       source.url = o11a1String(json["url"]).isEmpty ? o11a1String(json["remote"]) : o11a1String(json["url"])
       source.backup = o11a1String(json["backup"]).isEmpty ? o11a1String(json["backupRemote"]) : o11a1String(json["backup"])
+      source.backups = (json["backups"] as? [String]) ?? []
       source.quality = o11a1Int(json["quality"])
       source.qualityLabel = o11a1String(json["qualityLabel"])
       source.cid = o11a1Int64(json["cid"])
@@ -230,23 +269,68 @@ final class BiliAPI {
     }
   }
 
-  /// Bilibili's html5 playurl response often lists an Akamai edge first and a
-  /// domestic bilivideo mirror as the backup. Akamai is frequently much slower
-  /// from mainland networks, so use the domestic URL as the primary instead of
-  /// waiting for a timeout/failover.
+  /// Bilibili returns several CDN mirrors for the same media. The first one
+  /// is not always reachable or fast, so rank every candidate and keep the
+  /// rest as a retry chain. Akamai/mcdn edges are de-ranked for mainland
+  /// networks; a dead primary URL then no longer fails the whole playback.
   private func preferFastMirror(_ source: inout PlaySource) {
-    let primary = URL(string: source.url)?.host?.lowercased() ?? ""
-    let backup = URL(string: source.backup)?.host?.lowercased() ?? ""
-    guard !primary.isEmpty else { return }
-    if primary.contains("akamaized.net") {
-      O11A1Trace.mark("mirror", "primary=\(primary) backup=\(backup)")
+    var candidates: [String] = []
+    func add(_ raw: String) {
+      let value = o11a1HTTPS(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+      guard !value.isEmpty, !candidates.contains(value) else { return }
+      candidates.append(value)
     }
-    guard primary.contains("akamaized.net"), !backup.isEmpty,
-          backup.contains("bilivideo.com") || backup.contains("hdslb.com") else {
+    add(source.url)
+    add(source.backup)
+    source.backups.forEach(add)
+    guard let first = candidates.first else { return }
+    if candidates.count == 1 {
+      source.url = first
       return
     }
-    swap(&source.url, &source.backup)
-    O11A1Trace.mark("mirror", "swapped to \(backup)")
+    let ranked = candidates.enumerated().sorted { lhs, rhs in
+      let left = mirrorScore(lhs.element)
+      let right = mirrorScore(rhs.element)
+      if left != right { return left > right }
+      return lhs.offset < rhs.offset
+    }.map { $0.element }
+    let previousHost = URL(string: source.url)?.host?.lowercased() ?? ""
+    source.url = ranked[0]
+    source.backups = Array(ranked.dropFirst())
+    source.backup = source.backups.first ?? ""
+    let host = URL(string: ranked[0])?.host?.lowercased() ?? ""
+    if previousHost != host || source.backups.count > 1 {
+      O11A1Trace.mark(
+        "mirror",
+        "primary=\(host) fallbacks=\(source.backups.count) from=\(previousHost)")
+    }
+  }
+
+  private func mirrorScore(_ raw: String) -> Int {
+    guard let host = URL(string: raw)?.host?.lowercased() else { return 0 }
+    var score = 0
+    if host.contains("bilivideo.com") { score += 40 }
+    if host.contains("hdslb.com") { score += 20 }
+    if host.contains("akamaized.net") { score -= 30 }
+    if host.contains("mcdn.bilivideo.cn") { score -= 35 }
+    if host.hasPrefix("upos-sz-mirror") { score += 8 }
+    if raw.hasPrefix("https://") { score += 4 }
+    return score
+  }
+
+  /// Drop a possibly expired/blocked URL and resolve a fresh one. Used when
+  /// AVPlayer fails on every mirror, so a cached 403 URL cannot wedge the
+  /// player into a permanent "cannot play" state.
+  func refreshPlay(
+    _ item: VideoItem,
+    qn: Int,
+    completion: @escaping (Result<PlaySource, Error>) -> Void
+  ) {
+    playCache.remove(playKey(item, qn: qn))
+    for quality in [80, 74, 64, 32, 16] {
+      playCache.remove(playKey(item, qn: quality))
+    }
+    playQuality(item, qn: qn, completion: completion)
   }
 
   func qrGenerate(completion: @escaping (Result<(String, String), Error>) -> Void) {

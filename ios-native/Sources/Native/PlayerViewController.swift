@@ -78,6 +78,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var userPaused = false
   private var lastAppliedPlaying = false
   private var loadToken = 0
+  private var resolutionRetryUsed = false
+  private var mediaRefreshCount = 0
   private var started = false
   private var speedIndex = 0
   private var closeSwipe = false
@@ -624,8 +626,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       guard let self = self else { return }
       self.loadingView.hide()
       self.handoffLowReady = true
+      if self.refreshMediaSource(resumeAt: self.engine.currentTime) { return }
       self.errorLabel.text = message
       self.errorLabel.isHidden = false
+      self.installErrorRetryIfNeeded()
       if let source = self.pendingUpgradeSource {
         self.pendingUpgradeSource = nil
         self.prepareQualityUpgrade(source)
@@ -701,6 +705,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       engine.load(
         url: handoff.url,
         backup: handoff.backup,
+        backups: handoff.backups,
         headers: BiliAPI.shared.mediaHeaders,
         autoplay: false,
         muted: false,
@@ -1661,9 +1666,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
         } else {
           let startAt = self.resumePosition()
           O11A1Trace.mark("player", "startAt \(String(format: "%.1f", startAt))")
+          self.resolutionRetryUsed = false
           self.engine.load(
             url: source.url,
             backup: source.backup,
+            backups: source.backups,
             headers: BiliAPI.shared.mediaHeaders,
             autoplay: !self.userPaused,
             muted: false,
@@ -1672,10 +1679,10 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
           )
           if self.userPaused { self.engine.pause() }
         }
-      case .failure:
+      case .failure(let error):
         O11A1Trace.mark(
           "player",
-          "source FAIL qn=\(qn) upgrade=\(upgrade) \(O11A1Trace.since(requestStarted))")
+          "source FAIL qn=\(qn) upgrade=\(upgrade) \(O11A1Trace.since(requestStarted)) \(error.localizedDescription)")
         if upgrade {
           if qn > 64 {
             self.loadQuality(64, upgrade: true)
@@ -1684,14 +1691,22 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
           }
           return
         }
-        if qn > 64 {
-          self.loadQuality(64)
-        } else if qn > 32 {
-          self.loadQuality(32)
+        if !self.resolutionRetryUsed {
+          // The resolver already walked its quality and platform ladder. Wait
+          // briefly and retry once; this recovers from short risk-control or
+          // network hiccups without asking the viewer to tap again.
+          self.resolutionRetryUsed = true
+          self.errorLabel.isHidden = true
+          self.loadingView.show("正在重试…")
+          DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            guard let self = self, !self.closing, token == self.loadToken else { return }
+            self.loadQuality(16)
+          }
         } else {
           self.loadingView.hide()
-          self.errorLabel.text = "无法获取播放地址"
+          self.errorLabel.text = error.localizedDescription
           self.errorLabel.isHidden = false
+          self.installErrorRetryIfNeeded()
         }
       }
     }
@@ -1700,6 +1715,61 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     } else {
       BiliAPI.shared.playQuality(item, qn: qn, completion: completion)
     }
+  }
+
+  private func installErrorRetryIfNeeded() {
+    guard errorLabel.gestureRecognizers?.isEmpty ?? true else { return }
+    errorLabel.isUserInteractionEnabled = true
+    errorLabel.addGestureRecognizer(
+      UITapGestureRecognizer(target: self, action: #selector(retryPlayback)))
+  }
+
+  @objc private func retryPlayback() {
+    guard item.roomId == 0, !closing else { return }
+    errorLabel.isHidden = true
+    resolutionRetryUsed = false
+    mediaRefreshCount = 0
+    loadQuality(min(currentQuality, 64))
+  }
+
+  /// Called when every media URL handed to AVPlayer failed. Bust the cached
+  /// signed URL, resolve a fresh one (with new mirrors), and resume at the
+  /// same position. Returns false when a retry is not possible so the caller
+  /// can show the original error.
+  private func refreshMediaSource(resumeAt: Double) -> Bool {
+    guard mediaRefreshCount < 2, item.roomId == 0, !item.bvid.isEmpty else {
+      return false
+    }
+    mediaRefreshCount += 1
+    O11A1Trace.mark("player", "media retry \(mediaRefreshCount) resolve qn=\(currentQuality)")
+    BiliAPI.shared.refreshPlay(item, qn: currentQuality) { [weak self] result in
+      guard let self = self, !self.closing else { return }
+      switch result {
+      case .success(let source):
+        let at = resumeAt > 1 ? resumeAt : self.resumePosition()
+        O11A1Trace.mark(
+          "player",
+          "media retry got host=\(URL(string: source.url)?.host ?? "?") at=\(String(format: "%.1f", at))")
+        self.errorLabel.isHidden = true
+        self.engine.load(
+          url: source.url,
+          backup: source.backup,
+          backups: source.backups,
+          headers: BiliAPI.shared.mediaHeaders,
+          autoplay: !self.userPaused,
+          muted: false,
+          loop: self.loopMode == .single,
+          startAt: at
+        )
+        if self.userPaused { self.engine.pause() }
+      case .failure(let error):
+        self.loadingView.hide()
+        self.errorLabel.text = error.localizedDescription
+        self.errorLabel.isHidden = false
+        self.installErrorRetryIfNeeded()
+      }
+    }
+    return true
   }
 
   private func prepareQualityUpgrade(_ source: PlaySource) {
@@ -1714,6 +1784,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     upgrade.load(
       url: source.url,
       backup: source.backup,
+      backups: source.backups,
       headers: BiliAPI.shared.mediaHeaders,
       autoplay: false,
       muted: true,

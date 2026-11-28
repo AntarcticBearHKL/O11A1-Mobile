@@ -709,6 +709,7 @@ final class FeedViewController: UIViewController,
     return PreviewHandoff(
       url: source.url,
       backup: source.backup,
+      backups: source.backups,
       seconds: previewEngine.currentTime,
       duration: previewEngine.duration,
       quality: source.quality,
@@ -876,7 +877,7 @@ final class FeedViewController: UIViewController,
     previewIndex = bestRow
     previewCell = cell
     previewSuspended = false
-    prewarmPreviewURLs(from: bestRow + 1, count: 3)
+    prewarmPreviewURLs(from: bestRow + 1, count: 1)
     if previewEngine.player.currentItem != nil, previewView.superview === cell.mediaHost {
       cell.hidePreviewLoading()
       previewView.alpha = 1
@@ -926,6 +927,7 @@ final class FeedViewController: UIViewController,
       self.previewEngine.load(
         url: source.url,
         backup: source.backup,
+        backups: source.backups,
         headers: BiliAPI.shared.mediaHeaders,
         autoplay: true,
         muted: false,
@@ -1002,7 +1004,7 @@ final class FeedViewController: UIViewController,
       }
     }
     let qn = ThemeManager.shared.quality
-    for index in indices.sorted() where index < items.count {
+    for index in indices.sorted().prefix(4) where index < items.count {
       let item = items[index]
       guard item.roomId == 0, !item.bvid.isEmpty else { continue }
       BiliAPI.shared.prefetchPlayQuality(item, qn: qn)

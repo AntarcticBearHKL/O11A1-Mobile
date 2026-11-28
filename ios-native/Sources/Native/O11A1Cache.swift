@@ -39,6 +39,12 @@ final class O11A1TTLCache<Key: Hashable, Value> {
     entries[key] = Entry(value: value, at: Date())
   }
 
+  func remove(_ key: Key) {
+    lock.lock()
+    entries.removeValue(forKey: key)
+    lock.unlock()
+  }
+
   func removeAll() {
     lock.lock()
     entries.removeAll()

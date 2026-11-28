@@ -115,6 +115,7 @@ struct DynamicItem {
 struct PlaySource {
   var url = ""
   var backup = ""
+  var backups: [String] = []
   var quality = 0
   var qualityLabel = ""
   var cid: Int64 = 0
@@ -133,6 +134,7 @@ struct VideoPage: Equatable {
 struct PreviewHandoff {
   var url = ""
   var backup = ""
+  var backups: [String] = []
   var seconds: Double = 0
   var duration: Double = 0
   var quality = 0

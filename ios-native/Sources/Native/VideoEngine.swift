@@ -41,6 +41,7 @@ final class VideoEngine: NSObject {
   private var bufferObservation: NSKeyValueObservation?
   private var keepUpObservation: NSKeyValueObservation?
   private var rateObservation: NSKeyValueObservation?
+  private var loadWatchdog: DispatchWorkItem?
   private var lastBufferEmpty: Bool?
   private var lastKeepUp: Bool?
   private var endObserver: NSObjectProtocol?
@@ -48,9 +49,7 @@ final class VideoEngine: NSObject {
   private var pipController: AVPictureInPictureController?
   private var pipDelegate: PictureInPictureDelegate?
   private var restoringProgrammatically = false
-  private var loadedURL = ""
-  private var backupURL = ""
-  private var didRetryBackup = false
+  private var backupURLs: [String] = []
   private var loop = false
   private var shouldAutoplay = false
   private var userPaused = false
@@ -95,6 +94,7 @@ final class VideoEngine: NSObject {
     keepUpObservation?.invalidate()
     rateObservation?.invalidate()
     speedTimer?.invalidate()
+    loadWatchdog?.cancel()
   }
 
   var isPlaying: Bool {
@@ -124,6 +124,7 @@ final class VideoEngine: NSObject {
   func load(
     url: String,
     backup: String = "",
+    backups: [String] = [],
     headers: [String: String],
     autoplay: Bool,
     muted: Bool,
@@ -135,9 +136,12 @@ final class VideoEngine: NSObject {
     self.shouldAutoplay = autoplay
     self.userPaused = false
     self.startAt = max(0, startAt)
-    self.loadedURL = url
-    self.backupURL = backup
-    self.didRetryBackup = false
+    var chain: [String] = []
+    for value in ([backup] + backups) where !value.isEmpty && value != url
+      && !chain.contains(value) {
+      chain.append(value)
+    }
+    self.backupURLs = chain
     player.isMuted = muted
     install(url: url)
   }
@@ -150,6 +154,8 @@ final class VideoEngine: NSObject {
     statusObservation?.invalidate()
     bufferObservation?.invalidate()
     keepUpObservation?.invalidate()
+    loadWatchdog?.cancel()
+    loadWatchdog = nil
     if let observer = endObserver {
       NotificationCenter.default.removeObserver(observer)
       endObserver = nil
@@ -168,12 +174,27 @@ final class VideoEngine: NSObject {
     ])
     let item = AVPlayerItem(asset: asset)
     item.preferredForwardBufferDuration = 2
+    let watchdog = DispatchWorkItem { [weak self] in
+      guard let self = self, self.player.currentItem === item,
+            item.status != .readyToPlay else { return }
+      O11A1Trace.mark("media", "\(self.traceName) load watchdog timeout")
+      if !self.backupURLs.isEmpty {
+        let next = self.backupURLs.removeFirst()
+        self.install(url: next)
+      } else {
+        self.onError?("连接超时，请重试")
+      }
+    }
+    loadWatchdog = watchdog
+    DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: watchdog)
     statusObservation = item.observe(\.status, options: [.new, .initial]) { [weak self] observed, _ in
       guard let self = self else { return }
       if observed.status == .readyToPlay {
         O11A1Trace.mark(
           "media",
           "\(self.traceName) ready duration=\(String(format: "%.1f", observed.duration.seconds)) \(O11A1Trace.since(self.installStartedAt))")
+        self.loadWatchdog?.cancel()
+        self.loadWatchdog = nil
         if let event = observed.accessLog()?.events.last {
           O11A1Trace.mark(
             "media",
@@ -213,11 +234,14 @@ final class VideoEngine: NSObject {
         O11A1Trace.mark(
           "media",
           "\(self.traceName) failed \(O11A1Trace.since(self.installStartedAt)) \(observed.error?.localizedDescription ?? "?")")
+        self.loadWatchdog?.cancel()
+        self.loadWatchdog = nil
         DispatchQueue.main.async {
           self.publish(.idle)
-          if !self.didRetryBackup, !self.backupURL.isEmpty, self.backupURL != self.loadedURL {
-            self.didRetryBackup = true
-            self.install(url: self.backupURL)
+          if !self.backupURLs.isEmpty {
+            let next = self.backupURLs.removeFirst()
+            O11A1Trace.mark("media", "\(self.traceName) retry backup host=\(URL(string: next)?.host ?? "?")")
+            self.install(url: next)
           } else {
             self.onError?(observed.error?.localizedDescription ?? "播放失败")
           }
