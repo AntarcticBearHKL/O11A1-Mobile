@@ -279,9 +279,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
     playButton.backgroundColor = .clear
     playButton.adjustsImageWhenHighlighted = false
-    playButton.addTarget(self, action: #selector(togglePlay), for: .touchUpInside)
+    playButton.isUserInteractionEnabled = false
     playGlyph.isUserInteractionEnabled = false
-    playGlyph.setSymbol("play.fill", pointSize: 52)
+    playGlyph.setSymbol("play.fill", pointSize: 38)
     playButton.addSubview(playGlyph)
     playGlyph.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
@@ -467,8 +467,8 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       danmakuSend.widthAnchor.constraint(equalToConstant: 34),
       danmakuSend.heightAnchor.constraint(equalToConstant: 30),
 
-      playButton.widthAnchor.constraint(equalToConstant: 84),
-      playButton.heightAnchor.constraint(equalToConstant: 84),
+      playButton.widthAnchor.constraint(equalToConstant: 68),
+      playButton.heightAnchor.constraint(equalToConstant: 68),
       playButton.centerXAnchor.constraint(equalTo: videoContainer.centerXAnchor),
       playButton.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor),
 
@@ -837,7 +837,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     let becamePaused = lastAppliedPlaying && !playing
     lastAppliedPlaying = playing
     let paused = userPaused || !playing
-    playGlyph.setSymbol(paused ? "play.fill" : "pause.fill", pointSize: 52)
+    playGlyph.setSymbol(paused ? "play.fill" : "pause.fill", pointSize: 38)
     pausedVeil.isHidden = true
     videoContainer.backgroundColor = .clear
     if playing {
@@ -1890,19 +1890,6 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       BiliAPI.shared.sendDanmaku(cid: self.item.cid, message: text, progressMs: progress)
     })
     present(alert, animated: true)
-  }
-
-  @objc private func togglePlay() {
-    if userPaused || !engine.isPlaying {
-      userPaused = false
-      engine.play()
-      applyPlaying(true)
-    } else {
-      userPaused = true
-      engine.pause()
-      applyPlaying(false)
-    }
-    videoContainer.backgroundColor = .clear
   }
 
   @objc private func handleSingleTap() {

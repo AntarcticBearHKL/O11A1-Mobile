@@ -813,14 +813,18 @@ private final class PanelCommentCell: UITableViewCell {
       button.setTitle(loading ? "加载中…" : "加载更多回复", for: .normal)
       button.setTitleColor(NativeTheme.navBlue, for: .normal)
       button.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .medium)
-      button.backgroundColor = NativeTheme.foreground.withAlphaComponent(0.045)
-      button.layer.cornerRadius = NativeTheme.cornerRadius
+      button.backgroundColor = UIColor { trait in
+        trait.userInterfaceStyle == .dark
+          ? UIColor(white: 0.03, alpha: 1)
+          : UIColor(white: 0.97, alpha: 1)
+      }
+      button.layer.cornerRadius = 3.5
       button.layer.cornerCurve = .continuous
       button.clipsToBounds = true
       button.isEnabled = !loading
       button.addTarget(self, action: #selector(loadMoreRepliesTapped),
                        for: .touchUpInside)
-      button.heightAnchor.constraint(equalToConstant: 38).isActive = true
+      button.heightAnchor.constraint(equalToConstant: 48).isActive = true
       repliesStack.addArrangedSubview(button)
     }
   }
