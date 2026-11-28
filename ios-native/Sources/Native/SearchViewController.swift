@@ -496,9 +496,10 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
     guard gesture.state == .ended || gesture.state == .cancelled else { return }
     let translation = gesture.translation(in: view).x
     let velocity = gesture.velocity(in: view).x
-    let horizontal = abs(translation) > abs(gesture.translation(in: view).y) * 1.2
-      || abs(velocity) > abs(gesture.velocity(in: view).y) * 1.2
-    guard horizontal, abs(translation) > 40 || abs(velocity) > 300 else { return }
+    let horizontal = abs(translation) > abs(gesture.translation(in: view).y) * 1.4
+      || abs(velocity) > abs(gesture.velocity(in: view).y) * 1.5
+    guard horizontal,
+          abs(translation) > 48 || abs(velocity) > 380 else { return }
     let all = SearchType.allCases
     guard let index = all.firstIndex(of: searchType) else { return }
     let next = translation < 0 ? index + 1 : index - 1
@@ -527,7 +528,8 @@ final class SearchViewController: UIViewController, UITextFieldDelegate,
       let velocity = dismissDirection > 0
         ? gesture.velocity(in: view).x
         : -gesture.velocity(in: view).x
-      let shouldClose = distance > width * 0.24 || velocity > 350
+      let threshold = dismissDirection > 0 ? width * 0.24 : width * 0.12
+      let shouldClose = distance > threshold || velocity > 350
       if shouldClose { view.endEditing(true) }
       onCloseSettled?(shouldClose, 1)
     default:
