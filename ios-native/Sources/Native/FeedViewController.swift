@@ -1300,7 +1300,9 @@ final class FeedViewController: UIViewController,
 
   func openSearchResultsForTest(term: String) {
     openSearch(animated: false)
-    searchController?.testSearch(term)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+      self?.searchController?.testSearch(term)
+    }
   }
 
   func isSearchOpen() -> Bool {
