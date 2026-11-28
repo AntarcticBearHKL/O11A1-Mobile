@@ -133,8 +133,7 @@ final class BiliAPI {
       O11A1Trace.mark("api", "playQuality HIT \(key) quality=\(cached.qualityLabel)")
       DispatchQueue.main.async { completion(.success(cached)) }
       return
-    }
-    let started = O11A1Trace.now
+    }    let started = O11A1Trace.now
     O11A1Trace.mark("api", "playQuality START \(key)")
     run({ self.client.playQuality(bvid: item.bvid, cid: item.cid, qn: qn) }) { result in
       switch result {
@@ -145,6 +144,11 @@ final class BiliAPI {
       }
       self.finishPlay(result, cacheKey: key, completion)
     }
+  }
+
+  func cachedPlayQuality(_ item: VideoItem, qn: Int) -> PlaySource? {
+    guard !item.bvid.isEmpty else { return nil }
+    return playCache.get(playKey(item, qn: qn))
   }
 
   /// Warm a signed play URL in the background. The feed calls this for the

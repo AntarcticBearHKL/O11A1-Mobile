@@ -103,6 +103,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
   private var handoffLowReady = true
   private var pendingHandoffStart: Double?
   private var upgradeGeneration = 0
+  private var fastStartAttempt = 0
   private var portraitUpDrag = false
   private var portraitRestoreDrag = false
   private var portraitDownClose = false
@@ -1351,7 +1352,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       guard let self = self else { return }
       self.currentQuality = qn
       ThemeManager.shared.quality = qn
-      self.loadQuality(qn)
+      self.loadQuality(qn, fastStart: false)
     }
     content.onDanmaku = { [weak self] on in
       self?.danmakuOverlay.setEnabled(on)
@@ -1585,9 +1586,11 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
   }
 
-  private func loadQuality(_ qn: Int, upgrade: Bool = false) {
+  private func loadQuality(_ qn: Int, upgrade: Bool = false,
+                           fastStart: Bool = true) {
     currentQuality = qn
     loadToken += 1
+    fastStartAttempt += 1
     let token = loadToken
     let requestStarted = O11A1Trace.now
     O11A1Trace.mark(
@@ -1664,16 +1667,16 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
           "source FAIL qn=\(qn) upgrade=\(upgrade) \(O11A1Trace.since(requestStarted))")
         if upgrade {
           if qn > 64 {
-            self.loadQuality(64, upgrade: true)
+            self.loadQuality(64, upgrade: true, fastStart: false)
           } else if qn > 32 {
-            self.loadQuality(32, upgrade: true)
+            self.loadQuality(32, upgrade: true, fastStart: false)
           }
           return
         }
         if qn > 64 {
-          self.loadQuality(64)
+          self.loadQuality(64, fastStart: false)
         } else if qn > 32 {
-          self.loadQuality(32)
+          self.loadQuality(32, fastStart: false)
         } else {
           self.loadingView.hide()
           self.errorLabel.text = "无法获取播放地址"
@@ -1683,8 +1686,113 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     if item.epId > 0 {
       BiliAPI.shared.playPgc(epId: item.epId, bvid: item.bvid, cid: item.cid, qn: qn, completion: completion)
+    } else if !upgrade, fastStart,
+              BiliAPI.shared.cachedPlayQuality(item, qn: qn) == nil {
+      startFastPlay(qn: qn, token: token, attempt: fastStartAttempt,
+                    requestStarted: requestStarted)
     } else {
       BiliAPI.shared.playQuality(item, qn: qn, completion: completion)
+    }
+  }
+
+  /// Cold starts begin on a small progressive stream while the requested
+  /// quality is still being resolved and buffered. The main engine shows a
+  /// picture in roughly half the time; the existing upgrade engine then swaps
+  /// to the requested quality at the current playhead without interrupting.
+  private func startFastPlay(qn: Int, token: Int, attempt: Int,
+                             requestStarted: TimeInterval) {
+    var target: PlaySource?
+    var low: PlaySource?
+    var lowFinished = false
+    var targetFinished = false
+    var started = false
+
+    func begin(_ source: PlaySource, lowQuality: Bool) {
+      guard !started, attempt == fastStartAttempt,
+            token == loadToken, !closing else { return }
+      started = true
+      if lowQuality {
+        handoffLowReady = false
+      } else {
+        handoffLowReady = true
+      }
+      qualityLabel.text = source.qualityLabel.isEmpty
+        ? "\(qn)P" : source.qualityLabel
+      O11A1Trace.mark(
+        "player",
+        "fastStart play label=\(source.qualityLabel) low=\(lowQuality) \(O11A1Trace.since(requestStarted))")
+      O11A1MediaProbe.probe(
+        urlString: source.url, headers: BiliAPI.shared.mediaHeaders)
+      let startAt = resumePosition()
+      engine.load(
+        url: source.url,
+        backup: source.backup,
+        headers: BiliAPI.shared.mediaHeaders,
+        autoplay: true,
+        muted: false,
+        loop: false,
+        startAt: startAt
+      )
+    }
+
+    func fail() {
+      guard !started, attempt == fastStartAttempt,
+            token == loadToken else { return }
+      if qn > 64 {
+        loadQuality(64, fastStart: false)
+      } else if qn > 32 {
+        loadQuality(32, fastStart: false)
+      } else {
+        loadingView.hide()
+        errorLabel.text = "无法获取播放地址"
+        errorLabel.isHidden = false
+      }
+    }
+
+    BiliAPI.shared.playLow(item) { [weak self] result in
+      guard let self = self, attempt == self.fastStartAttempt,
+            token == self.loadToken else { return }
+      lowFinished = true
+      guard !started else { return }
+      switch result {
+      case .success(let source):
+        low = source
+        if let target = target {
+          begin(target, lowQuality: false)
+        } else {
+          begin(source, lowQuality: true)
+        }
+      case .failure:
+        if let target = target {
+          begin(target, lowQuality: false)
+        } else if targetFinished {
+          fail()
+        }
+      }
+    }
+
+    BiliAPI.shared.playQuality(item, qn: qn) { [weak self] result in
+      guard let self = self, attempt == self.fastStartAttempt,
+            token == self.loadToken else { return }
+      targetFinished = true
+      switch result {
+      case .success(let source):
+        target = source
+        if started {
+          let label = source.qualityLabel.isEmpty ? "\(qn)P" : source.qualityLabel
+          qualityLabel.text = label
+          prepareQualityUpgrade(source)
+        } else {
+          begin(source, lowQuality: false)
+        }
+      case .failure:
+        guard !started else { return }
+        if let low = low {
+          begin(low, lowQuality: true)
+        } else if lowFinished {
+          fail()
+        }
+      }
     }
   }
 
@@ -1791,9 +1899,9 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 
   @objc private func cycleQuality() {
     if item.roomId > 0 { return }
-    if currentQuality > 64 { loadQuality(64) }
-    else if currentQuality > 32 { loadQuality(32) }
-    else { loadQuality(80) }
+    if currentQuality > 64 { loadQuality(64, fastStart: false) }
+    else if currentQuality > 32 { loadQuality(32, fastStart: false) }
+    else { loadQuality(80, fastStart: false) }
   }
 
   private func startLiveChat() {
@@ -2284,7 +2392,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
       guard let self = self else { return }
       self.currentQuality = qn
       ThemeManager.shared.quality = qn
-      self.loadQuality(qn)
+      self.loadQuality(qn, fastStart: false)
     }
     panel.onDanmaku = { [weak self] on in
       self?.danmakuOverlay.setEnabled(on)
@@ -2575,7 +2683,7 @@ final class PlayerViewController: UIViewController, UIGestureRecognizerDelegate 
 /// itself, so there is no circle or panel behind it, only the frosted shape.
 final class FrostedGlyphView: UIView {
   private let blur = UIVisualEffectView(
-    effect: UIBlurEffect(style: .systemUltraThinMaterialLight))
+    effect: UIBlurEffect(style: .systemThinMaterialLight))
   private let glyphMask = UIImageView()
   private let glyph = UIImageView()
 
@@ -2584,7 +2692,7 @@ final class FrostedGlyphView: UIView {
     backgroundColor = .clear
     isUserInteractionEnabled = false
     blur.isUserInteractionEnabled = false
-    blur.contentView.backgroundColor = UIColor.white.withAlphaComponent(0.10)
+    blur.contentView.backgroundColor = UIColor.white.withAlphaComponent(0.14)
     addSubview(blur)
 
     glyphMask.contentMode = .scaleAspectFit
@@ -2592,7 +2700,7 @@ final class FrostedGlyphView: UIView {
 
     glyph.contentMode = .scaleAspectFit
     glyph.tintColor = .white
-    glyph.alpha = 0.88
+    glyph.alpha = 0.55
     glyph.layer.shadowColor = UIColor.black.cgColor
     glyph.layer.shadowOpacity = 0.42
     glyph.layer.shadowRadius = 10
