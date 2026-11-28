@@ -312,6 +312,12 @@ final class HomeGridCell: UITableViewCell {
   func configure(_ left: VideoItem, _ right: VideoItem?) {
     leftItem = left
     leftCard.configure(left)
+    updateRight(right)
+  }
+
+  /// Fill the empty right slot without touching the already visible left
+  /// cover. Reloading the whole cell here would briefly clear the left image.
+  func updateRight(_ right: VideoItem?) {
     if let right = right {
       rightItem = right
       rightCard.alpha = 1

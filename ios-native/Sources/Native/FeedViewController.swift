@@ -459,7 +459,7 @@ final class FeedViewController: UIViewController,
         let leftIndex = (oldRows - 1) * 2
         let rightIndex = leftIndex + 1
         if rightIndex < items.count {
-          cell.configure(items[leftIndex], items[rightIndex])
+          cell.updateRight(items[rightIndex])
         }
       }
       var insertPaths: [IndexPath] = []
