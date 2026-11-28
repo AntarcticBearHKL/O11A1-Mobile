@@ -152,7 +152,11 @@ final class VideoEngine: NSObject {
         NSLog("[O11A1] media ready duration=%.1f", observed.duration.seconds)
         DispatchQueue.main.async {
           self.publish(.buffering)
-          let start = self.startAt
+          var start = self.startAt
+          let duration = observed.duration.seconds
+          if duration.isFinite, duration > 0 {
+            start = min(start, max(0, duration - 0.5))
+          }
           self.startAt = 0
           let finish = {
             guard self.player.currentItem === item else { return }

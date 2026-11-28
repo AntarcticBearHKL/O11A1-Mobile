@@ -265,15 +265,15 @@ final class UpProfileViewController: UIViewController, UITableViewDataSource,
 
     let closePan = UIPanGestureRecognizer(target: self, action: #selector(handleDismissPan(_:)))
     closePan.delegate = self
-    table.panGestureRecognizer.require(toFail: closePan)
     view.addGestureRecognizer(closePan)
+    table.panGestureRecognizer.require(toFail: closePan)
     dismissPan = closePan
 
     let sortPan = UIPanGestureRecognizer(target: self, action: #selector(handleSortSwipe(_:)))
     sortPan.delegate = self
     sortPan.cancelsTouchesInView = true
-    table.panGestureRecognizer.require(toFail: sortPan)
     view.addGestureRecognizer(sortPan)
+    table.panGestureRecognizer.require(toFail: sortPan)
     self.sortPan = sortPan
 
     applyCachedProfile()
